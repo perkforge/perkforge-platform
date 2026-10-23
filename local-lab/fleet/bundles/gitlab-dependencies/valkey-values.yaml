@@ -1,0 +1,15 @@
+architecture: standalone
+fullnameOverride: valkey
+auth:
+  enabled: false
+dataStorage:
+  enabled: true
+  requestedSize: 2Gi
+  className: local-path
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 384Mi

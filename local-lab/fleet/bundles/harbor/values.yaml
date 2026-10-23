@@ -1,0 +1,34 @@
+expose:
+  type: ingress
+  tls:
+    enabled: true
+    certSource: auto
+  ingress:
+    className: traefik
+    hosts:
+      core: harbor.local-lab.test
+externalURL: https://harbor.local-lab.test
+existingSecretAdminPassword: harbor-admin
+existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
+persistence:
+  enabled: true
+  resourcePolicy: keep
+  persistentVolumeClaim:
+    registry:
+      storageClass: local-path
+      size: 10Gi
+    jobservice:
+      jobLog:
+        storageClass: local-path
+        size: 1Gi
+    database:
+      storageClass: local-path
+      size: 1Gi
+    redis:
+      storageClass: local-path
+      size: 1Gi
+    trivy:
+      storageClass: local-path
+      size: 5Gi
+trivy:
+  enabled: true

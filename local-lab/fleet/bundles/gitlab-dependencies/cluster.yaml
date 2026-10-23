@@ -1,0 +1,25 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: gitlab-db
+  namespace: gitlab
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
+  primaryUpdateStrategy: unsupervised
+  storage:
+    storageClass: local-path
+    size: 8Gi
+  bootstrap:
+    initdb:
+      database: gitlabhq_production
+      owner: gitlab
+      secret:
+        name: gitlab-db-app
+  resources:
+    requests:
+      cpu: 100m
+      memory: 384Mi
+    limits:
+      cpu: 1
+      memory: 1Gi

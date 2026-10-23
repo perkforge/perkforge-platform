@@ -17,6 +17,8 @@ if ! command -v openssl >/dev/null 2>&1; then
   exit 1
 fi
 
+"${repo_root}/local-lab/scripts/prepare-platform-secrets.sh"
+
 chmod 0700 "${secrets_dir}"
 
 "${kubectl}" --kubeconfig "${kubeconfig}" create namespace mattermost \
@@ -56,15 +58,16 @@ elif [[ "${db_secret_exists}" != true || "${connection_secret_exists}" != true ]
 fi
 
 "${kubectl}" --kubeconfig "${kubeconfig}" apply -f \
-  "${repo_root}/local-lab/fleet/gitrepos/local-lab.yaml"
+  "${repo_root}/local-lab/fleet/gitrepos/local-lab.yaml" \
+  -f "${repo_root}/local-lab/fleet/gitrepos/platform-apps.yaml"
 
-echo "Fleet GitRepo applied. Waiting for its bundles and Mattermost workloads to become Ready."
+echo "Fleet GitRepos applied. Waiting for platform bundles and Mattermost workloads to become Ready."
 
 deadline=$((SECONDS + 1800))
 error_since=0
 last_error_state=""
 next_status_report=$((SECONDS + 60))
-printf 'Waiting up to 30 minutes for all four Fleet bundles and Mattermost pods'
+printf 'Waiting up to 30 minutes for all ten Fleet bundles and Mattermost pods'
 while (( SECONDS < deadline )); do
   bundle_states="$("${kubectl}" --kubeconfig "${kubeconfig}" -n fleet-local \
     get bundles --no-headers 2>/dev/null || true)"
@@ -87,7 +90,7 @@ while (( SECONDS < deadline )); do
 
   bundle_count="$(awk 'NF { count++ } END { print count + 0 }' <<<"${bundle_states}")"
   ready_bundle_count="$(awk '$2 ~ /^[0-9]+\/[0-9]+$/ { split($2, counts, "/"); if (counts[1] > 0 && counts[1] == counts[2]) count++ } END { print count + 0 }' <<<"${bundle_states}")"
-  if (( bundle_count >= 4 && ready_bundle_count == bundle_count )); then
+  if (( bundle_count >= 10 && ready_bundle_count == bundle_count )); then
     mattermost_pods="$("${kubectl}" --kubeconfig "${kubeconfig}" -n mattermost \
       get pods --no-headers 2>/dev/null || true)"
     if [[ -n "${mattermost_pods}" ]] && \
@@ -116,3 +119,10 @@ fi
 
 echo "Mattermost is ready at http://mattermost.local-lab.test."
 echo "The generated database password is in ${db_password_file} (mode 0600)."
+if "${kubectl}" --kubeconfig "${kubeconfig}" -n gitlab get secret gitlab-gitlab-initial-root-password >/dev/null 2>&1; then
+  umask 077
+  "${kubectl}" --kubeconfig "${kubeconfig}" -n gitlab \
+    get secret gitlab-gitlab-initial-root-password \
+    -o jsonpath='{.data.password}' | base64 --decode > "${secrets_dir}/gitlab-root-password"
+  chmod 0600 "${secrets_dir}/gitlab-root-password"
+fi

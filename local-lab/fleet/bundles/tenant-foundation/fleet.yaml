@@ -1,0 +1,3 @@
+name: local-lab-tenant-foundation
+labels:
+  local-lab.homelab/component: tenant-foundation

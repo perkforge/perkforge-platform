@@ -1,0 +1,8 @@
+name: local-lab-keycloak-database
+labels:
+  local-lab.homelab/component: keycloak-database
+defaultNamespace: keycloak
+dependsOn:
+  - selector:
+      matchLabels:
+        local-lab.homelab/component: cnpg-operator

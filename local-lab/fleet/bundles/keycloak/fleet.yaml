@@ -1,0 +1,16 @@
+name: local-lab-keycloak
+labels:
+  local-lab.homelab/component: keycloak
+defaultNamespace: keycloak
+dependsOn:
+  - selector:
+      matchLabels:
+        local-lab.homelab/component: keycloak-database
+helm:
+  repo: https://codecentric.github.io/helm-charts
+  chart: keycloakx
+  version: 7.4.0
+  releaseName: keycloak
+  takeOwnership: true
+  valuesFiles:
+    - values.yaml

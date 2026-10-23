@@ -1,0 +1,42 @@
+replicas: 1
+command:
+  - /opt/keycloak/bin/kc.sh
+  - start
+  - --http-port=8080
+  - --hostname-strict=false
+resources:
+  requests:
+    cpu: 250m
+    memory: 768Mi
+  limits:
+    cpu: "1"
+    memory: 1536Mi
+database:
+  vendor: postgres
+  hostname: keycloak-db-rw.keycloak.svc.cluster.local
+  port: 5432
+  database: keycloak
+  username: keycloak
+  existingSecret: keycloak-db-app
+  existingSecretKey: password
+http:
+  relativePath: /auth
+proxy:
+  enabled: true
+  mode: forwarded
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  rules:
+    - host: keycloak.local-lab.test
+      paths:
+        - path: /auth/
+          pathType: Prefix
+extraEnv: |
+  - name: KC_BOOTSTRAP_ADMIN_USERNAME
+    value: admin
+  - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-admin
+        key: password

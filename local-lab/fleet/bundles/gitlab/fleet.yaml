@@ -1,0 +1,16 @@
+name: local-lab-gitlab
+labels:
+  local-lab.homelab/component: gitlab
+defaultNamespace: gitlab
+dependsOn:
+  - selector:
+      matchLabels:
+        local-lab.homelab/component: gitlab-dependencies
+helm:
+  repo: https://charts.gitlab.io
+  chart: gitlab
+  version: 10.5.1
+  releaseName: gitlab
+  takeOwnership: true
+  valuesFiles:
+    - values.yaml

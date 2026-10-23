@@ -1,0 +1,35 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: platform-apps
+  namespace: fleet-local
+spec:
+  repo: https://github.com/coreyperkins/homelab.git
+  branch: main
+  # This list is the active local application profile. Add/remove app bundle
+  # paths to enable/disable apps; include only one bundle per alternative.
+  # Optional catalog entries are listed below as they are implemented. Keep
+  # them commented until their bundle directory contains a reviewed deployment.
+  paths:
+    - local-lab/fleet/bundles/keycloak-db
+    - local-lab/fleet/bundles/keycloak
+    - local-lab/fleet/bundles/gitlab-dependencies
+    - local-lab/fleet/bundles/gitlab
+    - local-lab/fleet/bundles/harbor
+    - local-lab/fleet/bundles/mattermost-operator
+    - local-lab/fleet/bundles/mattermost
+    # Metrics, logs, and traces (optional profiles)
+    # - local-lab/fleet/bundles/prometheus-grafana
+    # - local-lab/fleet/bundles/alloy-loki
+    # - local-lab/fleet/bundles/tempo
+    # Code quality and supply-chain scanning
+    # - local-lab/fleet/bundles/sonarqube
+    # - local-lab/fleet/bundles/trivy
+    # Artifact registry alternative: choose Nexus instead of Harbor if wanted
+    # - local-lab/fleet/bundles/registry-nexus
+    # Secrets backend alternatives: choose exactly one
+    # - local-lab/fleet/bundles/secrets-vault
+    # - local-lab/fleet/bundles/secrets-openbao
+    # Policy enforcement and developer portal
+    # - local-lab/fleet/bundles/kyverno
+    # - local-lab/fleet/bundles/backstage

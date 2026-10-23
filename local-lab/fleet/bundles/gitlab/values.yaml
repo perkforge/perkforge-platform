@@ -1,0 +1,68 @@
+# Single-user development profile based on GitLab's official minimum example.
+# This is intentionally a non-production profile; add external dependencies
+# and capacity before using it beyond local integration exercises.
+prometheus:
+  install: false
+gitlab-runner:
+  install: false
+nginx-ingress:
+  enabled: false
+global:
+  edition: ce
+  hosts:
+    domain: local-lab.test
+    externalIP: 192.168.122.201
+    https: false
+  ingress:
+    configureCertmanager: false
+    class: traefik
+    tls:
+      enabled: false
+  rails:
+    bootsnap:
+      enabled: false
+  psql:
+    host: gitlab-db-rw.gitlab.svc.cluster.local
+    database: gitlabhq_production
+    username: gitlab
+    password:
+      secret: gitlab-db-app
+      key: password
+  redis:
+    host: valkey.gitlab.svc.cluster.local
+    port: 6379
+    auth:
+      enabled: false
+  appConfig:
+    object_store:
+      enabled: false
+gitlab:
+  webservice:
+    minReplicas: 1
+    resources:
+      limits:
+        memory: 1536M
+      requests:
+        cpu: 100m
+        memory: 900M
+    workhorse:
+      resources:
+        limits:
+          memory: 100M
+        requests:
+          cpu: 10m
+          memory: 10M
+  sidekiq:
+    minReplicas: 1
+    resources:
+      limits:
+        memory: 1536M
+      requests:
+        cpu: 50m
+        memory: 625M
+  gitlab-shell:
+    minReplicas: 1
+  toolbox:
+    enabled: false
+registry:
+  enabled: false

@@ -1,0 +1,18 @@
+name: local-lab-gitlab-dependencies
+labels:
+  local-lab.homelab/component: gitlab-dependencies
+defaultNamespace: gitlab
+dependsOn:
+  - selector:
+      matchLabels:
+        local-lab.homelab/component: cnpg-operator
+resources:
+  - cluster.yaml
+helm:
+  repo: https://valkey.io/valkey-helm/
+  chart: valkey
+  version: 0.12.0
+  releaseName: valkey
+  takeOwnership: true
+  valuesFiles:
+    - valkey-values.yaml

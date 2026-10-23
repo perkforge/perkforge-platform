@@ -1,0 +1,12 @@
+name: local-lab-harbor
+labels:
+  local-lab.homelab/component: harbor
+defaultNamespace: harbor
+helm:
+  repo: https://helm.goharbor.io
+  chart: harbor
+  version: 1.19.2
+  releaseName: harbor
+  takeOwnership: true
+  valuesFiles:
+    - values.yaml

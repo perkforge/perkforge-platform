@@ -19,7 +19,7 @@ Runs the complete local VM rebuild without interactive prompts:
   3. Completes Ansible host configuration.
   4. Installs RKE2 and waits for both Kubernetes nodes to become Ready.
   5. Installs Rancher and waits for its deployments.
-  6. Deploys Mattermost through Fleet and waits for bundles and pods to be Ready.
+  6. Deploys platform applications through Fleet and waits for bundles and pods to be Ready.
 
 This deletes all cluster data stored on the VM disks. The RHEL ISO and
 .secrets/ are preserved. The explicit --confirm-destroy flag authorizes this
@@ -66,7 +66,7 @@ actual_volume_label="$(blkid -p -s LABEL -o value "$iso" 2>/dev/null || true)"
 virsh -c qemu:///system uri >/dev/null 2>&1 || die "Direct access to system libvirt is unavailable. Configure libvirt access first; this script will not stop for a sudo prompt."
 [[ -w "$image_dir" ]] || die "The images directory is not writable by the current user; configure disk permissions before rebuilding."
 [[ -f local-lab/ansible/ansible.cfg && -f local-lab/ansible/inventory/hosts.yml ]] || die "Local-lab Ansible configuration is missing."
-[[ -x "$scripts_dir/deploy-mattermost.sh" ]] || die "The Mattermost deployment script is missing or not executable."
+[[ -x "$scripts_dir/deploy-mattermost.sh" ]] || die "The Fleet application deployment script is missing or not executable."
 
 git remote get-url origin >/dev/null 2>&1 || die "Git remote 'origin' is required for Fleet to fetch Mattermost bundles."
 git fetch --quiet origin main || die "Could not fetch origin/main; refusing teardown because Fleet needs that branch."
@@ -75,8 +75,15 @@ untracked_fleet_files="$(git ls-files --others --exclude-standard -- local-lab/f
 [[ -z "$untracked_fleet_files" ]] || die "Untracked Fleet files exist; commit and push the intended configuration before rebuilding."
 for fleet_file in \
   local-lab/fleet/gitrepos/local-lab.yaml \
+  local-lab/fleet/gitrepos/platform-apps.yaml \
   local-lab/fleet/bundles/storage/fleet.yaml \
+  local-lab/fleet/bundles/tenant-foundation/fleet.yaml \
   local-lab/fleet/bundles/cnpg-operator/fleet.yaml \
+  local-lab/fleet/bundles/keycloak-db/fleet.yaml \
+  local-lab/fleet/bundles/keycloak/fleet.yaml \
+  local-lab/fleet/bundles/gitlab-dependencies/fleet.yaml \
+  local-lab/fleet/bundles/gitlab/fleet.yaml \
+  local-lab/fleet/bundles/harbor/fleet.yaml \
   local-lab/fleet/bundles/mattermost-operator/fleet.yaml \
   local-lab/fleet/bundles/mattermost/fleet.yaml; do
   git cat-file -e "FETCH_HEAD:$fleet_file" 2>/dev/null || die "origin/main is missing $fleet_file; refusing teardown."
@@ -106,14 +113,14 @@ ANSIBLE_CONFIG="$repo_root/local-lab/ansible/ansible.cfg" \
   wait --for=condition=Ready nodes --all --timeout=10m
 "$secrets_dir/kubectl" --kubeconfig "$secrets_dir/rke2.yaml" get nodes -o wide
 
-printf '\n%s\n' 'Stage 6/6: install Rancher and deploy Mattermost through Fleet.'
+printf '\n%s\n' 'Stage 6/6: install Rancher and deploy the platform applications through Fleet.'
 ANSIBLE_CONFIG="$repo_root/local-lab/ansible/ansible.cfg" \
   ansible-playbook local-lab/ansible/playbooks/install-rancher.yml
 
 "$scripts_dir/deploy-mattermost.sh"
 
 printf '\nLocal lab rebuild completed at %s.\n' "$(date --iso-8601=seconds)"
-printf 'RHEL host configuration, RKE2, Rancher, and Mattermost are ready.\n'
+printf 'RHEL host configuration, RKE2, Rancher, and the configured platform applications are ready.\n'
 printf 'Rancher: https://rancher.local-lab.test (admin password file: %s/rancher-bootstrap-password)\n' "$secrets_dir"
 printf 'Mattermost: http://mattermost.local-lab.test (database password file: %s/mattermost-db-password)\n' "$secrets_dir"
 printf 'Full log: %s\n' "$log_file"
