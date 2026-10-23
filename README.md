@@ -1,6 +1,6 @@
-# Kubernetes Homelab
+# PerkForge Platform
 
-Early requirements and deployment outline for a small, self-managed Kubernetes homelab.
+PerkForge Platform is a functional, secure, multi-tenant Kubernetes PaaS reference implementation. It demonstrates platform engineering, DevSecOps, security architecture, and RMF/GRC through working services, enforced tenant boundaries, repeatable assessment, and documented evidence. The current operator uses synthetic tenants to verify real multi-tenant behavior.
 
 ## Goals
 
@@ -20,7 +20,11 @@ Early requirements and deployment outline for a small, self-managed Kubernetes h
 
 PXE boot and Kickstart starting files are in [`pxe/`](pxe/README.md). They are templates for development, not ready-to-enable network services; the DHCP owner, RHEL release, and lab network still need to be chosen.
 
-The local VM lab is a disposable two-node learning setup, separate from the planned physical homelab. Its one-command rebuild and manual steps are in [`local-lab/README.md`](local-lab/README.md). The current environment state and resume notes are in [`HANDOFF.md`](HANDOFF.md). The top-level [`ansible/`](ansible/README.md) directory is reserved for the future physical machines.
+The immediate development target is the disposable two-node VM lab, followed by the planned three-node ThinkCentre RKE2 cluster. Their configurations remain separate. The local lab rebuild and manual steps are in [`local-lab/README.md`](local-lab/README.md); the current environment state and resume notes are in [`HANDOFF.md`](HANDOFF.md). The top-level [`ansible/`](ansible/README.md) directory is for physical machines. Prefer reproducible, portable deployment patterns and avoid unnecessary hardware-specific assumptions.
+
+The planned source-to-target GitHub move and its no-history-loss safeguards are documented in [`docs/MIGRATION-PLAN.md`](docs/MIGRATION-PLAN.md). The local lab remains the active development harness while the physical hardware is in transit.
+
+The platform's assurance goal is to connect each selected security control to its working implementation, repeatable verification, collected evidence, findings, risk decisions, and remediation. RMF artifacts describe this reference environment and do not claim a formal government authorization.
 
 PXE requires a boot and installation service on the network. Decide where that service will run and how it will coexist with the existing DHCP service before enabling it; avoid introducing a second, conflicting DHCP server on a shared LAN.
 
@@ -38,7 +42,7 @@ The first RKE2 learning cluster uses two existing libvirt VMs on the host's defa
 - Firewalld is disabled in this isolated NAT-based exercise because the default Canal network plugin conflicts with firewalld. Revisit firewall rules before moving nodes onto a shared or physical network.
 - The lab-only SSH key, VM install answers, kubeconfig, kubectl copy, and other local credentials live under ignored `.secrets/`. The ISO under `images/` is also ignored. Recreate local credentials from the instructions in `local-lab/README.md` after a laptop replacement.
 
-To recreate the entire local stack, run `local-lab/scripts/rebuild-local-lab.sh --confirm-destroy`. It removes both VM disks and all cluster data on them, then provisions RHEL, configures the hosts, installs RKE2 and Rancher, and deploys Mattermost. It stops on the first failed stage and writes a log under `.secrets/`. The ISO and `.secrets/` are preserved. Use `local-lab/scripts/teardown-vms.sh` to preview removing only the VMs. These local workflows do not change the future physical homelab setup.
+To recreate the entire local stack, run `local-lab/scripts/rebuild-local-lab.sh --confirm-destroy`. It removes both VM disks and all cluster data on them, then provisions RHEL, configures the hosts, installs RKE2 and Rancher, and deploys the configured platform applications through Fleet. It stops on the first failed stage and writes a log under `.secrets/`. The ISO and `.secrets/` are preserved. Use `local-lab/scripts/teardown-vms.sh` to preview removing only the VMs. These local workflows do not change the future physical homelab setup.
 
 The Mattermost application has no preset admin login or password. The first user account created in the application becomes the system administrator. The database credential in `.secrets/mattermost-db-password` is only for PostgreSQL.
 

@@ -2,6 +2,12 @@
 
 This is the reproducible setup for the two disposable libvirt VMs. It is intentionally separate from the physical homelab configuration under [`../ansible/`](../ansible/README.md). See the repository [HANDOFF](../HANDOFF.md) for current live state and resume notes.
 
+See [APPLICATIONS.md](APPLICATIONS.md) for the PerkForge Platform app catalog,
+component alternatives, and staged local build plan. The disposable VM harness
+remains useful for development while the physical homelab hardware is being
+shipped. It is separate from the physical deployment configuration under
+`ansible/`.
+
 The provisioning script creates the VMs and installs RHEL 10.2 unattended with Kickstart. Ansible then configures RHEL and installs RKE2.
 
 ## What this automates
@@ -41,7 +47,7 @@ To tear down and recreate the complete local lab without intermediate prompts, r
 local-lab/scripts/rebuild-local-lab.sh --confirm-destroy
 ```
 
-This removes both VM disks and the data on them, provisions RHEL, completes Ansible host configuration, installs RKE2, waits for both nodes to become Ready, installs Rancher, then deploys Mattermost through Fleet and waits for all bundles and Mattermost pods to become Ready. The ISO and `.secrets/` are preserved. Before teardown, the script checks direct libvirt access, the ISO checksum, required tools, and that the Fleet configuration on `origin/main` matches the local files. It never asks for a sudo password: if direct libvirt access is unavailable, it stops before teardown. Ansible uses the private VM password file. A failed command stops the rebuild and reports the failed stage; the full output is saved in `.secrets/local-lab-rebuild-*.log`. When Codex runs it, one approval at launch covers the full command; the script does not request approval between stages. If a stage fails, the run stops for review instead of launching separate recovery commands.
+This removes both VM disks and the data on them, provisions RHEL, completes Ansible host configuration, installs RKE2, waits for both nodes to become Ready, installs Rancher, then deploys the configured platform applications through Fleet and waits for their bundles and Mattermost pods to become Ready. The ISO and `.secrets/` are preserved. Before teardown, the script checks direct libvirt access, the ISO checksum, required tools, and that the Fleet configuration on `origin/main` matches the local files. It never asks for a sudo password: if direct libvirt access is unavailable, it stops before teardown. Ansible uses the private VM password file. A failed command stops the rebuild and reports the failed stage; the full output is saved in `.secrets/local-lab-rebuild-*.log`. When Codex runs it, one approval at launch covers the full command; the script does not request approval between stages. If a stage fails, the run stops for review instead of launching separate recovery commands.
 
 When you want to remove the VMs, preview the teardown first:
 
@@ -83,9 +89,29 @@ The local Rancher UI is at <https://rancher.local-lab.test>. Mattermost is at <h
 192.168.122.201 rancher.local-lab.test mattermost.local-lab.test
 ```
 
-## Deploy Mattermost with Fleet
+## Deploy local platform applications with Fleet
 
-`local-lab/fleet/` contains the Fleet GitRepo and bundles for this disposable VM cluster. Fleet installs Rancher's local-path provisioner, CloudNativePG, and the Mattermost Operator Helm chart, then deploys one Mattermost Team Edition server with a single PostgreSQL instance. The app is reachable at <http://mattermost.local-lab.test> after adding `192.168.122.201 mattermost.local-lab.test` to the laptop's hosts file.
+`local-lab/fleet/` contains separate Fleet GitRepos for the disposable lab foundation and platform applications. The `local-lab` GitRepo manages storage, tenant foundations, and the CloudNativePG operator. The `platform-apps` GitRepo manages Keycloak, GitLab and its PostgreSQL/Valkey dependencies, Harbor, and Mattermost. Add or remove app bundle paths in `fleet/gitrepos/platform-apps.yaml` to configure the local app profile. These are local learning profiles, not production values.
+
+The platform baseline can be installed directly from the checked-out configuration with:
+
+```sh
+local-lab/scripts/deploy-platform-baseline.sh
+```
+
+It creates local credentials in ignored `.secrets/`, installs the Keycloak and GitLab databases, then installs Keycloak, Harbor, and GitLab. Password files are owner-only: `keycloak-admin-password`, `harbor-admin-password`, and `gitlab-root-password` (the last appears once GitLab initializes). Keycloak admin username is `admin`; Harbor username is `admin`; GitLab username is `root`. It does not print passwords. The script uses Helm directly so it can run before Fleet sees local unpushed changes; the Fleet GitRepo continues to track `origin/main` and will reconcile these app bundle paths after they are pushed and the GitRepo is refreshed.
+
+This initial GitLab profile disables GitLab Runner to keep the first deployment smaller. GitLab can host groups and projects, but CI pipelines will remain pending until a Runner is configured. GitLab object storage is also disabled for this local profile, so uploads and artifacts use local storage. Harbor uses a self-signed generated ingress certificate. These are deliberate local-only settings to revisit when sizing the lab; they are not suitable for production. GitLab's own minimum example disables Runner and targets a single-user test deployment; its chart's standard target is much larger than these two 4-GiB VMs ([minimum profile](https://gitlab.com/gitlab-org/charts/gitlab/-/raw/master/examples/values-gke-minimum.yaml), [resource guidance](https://docs.gitlab.com/charts/installation/cloud/)).
+
+The first live trial brought up Keycloak and Valkey. Harbor initially deployed, but a repeat Helm upgrade OOM-killed Harbor's PostgreSQL pod (exit 137) while node memory reached 86% and 72%. GitLab itself has not been installed. The scripts and Fleet values are being configured, but the complete app profile is not currently reliable on the two 4-GiB VMs. Do not tear down the working lab or publish the app profile for a full rebuild until the memory profile is reduced or the VMs are enlarged. Harbor's documented minimum is 4 GB by itself ([Harbor prerequisites](https://goharbor.io/docs/main/install-config/installation-prereqs/)).
+
+After adding these host entries on the laptop, open the app URLs:
+
+```text
+192.168.122.201 keycloak.local-lab.test harbor.local-lab.test gitlab.local-lab.test
+```
+
+Keycloak: <http://keycloak.local-lab.test/auth/>. Harbor: <https://harbor.local-lab.test>. GitLab: <http://gitlab.local-lab.test>. Harbor's certificate is self-signed, so the browser will warn until the local CA/certificate is trusted.
 
 This is a learning setup: the local-path provisioner stores each volume on one VM, so it does not provide node-failure recovery or backups. Mattermost file storage and PostgreSQL data will be lost if their VM disk is deleted. The configuration is single replica and has no TLS; do not expose it outside the lab.
 
@@ -95,11 +121,12 @@ After these changes are available on the repository's `main` branch, bootstrap t
 local-lab/scripts/deploy-mattermost.sh
 ```
 
-The script creates the Mattermost namespace and randomly generated PostgreSQL credentials on the cluster, stores the password in ignored `.secrets/mattermost-db-password`, then creates the `local-lab` GitRepo in Fleet's `fleet-local` namespace. Fleet watches the four bundle paths on `main`; changes pushed to those paths are reconciled automatically. The script waits for all four bundles and Mattermost namespace pods to become Ready, tolerates transient dependency errors for up to three minutes, and prints Fleet and pod status if it times out. To inspect progress:
+The script prepares the platform chart credentials, creates the Mattermost namespace and randomly generated PostgreSQL credentials on the cluster, stores the Mattermost password in ignored `.secrets/mattermost-db-password`, then applies the `local-lab` and `platform-apps` GitRepos in Fleet's `fleet-local` namespace. Fleet watches the configured bundle paths on `main`; changes pushed to those paths are reconciled automatically. The script waits for all ten configured Fleet bundles and Mattermost namespace pods to become Ready, tolerates transient dependency errors for up to three minutes, and prints Fleet and pod status if it times out. To inspect progress:
 
 ```sh
 .secrets/kubectl --kubeconfig .secrets/rke2.yaml -n fleet-local get gitrepo,bundles
 .secrets/kubectl --kubeconfig .secrets/rke2.yaml -n mattermost get pods,pvc
+.secrets/kubectl --kubeconfig .secrets/rke2.yaml -n gitlab get pods,ingress,pvc
 ```
 
 The generated database password is local to this VM exercise and is not stored in Git. Keep `.secrets/` private. These Fleet files are separate from the physical homelab Ansible configuration. Mattermost has no seeded admin account or password. Create the first account through the UI; Mattermost assigns that first user the System Admin role. See [Mattermost roles](https://docs.mattermost.com/end-user-guide/collaborate/learn-about-roles).

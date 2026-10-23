@@ -2,6 +2,33 @@
 
 Last updated: 2026-10-23
 
+## Product direction and repository move
+
+- The project identity is Perkins Forge / PerkForge Platform: a functional,
+  secure, multi-tenant Kubernetes PaaS reference implementation demonstrating
+  platform engineering, DevSecOps, security architecture, and RMF/GRC.
+- Continue local development in the disposable VM harness while the physical
+  ThinkCentre hardware is shipped, then move to the three-node RKE2 cluster.
+  The current operator uses synthetic tenants to test genuine tenant
+  provisioning and security boundaries. Keep portable deployment patterns
+  where practical; EKS, AKS, and multiple production environments are not
+  active targets. Commercial billing and public onboarding are out of scope.
+- The engineering objective includes working PaaS capabilities, implemented
+  security controls, repeatable assessment evidence, findings, and risk
+  remediation. Do not describe the project primarily as a single-user
+  homelab experiment.
+- A history-preserving migration from `coreyperkins/homelab` to
+  `perkforge/perkforge-platform` is documented in
+  [`docs/MIGRATION-PLAN.md`](docs/MIGRATION-PLAN.md). No remote, GitHub repo,
+  or infrastructure identifiers have been changed.
+- On 2026-10-23, GitHub CLI authentication was verified for `coreyperkins`.
+  `perkforge/perkforge-platform` exists as a private, empty repository and the
+  account reports `ADMIN` permission. Source and target remotes remain
+  unchanged; no push or migration write has been performed.
+- The source working tree has modified and untracked local lab work. Review
+  and preserve those changes before selecting migration commits. The detailed
+  gates are in [`docs/MIGRATION-PLAN.md`](docs/MIGRATION-PLAN.md).
+
 ## Current local lab state
 
 - `cks-control` is RHEL 10.2 at `192.168.122.201`.
@@ -9,7 +36,9 @@ Last updated: 2026-10-23
 - Both nodes are configured with SELinux enforcing, the RHEL DVD repositories, and host prerequisites for RKE2.
 - RKE2 `v1.36.5+rke2r1` is installed; both nodes were verified `Ready`.
 - Rancher `2.15.2` is installed at <https://rancher.local-lab.test>.
-- Mattermost Team Edition `12.0.0` is deployed at <http://mattermost.local-lab.test> through Fleet. The GitRepo reports 4/4 ready bundle deployments, the app and database pods were Ready, and both PVCs were Bound.
+- Mattermost Team Edition `12.0.0` is deployed at <http://mattermost.local-lab.test> through Fleet. At the last recorded check, its GitRepo reported 4/4 ready bundle deployments, the app and database pods were Ready, and both PVCs were Bound.
+- Keycloak and Valkey have deployed Helm releases; Keycloak's pod is Ready. Harbor's first install succeeded, but a later upgrade failed while its database was OOM-killed (exit 137); its core is Ready at the last inspection, while one jobservice pod is CrashLooping. Harbor needs recovery and lower resource use before relying on its UI. GitLab's PostgreSQL and Valkey dependencies are running, but GitLab itself was not installed; its chart initially used the Rancher proxy context, now fixed in the script. GitLab Runner remains disabled in this low-footprint profile.
+- The app trial reached 86% memory use on `cks-control` and 72% on `cks-worker` before the Harbor OOM. Do not tear down/rebuild or rerun the all-app Fleet profile until the app resource profile is adjusted. The latest user-approved run stopped before GitLab after Harbor's database restart.
 - `/etc/hosts` maps both `rancher.local-lab.test` and `mattermost.local-lab.test` to `192.168.122.201`.
 
 ## Kubeconfig
@@ -34,9 +63,20 @@ The complete local stack is rebuilt with:
 local-lab/scripts/rebuild-local-lab.sh --confirm-destroy
 ```
 
-This deletes both VM disks and cluster data, then provisions RHEL, configures hosts, installs RKE2 and Rancher, and deploys Mattermost. It checks the ISO, direct libvirt access, and remote Fleet files before teardown. It stops on the first failure and records output in `.secrets/local-lab-rebuild-*.log`. Do not run this unless the user explicitly requests a destructive rebuild.
+This deletes both VM disks and cluster data, then provisions RHEL, configures hosts, installs RKE2 and Rancher, and deploys the platform applications through Fleet. It checks the ISO, direct libvirt access, and remote Fleet files before teardown. It stops on the first failure and records output in `.secrets/local-lab-rebuild-*.log`. Do not run this unless the user explicitly requests a destructive rebuild.
 
-The Mattermost-only deploy command is `local-lab/scripts/deploy-mattermost.sh`. It preserves existing DB credentials, applies the Fleet GitRepo, and waits for all four bundles and Mattermost pods. Its Fleet readiness check uses the bundle deployment `1/1` count; Fleet leaves the display state blank for ready bundles.
+The Fleet deploy command is `local-lab/scripts/deploy-mattermost.sh`. It preserves or recovers existing platform credentials, applies the foundation and platform-app GitRepos, and waits for ten bundles and Mattermost pods. Its Fleet readiness check uses the bundle deployment `1/1` count; Fleet leaves the display state blank for ready bundles. To try the local Keycloak/GitLab/Harbor charts before publishing their Fleet files, use `local-lab/scripts/deploy-platform-baseline.sh`.
+
+## Pending local Fleet changes
+
+The working tree has a tenant-foundation bundle and separates the Fleet
+GitRepos into `local-lab` (storage, tenant controls, and database operator) and
+`platform-apps` (Keycloak, GitLab dependencies and app, Harbor, and Mattermost).
+These files have not been pushed or reconciled to the cluster. The deploy and
+rebuild scripts expect the ten-bundle layout, so publish the intended Fleet
+files to `main` only after reviewing the low-memory app settings and testing the
+result. The current 8-GiB VM footprint OOMed Harbor's database during an
+upgrade, before GitLab was installed.
 
 ## Recent fixes
 
@@ -47,4 +87,4 @@ The Mattermost-only deploy command is `local-lab/scripts/deploy-mattermost.sh`. 
 
 ## Working tree
 
-Documentation, Ansible, and local-lab scripts have uncommitted changes from the rebuild and prompt/readiness fixes. Review `git status` before committing. Root-level `kubectl` and `kubectl.sha256` artifacts are ignored and should not be committed.
+Review `git status` before committing. Root-level `kubectl` and `kubectl.sha256` artifacts are ignored and should not be committed.
