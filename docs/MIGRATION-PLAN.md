@@ -28,23 +28,22 @@ assessment artifacts.
 
 ## Current repository facts
 
-- Source checkout: `/home/corey/src/homelab`.
-- Source remote: `https://github.com/coreyperkins/homelab.git`.
-- Source branch: `main`, at `5f7f30e` after migration commits. Source
-  `origin/main` remains at `04030d6`. No tags or additional branches were
-  present at the time of the push.
-- The reviewed working-tree changes were committed as `ead1fb2` (PerkForge
-  scope and documentation) and `5f7f30e` (local-lab platform bundles and
-  automation). The worktree was clean before the push.
-- Destination: `https://github.com/perkforge/perkforge-platform.git`. The
-  local checkout at `/home/corey/src/perkforge-platform` was empty during the
-  initial assessment; recheck or recreate it before using it as a working
-  checkout.
+- Historical source checkout: `/home/corey/src/homelab`, now removed locally.
+  Its GitHub repository remains available as the `source` remote.
+- Source remote: `https://github.com/coreyperkins/homelab.git`; its `main`
+  remains at `04030d6`. No tags or additional branches were present at the
+  time of migration.
+- Current checkout: `/home/corey/src/perkforge-platform`, with `origin` at
+  `https://github.com/perkforge/perkforge-platform.git` and `source` retaining
+  the former remote. `main` is at `c4698d5` and tracks `origin/main`.
+- Reviewed changes were committed as `ead1fb2` (PerkForge scope and docs),
+  `5f7f30e` (local-lab platform configuration), `c5cff46` (push status), and
+  `c4698d5` (canonical remote and migration status).
 - On 2026-10-23, authenticated GitHub CLI access was verified for
   `coreyperkins` using the keyring. The private target repository exists and
   reports `ADMIN` permission. Before the push it was private and empty; `main`
-  was created from the preserved source history. The pushed branch was then
-  verified at `5f7f30e` and GitHub reported `main` as the default branch.
+  was created from the preserved source history. The pushed branch is verified
+  at `c4698d5` and GitHub reports `main` as the default branch.
 
 These observations are a snapshot. Recheck source and target refs, working
 trees, and GitHub permissions immediately before each migration write.
@@ -136,8 +135,7 @@ that Fleet can fetch the new source before removing the old reference.
 - Verified destination `main` at `5f7f30e`, matching local `HEAD` at that
   stage. The local `perkforge` remote was then promoted to canonical `origin`,
   and the original repository was retained as `source`.
-- Added the later migration-status documentation commit and pushed it; PerkForge
-  `main` is now at `c5cff46`, matching local `HEAD`.
+- Added migration-status commits and verified PerkForge `main` at `c4698d5`.
 - Keep the old repository available until the new checkout and Fleet source
   have been verified.
 
@@ -211,15 +209,16 @@ been changed.
 1. **Change GitHub repository settings.** This includes transferring or
    renaming repositories, changing visibility/default branch, or editing
    organization/repository metadata.
-2. **Change operational Fleet references.** Update Fleet GitRepo URLs only
-   after the destination contains the verified history and bundle paths; then
-   verify Fleet fetches the new source.
+2. **Change operational Fleet references.** The in-cluster GitRepo still
+   references the old repository. Update Fleet GitRepo URLs only after the
+   destination contains the verified history and bundle paths, then verify
+   Fleet fetches and reconciles the new source.
 3. **Change other operational references.** Review scripts or integrations
    separately from Fleet sources, then update them in a separately approved
    stage.
-4. **Archive or delete the old repository.** Keep it available until migration
-   and operational verification are complete; archival or deletion requires
-   its own approval.
+4. **Archive or delete the old repository.** Keep it available until Fleet
+   references the destination and reconciliation is verified. Deletion
+   requires its own explicit approval.
 
 Readiness checks do not grant approval for these actions. Preserve technical
 identifiers throughout unless a separately reviewed compatibility change is
