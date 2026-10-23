@@ -1,0 +1,25 @@
+---
+plugin: amazon.aws.aws_ec2
+regions:
+  - us-east-1
+filters:
+  tag:Project: PerkForgePlatform
+  tag:Environment: aws-lab
+  tag:LabStack: perkforge-aws-lab
+  instance-state-name:
+    - pending
+    - running
+    - stopping
+    - stopped
+hostnames:
+  - instance-id
+compose:
+  ansible_host: instance_id
+  rke2_node_ip: private_ip_address
+  rke2_node_name: tags.Name
+keyed_groups:
+  - key: tags.Role
+    prefix: rke2
+    separator: "_"
+strict: false
+use_contrib_script_compatible_sanitization: true

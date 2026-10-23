@@ -1,0 +1,115 @@
+---
+- name: Provision the disposable PerkForge AWS lab
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
+  tasks:
+    - name: Require explicit authorization for billable provisioning
+      ansible.builtin.assert:
+        that:
+          - aws_lab_confirmation | default('') == 'create perkforge aws lab'
+        fail_msg: >-
+          Provisioning incurs charges. Re-run only after reviewing the plan and
+          explicitly setting aws_lab_confirmation='create perkforge aws lab'.
+
+    - name: Require a pinned AMI and reviewed OS root-device name
+      ansible.builtin.assert:
+        that:
+          - aws_lab_ami_id is match('^ami-[0-9a-f]+$')
+          - aws_lab_root_device_name | length > 0
+          - aws_lab_os_family in ['rhel', 'amazon']
+          - aws_lab_expiration_tag != 'SET-BEFORE-PROVISIONING'
+        fail_msg: >-
+          Set the pinned AMI ID, root device, OS family, and resource expiration
+          tag in group_vars/all.yml after reviewing compatibility and cost.
+
+    - name: Create the ignored local secrets directory
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../../.secrets/aws-lab/credentials"
+        state: directory
+        mode: "0700"
+
+    - name: Create a per-run EC2 key pair and store its private key locally
+      amazon.aws.ec2_key:
+        name: "{{ aws_lab_key_pair_name }}"
+        key_type: rsa
+        key_bits: 3072
+        file_name: "{{ playbook_dir }}/../../../.secrets/aws-lab/credentials/id_rsa"
+        region: "{{ aws_lab_region }}"
+        tags:
+          Project: "{{ aws_lab_project_tag }}"
+          Environment: "{{ aws_lab_environment_tag }}"
+          ManagedBy: "{{ aws_lab_managed_by_tag }}"
+      no_log: true
+
+    - name: Verify the private half of the EC2 key pair is present locally
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/../../../.secrets/aws-lab/credentials/id_rsa"
+      register: aws_lab_key_file
+
+    - name: Refuse to reuse an AWS key pair without its local private key
+      ansible.builtin.assert:
+        that:
+          - aws_lab_key_file.stat.exists
+          - aws_lab_key_file.stat.mode == '0600'
+        fail_msg: >-
+          The EC2 key pair may already exist but its private key is unavailable.
+          Run teardown for the partial lab, then provision again.
+
+    - name: Create or update the tagged lab CloudFormation stack
+      amazon.aws.cloudformation:
+        stack_name: "{{ aws_lab_stack_name }}"
+        state: present
+        region: "{{ aws_lab_region }}"
+        capabilities:
+          - CAPABILITY_NAMED_IAM
+        template_body: "{{ lookup('file', playbook_dir ~ '/../templates/ec2-lab-stack.yml') }}"
+        template_parameters:
+          LabName: "{{ aws_lab_stack_name }}"
+          AmiId: "{{ aws_lab_ami_id }}"
+          RootDeviceName: "{{ aws_lab_root_device_name }}"
+          InstanceType: "{{ aws_lab_instance_type }}"
+          VolumeSizeGiB: "{{ aws_lab_volume_size_gib | string }}"
+          KeyPairName: "{{ aws_lab_key_pair_name }}"
+          CpuCredits: "{{ aws_lab_cpu_credits }}"
+          VpcCidr: "{{ aws_lab_vpc_cidr }}"
+          SubnetCidr: "{{ aws_lab_subnet_cidr }}"
+          ServerPrivateIp: "{{ aws_lab_server_ip }}"
+          Agent1PrivateIp: "{{ aws_lab_agent_1_ip }}"
+          Agent2PrivateIp: "{{ aws_lab_agent_2_ip }}"
+          ProjectTag: "{{ aws_lab_project_tag }}"
+          EnvironmentTag: "{{ aws_lab_environment_tag }}"
+          ManagedByTag: "{{ aws_lab_managed_by_tag }}"
+          ExpirationTag: "{{ aws_lab_expiration_tag }}"
+        tags:
+          Project: "{{ aws_lab_project_tag }}"
+          Environment: "{{ aws_lab_environment_tag }}"
+          ManagedBy: "{{ aws_lab_managed_by_tag }}"
+          ExpiresOn: "{{ aws_lab_expiration_tag }}"
+
+    - name: Read the created lab instances so root volumes can receive cost tags
+      amazon.aws.ec2_instance_info:
+        region: "{{ aws_lab_region }}"
+        filters:
+          "tag:Project": "{{ aws_lab_project_tag }}"
+          "tag:Environment": "{{ aws_lab_environment_tag }}"
+          "tag:LabStack": "{{ aws_lab_stack_name }}"
+          "instance-state-name": [pending, running, stopping, stopped]
+      register: aws_lab_instances
+
+    - name: Tag each encrypted root EBS volume
+      amazon.aws.ec2_tag:
+        resource: "{{ item.1.ebs.volume_id }}"
+        region: "{{ aws_lab_region }}"
+        state: present
+        tags:
+          Name: "{{ item.0.tags.Name }}-root"
+          Project: "{{ aws_lab_project_tag }}"
+          Environment: "{{ aws_lab_environment_tag }}"
+          LabStack: "{{ aws_lab_stack_name }}"
+          ManagedBy: "{{ aws_lab_managed_by_tag }}"
+          ExpiresOn: "{{ aws_lab_expiration_tag }}"
+      loop: "{{ aws_lab_instances.instances | subelements('block_device_mappings') }}"
+      when: item.1.ebs is defined

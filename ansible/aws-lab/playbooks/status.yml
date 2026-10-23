@@ -1,0 +1,32 @@
+---
+- name: Report PerkForge AWS lab status
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
+  tasks:
+    - name: Read the CloudFormation stack status
+      amazon.aws.cloudformation_info:
+        stack_name: "{{ aws_lab_stack_name }}"
+        region: "{{ aws_lab_region }}"
+      register: aws_lab_stack_info
+
+    - name: Read tagged EC2 instance status
+      amazon.aws.ec2_instance_info:
+        region: "{{ aws_lab_region }}"
+        filters:
+          "tag:Project": "{{ aws_lab_project_tag }}"
+          "tag:Environment": "{{ aws_lab_environment_tag }}"
+          "tag:LabStack": "{{ aws_lab_stack_name }}"
+          "instance-state-name": [pending, running, stopping, stopped]
+      register: aws_lab_instances
+
+    - name: Print status without exposing credentials or kubeconfig
+      ansible.builtin.debug:
+        msg:
+          stack: "{{ aws_lab_stack_info.cloudformation.get(aws_lab_stack_name, {}).get('stack_description', {}).get('stack_status', 'absent') }}"
+          instances: >-
+            {{ aws_lab_instances.instances | map(attribute='instance_id') | list }}
+          states: "{{ aws_lab_instances.instances | map(attribute='state.name') | list }}"
+          private_ips: "{{ aws_lab_instances.instances | map(attribute='private_ip_address') | list }}"

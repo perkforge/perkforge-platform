@@ -110,6 +110,21 @@ revision and Ready state. `local-lab/scripts/deploy-mattermost.sh` is reserved
 for the explicitly enabled full app profile; it checks required paths before
 creating credentials or waiting for workloads.
 
+## Disposable AWS lab scaffolding
+
+- `ansible/aws-lab/` contains a separate EC2/RKE2 implementation; it does not
+  reuse the physical-host inventory or local VM settings.
+- The planned lab uses three `t3a.large` nodes in `us-east-1`, one server and
+  two agents, no public ingress, SSM-tunneled access, Standard CPU credits, and
+  encrypted EBS volumes that teardown deletes.
+- OS/AMI selection is intentionally unresolved. A pinned AMI ID, root-device
+  name, and OS family must be reviewed before provisioning. RHEL PAYG versus an
+  AWS Linux AMI remains a cost and compatibility decision.
+- Provision, start, configure, teardown, and account-level budget playbooks
+  have separate confirmation gates. The budget remains outside per-run teardown.
+- No AWS API calls, account changes, provisioning, or tests were run while
+  creating the scaffolding. See `ansible/aws-lab/README.md`.
+
 ## Fleet migration status
 
 The Fleet source migration is complete for the local VM cluster. Both GitRepos

@@ -5,12 +5,18 @@
 - Read [`README.md`](README.md) for the project structure.
 - Read [`HANDOFF.md`](HANDOFF.md) before resuming operational work; it records the current lab state and recent decisions.
 - Use [`local-lab/README.md`](local-lab/README.md) for the disposable VM workflow and [`ansible/README.md`](ansible/README.md) for the future physical cluster boundary.
+- Use [`ansible/aws-lab/README.md`](ansible/aws-lab/README.md) for the separate disposable EC2 environment. Do not run its provision, start, teardown, or budget playbooks without action-specific authorization.
 
-## Keep the two environments separate
+## Keep deployment environments separate
 
-- `ansible/` is reserved for future physical machines. Do not put local VM addresses, inventory, or settings there.
+- The root-level inventory and playbooks in `ansible/` are reserved for future
+  physical machines. `ansible/aws-lab/` is a separate, disposable EC2
+  implementation. Do not share inventories, addresses, or environment settings
+  between those subprojects.
 - `local-lab/` contains the disposable libvirt VMs, their Ansible configuration, Fleet bundles, and local scripts.
 - The local VMs use `192.168.122.201` (`cks-control`) and `192.168.122.202` (`cks-worker`). Do not reuse those addresses for physical hardware.
+- AWS lab playbooks can create billable resources and permanently delete disks.
+  Do not run them without explicit user authorization for that AWS action.
 
 ## Secrets and kubeconfigs
 

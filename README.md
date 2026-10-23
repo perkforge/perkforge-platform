@@ -20,7 +20,7 @@ PerkForge Platform is a functional, secure, multi-tenant Kubernetes PaaS referen
 
 PXE boot and Kickstart starting files are in [`pxe/`](pxe/README.md). They are templates for development, not ready-to-enable network services; the DHCP owner, RHEL release, and lab network still need to be chosen.
 
-The immediate development target is the disposable two-node VM lab, followed by the planned three-node ThinkCentre RKE2 cluster. Their configurations remain separate. The local lab rebuild and manual steps are in [`local-lab/README.md`](local-lab/README.md); the current environment state and resume notes are in [`HANDOFF.md`](HANDOFF.md). The top-level [`ansible/`](ansible/README.md) directory is for physical machines. Prefer reproducible, portable deployment patterns and avoid unnecessary hardware-specific assumptions.
+The immediate development target is the disposable two-node VM lab, followed by the planned three-node ThinkCentre RKE2 cluster. Their configurations remain separate. The local lab rebuild and manual steps are in [`local-lab/README.md`](local-lab/README.md); the current environment state and resume notes are in [`HANDOFF.md`](HANDOFF.md). The root of [`ansible/`](ansible/README.md) is reserved for physical machines. Its separate [`aws-lab/`](ansible/aws-lab/README.md) subproject is a disposable EC2 harness for Ansible and RKE2 testing; it does not replace the physical RHEL/PXE plan. Prefer reproducible, portable deployment patterns and avoid unnecessary hardware-specific assumptions.
 
 The planned source-to-target GitHub move and its no-history-loss safeguards are documented in [`docs/MIGRATION-PLAN.md`](docs/MIGRATION-PLAN.md). The local lab remains the active development harness while the physical hardware is in transit.
 
