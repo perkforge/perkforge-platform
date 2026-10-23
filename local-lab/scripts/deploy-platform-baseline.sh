@@ -49,7 +49,7 @@ require_installable_release() {
 "${kubectl}" --kubeconfig "${kubeconfig}" apply -f \
   "${repo_root}/local-lab/fleet/bundles/keycloak-db/cluster.yaml"
 "${kubectl}" --kubeconfig "${kubeconfig}" apply -f \
-  "${repo_root}/local-lab/fleet/bundles/gitlab-dependencies/cluster.yaml"
+  "${repo_root}/local-lab/fleet/bundles/gitlab-dependencies/database/cluster.yaml"
 
 "${helm}" repo add codecentric https://codecentric.github.io/helm-charts --force-update
 "${helm}" repo add harbor https://helm.goharbor.io --force-update
@@ -81,7 +81,7 @@ echo "Installing Valkey for GitLab."
 if require_installable_release gitlab valkey; then
   "${helm}" --kubeconfig "${kubeconfig}" upgrade --install valkey valkey/valkey --version 0.12.0 \
     --namespace gitlab \
-    --values "${repo_root}/local-lab/fleet/bundles/gitlab-dependencies/valkey-values.yaml" \
+    --values "${repo_root}/local-lab/fleet/bundles/gitlab-dependencies/valkey/values.yaml" \
     --wait --timeout 10m
 fi
 

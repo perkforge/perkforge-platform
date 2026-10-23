@@ -21,10 +21,10 @@
 
 ## Running the local lab
 
-- The full destructive rebuild is `local-lab/scripts/rebuild-local-lab.sh --confirm-destroy`. It deletes both VM disks and all cluster data on them, then rebuilds RHEL, host configuration, RKE2, Rancher, and Mattermost.
+- The destructive rebuild is `local-lab/scripts/rebuild-local-lab.sh --confirm-destroy`. It deletes both VM disks and all cluster data on them, then rebuilds RHEL, host configuration, RKE2, Rancher, and the configured low-footprint Fleet profile.
 - Run the full rebuild only when the user explicitly asks. It is designed to execute as one command with no interactive prompts: direct libvirt access is required, host sudo is disabled, Ansible reads the private VM password file, and teardown receives `--yes`.
 - If Codex runs a multi-stage operation, use one elevated command invocation for the entire authorized pipeline. Do not ask for separate approval between stages.
-- If a stage fails, stop and report the failed stage and log path. Do not launch separate elevated inspection or recovery commands without user direction; include safe diagnostics in the original run where practical.
-- The standalone `local-lab/scripts/deploy-mattermost.sh` is idempotent and waits for Fleet bundles and Mattermost pods to become Ready. Do not run it as an implicit part of a host-only task.
+- If a stage fails, use the user's existing authorization to diagnose and attempt safe recovery. Stop and report when recovery would exceed that authorization or cannot proceed safely; include useful diagnostics and log paths.
+- `local-lab/scripts/deploy-platform-profile.sh` applies and waits for the conservative local Fleet profile. `deploy-mattermost.sh` is an opt-in full application profile and checks that its required paths are enabled.
 - Do not commit or push unless the user asks.
 - Do not add or run tests unless the user asks.

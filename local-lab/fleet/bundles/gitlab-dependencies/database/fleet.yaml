@@ -1,0 +1,8 @@
+name: local-lab-gitlab-database
+labels:
+  local-lab.homelab/component: gitlab-dependencies
+defaultNamespace: gitlab
+dependsOn:
+  - selector:
+      matchLabels:
+        local-lab.homelab/component: cnpg-operator

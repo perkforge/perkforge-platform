@@ -17,6 +17,15 @@ if ! command -v openssl >/dev/null 2>&1; then
   exit 1
 fi
 
+profile_manifest="${repo_root}/local-lab/fleet/gitrepos/platform-apps.yaml"
+for path in keycloak-db keycloak gitlab-dependencies gitlab harbor mattermost-operator mattermost; do
+  if ! awk -v wanted="local-lab/fleet/bundles/${path}" '$1 == "-" && $2 == wanted { found = 1 } END { exit !found }' "${profile_manifest}"; then
+    echo "The full Mattermost profile requires ${path} to be enabled in ${profile_manifest}." >&2
+    echo "Enable the complete app profile and review VM memory before running this script." >&2
+    exit 1
+  fi
+done
+
 "${repo_root}/local-lab/scripts/prepare-platform-secrets.sh"
 
 chmod 0700 "${secrets_dir}"
@@ -67,7 +76,7 @@ deadline=$((SECONDS + 1800))
 error_since=0
 last_error_state=""
 next_status_report=$((SECONDS + 60))
-printf 'Waiting up to 30 minutes for all ten Fleet bundles and Mattermost pods'
+printf 'Waiting up to 30 minutes for the full Fleet profile and Mattermost pods'
 while (( SECONDS < deadline )); do
   bundle_states="$("${kubectl}" --kubeconfig "${kubeconfig}" -n fleet-local \
     get bundles --no-headers 2>/dev/null || true)"
@@ -90,7 +99,7 @@ while (( SECONDS < deadline )); do
 
   bundle_count="$(awk 'NF { count++ } END { print count + 0 }' <<<"${bundle_states}")"
   ready_bundle_count="$(awk '$2 ~ /^[0-9]+\/[0-9]+$/ { split($2, counts, "/"); if (counts[1] > 0 && counts[1] == counts[2]) count++ } END { print count + 0 }' <<<"${bundle_states}")"
-  if (( bundle_count >= 10 && ready_bundle_count == bundle_count )); then
+  if (( bundle_count >= 12 && ready_bundle_count == bundle_count )); then
     mattermost_pods="$("${kubectl}" --kubeconfig "${kubeconfig}" -n mattermost \
       get pods --no-headers 2>/dev/null || true)"
     if [[ -n "${mattermost_pods}" ]] && \
