@@ -36,7 +36,7 @@ teaching baseline, not a hard isolation boundary between hostile tenants.
 | --- | --- | --- |
 | Identity and SSO | Keycloak | Active in the conservative Fleet profile; OIDC integration with Rancher and GitLab is a follow-up |
 | Source control and CI | GitLab | PostgreSQL and Valkey dependencies are active; the GitLab application bundle is disabled until memory headroom is reviewed |
-| Collaboration | Mattermost | Already deployed; keep as the first application integration example |
+| Collaboration | Mattermost | Bundle available as an opt-in integration; disabled in the conservative profile |
 | Metrics and dashboards | Prometheus and Grafana | Add as a staged observability bundle |
 | Pod log collection | Grafana Alloy with Loki | Pair Alloy with a log backend; Alloy alone does not retain/query logs |
 | Traces | Grafana Tempo | Optional observability extension after metrics and logs |

@@ -28,25 +28,20 @@ assessment artifacts.
 
 ## Current repository facts
 
-- Historical source checkout: `/home/corey/src/homelab`, now removed locally.
-  Its GitHub repository remains available as the `source` remote.
+- Historical source checkout `/home/corey/src/homelab` has been removed
+  locally. Its GitHub repository remains available as `source`.
 - Source remote: `https://github.com/coreyperkins/homelab.git`; its `main`
   remains at `04030d6`. No tags or additional branches were present at the
   time of migration.
 - Current checkout: `/home/corey/src/perkforge-platform`, with `origin` at
   `https://github.com/perkforge/perkforge-platform.git` and `source` retaining
-  the former remote. `main` is at `c4698d5` and tracks `origin/main`.
-- Reviewed changes were committed as `ead1fb2` (PerkForge scope and docs),
-  `5f7f30e` (local-lab platform configuration), `c5cff46` (push status), and
-  `c4698d5` (canonical remote and migration status).
-- On 2026-10-23, authenticated GitHub CLI access was verified for
-  `coreyperkins` using the keyring. The private target repository exists and
-  reports `ADMIN` permission. Before the push it was private and empty; `main`
-  was created from the preserved source history. The pushed branch is verified
-  at `c4698d5` and GitHub reports `main` as the default branch.
-
-These observations are a snapshot. Recheck source and target refs, working
-trees, and GitHub permissions immediately before each migration write.
+  the former remote. `main` tracks `origin/main`; the target repository is
+  public.
+- History-preserving migration commits include `ead1fb2`, `5f7f30e`,
+  `c5cff46`, `c4698d5`, and subsequent Fleet/profile fixes. No force-push or
+  history rewrite was used.
+- The user changed repository visibility to public. Anonymous `git ls-remote`
+  confirmed destination `main` was readable before Fleet reconciliation.
 
 ## Migration rules
 
@@ -107,69 +102,42 @@ that Fleet can fetch the new source before removing the old reference.
 
 ## Migration stages
 
-### 1. Preserve and reconcile the source
+### 1. Preserve and reconcile the source — complete
 
-- Record the source commit, branch/tag list, remote URL, and complete status.
-- Review the existing dirty working tree file by file. Decide which local
-  changes are intended migration content; retain unrelated local state.
-- Keep a recoverable source checkout and do not delete the old GitHub repo.
-- Confirm that `.gitignore` still excludes `.secrets/`, `images/`, local
-  kubeconfigs, credentials, and generated artifacts.
+The source history and local state were reviewed. The old checkout was removed
+only after required files and local VM assets were moved and verified. The old
+GitHub repository remains available.
 
-### 2. Verify the destination
+### 2. Verify the destination — complete
 
-- Reauthenticate `gh` and confirm the active account and organization. This
-  was verified on 2026-10-23 for `coreyperkins`.
-- Confirm `perkforge/perkforge-platform` exists, is the intended repository,
-  and grants the user sufficient write/admin access. Before the push it was
-  private and empty, and the account reported `ADMIN` permission.
-- Inspect its refs and contents. Before the initial push it had no refs; after
-  the push, `main` matched the preserved source history at `5f7f30e`.
-- Confirm the desired visibility, default branch, repository description, and
-  organization profile location.
+The user created `perkforge/perkforge-platform`, verified its description, and
+changed its visibility to public. Anonymous access to `main` was confirmed.
 
 ### 3. Transfer history without rewriting it — complete
 
-- Added `perkforge` as a separate destination remote after explicit approval.
-- Pushed `main` without force. The target was empty and there were no tags.
-- Verified destination `main` at `5f7f30e`, matching local `HEAD` at that
-  stage. The local `perkforge` remote was then promoted to canonical `origin`,
-  and the original repository was retained as `source`.
-- Added migration-status commits and verified PerkForge `main` at `c4698d5`.
-- Keep the old repository available until the new checkout and Fleet source
-  have been verified.
+`main` was pushed without force from the preserved source history. The target
+is canonical `origin`; `coreyperkins/homelab` remains the `source` remote.
 
-### 4. Update repository metadata and documentation
+### 4. Update repository identity and documentation — complete
 
-- Update README, descriptions, documentation links, and portfolio language.
-- Preserve the full PaaS capability set, synthetic multi-tenancy, the local
-  VM harness, the three-node homelab target, and security/RMF evidence work.
-- Describe portable deployment patterns as a design preference without
-  treating EKS, AKS, or multiple production environments as active targets.
-- Remove claims about mass-market commercialization, billing, and public
-  customer onboarding while retaining the PaaS reference implementation
-  identity.
+Documentation describes PerkForge Platform as a functional multi-tenant PaaS
+reference implementation and engineering portfolio, preserving the local VM
+harness, physical homelab target, security controls, and RMF/GRC evidence goal.
 
-### 5. Repoint operational references
+### 5. Repoint operational references — complete for local Fleet
 
-- Search for the old GitHub URL and update Fleet GitRepo sources and scripts
-  that validate or fetch `origin/main`.
-- Review CI references, repository badges, documentation links, and any future
-  GitLab integration separately from app/cluster identifiers.
-- Do not change namespaces, labels, URLs, Helm releases, or cluster naming
-  merely to match the new brand.
-- Confirm Fleet fetches the target repository and that the configured bundle
-  paths exist before asking Fleet to reconcile them.
+The `local-lab` and `platform-apps` GitRepo sources now use the public PerkForge
+repository. Fleet fetched the same `main` revision for both GitRepos and
+reconciled all seven bundles in the conservative local profile. The GitLab
+PostgreSQL Cluster manifest and Valkey chart are separate bundles. Existing
+CNPG resources were adopted in place; no VM teardown or database deletion was
+performed.
 
 ### 6. Close out
 
-- Verify the new clone contains the preserved history and expected files.
-- Verify no secrets or local artifacts were committed.
-- Confirm README and repository metadata match the approved PerkForge PaaS
-  reference implementation identity and RMF/GRC purpose.
-- Record the new canonical URL and migration result in `HANDOFF.md`.
-- Retain the old repository until the user explicitly approves archival or
-  deletion.
+The canonical URL and verified Fleet state are recorded in `HANDOFF.md`. Keep
+the old GitHub repository until the user separately approves archival or
+deletion. Other integrations and technical identifiers remain unchanged.
 
 ## Acceptance criteria
 
@@ -188,38 +156,25 @@ that Fleet can fetch the new source before removing the old reference.
 
 ### Readiness and migration progress
 
-- Recheck source branch, commit, remotes, refs, and full working-tree status.
-- Preserve all dirty and untracked work; review and classify it before staging.
-- Reauthenticate GitHub and verify organization membership and destination
-  write permission.
-- Inspect the destination repository's refs, contents, visibility, and default
-  branch.
-- Review secret exclusions and identify any operational source references.
+- Preserve source history and review local state before migration writes.
+- Verify destination access and intended visibility before pushing.
+- Keep secrets and VM artifacts outside tracked files.
+- Verify Fleet source access and bundle reconciliation after repointing.
 
-As of 2026-10-23, the working tree was reviewed, sensitive local files were
-excluded, and the selected documentation and local-lab work was committed.
-GitHub authentication and destination permissions were verified. The
-preserved `main` history was pushed and verified on the private destination.
-The destination is now canonical `origin`; the old repository remains under
-`source`. Operational Fleet references and GitHub repository settings have not
-been changed.
+The destination is public, `main` is canonical at `origin`, and anonymous
+fetch was confirmed. Both local Fleet GitRepos now reference PerkForge and
+reconciled the conservative profile. The old repository is still retained as
+`source`; it has not been archived or deleted.
 
 ### Actions requiring separate explicit approval
 
-1. **Change GitHub repository settings.** This includes transferring or
-   renaming repositories, changing visibility/default branch, or editing
-   organization/repository metadata.
-2. **Change operational Fleet references.** The in-cluster GitRepo still
-   references the old repository. Update Fleet GitRepo URLs only after the
-   destination contains the verified history and bundle paths, then verify
-   Fleet fetches and reconciles the new source.
-3. **Change other operational references.** Review scripts or integrations
-   separately from Fleet sources, then update them in a separately approved
-   stage.
-4. **Archive or delete the old repository.** Keep it available until Fleet
-   references the destination and reconciliation is verified. Deletion
-   requires its own explicit approval.
+1. Repository visibility was changed to public by the user. Further changes to
+   ownership, repository name, or organization metadata require approval.
+2. Fleet sources were repointed and verified. Other operational integrations
+   should be reviewed separately before changing.
+3. Archiving or deleting the old GitHub repository requires separate explicit
+   approval. Keep it available until that decision is made.
 
-Readiness checks do not grant approval for these actions. Preserve technical
-identifiers throughout unless a separately reviewed compatibility change is
-approved.
+Readiness checks do not authorize unrelated repository or infrastructure
+changes. Preserve technical identifiers unless a separately reviewed change
+is approved.
