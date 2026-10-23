@@ -30,24 +30,21 @@ assessment artifacts.
 
 - Source checkout: `/home/corey/src/homelab`.
 - Source remote: `https://github.com/coreyperkins/homelab.git`.
-- Source branch: `main`, at `04030d6` during this assessment; `origin/main`
-  matched it. No tags or additional branches were present.
-- The source working tree is dirty. `HANDOFF.md`, `README.md`,
-  `local-lab/README.md`, `local-lab/fleet/gitrepos/local-lab.yaml`,
-  `local-lab/scripts/deploy-mattermost.sh`, and
-  `local-lab/scripts/rebuild-local-lab.sh` are modified. `docs/`,
-  `local-lab/APPLICATIONS.md`, six Fleet bundle directories,
-  `local-lab/fleet/gitrepos/platform-apps.yaml`, and two deployment scripts
-  are untracked. Preserve and review all of them before selecting migration
-  content; none were staged or committed during readiness checks.
-- Target checkout: `/home/corey/src/perkforge-platform`, with the requested
-  `https://github.com/perkforge/perkforge-platform.git` remote. It had no
-  commits or files and no remote refs during the assessment.
+- Source branch: `main`, at `5f7f30e` after migration commits. Source
+  `origin/main` remains at `04030d6`. No tags or additional branches were
+  present at the time of the push.
+- The reviewed working-tree changes were committed as `ead1fb2` (PerkForge
+  scope and documentation) and `5f7f30e` (local-lab platform bundles and
+  automation). The worktree was clean before the push.
+- Destination: `https://github.com/perkforge/perkforge-platform.git`. The
+  local checkout at `/home/corey/src/perkforge-platform` was empty during the
+  initial assessment; recheck or recreate it before using it as a working
+  checkout.
 - On 2026-10-23, authenticated GitHub CLI access was verified for
   `coreyperkins` using the keyring. The private target repository exists and
-  reports `ADMIN` permission. Its default branch is unset because it is empty.
-  The token had `gist`, `read:org`, `repo`, and `workflow` scopes. Read-only
-  `git ls-remote` returned no refs.
+  reports `ADMIN` permission. Before the push it was private and empty; `main`
+  was created from the preserved source history. The pushed branch was then
+  verified at `5f7f30e` and GitHub reported `main` as the default branch.
 
 These observations are a snapshot. Recheck source and target refs, working
 trees, and GitHub permissions immediately before each migration write.
@@ -63,8 +60,8 @@ trees, and GitHub permissions immediately before each migration write.
    ownership, rename a GitHub repository, or alter the default branch until
    the user explicitly approves that operation.
 4. Verify authenticated access to the `perkforge` organization and write
-   permission on `perkforge-platform` before any push. The target currently
-   appears empty, but that must be rechecked at execution time.
+   permission on `perkforge-platform` before any push. This was verified
+   immediately before the initial push.
 5. Keep infrastructure identifiers stable during the branding move. Change
    them only in a separate, justified migration with compatibility checks.
 6. Do not run a destructive local-lab rebuild as part of the repository
@@ -125,20 +122,19 @@ that Fleet can fetch the new source before removing the old reference.
 - Reauthenticate `gh` and confirm the active account and organization. This
   was verified on 2026-10-23 for `coreyperkins`.
 - Confirm `perkforge/perkforge-platform` exists, is the intended repository,
-  and grants the user sufficient write/admin access. It currently exists as a
-  private, empty repository and the account reports `ADMIN` permission.
-- Inspect its refs and contents. If it is no longer empty, stop and reconcile
-  histories rather than overwriting it.
+  and grants the user sufficient write/admin access. Before the push it was
+  private and empty, and the account reported `ADMIN` permission.
+- Inspect its refs and contents. Before the initial push it had no refs; after
+  the push, `main` matched the preserved source history at `5f7f30e`.
 - Confirm the desired visibility, default branch, repository description, and
   organization profile location.
 
-### 3. Transfer history without rewriting it
+### 3. Transfer history without rewriting it — complete
 
-- Add/use a separate destination remote only after explicit approval.
-- Push the preserved source branch and any tags without force. At the time of
-  this plan there were no tags and only `main`, but recheck first.
-- Verify commit ancestry, branch tips, tags, and the cloned destination before
-  changing the canonical `origin` remote or updating users' checkouts.
+- Added `perkforge` as a separate destination remote after explicit approval.
+- Pushed `main` without force. The target was empty and there were no tags.
+- Verified destination `main` at `5f7f30e`, matching local `HEAD`; `origin`
+  remains pointed at the source repository.
 - Keep the old repository available until the new checkout and Fleet source
   have been verified.
 
@@ -189,7 +185,7 @@ that Fleet can fetch the new source before removing the old reference.
 
 ## Migration execution checklist and approval gates
 
-### Readiness work completed without changing repository state
+### Readiness and migration progress
 
 - Recheck source branch, commit, remotes, refs, and full working-tree status.
 - Preserve all dirty and untracked work; review and classify it before staging.
@@ -199,28 +195,22 @@ that Fleet can fetch the new source before removing the old reference.
   branch.
 - Review secret exclusions and identify any operational source references.
 
-As of 2026-10-23, authentication and destination permissions are verified.
-The source is `main` at `04030d6`, matching `origin/main`, with one branch and
-no tags. The destination is private, empty, and grants `ADMIN` permission.
-The source worktree remains dirty and all listed changes must be reviewed and
-preserved before migration writes. The repository is ready for that review
-stage; it is not yet ready to push because the dirty changes have not been
-classified and selected for migration.
+As of 2026-10-23, the working tree was reviewed, sensitive local files were
+excluded, and the selected documentation and local-lab work was committed.
+GitHub authentication and destination permissions were verified. The
+preserved `main` history was pushed and verified on the private destination.
+The source remote remains canonical; operational references and repository
+metadata have not been changed.
 
 ### Actions requiring separate explicit approval
 
-1. **Stage and commit selected working-tree changes.** Review the complete
-   diff and secret scan first. Do not include unrelated local changes.
-2. **Add a destination remote and push preserved history.** Confirm the exact
-   source commit/branch/tag set and destination state immediately beforehand;
-   never force-push or rewrite history.
-3. **Change canonical remotes or GitHub repository settings.** This includes
+1. **Change canonical remotes or GitHub repository settings.** This includes
    renaming/transferring repositories, changing visibility/default branch, or
    editing organization/repository metadata.
-4. **Change operational references.** Update Fleet GitRepo URLs and any scripts
+2. **Change operational references.** Update Fleet GitRepo URLs and any scripts
    or integrations only after the destination contains the verified history
    and bundle paths; then verify Fleet fetches the new source.
-5. **Archive or delete the old repository.** Keep it available until migration
+3. **Archive or delete the old repository.** Keep it available until migration
    and operational verification are complete; archival or deletion requires
    its own approval.
 
