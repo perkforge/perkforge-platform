@@ -14,8 +14,8 @@ Last updated: 2026-10-23
   `coreyperkins/homelab`. The PerkForge repository is public, and anonymous
   access to its `main` branch was verified. Both in-cluster Fleet GitRepos now
   use PerkForge and reconciled the conservative profile.
-- The old GitHub repository remains available. Archiving or deleting it needs
-  separate explicit approval.
+- `coreyperkins/homelab` is now archived and read-only; it has not been deleted.
+  Deletion requires separate explicit approval.
 
 ## Product direction and repository move
 
@@ -98,8 +98,8 @@ The Fleet source migration is complete for the local VM cluster. Both GitRepos
 use the public PerkForge repository and reconciled the conservative profile.
 The new GitLab dependency layout separates the PostgreSQL Cluster manifest
 from the Valkey Helm bundle; existing database resources were adopted in place
-by Fleet. The old GitHub repository remains as the `source` remote and is not
-to be deleted without separate approval.
+by Fleet. The old GitHub repository is archived and read-only; its local
+`source` remote is retained. Deletion requires separate explicit approval.
 
 ## Recent fixes
 

@@ -29,7 +29,7 @@ assessment artifacts.
 ## Current repository facts
 
 - Historical source checkout `/home/corey/src/homelab` has been removed
-  locally. Its GitHub repository remains available as `source`.
+  locally. Its GitHub repository is archived; the local `source` remote remains.
 - Source remote: `https://github.com/coreyperkins/homelab.git`; its `main`
   remains at `04030d6`. No tags or additional branches were present at the
   time of migration.
@@ -106,7 +106,8 @@ that Fleet can fetch the new source before removing the old reference.
 
 The source history and local state were reviewed. The old checkout was removed
 only after required files and local VM assets were moved and verified. The old
-GitHub repository remains available.
+GitHub repository was archived after Fleet migration was verified; it was not
+deleted.
 
 ### 2. Verify the destination — complete
 
@@ -135,9 +136,9 @@ performed.
 
 ### 6. Close out
 
-The canonical URL and verified Fleet state are recorded in `HANDOFF.md`. Keep
-the old GitHub repository until the user separately approves archival or
-deletion. Other integrations and technical identifiers remain unchanged.
+The canonical URL and verified Fleet state are recorded in `HANDOFF.md`. The
+old GitHub repository is archived; deletion requires separate approval. Other
+integrations and technical identifiers remain unchanged.
 
 ## Acceptance criteria
 
@@ -163,8 +164,8 @@ deletion. Other integrations and technical identifiers remain unchanged.
 
 The destination is public, `main` is canonical at `origin`, and anonymous
 fetch was confirmed. Both local Fleet GitRepos now reference PerkForge and
-reconciled the conservative profile. The old repository is still retained as
-`source`; it has not been archived or deleted.
+reconciled the conservative profile. The old repository is archived and
+read-only; the local `source` remote remains configured. It has not been deleted.
 
 ### Actions requiring separate explicit approval
 
@@ -172,8 +173,8 @@ reconciled the conservative profile. The old repository is still retained as
    ownership, repository name, or organization metadata require approval.
 2. Fleet sources were repointed and verified. Other operational integrations
    should be reviewed separately before changing.
-3. Archiving or deleting the old GitHub repository requires separate explicit
-   approval. Keep it available until that decision is made.
+3. The old GitHub repository is archived. Deleting it requires separate
+   explicit approval.
 
 Readiness checks do not authorize unrelated repository or infrastructure
 changes. Preserve technical identifiers unless a separately reviewed change
