@@ -50,7 +50,7 @@ while (( SECONDS < deadline )); do
     [[ "${ready}" == "1/1" ]] || all_ready=false
   done
 
-  error_state="$(grep -E 'Err[A-Za-z]+' <<<"${bundle_states}" || true)"
+  error_state="$(grep -E 'Err[A-Za-z]+|NotReady.*(failed|unable|invalid|error)' <<<"${bundle_states}" || true)"
   if [[ -n "${error_state}" ]]; then
     if [[ "${error_state}" != "${last_error_state}" ]]; then
       error_since="${SECONDS}"

@@ -6,3 +6,5 @@ dependsOn:
   - selector:
       matchLabels:
         local-lab.homelab/component: cnpg-operator
+helm:
+  takeOwnership: true
