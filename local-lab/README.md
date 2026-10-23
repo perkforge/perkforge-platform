@@ -20,7 +20,7 @@ The provisioning script creates the VMs and installs RHEL 10.2 unattended with K
 
 The script expects a Linux host with libvirt's `default` NAT network (`192.168.122.0/24`) and the RHEL 10.2 x86_64 DVD ISO at `images/rhel-10.2-x86_64-dvd.iso`. It checks the ISO checksum and volume label, creates DHCP reservations for `.201` and `.202`, and creates two 2-vCPU, 4-GiB, 30-GiB VMs in the libvirt `images` pool. The ISO stays in `images/`, and VM disks are ignored by Git. The script creates a lab SSH key and console password in ignored `.secrets/`, injects the public key into the RHEL install, and records the new SSH host keys there. It uses direct libvirt access when available and asks for sudo only when needed. RHEL remains unregistered, so it will not receive Red Hat CDN updates.
 
-The provisioner never deletes or overwrites an existing VM or disk. Existing VMs are started and left intact. If a VM definition is missing while its disk remains, the script stops for manual review. If both laptop and VMs are lost, download the ISO again from Red Hat; it is not stored in Git.
+Existing VMs and disks are left intact. For a VM created during the current provisioning run, the provisioner monitors DVD and root-disk I/O while waiting for SSH. If both remain idle for six minutes, it automatically discards that incomplete new VM and retries the unattended install once. It never applies this retry to a pre-existing VM. If a VM definition is missing while its disk remains, the script stops for manual review. If both laptop and VMs are lost, download the ISO again from Red Hat; it is not stored in Git.
 
 ## Prepare the Ansible controller
 

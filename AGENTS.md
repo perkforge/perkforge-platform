@@ -27,5 +27,6 @@
 - If a stage fails, use the user's existing authorization to diagnose and attempt safe recovery. Stop and report when recovery would exceed that authorization or cannot proceed safely; include useful diagnostics and log paths.
 - `local-lab/scripts/deploy-platform-profile.sh` applies and waits for the conservative local Fleet profile. `deploy-mattermost.sh` is an opt-in full application profile and checks that its required paths are enabled.
 - The full rebuild command is `local-lab/scripts/rebuild-local-lab.sh --confirm-destroy`. After a completed teardown checkpoint, `--resume` reruns the idempotent provisioning and deployment stages without deleting VM disks. The rebuild only reports success after Fleet, Keycloak pods and ingress, Valkey `PING`, and Rancher's `/ping` endpoint pass.
+- During fresh RHEL provisioning, the script watches install DVD and root-disk I/O. It may automatically discard and reinstall a newly created VM once after six minutes with no I/O; it never retries by deleting a pre-existing VM or disk.
 - Do not commit or push unless the user asks.
 - Do not add or run tests unless the user asks.

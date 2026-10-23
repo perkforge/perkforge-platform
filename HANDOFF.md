@@ -61,6 +61,8 @@ Last updated: 2026-10-23
 
 - The default `/home/corey/.kube/config` now selects `rancher-local`, which uses Rancher’s proxy endpoint for the local cluster. Its direct `rke2-lab` context remains available.
 - The original kubeconfig backup is `/home/corey/.kube/config.bak-20261023-094404`.
+- After the latest Rancher reinstall, its CA and generated token were refreshed; `rancher-local` was verified against both Ready nodes. Backups made during that repair are `/home/corey/.kube/config.bak-20261023-rancher-ca-before-rebuild` and `/home/corey/.kube/config.bak-20261023-rancher-token-refresh`.
+- `.secrets/rancher-current-ca.crt` and `.secrets/rancher-generated.yaml` contain the current Rancher trust and generated kubeconfig; keep them private and ignored.
 - `.secrets/rke2.yaml` remains the direct RKE2 kubeconfig used by the local scripts. `.secrets/kubectl` is the bundled client.
 - The Rancher-generated kubeconfig token may expire according to Rancher’s kubeconfig-token TTL. If it stops authenticating, download/regenerate a cluster kubeconfig from Rancher and merge it into `~/.kube/config` while preserving both contexts.
 
@@ -123,6 +125,8 @@ by Fleet. The old GitHub repository is archived and read-only; its local
 - Added a bounded wait for Rancher to create its webhook deployment before checking its rollout.
 - Fixed Fleet readiness parsing in the Mattermost script and added periodic status output and a grace period for transient dependency errors.
 - Fixed the Kickstart sudoers rule, persistent DVD attachment, host-playbook ordering, and Ansible variable-file loading. Details are in `local-lab/README.md`.
+- Quoted the GitLab database CPU quantity so Fleet no longer sees a persistent `Modified` drift after Kubernetes normalizes the resource quantity.
+- The latest rebuild encountered a worker installer stall. A clean worker reinstall succeeded; the provisioner now detects six minutes without DVD or root-disk I/O and retries once only for a VM it created in that run. Existing VM disks are preserved. This new retry path has not yet been exercised end-to-end.
 
 ## Working tree
 

@@ -125,7 +125,8 @@ EOF
 }
 
 wait_for_ssh() {
-  local name="$1" ip="$2" attempt vm_state restart_attempted=false
+  local name="$1" ip="$2" monitor_install="$3" attempt vm_state restart_attempted=false
+  local activity last_activity="" last_activity_at="$SECONDS"
   printf 'Waiting for %s (%s) to finish RHEL installation' "$name" "$ip"
   for attempt in $(seq 1 240); do
     if ssh-keyscan -T 3 "$ip" >/dev/null 2>&1; then
@@ -135,6 +136,21 @@ wait_for_ssh() {
       chmod 0600 "$secrets_dir/known_hosts"
       return
     fi
+
+    if [[ "$monitor_install" == true ]]; then
+      activity="$(
+        run_virsh domblkstat "$name" vda 2>/dev/null | awk '$1 == "rd_bytes" || $1 == "wr_bytes" { printf "%s:%s;", $1, $2 }'
+        run_virsh domblkstat "$name" sda 2>/dev/null | awk '$1 == "rd_bytes" || $1 == "wr_bytes" { printf "%s:%s;", $1, $2 }'
+      )"
+      if [[ "$activity" != "$last_activity" ]]; then
+        last_activity="$activity"
+        last_activity_at="$SECONDS"
+      elif (( SECONDS - last_activity_at >= 360 )); then
+        printf '\n%s installer has made no DVD or root-disk I/O progress for six minutes.\n' "$name" >&2
+        return 42
+      fi
+    fi
+
     vm_state="$(run_virsh domstate "$name" | tr -d '[:space:]')"
     if [[ "$vm_state" != running && "$restart_attempted" == false ]]; then
       printf '\n%s powered off after installation; starting it to finish booting.\n' "$name"
@@ -145,7 +161,29 @@ wait_for_ssh() {
     sleep 5
   done
   printf '\n'
-  die "Timed out waiting for SSH on $ip. Inspect '$name' in Virtual Machine Manager or with virsh."
+  printf 'Timed out waiting for SSH on %s.\n' "$ip" >&2
+  return 1
+}
+
+create_vm() {
+  local name="$1" ip="$2" mac="$3" ks_file="$4" disk_file="$5"
+  write_kickstart "$name" "$ks_file"
+  printf 'Creating %s at %s with unattended RHEL installation.\n' "$name" "$ip"
+  "${sudo_prefix[@]}" virt-install \
+    --connect qemu:///system \
+    --name "$name" \
+    --memory 4096 \
+    --vcpus 2 \
+    --os-variant rhel10.0 \
+    --disk "path=${disk_file},size=30,format=qcow2,bus=virtio" \
+    --network "network=default,model=virtio,mac=${mac}" \
+    --location "$libvirt_iso" \
+    --initrd-inject "$ks_file" \
+    --extra-args "inst.ks=file:/$(basename "$ks_file") inst.repo=hd:LABEL=${volume_label} inst.text console=ttyS0,115200n8" \
+    --graphics none \
+    --console pty,target_type=serial \
+    --noautoconsole \
+    --autostart
 }
 
 ensure_dvd_attached() {
@@ -165,6 +203,7 @@ for index in 0 1; do
   mac="${macs[$index]}"
   ks_file="$secrets_dir/${name}.ks"
   disk_file="$image_dir/${name}.qcow2"
+  created_this_run=false
 
   ensure_dhcp_reservation "$name" "$ip" "$mac"
 
@@ -179,26 +218,32 @@ for index in 0 1; do
     if [[ -e "$disk_file" ]]; then
       die "Disk $disk_file exists without a VM definition. Inspect it before removing or reusing it."
     fi
-    write_kickstart "$name" "$ks_file"
-    printf 'Creating %s at %s with unattended RHEL installation.\n' "$name" "$ip"
-    "${sudo_prefix[@]}" virt-install \
-      --connect qemu:///system \
-      --name "$name" \
-      --memory 4096 \
-      --vcpus 2 \
-      --os-variant rhel10.0 \
-      --disk "path=${disk_file},size=30,format=qcow2,bus=virtio" \
-      --network "network=default,model=virtio,mac=${mac}" \
-      --location "$libvirt_iso" \
-      --initrd-inject "$ks_file" \
-      --extra-args "inst.ks=file:/$(basename "$ks_file") inst.repo=hd:LABEL=${volume_label} inst.text console=ttyS0,115200n8" \
-      --graphics none \
-      --console pty,target_type=serial \
-      --noautoconsole \
-      --autostart
+    create_vm "$name" "$ip" "$mac" "$ks_file" "$disk_file"
+    created_this_run=true
   fi
 
-  wait_for_ssh "$name" "$ip"
+  wait_status=0
+  wait_for_ssh "$name" "$ip" "$created_this_run" || wait_status=$?
+  if (( wait_status != 0 )); then
+    if [[ "$created_this_run" == true && "$wait_status" == 42 ]]; then
+      printf 'Discarding only the incomplete new %s install and retrying it once.\n' "$name" >&2
+      run_virsh destroy "$name" >/dev/null || die "Could not stop stalled new VM '$name'."
+      run_virsh undefine "$name" --nvram --managed-save || die "Could not remove stalled new VM definition '$name'."
+      [[ -f "$disk_file" && ! -L "$disk_file" ]] || die "Refusing to remove unexpected VM disk path '$disk_file'."
+      rm -- "$disk_file"
+      create_vm "$name" "$ip" "$mac" "$ks_file" "$disk_file"
+      retry_status=0
+      wait_for_ssh "$name" "$ip" true || retry_status=$?
+      if (( retry_status != 0 )); then
+        die "Fresh RHEL install retry failed for '$name' (wait status $retry_status). Inspect the VM console and rebuild log."
+      fi
+    else
+      if [[ "$created_this_run" == true ]]; then
+        die "Timed out waiting for SSH on $ip for new VM '$name' while installer I/O was still changing; its VM and disk were preserved for diagnosis."
+      fi
+      die "Timed out waiting for SSH on $ip for existing VM '$name'; existing VM data was preserved."
+    fi
+  fi
   ensure_dvd_attached "$name"
 done
 
