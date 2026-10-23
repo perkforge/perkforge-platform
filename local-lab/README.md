@@ -47,7 +47,9 @@ To tear down and recreate the complete local lab without intermediate prompts, r
 local-lab/scripts/rebuild-local-lab.sh --confirm-destroy
 ```
 
-This removes both VM disks and the data on them, provisions RHEL, completes Ansible host configuration, installs RKE2, waits for both nodes to become Ready, installs Rancher, then deploys the conservative Fleet profile: Keycloak and the GitLab database/Valkey dependencies. The GitLab application, Harbor Fleet bundle, and Mattermost remain opt-in because the two 4-GiB VMs have limited memory. The ISO and `.secrets/` are preserved. Before teardown, the script checks direct libvirt access, the ISO checksum, required tools, and that the Fleet configuration on `origin/main` matches the local files. It never asks for a sudo password: if direct libvirt access is unavailable, it stops before teardown. Ansible uses the private VM password file. A failed command stops the rebuild and reports the failed stage; the full output is saved in `.secrets/local-lab-rebuild-*.log`. When Codex runs it, one approval at launch covers the full command; the script does not request approval between stages. If a stage fails, the run stops for review instead of launching separate recovery commands.
+This removes both VM disks and the data on them, provisions RHEL, completes Ansible host configuration, installs RKE2, waits for both nodes to become Ready, installs Rancher, then deploys the conservative Fleet profile: Keycloak and the GitLab database/Valkey dependencies. The GitLab application, Harbor Fleet bundle, and Mattermost remain opt-in because the two 4-GiB VMs have limited memory. The ISO and `.secrets/` are preserved. Before teardown, the script checks direct libvirt access, the ISO checksum, required tools, and that the Fleet configuration on `origin/main` matches the local files. It never asks for a sudo password: if direct libvirt access is unavailable, it stops before teardown. Ansible uses the private VM password file. A failed command stops the run and saves the full output in `.secrets/local-lab-rebuild-*.log`.
+
+After deployment, the script verifies the expected Fleet revision and bundle readiness, waits for all Keycloak and GitLab dependency pods, sends a Valkey `PING`, checks the Keycloak ingress over HTTP, and checks Rancher's `/ping` endpoint. A successful exit therefore means those checks passed, not just that Fleet accepted the bundles. The script records progress in `.secrets/local-lab-rebuild-state`. If a stage fails after teardown completed, rerun with `local-lab/scripts/rebuild-local-lab.sh --resume`; this preserves VM disks and reruns the idempotent provisioning and deployment stages. If a failure occurred during teardown, the checkpoint prevents resume so the VM and disk state can be reviewed before another destructive run. The full rebuild uses `--confirm-destroy`; when Codex runs it, one approval at launch covers the entire command and no intermediate prompts are requested.
 
 When you want to remove the VMs, preview the teardown first:
 
@@ -86,7 +88,7 @@ The default `~/.kube/config` currently uses context `rancher-local`, which proxi
 The local Rancher UI is at <https://rancher.local-lab.test>. Mattermost is at <http://mattermost.local-lab.test>. These `.test` names resolve through local hosts-file entries to the control VM:
 
 ```text
-192.168.122.201 rancher.local-lab.test mattermost.local-lab.test
+192.168.122.201 rancher.local-lab.test keycloak.local-lab.test mattermost.local-lab.test
 ```
 
 ## Deploy local platform applications with Fleet
@@ -108,7 +110,7 @@ The local VMs currently run Keycloak, Harbor, and GitLab's database/Valkey depen
 After adding these host entries on the laptop, open the app URLs:
 
 ```text
-192.168.122.201 keycloak.local-lab.test harbor.local-lab.test gitlab.local-lab.test
+192.168.122.201 harbor.local-lab.test gitlab.local-lab.test
 ```
 
 Keycloak: <http://keycloak.local-lab.test/auth/>. Harbor: <https://harbor.local-lab.test>. GitLab: <http://gitlab.local-lab.test>. Harbor's certificate is self-signed, so the browser will warn until the local CA/certificate is trusted.

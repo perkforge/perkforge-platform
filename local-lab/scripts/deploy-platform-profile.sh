@@ -11,12 +11,33 @@ if [[ ! -x "${kubectl}" || ! -r "${kubeconfig}" ]]; then
   exit 1
 fi
 
+command -v curl >/dev/null 2>&1 || { echo "curl is required for the Keycloak ingress health check." >&2; exit 1; }
+export GIT_TERMINAL_PROMPT=0
+export GCM_INTERACTIVE=never
+
+expected_commit="${FLEET_EXPECTED_COMMIT:-}"
+if [[ -z "${expected_commit}" ]]; then
+  git -C "${repo_root}" fetch --quiet origin main || {
+    echo "Could not fetch origin/main; refusing to apply Fleet GitRepos." >&2
+    exit 1
+  }
+  expected_commit="$(git -C "${repo_root}" rev-parse FETCH_HEAD)"
+fi
+git -C "${repo_root}" diff --quiet "${expected_commit}" -- local-lab/fleet || {
+  echo "Local Fleet files differ from the revision Fleet will deploy (${expected_commit})." >&2
+  exit 1
+}
+untracked_fleet_files="$(git -C "${repo_root}" ls-files --others --exclude-standard -- local-lab/fleet)"
+[[ -z "${untracked_fleet_files}" ]] || {
+  echo "Untracked Fleet files exist; publish the intended configuration before deploying." >&2
+  exit 1
+}
+
 "${repo_root}/local-lab/scripts/prepare-platform-secrets.sh"
 "${kubectl}" --kubeconfig "${kubeconfig}" apply -f \
   "${repo_root}/local-lab/fleet/gitrepos/local-lab.yaml" \
   -f "${repo_root}/local-lab/fleet/gitrepos/platform-apps.yaml"
 
-expected_commit="$(git -C "${repo_root}" rev-parse HEAD)"
 expected_bundles=(
   local-lab-storage
   local-lab-tenant-foundation
@@ -68,6 +89,35 @@ while (( SECONDS < deadline )); do
 
   if [[ "${all_ready}" == true ]]; then
     printf '\nFleet fetched the requested revision and all conservative-profile bundles are Ready.\n'
+    printf 'Waiting for Keycloak, its database, GitLab database, and Valkey pods to become Ready.\n'
+    "${kubectl}" --kubeconfig "${kubeconfig}" -n keycloak wait --for=condition=Ready pods --all --timeout=10m
+    "${kubectl}" --kubeconfig "${kubeconfig}" -n gitlab wait --for=condition=Ready pods --all --timeout=10m
+
+    valkey_pod="$("${kubectl}" --kubeconfig "${kubeconfig}" -n gitlab get pods \
+      -l app.kubernetes.io/instance=valkey -o jsonpath='{.items[0].metadata.name}')"
+    [[ -n "${valkey_pod}" ]] || { echo "No Valkey pod found with the expected Helm release label." >&2; exit 1; }
+    valkey_response=""
+    for attempt in $(seq 1 12); do
+      valkey_response="$("${kubectl}" --kubeconfig "${kubeconfig}" -n gitlab exec "pod/${valkey_pod}" -- valkey-cli ping 2>/dev/null || true)"
+      [[ "${valkey_response}" == "PONG" ]] && break
+      sleep 5
+    done
+    [[ "${valkey_response}" == "PONG" ]] || { echo "Valkey PING returned '${valkey_response}', expected PONG." >&2; exit 1; }
+    printf 'Valkey protocol check: PONG.\n'
+
+    printf 'Checking Keycloak through the node ingress.\n'
+    keycloak_ready=false
+    for attempt in $(seq 1 60); do
+      if curl --silent --show-error --fail --max-time 5 \
+        --resolve keycloak.local-lab.test:80:192.168.122.201 \
+        http://keycloak.local-lab.test/auth/ -o /dev/null 2>/dev/null; then
+        keycloak_ready=true
+        break
+      fi
+      sleep 5
+    done
+    [[ "${keycloak_ready}" == true ]] || { echo "Keycloak ingress did not respond successfully after five minutes." >&2; exit 1; }
+    printf 'Keycloak ingress check: HTTP response received.\n'
     "${kubectl}" --kubeconfig "${kubeconfig}" -n keycloak get pods,pvc
     "${kubectl}" --kubeconfig "${kubeconfig}" -n gitlab get pods,pvc
     exit 0

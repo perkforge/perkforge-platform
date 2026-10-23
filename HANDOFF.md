@@ -79,6 +79,22 @@ The local lab rebuild command is:
 local-lab/scripts/rebuild-local-lab.sh --confirm-destroy
 ```
 
+The rebuild records a private checkpoint in `.secrets/local-lab-rebuild-state`.
+After teardown has completed, a failed run can be continued without deleting
+VM disks by running:
+
+```sh
+local-lab/scripts/rebuild-local-lab.sh --resume
+```
+
+The resume path reruns idempotent provisioning and deployment stages. It
+refuses to resume if the prior run stopped during teardown, because VM and
+disk state must be reviewed before another destructive action. A successful
+run now verifies Fleet's expected remote revision, waits for Keycloak and the
+GitLab dependency pods, checks Valkey with `PING`, checks Keycloak through
+Traefik ingress, and checks Rancher's `/ping` endpoint. The browser still
+requires the documented laptop `/etc/hosts` entries.
+
 It deletes both VM disks and cluster data, then provisions RHEL, configures
 hosts, installs RKE2 and Rancher, and deploys the conservative Fleet profile.
 It checks the ISO, libvirt access, and remote Fleet files before teardown. The
