@@ -20,13 +20,14 @@ Last updated: 2026-10-23
 - A history-preserving migration from `coreyperkins/homelab` to
   `perkforge/perkforge-platform` is documented in
   [`docs/MIGRATION-PLAN.md`](docs/MIGRATION-PLAN.md). The reviewed changes
-  were committed as `ead1fb2` and `5f7f30e`; the latter is pushed to the new
-  destination's `main` branch. The original `origin` remains unchanged, and
-  no infrastructure identifiers or Fleet source URLs have been changed.
+  and migration status are in commits `ead1fb2`, `5f7f30e`, and `c5cff46` on
+  the destination's `main` branch. The PerkForge repository is now the
+  canonical `origin`; the former `coreyperkins/homelab` remote is retained as
+  `source`. No infrastructure identifiers or Fleet source URLs have changed.
 - On 2026-10-23, GitHub CLI authentication was verified for `coreyperkins`.
   `perkforge/perkforge-platform` is private and the account reports `ADMIN`
-  permission. The pushed `main` branch was verified at `5f7f30e`; the source
-  remote remains `origin`.
+  permission. The pushed `main` branch was verified at `c5cff46`. Local
+  `main` tracks PerkForge `origin/main`; `source/main` retains the old remote.
 - Repository settings and operational Fleet references remain for a later
   approved migration stage. See [`docs/MIGRATION-PLAN.md`](docs/MIGRATION-PLAN.md).
 

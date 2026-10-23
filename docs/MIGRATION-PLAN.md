@@ -133,8 +133,11 @@ that Fleet can fetch the new source before removing the old reference.
 
 - Added `perkforge` as a separate destination remote after explicit approval.
 - Pushed `main` without force. The target was empty and there were no tags.
-- Verified destination `main` at `5f7f30e`, matching local `HEAD`; `origin`
-  remains pointed at the source repository.
+- Verified destination `main` at `5f7f30e`, matching local `HEAD` at that
+  stage. The local `perkforge` remote was then promoted to canonical `origin`,
+  and the original repository was retained as `source`.
+- Added the later migration-status documentation commit and pushed it; PerkForge
+  `main` is now at `c5cff46`, matching local `HEAD`.
 - Keep the old repository available until the new checkout and Fleet source
   have been verified.
 
@@ -199,18 +202,22 @@ As of 2026-10-23, the working tree was reviewed, sensitive local files were
 excluded, and the selected documentation and local-lab work was committed.
 GitHub authentication and destination permissions were verified. The
 preserved `main` history was pushed and verified on the private destination.
-The source remote remains canonical; operational references and repository
-metadata have not been changed.
+The destination is now canonical `origin`; the old repository remains under
+`source`. Operational Fleet references and GitHub repository settings have not
+been changed.
 
 ### Actions requiring separate explicit approval
 
-1. **Change canonical remotes or GitHub repository settings.** This includes
-   renaming/transferring repositories, changing visibility/default branch, or
-   editing organization/repository metadata.
-2. **Change operational references.** Update Fleet GitRepo URLs and any scripts
-   or integrations only after the destination contains the verified history
-   and bundle paths; then verify Fleet fetches the new source.
-3. **Archive or delete the old repository.** Keep it available until migration
+1. **Change GitHub repository settings.** This includes transferring or
+   renaming repositories, changing visibility/default branch, or editing
+   organization/repository metadata.
+2. **Change operational Fleet references.** Update Fleet GitRepo URLs only
+   after the destination contains the verified history and bundle paths; then
+   verify Fleet fetches the new source.
+3. **Change other operational references.** Review scripts or integrations
+   separately from Fleet sources, then update them in a separately approved
+   stage.
+4. **Archive or delete the old repository.** Keep it available until migration
    and operational verification are complete; archival or deletion requires
    its own approval.
 
