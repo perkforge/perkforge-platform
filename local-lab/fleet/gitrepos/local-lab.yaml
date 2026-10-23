@@ -4,7 +4,7 @@ metadata:
   name: local-lab
   namespace: fleet-local
 spec:
-  repo: https://github.com/coreyperkins/homelab.git
+  repo: https://github.com/perkforge/perkforge-platform.git
   branch: main
   paths:
     - local-lab/fleet/bundles/storage

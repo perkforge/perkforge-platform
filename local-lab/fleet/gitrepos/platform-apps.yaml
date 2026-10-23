@@ -4,7 +4,7 @@ metadata:
   name: platform-apps
   namespace: fleet-local
 spec:
-  repo: https://github.com/coreyperkins/homelab.git
+  repo: https://github.com/perkforge/perkforge-platform.git
   branch: main
   # This list is the active local application profile. Add/remove app bundle
   # paths to enable/disable apps; include only one bundle per alternative.
