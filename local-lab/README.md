@@ -312,7 +312,7 @@ Then inspect the cluster:
 
 If `k9s` is installed, open the direct RKE2 context without changing the default kubeconfig with `k9s --kubeconfig .secrets/rke2.yaml`.
 
-The default `~/.kube/config` currently uses context `rancher-local`, which proxies kubectl traffic through Rancher. The direct RKE2 kubeconfig remains in `.secrets/rke2.yaml`; its context is `default`. Rancher can generate a fresh kubeconfig from its cluster page if the Rancher token expires. See [Rancher access-cluster documentation](https://ranchermanager.docs.ranchermanager.com/how-to-guides/new-user-guides/manage-clusters/access-clusters/) and [Rancher kubeconfig token settings](https://ranchermanager.docs.ranchermanager.com/api/api-tokens).
+The default `~/.kube/config` currently contains only the direct `rke2-lab` context, copied from `.secrets/rke2.yaml` after the Rancher-proxy context failed CA verification. The private repository kubeconfig remains the source for lab scripts. Rancher can generate a fresh kubeconfig from its cluster page if Rancher-proxy access is needed. See [Rancher access-cluster documentation](https://ranchermanager.docs.ranchermanager.com/how-to-guides/new-user-guides/manage-clusters/access-clusters/) and [Rancher kubeconfig token settings](https://ranchermanager.docs.ranchermanager.com/api/api-tokens).
 
 The local Rancher UI is at <https://rancher.local-lab.test>. Mattermost is at <http://mattermost.local-lab.test>. These `.test` names resolve through local hosts-file entries to the control VM:
 
@@ -334,11 +334,11 @@ It creates local credentials in ignored `.secrets/`, installs the Keycloak and G
 
 This initial GitLab profile disables GitLab Runner to keep the first deployment smaller. GitLab can host groups and projects, but CI pipelines will remain pending until a Runner is configured. GitLab object storage is also disabled for this local profile, so uploads and artifacts use local storage. Harbor uses a self-signed generated ingress certificate. These are deliberate local-only settings to revisit when sizing the lab; they are not suitable for production. GitLab's own minimum example disables Runner and targets a single-user test deployment; its chart's standard target is much larger than these two 4-GiB VMs ([minimum profile](https://gitlab.com/gitlab-org/charts/gitlab/-/raw/master/examples/values-gke-minimum.yaml), [resource guidance](https://docs.gitlab.com/charts/installation/cloud/)).
 
-The local VMs currently run Keycloak and GitLab's database/Valkey dependencies. A prior Harbor upgrade OOM-killed its PostgreSQL pod while memory was high, and the GitLab application has not been installed. The current Fleet profile enables Prometheus/Grafana and OpenCost with low resource requests pinned to the worker; live memory and pod behavior must be checked after reconciliation. GitLab, Harbor, and Mattermost remain opt-in. Harbor's documented minimum is 4 GB by itself ([Harbor prerequisites](https://goharbor.io/docs/main/install-config/installation-prereqs/)).
+The local VMs run Keycloak and GitLab's database/Valkey dependencies; the GitLab application has not been installed. Prometheus/Grafana were briefly reconciled, but their rollout coincided with a control-node OOM that killed `kube-apiserver`. Their Fleet paths are now paused, and OpenCost remains uninstalled. Keep them disabled on the two 4-GiB VMs until the cluster has adequate memory. GitLab, Harbor, and Mattermost remain opt-in. Harbor's documented minimum is 4 GB by itself ([Harbor prerequisites](https://goharbor.io/docs/main/install-config/installation-prereqs/)).
 
 The optional Prometheus/Grafana and OpenCost profile is documented in
 [`../docs/OBSERVABILITY-AND-COST.md`](../docs/OBSERVABILITY-AND-COST.md). It is
-not enabled by default. When enabling both paths in
+paused in the active Fleet profile after a control-node OOM. When enabling both paths in
 `fleet/gitrepos/platform-apps.yaml`, `deploy-platform-profile.sh` prepares the
 Grafana admin secret and waits for both Fleet bundles and their workloads.
 Access remains platform-operator-only; tenant-safe Grafana access is not yet

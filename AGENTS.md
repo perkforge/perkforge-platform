@@ -21,7 +21,7 @@
 ## Secrets and kubeconfigs
 
 - Never print, commit, or copy values from `.secrets/` into tracked files. The directory is ignored by Git.
-- `.secrets/rke2.yaml` is the direct RKE2 kubeconfig. The default `~/.kube/config` currently selects `rancher-local`, which accesses the cluster through Rancher; its `rke2-lab` context is preserved as a direct endpoint.
+- `.secrets/rke2.yaml` is the direct RKE2 kubeconfig. The default `~/.kube/config` currently contains only the verified direct `rke2-lab` context; the Rancher-proxy entries were removed after their CA validation failed.
 - The Mattermost database password is not an application login. Mattermost has no seeded admin password; its first registered user receives the System Admin role.
 - Root-level downloaded `kubectl` artifacts are ignored; do not add them to commits.
 

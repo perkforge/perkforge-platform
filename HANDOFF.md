@@ -1,6 +1,6 @@
 # Homelab session handoff
 
-Last updated: 2026-10-23
+Last updated: 2026-10-26
 
 ## Resume location and local checkout move
 
@@ -9,7 +9,10 @@ Last updated: 2026-10-23
 - `.secrets/` was verified identical to the original local copy. The RHEL ISO
   and both VM disks are under `images/`; the libvirt `images` pool and both VM
   definitions use this checkout's image paths.
-- `cks-control` and `cks-worker` are running RKE2 and both nodes are Ready.
+- `cks-control` and `cks-worker` are running RKE2. The API readiness endpoint
+  recovered after the control node OOM-killed `kube-apiserver`; however, the
+  control VM remains critically short on memory. See the 2026-10-26 incident
+  record below.
 - Git remote `origin` is `perkforge/perkforge-platform`; `source` retains
   `coreyperkins/homelab`. The PerkForge repository is public, and anonymous
   access to its `main` branch was verified. Both in-cluster Fleet GitRepos now
@@ -42,24 +45,29 @@ Last updated: 2026-10-23
 - `cks-control` is RHEL 10.2 at `192.168.122.201`; `cks-worker` is RHEL 10.2
   at `192.168.122.202`. Both use SELinux enforcing and RKE2 `v1.36.5+rke2r1`.
 - Rancher `2.15.2` is installed at <https://rancher.local-lab.test>.
-- Fleet's `local-lab` and `platform-apps` GitRepos both fetched the public
-  PerkForge `main` revision and reported `Stalled=False`. The seven bundles in
-  the conservative profile reported `1/1` ready.
+- Fleet's `local-lab` and `platform-apps` GitRepos use the public PerkForge
+  `main` branch. The active app profile is being returned to its prior
+  low-footprint state after the observability rollout coincided with a control
+  node OOM. Keep Prometheus/Grafana and OpenCost disabled on these VMs.
 - The active `platform-apps` profile manages Keycloak, its PostgreSQL cluster,
   and GitLab's PostgreSQL/Valkey dependencies. The GitLab application, Harbor
   Fleet bundle, and Mattermost are opt-in paths, disabled while VM memory
   headroom is limited. Harbor remains outside the active Fleet profile.
-- After reconciliation, `keycloak-db`, Keycloak, `gitlab-db`, and Valkey pods
-  were Ready; their database and Valkey PVCs were Bound. Node memory was about
-  82% on `cks-control` and 62% on `cks-worker` at that check. Review headroom
-  before enabling the heavier app bundles.
-- Both VMs have 4 GiB RAM. The one-command rebuild now installs the conservative
+- The VMs have 4 GiB RAM and 2 vCPUs each. At 14:22 on 2026-10-26,
+  `cks-control` used about 3.4 GiB and had 141 MiB available; `cks-worker` used
+  about 2.6 GiB and had 991 MiB available. The host reported 14 GiB total RAM,
+  3.7 GiB available, and 8.5 GiB of swap in use. Do not increase VM memory on
+  this host.
+- The one-command rebuild now installs the conservative
   Fleet profile and does not install GitLab itself, Harbor through Fleet, or
   Mattermost.
 
 ## Kubeconfig
 
-- The default `/home/corey/.kube/config` now selects `rancher-local`, which uses Rancher’s proxy endpoint for the local cluster. Its direct `rke2-lab` context remains available.
+- The default `/home/corey/.kube/config` now contains only the verified direct
+  `rke2-lab` context and has mode `600`. Rancher-proxy contexts were removed
+  after CA verification failed. `.secrets/rke2.yaml` remains the private source
+  used by lab scripts.
 - The original kubeconfig backup is `/home/corey/.kube/config.bak-20261023-094404`.
 - After the latest Rancher reinstall, its CA and generated token were refreshed; `rancher-local` was verified against both Ready nodes. Backups made during that repair are `/home/corey/.kube/config.bak-20261023-rancher-ca-before-rebuild` and `/home/corey/.kube/config.bak-20261023-rancher-token-refresh`.
 - `.secrets/rancher-current-ca.crt` and `.secrets/rancher-generated.yaml` contain the current Rancher trust and generated kubeconfig; keep them private and ignored.
@@ -319,7 +327,7 @@ the privileged Pod probe is valid before Pod Security Admission evaluates it.
 - CAC note for a future IL5-like target: Playwright's built-in client-certificate setting accepts PEM key material or a PKCS#12/PFX bundle; do not export a CAC private key for automation. Routine identity/authorization checks should use synthetic identities. A separate authorized CAC end-to-end test should use approved smart-card middleware and test credentials, with an attended step if policy requires user presence. See `docs/TENANT-SECURITY-BOUNDARY.md`.
 - Next: verify Keycloak-authenticated tenant login and Rancher project/dashboard permissions in the local synthetic-identity environment; keep CAC authentication as a separate authorized integration test for environments that require it. Then continue Phase 5 and Phase 6 acceptance criteria.
 
-## Phase 2 browser validation and Phase 5 observability prep — 2026-10-26
+## Phase 2 browser validation and Phase 5 observability — 2026-10-26
 
 The user authorized Playwright for Phase 2 and asked to complete all feasible
 Phase 5 work, leaving the Phase 5 dashboard Playwright test as a follow-up.
@@ -360,31 +368,52 @@ Phase 5 work, leaving the Phase 5 dashboard Playwright test as a follow-up.
   1,792 MiB summed main-container memory limits; Prometheus uses 3-day,
   1-GiB retention on a 2-GiB capped ephemeral volume. These are configuration
   estimates, not measured post-deployment use.
-- Enabled the Prometheus/Grafana and OpenCost Fleet paths, retained private
-  ClusterIP-only services, and added a platform-operator Grafana overview
-  dashboard. Tenant Grafana access remains prohibited until a tenant-safe data
-  plane or query proxy is implemented and verified.
+- Initially enabled the Prometheus/Grafana and OpenCost Fleet paths, retained
+  private ClusterIP-only services, and added a platform-operator Grafana
+  overview dashboard. Tenant Grafana access remains prohibited until a
+  tenant-safe data plane or query proxy is implemented and verified.
 - Static profile tests cover the chart pins, exposure settings, resource
   budgets, node selectors, label allowlist, and dashboard JSON. Updated the
   observability runbook and control-evidence matrix.
-- **Not yet live:** Fleet watches published `main`; this working tree has not
-  been committed or pushed, so the monitoring bundles and dashboard have not
-  been reconciled. Consequently Prometheus ingestion, OpenCost allocation,
-  tenant denial probes, and dashboard runtime behavior are pending. Phase 5's
-  dashboard Playwright test is the explicit follow-up requested by the user.
+- Commit `4e50b17` was pushed to `origin/main`; Fleet fetched it. Prometheus and
+  Grafana became Ready on `cks-worker`; Grafana used about 248 MiB and its two
+  sidecars about 80 MiB each. Prometheus was also running. OpenCost remained
+  `WaitingForDependency` and had no Pods.
+- At 14:20:35, the control node's kernel OOM killer terminated
+  `kube-apiserver` at about 2.25 GiB RSS. At the next inspection, Keycloak used
+  about 750 MiB, etcd 168 MiB, and control memory was 3.4 GiB of 3.6 GiB with
+  141 MiB available. The RKE2 server restarted and the API readiness endpoint
+  later returned `ok`. The rollout timing suggests observability contributed
+  to memory pressure, but does not prove the worker-side workload alone caused
+  the control-node OOM.
+- The workstation itself reported 14 GiB RAM, 3.7 GiB available, and 8.5 GiB
+  swap used. Larger VMs are not a safe option on this host. Observability Fleet
+  paths are being paused until the ThinkCentre cluster is available; the
+  OpenCost allocation verifier, scrape-policy runtime checks, and Phase 5
+  dashboard Playwright test remain pending.
 
 ### Working tree / next actions
 
-- No commit or push was performed. Check `git status` and review the existing
-  untracked `local-lab/evidence/` and `.orig` files before staging; they were
-  left untouched.
-- Run focused tests, then full `local-lab/tests` and static checks. Review the
-  deployment script's observability wait/probe path.
-- Once the user authorizes publishing, push the validated Fleet/profile changes
-  so the two bundles reconcile. Confirm resources land on the worker and watch
-  actual memory, OOM events, and pod restarts. The deployment script runs the
-  tenant observability verifier when the profile is enabled.
-- After live observability verification, Phase 5's remaining work is the
-  Grafana dashboard Playwright access test. Do not grant tenant Grafana access.
-- Continue Phase 6 evidence scheduling/findings/remediation after the Phase 5
-  runtime work. Do not describe CAC/PIV or IL authorization as validated.
+- Do not alter the existing untracked `local-lab/evidence/` and `.orig` files.
+- Keep live cluster changes paused until observability workloads have been
+  removed and the API/control-node memory is stable. Do not re-enable OpenCost
+  on the two 4-GiB VMs.
+- After the ThinkCentres arrive, restore the observability paths, validate
+  Prometheus scraping and OpenCost attribution, run tenant denial probes, and
+  complete the Phase 5 dashboard Playwright test. Do not grant tenant Grafana
+  access before tenant-safe query isolation is implemented and verified.
+- Continue Phase 3/4 test-gap implementation and Phase 6 evidence workflow
+  work offline. Do not describe CAC/PIV or IL authorization as validated.
+
+## Current implementation phase tracker — 2026-10-26
+
+| Phase | Current state | Remaining work | Wait for ThinkCentres |
+|---|---|---|---|
+| 0 — Repository discovery | Complete | None for the current architecture | No |
+| 1 — Tenant foundation and Rancher | Implemented and exercised in the local lab | Revalidate the rebuild and project/namespace association on the physical cluster | For final physical-cluster validation |
+| 2 — Identity and RBAC | OIDC fixed; Alpha viewer Playwright passed 10/10 | Browser coverage for other roles, group revocation, and session expiry | For remaining live browser checks; code work can continue now |
+| 3 — Security isolation | Network suite 7/7; admission suite 9/9 | Broader ingress/egress and host paths; actual runtime isolation beyond admission | For broader live enforcement checks |
+| 4 — Resource governance | Selected quota checks 4/4 | Aggregate tenant usage, storage enforcement, and bypass validation | For live capacity and enforcement checks |
+| 5 — Observability and cost | Prometheus/Grafana reconciled; rollout coincided with control-node OOM; paths being paused | Stabilize on larger nodes, validate ingestion and tenant denial, deploy OpenCost, then dashboard Playwright | Yes — defer runtime acceptance |
+| 6 — Lifecycle and security evidence | Runner and machine-readable evidence groundwork exists | Lifecycle operations, scheduled assessment, alerting, findings/risk/remediation workflow | No for code/design; yes for scheduled live evidence validation |
+| 7 — Advanced isolation | Future work | Dedicated node pools and dedicated clusters with enforced placement and boundaries | Yes — requires suitable infrastructure |

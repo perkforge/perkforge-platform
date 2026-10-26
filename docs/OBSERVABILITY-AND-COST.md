@@ -4,10 +4,11 @@
 
 The Fleet profile uses the Prometheus Community `kube-prometheus-stack` chart
 for Prometheus, Grafana, kube-state-metrics, and node-exporter. OpenCost is a
-separate bundle and depends on the monitoring bundle. Both paths are enabled in
-`local-lab/fleet/gitrepos/platform-apps.yaml`. They take effect in the lab only
-after the repository revision is published and Fleet reconciles it. The charts
-are pinned to kube-prometheus-stack `92.11.0` and OpenCost `2.5.33`.
+separate bundle and depends on the monitoring bundle. Both paths are currently
+disabled in `local-lab/fleet/gitrepos/platform-apps.yaml` after the monitoring
+rollout coincided with a control-node OOM. The bundles remain configured and
+pinned to kube-prometheus-stack `92.11.0` and OpenCost `2.5.33`; re-enable them
+after the cluster has adequate memory headroom.
 
 The Prometheus stack exports only the platform tenant, environment, and
 isolation-tier namespace labels from kube-state-metrics. Prometheus keeps three
@@ -21,14 +22,32 @@ Grafana, kube-state-metrics, operator, and OpenCost workloads are pinned to
 measured use. They exclude sidecars, init containers, RKE2, Rancher, Keycloak,
 databases, and other workloads.
 
-At the latest read-only capacity check, `cks-worker` used about 2,024 MiB of
+Before rollout, `cks-worker` used about 2,024 MiB of
 memory, had 1,152 MiB in workload memory requests, and had 3,740,808 Ki
 allocatable (about 3.65 GiB). Adding the configured observability requests
 would bring worker requests to about 1.8 GiB, roughly 50% of allocatable memory.
 The control node already had about 90% of memory and 91% of CPU reserved by
 requests, which is why the main monitoring workloads are pinned to the worker.
-The memory figures are a point-in-time observation, not a capacity guarantee;
-monitor actual use, OOM events, and scheduling after deployment.
+Those request figures did not predict the control-plane's actual memory
+behavior and were not a capacity guarantee.
+
+### 2026-10-26 rollout finding
+
+During reconciliation, the control VM's kernel OOM killer terminated
+`kube-apiserver` after it reached about 2.25 GiB RSS. The VM has 4 GiB assigned
+(about 3.6 GiB visible to the OS); Keycloak used about 750 MiB and etcd about
+168 MiB at the subsequent inspection. Prometheus/Grafana pods were placed on
+the worker and became Ready, with Grafana using about 248 MiB and its two
+sidecars about 80 MiB each. OpenCost had not started. The incident establishes
+that the current two-VM profile has insufficient control-plane headroom during
+this rollout; the timing suggests the rollout contributed, but does not prove
+that its worker-side memory alone caused the control-node OOM. The host itself
+reported 14 GiB total RAM, 3.7 GiB available, and 8.5 GiB swap in use, so
+increasing VM memory on this host is not a safe remedy.
+
+The Fleet paths are paused pending the three-node ThinkCentre cluster. Do not
+re-enable them on these VMs or record this rollout as a successful observability
+acceptance test.
 
 Grafana and Prometheus have no Ingress. Grafana uses a randomly generated admin
 password stored in `.secrets/grafana-admin-password` and a Kubernetes Secret
@@ -71,9 +90,10 @@ selecting a production or tenant-facing capability.
 ## Validation status
 
 Fleet values, resource budgets, node selectors, dashboard structure, and label
-allowlists are statically checked. Live metric ingestion, OpenCost allocation,
-retention behavior, and dashboard authorization remain unverified until the
-enabled Fleet paths are published and reconciled. The
+allowlists are statically checked. Prometheus/Grafana did reconcile, but the
+rollout coincided with the OOM described above. Live metric ingestion, OpenCost
+allocation, retention behavior, tenant denial probes, and dashboard
+authorization remain unverified. The
 `local-lab/scripts/verify-tenant-observability.py --apply` verifier checks
 namespace attribution labels, Prometheus scrape policy, shared-service exposure,
 and tenant denial to Prometheus/Grafana. It does not establish Grafana query
