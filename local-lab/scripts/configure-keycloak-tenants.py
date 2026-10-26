@@ -265,11 +265,6 @@ class KeycloakAdmin:
                 "lastName": role,
                 "enabled": True,
                 "emailVerified": True,
-                "attributes": {
-                    OWNERSHIP_ATTRIBUTE: ["true"],
-                    "platform-tenant": [tenant_id],
-                    "platform-role": [role],
-                },
             }
             self.api("POST", f"/realms/{REALM}/users", user, accepted=(201,))
             users = json.loads(self.api("GET", f"/realms/{REALM}/users?{query}"))
@@ -278,25 +273,27 @@ class KeycloakAdmin:
                 raise RuntimeError(f"Keycloak did not return the created user {username!r}")
         user = users[0]
         attributes = user.get("attributes", {})
+        memberships = json.loads(self.api("GET", f"/realms/{REALM}/users/{user['id']}/groups"))
+        member_group_ids = {group.get("id") for group in memberships}
         expected_identity = {
             OWNERSHIP_ATTRIBUTE: ["true"],
             "platform-tenant": [tenant_id],
             "platform-role": [role],
         }
-        memberships = json.loads(self.api("GET", f"/realms/{REALM}/users/{user['id']}/groups"))
-        if any(attributes.get(key) != value for key, value in expected_identity.items()):
-            # Permit migration of an older generated demo account only when its
-            # deterministic placeholder email, empty attributes, and no group
-            # memberships prove it has no assigned identity or access.
-            safe_synthetic_account = (
-                not attributes
-                and user.get("email") == f"{username}@example.invalid"
-                and not memberships
-            )
-            if not safe_synthetic_account:
-                raise RuntimeError(f"user {username!r} exists but is not owned by this tenant catalog")
-            user["attributes"] = expected_identity
-            self.api("PUT", f"/realms/{REALM}/users/{user['id']}", user, accepted=(204,))
+        identity_marker_matches = all(attributes.get(key) == value
+                                      for key, value in expected_identity.items())
+        # Keycloak 26 ignores unmanaged user attributes by default. Ownership
+        # is therefore established by the deterministic placeholder address
+        # and membership in this catalog-owned tenant/role group, not by user
+        # attributes. Empty legacy placeholders can be enrolled if they have
+        # no other attributes or memberships.
+        safe_synthetic_account = (
+            not attributes
+            and user.get("email") == f"{username}@example.invalid"
+            and member_group_ids.issubset({group_id})
+        )
+        if not identity_marker_matches and not safe_synthetic_account:
+            raise RuntimeError(f"user {username!r} exists but is not owned by this tenant catalog")
         if user.get("enabled") is not True:
             user["enabled"] = True
             self.api("PUT", f"/realms/{REALM}/users/{user['id']}", user, accepted=(204,))
@@ -325,6 +322,10 @@ class KeycloakAdmin:
         if not any(group.get("id") == group_id for group in memberships):
             self.api("PUT", f"/realms/{REALM}/users/{user['id']}/groups/{group_id}",
                      accepted=(204,))
+        final_memberships = json.loads(self.api(
+            "GET", f"/realms/{REALM}/users/{user['id']}/groups"))
+        if not any(group.get("id") == group_id for group in final_memberships):
+            raise RuntimeError(f"Keycloak did not retain user {username!r} in its catalog role group")
 
     def ensure_client(self, secret: str | None) -> str:
         query = urllib.parse.urlencode({"clientId": CLIENT_ID})

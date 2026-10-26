@@ -157,19 +157,22 @@ class KeycloakTenantConfigurationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "without PerkForge ownership metadata"):
             admin.ensure_group_path("/tenants/tenant-alpha/admins")
 
-    def test_adopts_only_empty_legacy_synthetic_user(self):
+    def test_adopts_legacy_synthetic_user_in_its_catalog_group(self):
         admin = module.KeycloakAdmin.__new__(module.KeycloakAdmin)
         user = {"id": "user-1", "username": "tenant-alpha-admins",
                 "email": "tenant-alpha-admins@example.invalid", "enabled": True,
                 "attributes": {}}
         calls = []
+        memberships = [{"id": "group-1", "attributes": {
+            "perkforge-managed": ["true"], "platform-tenant": ["tenant-alpha"],
+            "platform-role": ["admins"]}}]
 
         def api(method, path, value=None, accepted=(200,)):
             calls.append((method, path, value))
             if method == "GET" and "/users?" in path:
                 return json.dumps([user]).encode()
             if method == "GET" and path.endswith("/groups"):
-                return b"[]"
+                return json.dumps(memberships).encode()
             if method == "PUT" and path.endswith("/users/user-1"):
                 user.update(value)
                 return b""
@@ -183,13 +186,9 @@ class KeycloakTenantConfigurationTests(unittest.TestCase):
             password_file.write_text("existing-local-secret\n")
             admin.ensure_user("tenant-alpha", "admins", "tenant-alpha-admins",
                               "group-1", password_file)
-        self.assertEqual(user["attributes"], {
-            "perkforge-managed": ["true"],
-            "platform-tenant": ["tenant-alpha"],
-            "platform-role": ["admins"],
-        })
-        self.assertTrue(any(method == "PUT" and path.endswith("/users/user-1")
-                            for method, path, _ in calls))
+        self.assertEqual(user["attributes"], {})
+        self.assertFalse(any(method == "PUT" and path.endswith("/users/user-1")
+                             for method, path, _ in calls))
         self.assertFalse(any("reset-password" in path for _, path, _ in calls))
 
     def test_rejects_unowned_user_with_group_membership(self):
