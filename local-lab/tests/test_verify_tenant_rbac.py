@@ -54,7 +54,7 @@ class TenantRbacEvidenceTests(unittest.TestCase):
         self.assertTrue(module.run_case(FakeKubectl(0), allowed_case)["passed"])
         self.assertTrue(module.run_case(FakeKubectl(1), denied_case)["passed"])
         self.assertTrue(module.run_case(
-            FakeKubectl(1, "Warning: resource 'nodes' is not namespace scoped"), denied_case)["passed"])
+            FakeKubectl(1, "Warning: resource 'nodes' is not namespace scoped\n\n"), denied_case)["passed"])
         self.assertFalse(module.run_case(FakeKubectl(1), allowed_case)["passed"])
         self.assertFalse(module.run_case(FakeKubectl(1, "impersonation forbidden"), denied_case)["passed"])
 

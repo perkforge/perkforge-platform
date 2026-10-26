@@ -183,8 +183,8 @@ def run_case(kubectl: Kubectl, case: dict) -> dict:
         command.append(f"--namespace={case['namespace']}")
     result = kubectl.run(command)
     actual = result.returncode == 0
-    stderr_lines = [line for line in result.stderr.splitlines()
-                    if not re.fullmatch(r"Warning: resource '.+' is not namespace scoped", line)]
+    stderr_lines = [line.strip() for line in result.stderr.splitlines() if line.strip() and
+                    not re.fullmatch(r"Warning: resource '.+' is not namespace scoped", line.strip())]
     error = None if result.returncode in (0, 1) and not stderr_lines else \
         "kubectl auth can-i returned an API or impersonation error"
     return {
