@@ -1,0 +1,30 @@
+# One record shape written by manage-security-findings.py. Import candidate
+# reports rather than editing this structure directly. Keep credentials and
+# secret values out of records. The tool maintains timestamps and history.
+findingId: PF-2026-0001
+status: candidate # candidate | triage | confirmed | risk-assessed | remediation-planned | in-progress | retest | accepted | dismissed | closed
+title: "Example title from a verifier candidate"
+sourceKey: "sha256-assigned-by-importer"
+sourceCandidate:
+  candidateId: PF-RBAC-EXAMPLE
+  artifact: local-lab/evidence/tenant-suite/<run>/candidate-findings.json
+  evidenceArtifact: local-lab/evidence/tenant-suite/<run>/rbac/report.json
+  testSuite: rbac
+  testId: example-check
+  observedAt: "2026-01-01T00:00:00Z"
+  target: {tenant: tenant-alpha}
+  expected: deny
+  actual: allow
+  potentialControlIds: [AC-3, AC-6]
+risk:
+  status: unassessed
+remediation:
+  status: unassigned
+history:
+  - timestamp: "2026-01-01T00:00:00Z"
+    from: null
+    to: candidate
+    actor: candidate-import
+    rationale: "Imported from verifier output; human triage required."
+# Further risk, remediation, retest, and review fields are added by the tool
+# when their required status transitions are recorded.

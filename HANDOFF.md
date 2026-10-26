@@ -423,7 +423,7 @@ Phase 5 work, leaving the Phase 5 dashboard Playwright test as a follow-up.
 | 3 — Security isolation | Network suite 7/7; admission suite 9/9 | Broader ingress/egress and host paths; actual runtime isolation beyond admission | For broader live enforcement checks |
 | 4 — Resource governance | Selected quota checks 4/4 | Aggregate tenant usage, storage enforcement, and bypass validation | For live capacity and enforcement checks |
 | 5 — Observability and cost | Prometheus/Grafana briefly reconciled; OpenCost CrashLooped on control due to a misplaced chart selector; paths removed, cluster recovered, capacity preflight added | On larger nodes, validate ingestion and tenant denial, deploy corrected OpenCost placement, then dashboard Playwright | Yes — defer runtime acceptance |
-| 6 — Lifecycle and security evidence | Runner, timestamped evidence, and untriaged candidate findings from failed checks | Lifecycle operations, scheduling, alerting, risk assessment, findings ownership, remediation workflow | No for code/design; yes for scheduled live evidence validation |
+| 6 — Lifecycle and security evidence | Runner, timestamped evidence, candidate extraction, finding workflow, offline register/transition tool, and review packet | Tenant lifecycle automation, evidence retention/alerting, schedule implementation and live validation | Yes for live lifecycle/revocation and scheduled evidence acceptance |
 | 7 — Advanced isolation | Future work | Dedicated node pools and dedicated clusters with enforced placement and boundaries | Yes — requires suitable infrastructure |
 
 ## Phase 6 offline evidence enhancement — 2026-10-26
@@ -439,3 +439,39 @@ Phase 5 work, leaving the Phase 5 dashboard Playwright test as a follow-up.
 - Focused offline unit suite passed 6/6. No cluster tests were run for this
   change. Scheduling, alerting, persistent finding ownership, and remediation
   tracking remain future Phase 6 work.
+
+## Phase 6 finding workflow — 2026-10-26
+
+- Added `docs/SECURITY-FINDINGS-WORKFLOW.md` and a reusable record skeleton at
+  `docs/templates/security-finding.yaml`.
+- The workflow distinguishes machine-generated candidates from reviewed
+  findings and defines triage, risk assessment, accountable decisions,
+  remediation, retesting, and closure without fabricating ratings or accepting
+  risk automatically.
+- Updated the CA-7 evidence matrix. This is a documented workflow, not a
+  persistent register or operational scheduler. No cluster activity occurred.
+
+## Phase 6 review packet — 2026-10-26
+
+- Added `docs/PHASE-6-REVIEW.md` with current capability status, an offline
+  implementation sequence, safe lifecycle semantics for review, evidence and
+  scheduling recommendations, and a checklist of decisions.
+- It distinguishes private operational evidence from sanitized public examples
+  and keeps CAC-dependent browser checks attended unless the target environment
+  expressly supports an approved automation path.
+- No schedule or cluster operation was enabled. Recommendations in this packet
+  are proposals for review, not approved policy.
+
+## Phase 6 offline findings register — 2026-10-26
+
+- Added `local-lab/scripts/manage-security-findings.py`. It imports runner
+  candidates idempotently into a mode-0600 local register under `.secrets/`,
+  serializes concurrent writers, and appends actor/rationale/timestamp for each
+  allowed state change.
+- Risk assessment requires impact, likelihood, and residual-risk rationale but
+  calculates no rating. Risk acceptance requires a named authority and
+  expiry/review date.
+  Remediation planning requires owner and due date. Closure requires passing
+  retest evidence; regression can reopen a closed record.
+- Added 8 offline unit tests. The tool is not a multi-user register or alerting
+  system. No live cluster was accessed and no schedule was enabled.

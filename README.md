@@ -31,6 +31,13 @@ The current shared-cluster tenant boundary and its known limits are recorded in
 implementation status and evidence expectations in
 [`docs/CONTROL-EVIDENCE-MATRIX.md`](docs/CONTROL-EVIDENCE-MATRIX.md). These
 documents distinguish generated configuration from live-verified enforcement.
+The local offline findings register imports candidate reports idempotently and
+records reviewed transitions; its human review workflow, security limits, and
+usage are documented in
+[`docs/SECURITY-FINDINGS-WORKFLOW.md`](docs/SECURITY-FINDINGS-WORKFLOW.md),
+with a record skeleton at `docs/templates/security-finding.yaml`.
+The remaining Phase 6 recommendations and decisions to review are collected in
+[`docs/PHASE-6-REVIEW.md`](docs/PHASE-6-REVIEW.md).
 
 PXE requires a boot and installation service on the network. Decide where that service will run and how it will coexist with the existing DHCP service before enabling it; avoid introducing a second, conflicting DHCP server on a shared LAN.
 
