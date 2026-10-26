@@ -43,6 +43,7 @@ class KeycloakTenantConfigurationTests(unittest.TestCase):
         self.assertEqual(config["claim.name"], "groups")
         self.assertEqual(config["full.path"], "true")
         self.assertEqual(config["id.token.claim"], "true")
+        self.assertEqual(config["introspection.token.claim"], "false")
 
 
     def test_client_and_mapper_reconciliation_has_a_safe_postcondition(self):

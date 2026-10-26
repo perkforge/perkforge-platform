@@ -74,6 +74,9 @@ def group_mapper() -> dict:
             "id.token.claim": "true",
             "access.token.claim": "false",
             "userinfo.token.claim": "true",
+            # Keycloak 26 adds this mapper option on save; keep its safe
+            # disabled default explicit so the postcondition is idempotent.
+            "introspection.token.claim": "false",
             "jsonType.label": "String",
         },
     }
