@@ -309,3 +309,12 @@ Fleet; Keycloak 26 mapper defaults were pinned; synthetic account ownership now
 uses catalog group membership because unmanaged user attributes are disabled by
 default; the RBAC verifier handles kubectl's non-namespace-scoped warning; and
 the privileged Pod probe is valid before Pod Security Admission evaluates it.
+
+## Tenant test automation update — 2026-10-26
+
+- Commit `7190639` added a plan-only-by-default suite runner and operator instructions.
+- Local unit suite: 72 tests passed. Live suite: RBAC 94/94, admission 9/9, quota 4/4, network 7/7. Overall evidence: `local-lab/evidence/tenant-suite/tenant-suite-20261026T172504322350Z/`.
+- These results verify the current project/binding preflights, impersonated-group Kubernetes authorization, selected admission/quota paths, and tested pod-network paths. Browser SSO, Rancher dashboard behavior, group revocation, aggregate/storage quota enforcement, runtime isolation, and broader network paths remain unverified.
+- Phase 5 tenant observability remains unverified because its optional profile is not deployed. Phase 6 has runner/evidence groundwork; scheduling and findings/remediation workflow remain. Phase 7 is future work.
+- CAC note for a future IL5-like target: Playwright's built-in client-certificate setting accepts PEM key material or a PKCS#12/PFX bundle; do not export a CAC private key for automation. Routine identity/authorization checks should use synthetic identities. A separate authorized CAC end-to-end test should use approved smart-card middleware and test credentials, with an attended step if policy requires user presence. See `docs/TENANT-SECURITY-BOUNDARY.md`.
+- Next: verify Keycloak-authenticated tenant login and Rancher project/dashboard permissions in the local synthetic-identity environment; keep CAC authentication as a separate authorized integration test for environments that require it. Then continue Phase 5 and Phase 6 acceptance criteria.

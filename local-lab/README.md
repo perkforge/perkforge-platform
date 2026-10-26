@@ -101,10 +101,13 @@ catalog ownership, and plans one Rancher ProjectRoleTemplateBinding per
 Keycloak group and role. It refuses to adopt a conflicting project or binding.
 It is plan-only by default. `--apply` is intentionally separate and refuses to
 run unless Rancher Keycloak OIDC reports enabled; it then applies only the
-catalog-owned group bindings. Keycloak group/client provisioning is now
-scripted but has not been applied, and Rancher OIDC login/revocation tests are
-still pending. Generated manifests do not prove effective identity or
-isolation, and no live tenant access/network enforcement test has passed yet.
+catalog-owned group bindings. Keycloak tenant groups/client configuration and
+Rancher Generic OIDC are active. The live suite has passed Kubernetes API
+authorization (94/94), Pod Security Admission (9/9), quota checks (4/4), and
+network checks (7/7). These
+results do not verify browser SSO, Rancher dashboard behavior, or group
+revocation; see [the security boundary](../docs/TENANT-SECURITY-BOUNDARY.md)
+for the current evidence and limitations.
 
 After OIDC, Projects, RoleTemplates, and PRTBs are active, verify the resulting
 Kubernetes authorization and write JSON/Markdown evidence with:
