@@ -1,4 +1,6 @@
 replicas: 1
+nodeSelector:
+  kubernetes.io/hostname: cks-worker
 command:
   - /opt/keycloak/bin/kc.sh
   - start

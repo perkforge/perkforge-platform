@@ -61,6 +61,9 @@ Last updated: 2026-10-26
 - The one-command rebuild now installs the conservative
   Fleet profile and does not install GitLab itself, Harbor through Fleet, or
   Mattermost.
+- Keycloak is now pinned to `cks-worker`; this rebalances its roughly 750 MiB
+  runtime away from the control VM. Confirm the new placement and Keycloak
+  health after Fleet reconciles the change.
 
 ## Kubeconfig
 
