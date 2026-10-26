@@ -33,6 +33,13 @@ class TenantAdmissionEvidenceTests(unittest.TestCase):
         self.assertEqual(security["capabilities"]["drop"], ["ALL"])
         self.assertEqual(security["seccompProfile"]["type"], "RuntimeDefault")
 
+    def test_privileged_probe_reaches_pod_security_admission(self):
+        case = module.admission_cases(self.catalog)[1]
+        pod = module.pod_manifest(case, "123456")
+        security = pod["spec"]["containers"][0]["securityContext"]
+        self.assertTrue(security["privileged"])
+        self.assertTrue(security["allowPrivilegeEscalation"])
+
     def test_negative_case_requires_actual_pod_security_denial(self):
         case = module.admission_cases(self.catalog)[1]
         self.assertTrue(module.run_case(FakeKubectl(1, stderr='violates PodSecurity "restricted"'),

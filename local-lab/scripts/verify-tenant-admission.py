@@ -66,6 +66,9 @@ def pod_manifest(case: dict, suffix: str) -> dict:
     mutation = case["mutation"]
     if mutation == "privileged":
         container["securityContext"]["privileged"] = True
+        # Kubernetes rejects privileged=true with allowPrivilegeEscalation=false
+        # during object validation, before Pod Security Admission can evaluate it.
+        container["securityContext"]["allowPrivilegeEscalation"] = True
     elif mutation == "hostNetwork":
         spec["hostNetwork"] = True
     elif mutation == "hostPID":
