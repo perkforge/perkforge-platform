@@ -59,7 +59,9 @@ class ObservabilityProfileTests(unittest.TestCase):
         self.assertFalse(values["opencost"]["ui"]["ingress"]["enabled"])
         self.assertEqual(values["opencost"]["prometheus"]["internal"]["serviceName"],
                          "kube-prometheus-stack-prometheus")
-        self.assertEqual(values["nodeSelector"]["kubernetes.io/hostname"], "cks-worker")
+        self.assertEqual(values["opencost"]["nodeSelector"]["kubernetes.io/hostname"],
+                         "cks-worker")
+        self.assertNotIn("nodeSelector", values)
         self.assertEqual(values["opencost"]["exporter"]["resources"]["limits"]["memory"], "256Mi")
         self.assertEqual(values["opencost"]["ui"]["resources"]["limits"]["memory"], "64Mi")
 

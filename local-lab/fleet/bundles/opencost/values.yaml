@@ -9,6 +9,8 @@ networkPolicies:
     port: 9090
 
 opencost:
+  nodeSelector:
+    kubernetes.io/hostname: cks-worker
   cloudCost:
     enabled: false
   customPricing:
@@ -41,6 +43,3 @@ opencost:
       limits:
         cpu: 100m
         memory: 64Mi
-
-nodeSelector:
-  kubernetes.io/hostname: cks-worker

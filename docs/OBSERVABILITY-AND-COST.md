@@ -38,16 +38,23 @@ During reconciliation, the control VM's kernel OOM killer terminated
 (about 3.6 GiB visible to the OS); Keycloak used about 750 MiB and etcd about
 168 MiB at the subsequent inspection. Prometheus/Grafana pods were placed on
 the worker and became Ready, with Grafana using about 248 MiB and its two
-sidecars about 80 MiB each. OpenCost had not started. The incident establishes
-that the current two-VM profile has insufficient control-plane headroom during
-this rollout; the timing suggests the rollout contributed, but does not prove
-that its worker-side memory alone caused the control-node OOM. The host itself
+sidecars about 80 MiB each. An OpenCost pod was also created on `cks-control`
+and entered `CrashLoopBackOff` (0/2 Ready, 16 restarts) during the incident.
+Its intended node selector was at the chart root, where chart version `2.5.33`
+does not read it; the chart expects `opencost.nodeSelector`. The value is now
+corrected in the disabled bundle and a static test guards the expected path.
+The incident establishes that the current two-VM profile has insufficient
+control-plane headroom during this rollout. The timing and the misplaced,
+crash-looping OpenCost pod make the rollout a likely contributor, although the
+removed Pod's last termination reason was not captured, so its exact memory
+contribution is unknown. The host itself
 reported 14 GiB total RAM, 3.7 GiB available, and 8.5 GiB swap in use, so
 increasing VM memory on this host is not a safe remedy.
 
-The Fleet paths are paused pending the three-node ThinkCentre cluster. Do not
-re-enable them on these VMs or record this rollout as a successful observability
-acceptance test.
+The Fleet paths have been removed from the live `platform-apps` GitRepo; all
+four retained bundles are Ready and the monitoring/OpenCost namespaces contain
+no Pods. Do not re-enable the paths on these VMs or record this rollout as a
+successful observability acceptance test.
 
 Grafana and Prometheus have no Ingress. Grafana uses a randomly generated admin
 password stored in `.secrets/grafana-admin-password` and a Kubernetes Secret

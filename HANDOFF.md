@@ -46,24 +46,25 @@ Last updated: 2026-10-26
   at `192.168.122.202`. Both use SELinux enforcing and RKE2 `v1.36.5+rke2r1`.
 - Rancher `2.15.2` is installed at <https://rancher.local-lab.test>.
 - Fleet's `local-lab` and `platform-apps` GitRepos use the public PerkForge
-  `main` branch. The active app profile is being returned to its prior
+  `main` branch. The active app profile has been returned to its prior
   low-footprint state after the observability rollout coincided with a control
   node OOM. Keep Prometheus/Grafana and OpenCost disabled on these VMs.
 - The active `platform-apps` profile manages Keycloak, its PostgreSQL cluster,
   and GitLab's PostgreSQL/Valkey dependencies. The GitLab application, Harbor
   Fleet bundle, and Mattermost are opt-in paths, disabled while VM memory
   headroom is limited. Harbor remains outside the active Fleet profile.
-- The VMs have 4 GiB RAM and 2 vCPUs each. At 14:22 on 2026-10-26,
-  `cks-control` used about 3.4 GiB and had 141 MiB available; `cks-worker` used
-  about 2.6 GiB and had 991 MiB available. The host reported 14 GiB total RAM,
-  3.7 GiB available, and 8.5 GiB of swap in use. Do not increase VM memory on
-  this host.
+- The VMs have 4 GiB RAM and 2 vCPUs each. After the rollback and Keycloak move,
+  `cks-control` used about 2.8 GiB with 799 MiB available; `cks-worker` used
+  about 2.6 GiB with 952 MiB available. Both nodes are Ready. The host reported
+  14 GiB total RAM, 3.7 GiB available, and 8.5 GiB of swap in use. Do not
+  increase VM memory on this host.
 - The one-command rebuild now installs the conservative
   Fleet profile and does not install GitLab itself, Harbor through Fleet, or
   Mattermost.
 - Keycloak is now pinned to `cks-worker`; this rebalances its roughly 750 MiB
-  runtime away from the control VM. Confirm the new placement and Keycloak
-  health after Fleet reconciles the change.
+  runtime away from the control VM. Fleet reports 4/4 active app bundles Ready;
+  Keycloak is Ready on the worker, Keycloak ingress returned HTTP 302, Rancher's
+  `/ping` returned `pong`, and the API readiness endpoint returned `ok`.
 
 ## Kubeconfig
 
@@ -380,8 +381,11 @@ Phase 5 work, leaving the Phase 5 dashboard Playwright test as a follow-up.
   observability runbook and control-evidence matrix.
 - Commit `4e50b17` was pushed to `origin/main`; Fleet fetched it. Prometheus and
   Grafana became Ready on `cks-worker`; Grafana used about 248 MiB and its two
-  sidecars about 80 MiB each. Prometheus was also running. OpenCost remained
-  `WaitingForDependency` and had no Pods.
+  sidecars about 80 MiB each. Prometheus was also running. An OpenCost pod was
+  observed on `cks-control` in `CrashLoopBackOff` (0/2 Ready, 16 restarts).
+  The chart's node selector was at the root, but chart version `2.5.33` expects
+  `opencost.nodeSelector`; the value is corrected in the disabled bundle and
+  guarded by a static assertion.
 - At 14:20:35, the control node's kernel OOM killer terminated
   `kube-apiserver` at about 2.25 GiB RSS. At the next inspection, Keycloak used
   about 750 MiB, etcd 168 MiB, and control memory was 3.4 GiB of 3.6 GiB with
@@ -390,17 +394,18 @@ Phase 5 work, leaving the Phase 5 dashboard Playwright test as a follow-up.
   to memory pressure, but does not prove the worker-side workload alone caused
   the control-node OOM.
 - The workstation itself reported 14 GiB RAM, 3.7 GiB available, and 8.5 GiB
-  swap used. Larger VMs are not a safe option on this host. Observability Fleet
-  paths are being paused until the ThinkCentre cluster is available; the
-  OpenCost allocation verifier, scrape-policy runtime checks, and Phase 5
-  dashboard Playwright test remain pending.
+  swap used. Larger VMs are not a safe option on this host. Commit `75629bf`
+  removed the observability paths from the live GitRepo; Fleet converged to 4/4
+  retained bundles and both monitoring namespaces have no Pods. The OpenCost
+  allocation verifier, scrape-policy runtime checks, and Phase 5 dashboard
+  Playwright test remain pending until the ThinkCentre cluster is available.
 
 ### Working tree / next actions
 
 - Do not alter the existing untracked `local-lab/evidence/` and `.orig` files.
-- Keep live cluster changes paused until observability workloads have been
-  removed and the API/control-node memory is stable. Do not re-enable OpenCost
-  on the two 4-GiB VMs.
+- Keep live cluster changes paused until the ThinkCentre cluster is available.
+  The observability workloads are removed; do not re-enable them on the two
+  4-GiB VMs.
 - After the ThinkCentres arrive, restore the observability paths, validate
   Prometheus scraping and OpenCost attribution, run tenant denial probes, and
   complete the Phase 5 dashboard Playwright test. Do not grant tenant Grafana
@@ -417,6 +422,6 @@ Phase 5 work, leaving the Phase 5 dashboard Playwright test as a follow-up.
 | 2 — Identity and RBAC | OIDC fixed; Alpha viewer Playwright passed 10/10 | Browser coverage for other roles, group revocation, and session expiry | For remaining live browser checks; code work can continue now |
 | 3 — Security isolation | Network suite 7/7; admission suite 9/9 | Broader ingress/egress and host paths; actual runtime isolation beyond admission | For broader live enforcement checks |
 | 4 — Resource governance | Selected quota checks 4/4 | Aggregate tenant usage, storage enforcement, and bypass validation | For live capacity and enforcement checks |
-| 5 — Observability and cost | Prometheus/Grafana reconciled; rollout coincided with control-node OOM; paths being paused | Stabilize on larger nodes, validate ingestion and tenant denial, deploy OpenCost, then dashboard Playwright | Yes — defer runtime acceptance |
+| 5 — Observability and cost | Prometheus/Grafana briefly reconciled; OpenCost CrashLooped on control due to a misplaced chart selector; paths now removed and cluster recovered | On larger nodes, validate ingestion and tenant denial, deploy corrected OpenCost placement, then dashboard Playwright | Yes — defer runtime acceptance |
 | 6 — Lifecycle and security evidence | Runner and machine-readable evidence groundwork exists | Lifecycle operations, scheduled assessment, alerting, findings/risk/remediation workflow | No for code/design; yes for scheduled live evidence validation |
 | 7 — Advanced isolation | Future work | Dedicated node pools and dedicated clusters with enforced placement and boundaries | Yes — requires suitable infrastructure |
