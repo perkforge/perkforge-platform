@@ -197,6 +197,44 @@ per namespace. It does not validate Grafana data-source query isolation or
 provide tenant dashboards; live evidence is pending because the observability
 profile is not deployed.
 
+
+## Run the tenant security suite
+
+The suite runner provides one entry point for the current shared-cluster checks.
+It is plan-only by default and makes no Kubernetes API requests:
+
+```sh
+python3 local-lab/scripts/run-tenant-security-suite.py
+```
+
+To run the checks and generate an overall timestamped summary plus each
+verifier's detailed JSON/Markdown evidence:
+
+```sh
+python3 local-lab/scripts/run-tenant-security-suite.py --apply
+```
+
+The default live suite runs RBAC authorization checks, Pod Security Admission
+and quota server-side dry-runs, and network-isolation probes. The network
+verifier creates temporary Pods, Services, and ConfigMaps, then removes only
+resources labeled with its unique run ID. Review its prerequisites above before
+running. Each suite continues even if an earlier suite fails, so one run gives
+an overall picture. Exit status is `0` when all pass, `1` for test failures,
+and `2` when a verifier could not execute or clean up. The suite-level
+`summary.json` and `summary.md` live under
+`local-lab/evidence/tenant-suite/tenant-suite-<UTC timestamp>/`.
+
+The optional observability verifier is excluded by default because it requires
+the optional monitoring profile to be installed:
+
+```sh
+python3 local-lab/scripts/run-tenant-security-suite.py --apply --include-observability
+```
+
+Use `--context`, `--kubeconfig`, and `--kubectl` to select the target explicitly.
+Do not treat the dashboard summary as a substitute for the detailed per-run
+evidence or human review of findings.
+
 ## One-command local lab rebuild
 
 To tear down and recreate the complete local lab without intermediate prompts, run this from the repository root:
