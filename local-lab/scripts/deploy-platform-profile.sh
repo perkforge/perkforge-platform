@@ -49,6 +49,15 @@ if [[ "${opencost_enabled}" == true && "${monitoring_enabled}" != true ]]; then
   exit 1
 fi
 
+if [[ "${monitoring_enabled}" == true ]]; then
+  capacity_args=()
+  if [[ "${opencost_enabled}" == true ]]; then
+    capacity_args+=(--include-opencost)
+  fi
+  python3 "${repo_root}/local-lab/scripts/check-profile-capacity.py" \
+    --kubectl "${kubectl}" --kubeconfig "${kubeconfig}" "${capacity_args[@]}"
+fi
+
 "${repo_root}/local-lab/scripts/prepare-platform-secrets.sh"
 if [[ "${monitoring_enabled}" == true ]]; then
   bash "${repo_root}/local-lab/scripts/prepare-observability-secrets.sh"

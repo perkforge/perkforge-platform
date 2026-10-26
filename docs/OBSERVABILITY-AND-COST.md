@@ -56,6 +56,14 @@ four retained bundles are Ready and the monitoring/OpenCost namespaces contain
 no Pods. Do not re-enable the paths on these VMs or record this rollout as a
 successful observability acceptance test.
 
+The local deployment workflow now has a fail-closed preflight before applying
+the optional profile: at least 1 GiB estimated control-node headroom and 2 GiB
+worker headroom are required; enabling OpenCost raises the worker threshold to
+2.5 GiB. The preflight uses allocatable memory minus Metrics API working-set
+usage and refuses deployment if it cannot read the Metrics API. These
+thresholds are conservative screening values, not proof that the workload will
+fit; live memory and OOM behavior still require monitoring.
+
 Grafana and Prometheus have no Ingress. Grafana uses a randomly generated admin
 password stored in `.secrets/grafana-admin-password` and a Kubernetes Secret
 created by `local-lab/scripts/prepare-observability-secrets.sh`. Use a local

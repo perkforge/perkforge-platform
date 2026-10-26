@@ -350,6 +350,14 @@ Grafana admin secret and waits for both Fleet bundles and their workloads.
 Access remains platform-operator-only; tenant-safe Grafana access is not yet
 implemented.
 
+Before applying any profile with Prometheus/Grafana enabled,
+`deploy-platform-profile.sh` runs `check-profile-capacity.py`. It requires at
+least 1 GiB estimated headroom on the control node and 2 GiB on the worker; when
+OpenCost is enabled, the worker minimum is 2.5 GiB. It compares node
+allocatable memory to Metrics API working-set usage and fails closed if metrics
+are unavailable. This is an early guard, not a capacity guarantee or a
+replacement for watching actual memory and OOM events.
+
 After adding these host entries on the laptop, open the app URLs:
 
 ```text
