@@ -37,12 +37,16 @@ def binding_name(tenant_id: str, role: str) -> str:
     return f"pf-{digest}"
 
 
-def build_bindings(catalog: dict, projects: dict[str, dict]) -> list[dict]:
+def build_bindings(catalog: dict, projects: dict[str, dict], *,
+                   include_inactive: bool = False) -> list[dict]:
     """Build PRTBs only for catalog-owned projects with a known backing namespace."""
     bindings = []
     management_cluster = catalog["rancherManagementCluster"]
     for tenant in catalog["tenants"]:
         tenant_id = tenant["id"]
+        lifecycle_state = tenant.get("lifecycle", {}).get("state", "active")
+        if lifecycle_state != "active" and not include_inactive:
+            continue
         cluster_id = tenant["cluster"]
         project_id = f"p-{tenant_id}-{cluster_id}"
         project = projects.get(project_id)
@@ -103,6 +107,12 @@ class Kubectl:
         subprocess.run(self.prefix + ["apply", "-f", "-"], input=yaml.safe_dump(document),
                        check=True, text=True)
 
+    def delete(self, name: str, namespace: str) -> None:
+        subprocess.run(self.prefix + ["delete", "projectroletemplatebinding", name,
+                                      "--namespace", namespace,
+                                      "--ignore-not-found=true"],
+                       check=True, text=True, capture_output=True)
+
 
 def reconcile(catalog: dict, kubectl: Kubectl, apply: bool) -> list[dict]:
     management_cluster = catalog["rancherManagementCluster"]
@@ -113,7 +123,13 @@ def reconcile(catalog: dict, kubectl: Kubectl, apply: bool) -> list[dict]:
             "get", "projects.management.cattle.io", project_id,
             "--namespace", management_cluster,
         )
-    bindings = build_bindings(catalog, projects)
+    all_bindings = build_bindings(catalog, projects, include_inactive=True)
+    inactive_ids = {tenant["id"] for tenant in catalog["tenants"]
+                    if tenant.get("lifecycle", {}).get("state", "active") != "active"}
+    bindings = [obj for obj in all_bindings
+                if obj["metadata"]["labels"]["platform.perkforge.io/tenant"] not in inactive_ids]
+    inactive_bindings = [obj for obj in all_bindings
+                         if obj["metadata"]["labels"]["platform.perkforge.io/tenant"] in inactive_ids]
 
     if apply:
         auth = kubectl.json("get", "authconfigs.management.cattle.io", OIDC_AUTH_NAME)
@@ -124,23 +140,29 @@ def reconcile(catalog: dict, kubectl: Kubectl, apply: bool) -> list[dict]:
 
     # Refuse to overwrite or duplicate manually managed bindings. Existing exact
     # objects are safe to re-apply; group principals and role refs are immutable.
-    existing: dict[str, dict] = {}
+    existing: dict[tuple[str, str], dict] = {}
     by_namespace: dict[str, list[dict]] = {}
-    for namespace in sorted({obj["metadata"]["namespace"] for obj in bindings}):
+    for namespace in sorted({obj["metadata"]["namespace"] for obj in all_bindings}):
         items = kubectl.json("get", "projectroletemplatebindings.management.cattle.io",
                              "--namespace", namespace).get("items", [])
         by_namespace[namespace] = items
-        existing.update({obj.get("metadata", {}).get("name"): obj for obj in items})
-    for binding in bindings:
+        existing.update({(namespace, obj.get("metadata", {}).get("name")): obj for obj in items})
+    for binding in all_bindings:
         namespace = binding["metadata"]["namespace"]
         name = binding["metadata"]["name"]
-        current = existing.get(name)
+        current = existing.get((namespace, name))
         identity_fields = ("projectName", "roleTemplateName", "groupPrincipalName")
         if current is not None:
+            current_labels = current.get("metadata", {}).get("labels", {})
+            expected_labels = binding["metadata"]["labels"]
             if any(current.get(field) != binding.get(field) for field in identity_fields) or \
-                    current.get("metadata", {}).get("labels", {}).get(
-                        "platform.perkforge.io/managed-by") != "tenant-foundation":
+                    any(current_labels.get(key) != value for key, value in expected_labels.items()):
                 fail(f"binding {namespace}/{name} conflicts with existing Rancher state")
+            if binding in inactive_bindings:
+                if apply:
+                    kubectl.delete(name, namespace)
+            continue
+        if binding in inactive_bindings:
             continue
         for current in by_namespace[namespace]:
             if current.get("roleTemplateName") == binding["roleTemplateName"] and \
@@ -168,9 +190,20 @@ def main() -> int:
         bindings = reconcile(catalog, kubectl, args.apply)
         if not args.apply:
             sys.stdout.write(yaml.safe_dump_all(bindings, sort_keys=False, explicit_start=True))
+        inactive_tenants = [tenant["id"] for tenant in catalog["tenants"]
+                            if tenant.get("lifecycle", {}).get("state", "active") != "active"]
+        if not args.apply:
+            if inactive_tenants:
+                removal_names = [binding_name(tenant["id"], role)
+                                 for tenant in catalog["tenants"]
+                                 if tenant["id"] in inactive_tenants
+                                 for role in ROLE_TEMPLATES]
+                print("Suspended/offboarding bindings to remove when applied: " +
+                      ", ".join(removal_names), file=sys.stderr)
             print("Plan only; no resources were changed.", file=sys.stderr)
         else:
-            print(f"Reconciled {len(bindings)} Rancher project role bindings.")
+            print(f"Reconciled {len(bindings)} active Rancher project role bindings; "
+                  f"inactive tenants: {len(inactive_tenants)}.")
         return 0
     except (OSError, ValueError, KeyError, subprocess.CalledProcessError,
             json.JSONDecodeError, yaml.YAMLError) as exc:

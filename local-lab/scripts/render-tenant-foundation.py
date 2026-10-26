@@ -80,6 +80,12 @@ def validate_catalog(catalog: dict) -> list[dict]:
         ids.add(tenant_id)
         if not tenant.get("displayName"):
             fail(f"{tenant_id}: displayName is required")
+        lifecycle = tenant.get("lifecycle", {})
+        if not isinstance(lifecycle, dict) or set(lifecycle) - {"state"}:
+            fail(f"{tenant_id}: lifecycle may contain only state")
+        lifecycle_state = lifecycle.get("state", "active")
+        if lifecycle_state not in {"active", "suspended", "offboarding"}:
+            fail(f"{tenant_id}: lifecycle.state must be active, suspended, or offboarding")
         rancher = tenant.get("rancher", {})
         target_cluster = tenant.get("cluster", "")
         if target_cluster not in clusters:
@@ -201,6 +207,7 @@ def render(catalog: dict) -> str:
         groups = tenant["identity"]["groups"]
         defaults = tenant["resources"]["defaults"]
         project_id = "p-" + tenant_id + "-" + target_cluster
+        lifecycle_state = tenant.get("lifecycle", {}).get("state")
         budget = tenant["resources"]["budget"]
         rancher_quota_names = {
             "pods": "pods",
@@ -222,6 +229,8 @@ def render(catalog: dict) -> str:
                 "labels": {
                     "platform.perkforge.io/tenant": tenant_id,
                     "platform.perkforge.io/managed-by": "tenant-foundation",
+                    **({"platform.perkforge.io/lifecycle-state": lifecycle_state}
+                       if lifecycle_state else {}),
                 },
                 "annotations": {"field.cattle.io/no-creator-rbac": "true"},
             },
@@ -245,6 +254,8 @@ def render(catalog: dict) -> str:
                 "platform.perkforge.io/metrics": str(tenant["observability"]["metrics"]).lower(),
                 "platform.perkforge.io/cost-allocation": str(tenant["observability"]["costAllocation"]).lower(),
             }
+            if lifecycle_state:
+                labels["platform.perkforge.io/lifecycle-state"] = lifecycle_state
             for mode in ("enforce", "audit", "warn"):
                 labels[f"pod-security.kubernetes.io/{mode}"] = "restricted"
                 labels[f"pod-security.kubernetes.io/{mode}-version"] = version

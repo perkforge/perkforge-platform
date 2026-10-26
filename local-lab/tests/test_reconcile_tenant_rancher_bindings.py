@@ -44,6 +44,16 @@ class TenantRancherBindingTests(unittest.TestCase):
             self.assertEqual(obj["projectName"], f"local:p-{tenant}-local")
             self.assertEqual(obj["metadata"]["namespace"], f"p-{tenant}-local")
 
+    def test_inactive_tenant_bindings_are_omitted_from_desired_access(self):
+        catalog = yaml.safe_load(yaml.safe_dump(self.catalog))
+        catalog["tenants"][0]["lifecycle"] = {"state": "suspended"}
+        desired = module.build_bindings(catalog, self.projects)
+        all_owned = module.build_bindings(catalog, self.projects, include_inactive=True)
+        self.assertEqual(len(desired), 3)
+        self.assertEqual({item["metadata"]["labels"]["platform.perkforge.io/tenant"]
+                          for item in desired}, {"tenant-bravo"})
+        self.assertEqual(len(all_owned), 6)
+
     def test_refuses_unowned_or_wrong_cluster_projects(self):
         projects = yaml.safe_load(yaml.safe_dump(self.projects))
         projects["p-tenant-alpha-local"]["metadata"]["labels"][
@@ -77,12 +87,36 @@ class TenantRancherBindingTests(unittest.TestCase):
         module.reconcile(self.catalog, fake, apply=True)
         self.assertEqual(len(fake.applied), first_count)
 
+    def test_suspend_removes_only_exact_catalog_owned_bindings_and_resume_restores(self):
+        fake = FakeKubectl(self.projects, oidc_enabled=True)
+        module.reconcile(self.catalog, fake, apply=True)
+        catalog = yaml.safe_load(yaml.safe_dump(self.catalog))
+        catalog["tenants"][0]["lifecycle"] = {"state": "suspended"}
+        module.reconcile(catalog, fake, apply=True)
+        self.assertEqual(len(fake.deleted), 3)
+        self.assertEqual({item["metadata"]["labels"]["platform.perkforge.io/tenant"]
+                          for item in fake.applied}, {"tenant-bravo"})
+        catalog["tenants"][0]["lifecycle"]["state"] = "active"
+        module.reconcile(catalog, fake, apply=True)
+        self.assertEqual(len(fake.applied), 6)
+
+    def test_suspend_refuses_to_delete_binding_with_conflicting_ownership(self):
+        fake = FakeKubectl(self.projects, oidc_enabled=True)
+        module.reconcile(self.catalog, fake, apply=True)
+        fake.applied[0]["metadata"]["labels"]["platform.perkforge.io/tenant"] = "other-tenant"
+        catalog = yaml.safe_load(yaml.safe_dump(self.catalog))
+        catalog["tenants"][0]["lifecycle"] = {"state": "offboarding"}
+        with self.assertRaisesRegex(ValueError, "conflicts with existing Rancher state"):
+            module.reconcile(catalog, fake, apply=True)
+        self.assertEqual(fake.deleted, [])
+
 
 class FakeKubectl:
     def __init__(self, projects, oidc_enabled):
         self.projects = projects
         self.oidc_enabled = oidc_enabled
         self.applied = []
+        self.deleted = []
 
     def json(self, *args):
         if args[0] == "get" and args[1] == "projects.management.cattle.io":
@@ -99,6 +133,12 @@ class FakeKubectl:
 
     def apply(self, document):
         self.applied.append(document)
+
+    def delete(self, name, namespace):
+        self.deleted.append((name, namespace))
+        self.applied = [item for item in self.applied
+                        if not (item["metadata"]["name"] == name and
+                                item["metadata"]["namespace"] == namespace)]
 
 
 if __name__ == "__main__":

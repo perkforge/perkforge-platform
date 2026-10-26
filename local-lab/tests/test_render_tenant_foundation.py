@@ -19,6 +19,29 @@ class TenantFoundationTests(unittest.TestCase):
     def test_catalog_allocations_fit_tenant_budgets(self):
         self.assertEqual(len(module.validate_catalog(self.catalog)), 2)
 
+    def test_lifecycle_state_is_validated_and_rendered_as_platform_metadata(self):
+        catalog = yaml.safe_load(yaml.safe_dump(self.catalog))
+        catalog["tenants"][0]["lifecycle"] = {"state": "suspended"}
+        objects = list(yaml.safe_load_all(module.render(catalog)))
+        project = next(obj for obj in objects if obj.get("kind") == "Project" and
+                       obj.get("metadata", {}).get("labels", {}).get(
+                           "platform.perkforge.io/tenant") == "tenant-alpha")
+        namespace = next(obj for obj in objects if obj.get("kind") == "Namespace" and
+                         obj["metadata"]["name"] == "tenant-alpha")
+        self.assertEqual(project["metadata"]["labels"]["platform.perkforge.io/lifecycle-state"],
+                         "suspended")
+        self.assertEqual(namespace["metadata"]["labels"]["platform.perkforge.io/lifecycle-state"],
+                         "suspended")
+        bravo = next(obj for obj in objects if obj.get("kind") == "Namespace" and
+                     obj["metadata"]["name"] == "tenant-bravo")
+        self.assertNotIn("platform.perkforge.io/lifecycle-state", bravo["metadata"]["labels"])
+
+    def test_catalog_rejects_unsupported_tenant_lifecycle_state(self):
+        catalog = yaml.safe_load(yaml.safe_dump(self.catalog))
+        catalog["tenants"][0]["lifecycle"] = {"state": "deleted"}
+        with self.assertRaisesRegex(ValueError, "lifecycle.state"):
+            module.validate_catalog(catalog)
+
     def test_each_tenant_can_target_a_registered_cluster(self):
         catalog = yaml.safe_load(yaml.safe_dump(self.catalog))
         catalog["clusters"].append({"name": "cluster-stg", "podSecurityVersion": "v1.36"})

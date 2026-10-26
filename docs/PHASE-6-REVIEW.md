@@ -9,11 +9,11 @@ this review and its proposed follow-up work do not require cluster changes.
 | Capability | Current state | What remains |
 |---|---|---|
 | Security test execution | Manual suite runner; live tests have timestamped JSON and Markdown reports | Safe repeatable scheduled execution and documented operational ownership |
-| Candidate findings | Failed explicit checks become untriaged candidate records; execution errors are excluded | Persistent, reviewed register and auditable status changes |
-| Risk and remediation | Human workflow documented in [Security Findings Workflow](SECURITY-FINDINGS-WORKFLOW.md) | Record-level review, risk decisions, owners, due dates, and closure evidence |
+| Candidate findings | Failed explicit checks become untriaged candidate records; execution errors are excluded | Team-backed system of record and multi-user audit protections |
+| Risk and remediation | Human workflow and local private register record review, rationale, authority, owners, due dates, and retest transitions | Team review/approval integration, controlled backup, and retention |
 | Evidence | Local ignored evidence directories; reports reference detailed suite output | Retention, integrity, redaction, access, backup, and controlled publication rules |
 | Notifications | None | Actionable notification for failures, missed runs, and cleanup errors |
-| Tenant lifecycle | Tenant catalog and platform provisioning exist; no safe lifecycle command set | Define and verify suspend/resume/offboard semantics before automation |
+| Tenant lifecycle | Optional catalog state `active`, `suspended`, or `offboarding`; project binding reconciliation removes only exact catalog-owned tenant PRTBs for inactive states and restores them on resume | Live revocation/session behavior; pause tenant application GitOps; safe staged data/PVC decommission |
 | Identity revocation | Keycloak groups and Rancher bindings exist | Test group removal, existing sessions, token expiry, and residual access |
 
 Live enforcement work that may add workload or observability pressure remains
@@ -24,8 +24,8 @@ that hardware validation.
 
 ### 1. Keep source evidence separate from reviewed findings
 
-- Preserve each run's raw JSON and Markdown evidence as an immutable,
-  timestamped run artifact.
+- Preserve each run's raw JSON and Markdown evidence unchanged as a timestamped
+  run artifact.
 - Keep candidate findings generated from the run as a queue, never as an
   automatically confirmed finding.
 - A human-reviewed register entry references the candidate and evidence by
@@ -69,13 +69,16 @@ evidence. Validate the actual environment's identity and authorization rules.
 
 Recommended initial meanings for review:
 
-- **Suspend:** block new tenant changes and revoke tenant access; decide
-  explicitly whether existing pods continue, are scaled down, or are
-  quarantined. Suspension must not imply data deletion.
-- **Resume:** restore approved access and workload behavior from declared
-  configuration, then verify tenant boundaries.
-- **Offboard:** revoke access first, preserve required evidence and data, then
-  require an explicit reviewed destructive step for namespace/PVC deletion.
+- **Suspend:** the implemented initial behavior removes the tenant's
+  catalog-owned Rancher project role bindings. Existing workloads continue;
+  this does not pause tenant GitOps or provide network/runtime quarantine.
+  Suspension does not delete data.
+- **Resume:** returning the catalog state to `active` allows the binding
+  reconciler to restore approved access. The local script verifies catalog
+  ownership but does not yet verify user session revocation or browser access.
+- **Offboard:** currently acts as suspension and retains the Project,
+  namespaces, workloads, and volumes. Destructive deletion is not implemented;
+  use a separate reviewed process after evidence and data-retention decisions.
 
 All lifecycle operations should be idempotent, ownership checked, logged, and
 scoped to the tenant catalog. Do not infer namespace ownership from a matching
@@ -99,30 +102,30 @@ identity changes.
 
 ## Proposed offline implementation sequence
 
-1. Define a versioned findings-register schema and a validator. Reject invalid
-   transitions and missing decision authority; do not calculate risk.
-2. Add an explicit import command that copies candidates into a review queue
-   idempotently, keyed by run/test identity. It must not confirm findings or
-   edit source evidence.
-3. Add a transition command that requires actor, timestamp, rationale, and
-   required fields for each status change; write an append-only history.
-4. Document an evidence retention and sanitization policy with public/private
-   boundaries.
-5. Specify schedule, identity, alerting, and tenant lifecycle behavior without
-   enabling a live schedule or running destructive actions.
-6. After hardware arrives, measure and validate the runner, cleanup behavior,
-   access revocation, lifecycle operations, and chosen schedule before calling
-   these capabilities operational.
+1. Review and accept the local register semantics; decide where multi-user
+   review, protected history, backups, and retention should live.
+2. Validate lifecycle reconciliation against a disposable tenant on the
+   ThinkCentres, including real binding revocation, new login, and existing
+   session behavior. Test that tenant application Fleet changes are blocked
+   before calling suspension complete.
+3. Measure manual assessment runtime, resource impact, cleanup behavior, and
+   evidence volume on the ThinkCentres; then settle schedule, least-privilege
+   execution identity, retention, and alerting.
+4. Implement the approved schedule and notification integration. Keep CAC UI
+   tests attended unless the target environment explicitly approves automation.
+5. Define and validate an approved offboarding/data-destruction procedure;
+   preserve evidence and require an explicit destructive action.
 
 ## Review checklist
 
 - [ ] Agree on who can confirm, dismiss, risk-accept, and close a finding.
-- [ ] Select where the private register and raw evidence live.
+- [ ] Decide whether the local private JSON register is adequate for this lab or whether a private GitLab/ticketing system is needed.
 - [ ] Set evidence retention, backup, and sanitization requirements.
 - [ ] Confirm whether risk scoring should use a provided organizational method.
 - [ ] Choose the desired first assessment cadence after hardware measurements.
 - [ ] Choose a scheduled execution identity compatible with any CAC boundary.
-- [ ] Define what suspension does to access and already-running workloads.
+- [x] Define the initial suspend behavior: remove tenant Rancher project bindings; leave existing workloads running.
+- [ ] Decide whether suspension should also pause Fleet app reconciliation or stop workloads.
 - [ ] Define offboarding retention and the separately approved deletion step.
 - [ ] Decide which synthetic, sanitized artifacts are suitable for the public portfolio.
 

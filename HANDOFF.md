@@ -423,7 +423,7 @@ Phase 5 work, leaving the Phase 5 dashboard Playwright test as a follow-up.
 | 3 — Security isolation | Network suite 7/7; admission suite 9/9 | Broader ingress/egress and host paths; actual runtime isolation beyond admission | For broader live enforcement checks |
 | 4 — Resource governance | Selected quota checks 4/4 | Aggregate tenant usage, storage enforcement, and bypass validation | For live capacity and enforcement checks |
 | 5 — Observability and cost | Prometheus/Grafana briefly reconciled; OpenCost CrashLooped on control due to a misplaced chart selector; paths removed, cluster recovered, capacity preflight added | On larger nodes, validate ingestion and tenant denial, deploy corrected OpenCost placement, then dashboard Playwright | Yes — defer runtime acceptance |
-| 6 — Lifecycle and security evidence | Runner, timestamped evidence, candidate extraction, finding workflow, offline register/transition tool, and review packet | Tenant lifecycle automation, evidence retention/alerting, schedule implementation and live validation | Yes for live lifecycle/revocation and scheduled evidence acceptance |
+| 6 — Lifecycle and security evidence | Runner, timestamped evidence, finding workflow/register, and catalog-driven suspend/resume/offboarding access state | Live revocation/session and GitOps suspension validation; data-safe decommission; evidence retention/alerting; scheduled execution | Yes for live acceptance and lifecycle data-plane decisions |
 | 7 — Advanced isolation | Future work | Dedicated node pools and dedicated clusters with enforced placement and boundaries | Yes — requires suitable infrastructure |
 
 ## Phase 6 offline evidence enhancement — 2026-10-26
@@ -475,3 +475,24 @@ Phase 5 work, leaving the Phase 5 dashboard Playwright test as a follow-up.
   retest evidence; regression can reopen a closed record.
 - Added 8 offline unit tests. The tool is not a multi-user register or alerting
   system. No live cluster was accessed and no schedule was enabled.
+
+## Phase 6 tenant lifecycle foundation — 2026-10-26
+
+- `TenantCatalog` now accepts optional lifecycle states `active`, `suspended`,
+  or `offboarding`; omitted state preserves existing active behavior.
+- Foundation rendering adds the lifecycle label only when the catalog opts in.
+  The Rancher binding reconciler omits suspended/offboarding access and deletes
+  only exact deterministic PRTBs whose project, role, group principal, and
+  ownership labels match the catalog. Returning to `active` recreates the
+  expected bindings. Conflicts fail closed.
+- **Limits:** existing workloads continue running; tenant Fleet application
+  reconciliation is not paused; Keycloak group membership and existing login
+  sessions are not revoked. `offboarding` currently retains Projects,
+  namespaces, workloads, and data. Destructive decommission is not implemented.
+- The live tenant catalog and rendered Fleet bundle were not changed, so this
+  code change did not request a tenant lifecycle transition. Renderer sync
+  check passed. Focused renderer and binding tests passed 20/20. The full suite
+  had passed 86/86 before this increment; it was not rerun afterward.
+- Cluster state was not changed. Do not describe suspend/offboard as a complete
+  enforcement or data-plane operation until the stated limitations are tested
+  and addressed.
