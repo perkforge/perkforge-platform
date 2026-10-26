@@ -7,6 +7,7 @@ import argparse
 import datetime as dt
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -39,7 +40,7 @@ def authorization_cases(catalog: dict) -> list[dict]:
             ("list", "pods", True),
             ("get", "secrets", True),
             ("create", "deployments.apps", True),
-            ("create", "pods", True),
+            ("create", "pods", False),
             ("create", "rolebindings.rbac.authorization.k8s.io", False),
             ("update", "roles.rbac.authorization.k8s.io", False),
             ("list", "serviceaccounts", False),
@@ -182,7 +183,9 @@ def run_case(kubectl: Kubectl, case: dict) -> dict:
         command.append(f"--namespace={case['namespace']}")
     result = kubectl.run(command)
     actual = result.returncode == 0
-    error = None if result.returncode in (0, 1) and not result.stderr.strip() else \
+    stderr_lines = [line for line in result.stderr.splitlines()
+                    if not re.fullmatch(r"Warning: resource '.+' is not namespace scoped", line)]
+    error = None if result.returncode in (0, 1) and not stderr_lines else \
         "kubectl auth can-i returned an API or impersonation error"
     return {
         **case,

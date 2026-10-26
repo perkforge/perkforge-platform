@@ -24,6 +24,7 @@ class TenantRbacEvidenceTests(unittest.TestCase):
                  for case in cases}
         self.assertTrue(index[("tenant-alpha", "admins", "get", "secrets", "tenant-alpha")]["expectedAllowed"])
         self.assertTrue(index[("tenant-alpha", "developers", "create", "deployments.apps", "tenant-alpha")]["expectedAllowed"])
+        self.assertFalse(index[("tenant-alpha", "admins", "create", "pods", "tenant-alpha")]["expectedAllowed"])
         self.assertFalse(index[("tenant-alpha", "developers", "get", "secrets", "tenant-alpha")]["expectedAllowed"])
         self.assertFalse(index[("tenant-alpha", "viewers", "create", "deployments.apps", "tenant-alpha")]["expectedAllowed"])
         for role in ("admins", "developers", "viewers"):
@@ -52,6 +53,8 @@ class TenantRbacEvidenceTests(unittest.TestCase):
         denied_case = {**allowed_case, "id": "deny", "expectedAllowed": False}
         self.assertTrue(module.run_case(FakeKubectl(0), allowed_case)["passed"])
         self.assertTrue(module.run_case(FakeKubectl(1), denied_case)["passed"])
+        self.assertTrue(module.run_case(
+            FakeKubectl(1, "Warning: resource 'nodes' is not namespace scoped"), denied_case)["passed"])
         self.assertFalse(module.run_case(FakeKubectl(1), allowed_case)["passed"])
         self.assertFalse(module.run_case(FakeKubectl(1, "impersonation forbidden"), denied_case)["passed"])
 
