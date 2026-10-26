@@ -143,7 +143,9 @@ def render(catalog: dict) -> str:
             "displayName": "PerkForge Tenant Administrator",
             "description": "Manage tenant workloads and tenant-owned secrets without administering cluster or tenant security.",
             "rules": [
-                {"apiGroups": [""], "resources": ["pods", "pods/log", "services", "endpoints", "configmaps", "secrets", "persistentvolumeclaims", "events"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]},
+                {"apiGroups": [""], "resources": ["pods"], "verbs": ["get", "list", "watch", "delete"]},
+                {"apiGroups": [""], "resources": ["pods/log", "events"], "verbs": ["get", "list", "watch"]},
+                {"apiGroups": [""], "resources": ["services", "endpoints", "configmaps", "secrets", "persistentvolumeclaims"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]},
                 {"apiGroups": ["apps"], "resources": ["deployments", "replicasets", "statefulsets"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]},
                 {"apiGroups": ["batch"], "resources": ["jobs", "cronjobs"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]},
                 {"apiGroups": ["networking.k8s.io"], "resources": ["ingresses"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]},

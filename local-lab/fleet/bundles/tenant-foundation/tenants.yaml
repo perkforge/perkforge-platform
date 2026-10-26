@@ -17,13 +17,28 @@ rules:
   - ''
   resources:
   - pods
+  verbs:
+  - get
+  - list
+  - watch
+  - delete
+- apiGroups:
+  - ''
+  resources:
   - pods/log
+  - events
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ''
+  resources:
   - services
   - endpoints
   - configmaps
   - secrets
   - persistentvolumeclaims
-  - events
   verbs:
   - get
   - list

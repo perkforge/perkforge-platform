@@ -139,6 +139,11 @@ class TenantFoundationTests(unittest.TestCase):
         developer = roles["perkforge-tenant-developer"]
         self.assertFalse(any("create" in rule.get("verbs", []) and "pods" in rule.get("resources", [])
                              for rule in developer["rules"]))
+        tenant_admin = roles["perkforge-tenant-admin"]
+        self.assertFalse(any("create" in rule.get("verbs", []) and "pods" in rule.get("resources", [])
+                             for rule in tenant_admin["rules"]))
+        self.assertFalse(any("pods/exec" in rule.get("resources", [])
+                             for rule in tenant_admin["rules"]))
         for name in ("perkforge-tenant-admin", "perkforge-tenant-developer", "perkforge-tenant-viewer"):
             self.assertTrue(any(rule.get("apiGroups") == ["metrics.k8s.io"] and
                                 rule.get("resources") == ["pods"]

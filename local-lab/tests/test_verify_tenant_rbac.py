@@ -55,6 +55,17 @@ class TenantRbacEvidenceTests(unittest.TestCase):
         self.assertFalse(module.run_case(FakeKubectl(1), allowed_case)["passed"])
         self.assertFalse(module.run_case(FakeKubectl(1, "impersonation forbidden"), denied_case)["passed"])
 
+    def test_cluster_scoped_checks_do_not_send_namespace(self):
+        case = {
+            "id": "deny-nodes", "tenant": "tenant-alpha", "role": "viewers",
+            "namespace": "tenant-alpha", "verb": "list", "resource": "nodes",
+            "expectedAllowed": False, "group": "group",
+        }
+        kubectl = RecordingKubectl(1)
+        result = module.run_case(kubectl, case)
+        self.assertTrue(result["passed"])
+        self.assertNotIn("--namespace=tenant-alpha", kubectl.args)
+
     def test_evidence_contains_timestamp_expected_and_actual_results(self):
         result = {
             "id": "tenant-alpha-viewer-deny-secret", "tenant": "tenant-alpha",
@@ -82,6 +93,12 @@ class FakeKubectl:
 
     def run(self, args):
         return type("Result", (), {"returncode": self.returncode, "stderr": self.stderr})()
+
+
+class RecordingKubectl(FakeKubectl):
+    def run(self, args):
+        self.args = args
+        return super().run(args)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@ _bindings = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_bindings)
 
 GROUP_PREFIX = "genericoidc_group://"
+CLUSTER_SCOPED_RESOURCES = {"namespaces", "nodes"}
 
 
 def group_principal(tenant_id: str, role: str) -> str:
@@ -174,8 +175,11 @@ def run_case(kubectl: Kubectl, case: dict) -> dict:
         "auth", "can-i", case["verb"], case["resource"],
         f"--as=evidence-{case['tenant']}-{case['role']}",
         f"--as-group={case['group']}",
-        f"--namespace={case['namespace']}", "--quiet",
+        "--quiet",
     ]
+    resource = case["resource"].split(".", 1)[0]
+    if resource not in CLUSTER_SCOPED_RESOURCES:
+        command.append(f"--namespace={case['namespace']}")
     result = kubectl.run(command)
     actual = result.returncode == 0
     error = None if result.returncode in (0, 1) and not result.stderr.strip() else \
