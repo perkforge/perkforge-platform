@@ -26,6 +26,12 @@ The planned source-to-target GitHub move and its no-history-loss safeguards are 
 
 The platform's assurance goal is to connect each selected security control to its working implementation, repeatable verification, collected evidence, findings, risk decisions, and remediation. RMF artifacts describe this reference environment and do not claim a formal government authorization.
 
+The current shared-cluster tenant boundary and its known limits are recorded in
+[`docs/TENANT-SECURITY-BOUNDARY.md`](docs/TENANT-SECURITY-BOUNDARY.md), with
+implementation status and evidence expectations in
+[`docs/CONTROL-EVIDENCE-MATRIX.md`](docs/CONTROL-EVIDENCE-MATRIX.md). These
+documents distinguish generated configuration from live-verified enforcement.
+
 PXE requires a boot and installation service on the network. Decide where that service will run and how it will coexist with the existing DHCP service before enabling it; avoid introducing a second, conflicting DHCP server on a shared LAN.
 
 ## Early requirements

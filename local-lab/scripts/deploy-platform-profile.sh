@@ -33,7 +33,26 @@ untracked_fleet_files="$(git -C "${repo_root}" ls-files --others --exclude-stand
   exit 1
 }
 
+platform_apps_repo="${repo_root}/local-lab/fleet/gitrepos/platform-apps.yaml"
+monitoring_enabled=false
+opencost_enabled=false
+if grep -Eq '^[[:space:]]*-[[:space:]]*local-lab/fleet/bundles/prometheus-grafana([[:space:]]|$)' \
+  "${platform_apps_repo}"; then
+  monitoring_enabled=true
+fi
+if grep -Eq '^[[:space:]]*-[[:space:]]*local-lab/fleet/bundles/opencost([[:space:]]|$)' \
+  "${platform_apps_repo}"; then
+  opencost_enabled=true
+fi
+if [[ "${opencost_enabled}" == true && "${monitoring_enabled}" != true ]]; then
+  echo "OpenCost requires the prometheus-grafana Fleet path to be enabled." >&2
+  exit 1
+fi
+
 "${repo_root}/local-lab/scripts/prepare-platform-secrets.sh"
+if [[ "${monitoring_enabled}" == true ]]; then
+  bash "${repo_root}/local-lab/scripts/prepare-observability-secrets.sh"
+fi
 "${kubectl}" --kubeconfig "${kubeconfig}" apply -f \
   "${repo_root}/local-lab/fleet/gitrepos/local-lab.yaml" \
   -f "${repo_root}/local-lab/fleet/gitrepos/platform-apps.yaml"
@@ -47,12 +66,18 @@ expected_bundles=(
   local-lab-gitlab-database
   local-lab-gitlab-valkey
 )
+if [[ "${monitoring_enabled}" == true ]]; then
+  expected_bundles+=(local-lab-prometheus-grafana)
+fi
+if [[ "${opencost_enabled}" == true ]]; then
+  expected_bundles+=(local-lab-opencost)
+fi
 deadline=$((SECONDS + 1800))
 error_since=0
 last_error_state=""
 next_status_report=$((SECONDS + 60))
 
-printf 'Waiting for Fleet to fetch %s and ready %s conservative-profile bundles' \
+printf 'Waiting for Fleet to fetch %s and ready %s enabled-profile bundles' \
   "${expected_commit}" "${#expected_bundles[@]}"
 while (( SECONDS < deadline )); do
   repo_rows="$("${kubectl}" --kubeconfig "${kubeconfig}" -n fleet-local \
@@ -88,7 +113,22 @@ while (( SECONDS < deadline )); do
   fi
 
   if [[ "${all_ready}" == true ]]; then
-    printf '\nFleet fetched the requested revision and all conservative-profile bundles are Ready.\n'
+    printf '\nFleet fetched the requested revision and all enabled profile bundles are Ready.\n'
+    if [[ "${monitoring_enabled}" == true ]]; then
+      printf 'Waiting for Prometheus, kube-state-metrics, and Grafana workloads.\n'
+      for selector in \
+        'app.kubernetes.io/name=prometheus' \
+        'app.kubernetes.io/name=kube-state-metrics' \
+        'app.kubernetes.io/name=grafana'; do
+        "${kubectl}" --kubeconfig "${kubeconfig}" -n monitoring wait \
+          --for=condition=Ready pods -l "${selector}" --timeout=10m
+      done
+    fi
+    if [[ "${opencost_enabled}" == true ]]; then
+      printf 'Waiting for OpenCost workloads.\n'
+      "${kubectl}" --kubeconfig "${kubeconfig}" -n opencost wait \
+        --for=condition=Ready pods -l app.kubernetes.io/name=opencost --timeout=10m
+    fi
     printf 'Waiting for Keycloak, its database, GitLab database, and Valkey pods to become Ready.\n'
     "${kubectl}" --kubeconfig "${kubeconfig}" -n keycloak wait --for=condition=Ready pods --all --timeout=10m
     "${kubectl}" --kubeconfig "${kubeconfig}" -n gitlab wait --for=condition=Ready pods --all --timeout=10m
@@ -118,6 +158,27 @@ while (( SECONDS < deadline )); do
     done
     [[ "${keycloak_ready}" == true ]] || { echo "Keycloak ingress did not respond successfully after five minutes." >&2; exit 1; }
     printf 'Keycloak ingress check: HTTP response received.\n'
+    python3 "${repo_root}/local-lab/scripts/configure-keycloak-tenants.py" --apply \
+      --kubectl "${kubectl}" --kubeconfig "${kubeconfig}"
+    python3 "${repo_root}/local-lab/scripts/configure-rancher-oidc.py" --apply \
+      --kubectl "${kubectl}" --kubeconfig "${kubeconfig}"
+    python3 "${repo_root}/local-lab/scripts/reconcile-tenant-rancher-bindings.py" --apply \
+      --kubectl "${kubectl}" --kubeconfig "${kubeconfig}"
+
+    printf 'Running tenant authorization, admission, quota, and network verification.\n'
+    python3 "${repo_root}/local-lab/scripts/verify-tenant-rbac.py" \
+      --kubectl "${kubectl}" --kubeconfig "${kubeconfig}"
+    python3 "${repo_root}/local-lab/scripts/verify-tenant-admission.py" --apply \
+      --kubectl "${kubectl}" --kubeconfig "${kubeconfig}"
+    python3 "${repo_root}/local-lab/scripts/verify-tenant-quota.py" --apply \
+      --kubectl "${kubectl}" --kubeconfig "${kubeconfig}"
+    python3 "${repo_root}/local-lab/scripts/verify-tenant-network.py" --apply \
+      --kubectl "${kubectl}" --kubeconfig "${kubeconfig}"
+    if [[ "${monitoring_enabled}" == true ]]; then
+      python3 "${repo_root}/local-lab/scripts/verify-tenant-observability.py" --apply \
+        --kubectl "${kubectl}" --kubeconfig "${kubeconfig}"
+    fi
+
     "${kubectl}" --kubeconfig "${kubeconfig}" -n keycloak get pods,pvc
     "${kubectl}" --kubeconfig "${kubeconfig}" -n gitlab get pods,pvc
     exit 0

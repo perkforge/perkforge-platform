@@ -1,0 +1,100 @@
+apiVersion: platform.perkforge.io/v1alpha1
+kind: TenantCatalog
+# This is local-lab configuration data, not a Kubernetes custom resource.
+rancherManagementCluster: local
+clusters:
+  - name: local
+    podSecurityVersion: v1.36
+tenants:
+  - id: tenant-alpha
+    displayName: Tenant Alpha
+    cluster: local
+    rancher:
+      projectName: tenant-alpha
+      dashboardAccess: true
+    identity:
+      provider: keycloak
+      groups:
+        admins: /tenants/tenant-alpha/admins
+        developers: /tenants/tenant-alpha/developers
+        viewers: /tenants/tenant-alpha/viewers
+    isolation:
+      tier: shared
+      network: restricted
+      runtime: restricted
+    observability:
+      metrics: true
+      costAllocation: true
+    resources:
+      budget:
+        pods: "15"
+        requests.cpu: "1"
+        requests.memory: 1500Mi
+        limits.cpu: "2"
+        limits.memory: 2Gi
+        persistentvolumeclaims: "5"
+        requests.storage: 10Gi
+        services: "10"
+      defaults:
+        requestCpu: 100m
+        requestMemory: 128Mi
+        limitCpu: 500m
+        limitMemory: 512Mi
+    environments:
+      - name: default
+        namespace: tenant-alpha
+        allocation:
+          pods: "15"
+          requests.cpu: "1"
+          requests.memory: 1500Mi
+          limits.cpu: "2"
+          limits.memory: 2Gi
+          persistentvolumeclaims: "5"
+          requests.storage: 10Gi
+          services: "10"
+  - id: tenant-bravo
+    displayName: Tenant Bravo
+    cluster: local
+    rancher:
+      projectName: tenant-bravo
+      dashboardAccess: true
+    identity:
+      provider: keycloak
+      groups:
+        admins: /tenants/tenant-bravo/admins
+        developers: /tenants/tenant-bravo/developers
+        viewers: /tenants/tenant-bravo/viewers
+    isolation:
+      tier: shared
+      network: restricted
+      runtime: restricted
+    observability:
+      metrics: true
+      costAllocation: true
+    resources:
+      budget:
+        pods: "15"
+        requests.cpu: "1"
+        requests.memory: 1500Mi
+        limits.cpu: "2"
+        limits.memory: 2Gi
+        persistentvolumeclaims: "5"
+        requests.storage: 10Gi
+        services: "10"
+      defaults:
+        requestCpu: 100m
+        requestMemory: 128Mi
+        limitCpu: 500m
+        limitMemory: 512Mi
+    environments:
+      - name: default
+        namespace: tenant-bravo
+        allocation:
+          pods: "15"
+          requests.cpu: "1"
+          requests.memory: 1500Mi
+          limits.cpu: "2"
+          limits.memory: 2Gi
+          persistentvolumeclaims: "5"
+          requests.storage: 10Gi
+          services: "10"

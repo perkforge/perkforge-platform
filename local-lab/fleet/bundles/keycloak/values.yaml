@@ -40,3 +40,7 @@ extraEnv: |
       secretKeyRef:
         name: keycloak-admin
         key: password
+  - name: KC_HOSTNAME
+    value: http://keycloak.local-lab.test/auth
+  - name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
+    value: "true"

@@ -39,6 +39,164 @@ local-lab/scripts/provision-vms.sh
 
 The script asks for sudo when it needs access to system libvirt and waits for both RHEL installs to accept SSH. It keeps the DVD attached to both VMs for their local package repositories. It generates a lab-only SSH key and console password if they do not already exist; that password is also used for Ansible privilege escalation and is stored in `.secrets/rhel-lab-console-password`. Keep `.secrets/` private; it is ignored by Git.
 
+## Tenant foundation
+
+The synthetic tenant foundation is managed by the existing Fleet bundle at
+`local-lab/fleet/bundles/tenant-foundation/`. Its input is
+`local-lab/tenant-config/tenants.yaml`; validate or render it before changing
+the applied manifest. The renderer and tests use the pinned dependency in
+`local-lab/requirements.txt` (PyYAML 6.0.2).
+
+```sh
+python3 local-lab/scripts/render-tenant-foundation.py --check
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s local-lab/tests -v
+```
+
+Use `--write` to regenerate the bundle manifest after editing the catalog.
+That command only writes the local generated file; it does not contact or
+modify the cluster. Tenant budgets are aggregate ceilings, and the renderer
+rejects environment allocations that exceed them. The renderer emits stable
+Rancher Project IDs with project-wide budget ceilings, custom tenant
+administrator/developer/viewer RoleTemplates, namespace associations, and
+namespace-scoped controls. The existing namespaces and
+identifiers are preserved. Keycloak groups are represented by explicit
+full-path role groups (`/tenants/<tenant>/<role>`). For each namespace, the
+renderer sets Rancher's `field.cattle.io/resourceQuota` annotation to the
+environment's catalog allocation. [Rancher's project quota guide](https://rancher.github.io/product-docs-playbook/rancher-manager/v2.15/en/cluster-admin/project-admin/project-resource-quotas/resource-quotas-in-projects.html)
+documents that Kubernetes-created project namespaces use this annotation to
+reserve a specific share of the project-wide quota pool. Preview the Keycloak-side realm,
+client, and group configuration with:
+
+For each namespace, the renderer sets Rancher's `field.cattle.io/resourceQuota`
+annotation to the environment's catalog allocation. Rancher's project quota
+guide documents that Kubernetes-created project namespaces use this annotation
+to reserve a specific share of the project-wide quota pool.
+
+```sh
+python3 local-lab/scripts/configure-keycloak-tenants.py
+```
+
+After Keycloak is healthy, `--apply` reconciles the dedicated `perkforge` realm,
+confidential Rancher OIDC client, full-path `groups` token mapper, and catalog
+groups and six role-scoped synthetic accounts. It uses a loopback-only kubectl
+port-forward and stores the client secret and synthetic account passwords
+under ignored `.secrets/`; it does not print credential values or enable
+Rancher authentication. The Keycloak chart fixes its
+public issuer URL and enables dynamically resolved backchannel URLs so Rancher
+can use the in-cluster Keycloak service while users reach the public ingress.
+The current lab uses HTTP for Keycloak and self-signed TLS for Rancher; this is
+specific to the isolated lab and must be replaced with trusted TLS for a real
+deployment. Rancher provider activation and a successful browser login remain
+separate steps.
+
+Once Fleet has created the Rancher Projects, preview project role bindings
+using:
+
+```sh
+python3 local-lab/scripts/reconcile-tenant-rancher-bindings.py
+```
+
+The reconciler reads each project's actual `status.backingNamespace`, verifies
+catalog ownership, and plans one Rancher ProjectRoleTemplateBinding per
+Keycloak group and role. It refuses to adopt a conflicting project or binding.
+It is plan-only by default. `--apply` is intentionally separate and refuses to
+run unless Rancher Keycloak OIDC reports enabled; it then applies only the
+catalog-owned group bindings. Keycloak group/client provisioning is now
+scripted but has not been applied, and Rancher OIDC login/revocation tests are
+still pending. Generated manifests do not prove effective identity or
+isolation, and no live tenant access/network enforcement test has passed yet.
+
+After OIDC, Projects, RoleTemplates, and PRTBs are active, verify the resulting
+Kubernetes authorization and write JSON/Markdown evidence with:
+
+```sh
+python3 local-lab/scripts/verify-tenant-rbac.py
+```
+
+The runner preflights that Rancher OIDC and the catalog-owned bindings exist,
+then checks expected allowed and denied operations for each synthetic role,
+including secret access, role and RoleBinding edits, service-account token
+creation and impersonation, Pod exec, namespace creation, cluster-scoped
+resources, and cross-tenant operations across every catalog environment. It
+records the run under
+`local-lab/evidence/tenant-rbac/`. The evidence explicitly scopes this to
+Kubernetes authorization; it does not claim to prove browser login, group
+issuance, dashboard behavior, admission, quota admission, or network isolation.
+
+After the tenant foundation policies are installed, preview network checks with:
+
+```sh
+python3 local-lab/scripts/verify-tenant-network.py
+```
+
+The default is plan-only. `--apply` creates short-lived, restricted BusyBox
+probe Pods, Services, and ConfigMaps in the first two catalog tenant
+namespaces; verifies same-tenant HTTP connectivity and cross-tenant HTTP
+denial in both directions, tenant egress to Keycloak's OIDC discovery endpoint,
+DNS access from each tenant, and removes only resources labeled with that run's
+unique ID. It writes timestamped JSON and Markdown evidence under
+`local-lab/evidence/tenant-network/`. The probe image must be available from
+the node cache or a reachable registry. The script needs sufficient namespace
+quota and a working image pull path. Cross-tenant denial shows that the
+combined boundary blocked traffic; it does not isolate whether source egress
+or destination ingress policy caused the block. These checks do not cover
+external egress, ingress-controller behavior, host networking, or node-local
+traffic.
+
+To validate the namespace Pod Security Admission baseline without persisting
+Pods, preview its server-side dry-run matrix with:
+
+```sh
+python3 local-lab/scripts/verify-tenant-admission.py
+```
+
+`--apply` sends API server-side dry-run create requests for one compliant Pod
+and eight expected violations (privilege, host access, root, privilege
+escalation, seccomp, and capabilities). The API server must report a
+PodSecurity violation for each negative case; authorization or unrelated API
+errors do not count as a passing denial. No resources are persisted, although
+the request requires API access and admission evaluation. JSON and Markdown
+evidence are written under `local-lab/evidence/tenant-admission/`. This
+verifies Pod Security Admission only; it does not prove runtime behavior or
+other admission policies.
+
+The namespace quota and defaulting probe is also plan-only by default:
+
+```sh
+python3 local-lab/scripts/verify-tenant-quota.py
+```
+
+`--apply` server-side dry-runs a Pod relying on LimitRange defaults, an in-budget
+Pod, and Pods whose CPU or memory requests exceed the namespace ResourceQuota.
+Quota denials count only when the API reports a ResourceQuota violation; other
+API errors are failures. Evidence is stored under
+`local-lab/evidence/tenant-quota/`. Before testing admission, the verifier checks
+the Rancher project ceiling, catalog ownership, each namespace's project
+association and reserved project-quota allocation, and all catalog
+ResourceQuota keys. The dry-run requests do not prove aggregate quota
+consumption across multiple namespaces, PVC storage admission, runtime CPU
+throttling, or live scheduling.
+
+After the optional Prometheus/Grafana profile is enabled and ready, the
+observability verifier can check tenant attribution and network boundaries:
+
+```sh
+python3 local-lab/scripts/verify-tenant-observability.py
+```
+
+The default is plan-only. `--apply` checks that Prometheus exposes the catalog
+tenant/environment/isolation labels, that tenant NetworkPolicies permit the
+Prometheus scrape path without granting tenant egress to observability, and
+that Prometheus/Grafana/OpenCost services have no Ingress or non-ClusterIP
+exposure. It creates a restricted short-lived Pod per catalog namespace and
+checks DNS plus denied HTTP access to Prometheus and Grafana. The verifier
+removes only probe Pods labeled with its unique run ID and writes sanitized
+evidence under `local-lab/evidence/tenant-observability/`. Live mode requires
+the optional services to be ready and enough namespace quota for one small Pod
+per namespace. It does not validate Grafana data-source query isolation or
+provide tenant dashboards; live evidence is pending because the observability
+profile is not deployed.
+
 ## One-command local lab rebuild
 
 To tear down and recreate the complete local lab without intermediate prompts, run this from the repository root:
@@ -47,7 +205,7 @@ To tear down and recreate the complete local lab without intermediate prompts, r
 local-lab/scripts/rebuild-local-lab.sh --confirm-destroy
 ```
 
-This removes both VM disks and the data on them, provisions RHEL, completes Ansible host configuration, installs RKE2, waits for both nodes to become Ready, installs Rancher, then deploys the conservative Fleet profile: Keycloak and the GitLab database/Valkey dependencies. The GitLab application, Harbor Fleet bundle, and Mattermost remain opt-in because the two 4-GiB VMs have limited memory. The ISO and `.secrets/` are preserved. Before teardown, the script checks direct libvirt access, the ISO checksum, required tools, and that the Fleet configuration on `origin/main` matches the local files. It never asks for a sudo password: if direct libvirt access is unavailable, it stops before teardown. Ansible uses the private VM password file. A failed command stops the run and saves the full output in `.secrets/local-lab-rebuild-*.log`.
+This removes both VM disks and the data on them, provisions RHEL, completes Ansible host configuration, installs RKE2, waits for both nodes to become Ready, installs Rancher, then deploys the conservative Fleet profile: Keycloak and the GitLab database/Valkey dependencies. The profile also reconciles the dedicated Keycloak tenant realm, Rancher OIDC client, group claim mapper, and synthetic tenant groups; it does not enable Rancher OIDC. The GitLab application, Harbor Fleet bundle, and Mattermost remain opt-in because the two 4-GiB VMs have limited memory. The ISO and `.secrets/` are preserved. Before teardown, the script checks direct libvirt access, the ISO checksum, required tools, and that the Fleet configuration on `origin/main` matches the local files. It never asks for a sudo password: if direct libvirt access is unavailable, it stops before teardown. Ansible uses the private VM password file. A failed command stops the run and saves the full output in `.secrets/local-lab-rebuild-*.log`.
 
 After deployment, the script verifies the expected Fleet revision and bundle readiness, waits for all Keycloak and GitLab dependency pods, sends a Valkey `PING`, checks the Keycloak ingress over HTTP, and checks Rancher's `/ping` endpoint. A successful exit therefore means those checks passed, not just that Fleet accepted the bundles. The script records progress in `.secrets/local-lab-rebuild-state`. If a stage fails after teardown completed, rerun with `local-lab/scripts/rebuild-local-lab.sh --resume`; this preserves VM disks and reruns the idempotent provisioning and deployment stages. If a failure occurred during teardown, the checkpoint prevents resume so the VM and disk state can be reviewed before another destructive run. The full rebuild uses `--confirm-destroy`; when Codex runs it, one approval at launch covers the entire command and no intermediate prompts are requested.
 
@@ -105,7 +263,15 @@ It creates local credentials in ignored `.secrets/`, installs the Keycloak and G
 
 This initial GitLab profile disables GitLab Runner to keep the first deployment smaller. GitLab can host groups and projects, but CI pipelines will remain pending until a Runner is configured. GitLab object storage is also disabled for this local profile, so uploads and artifacts use local storage. Harbor uses a self-signed generated ingress certificate. These are deliberate local-only settings to revisit when sizing the lab; they are not suitable for production. GitLab's own minimum example disables Runner and targets a single-user test deployment; its chart's standard target is much larger than these two 4-GiB VMs ([minimum profile](https://gitlab.com/gitlab-org/charts/gitlab/-/raw/master/examples/values-gke-minimum.yaml), [resource guidance](https://docs.gitlab.com/charts/installation/cloud/)).
 
-The local VMs currently run Keycloak, Harbor, and GitLab's database/Valkey dependencies. A prior Harbor upgrade OOM-killed its PostgreSQL pod while memory was high, and the GitLab application has not been installed. The one-command rebuild therefore applies only the conservative Fleet profile. Enable GitLab, Harbor, or Mattermost bundles after reviewing node headroom or increasing VM memory. Harbor's documented minimum is 4 GB by itself ([Harbor prerequisites](https://goharbor.io/docs/main/install-config/installation-prereqs/)).
+The local VMs currently run Keycloak, Harbor, and GitLab's database/Valkey dependencies. A prior Harbor upgrade OOM-killed its PostgreSQL pod while memory was high, and the GitLab application has not been installed. The one-command rebuild therefore applies only the conservative Fleet profile. Enable GitLab, Harbor, Mattermost, or observability bundles after reviewing node headroom or increasing VM memory. Harbor's documented minimum is 4 GB by itself ([Harbor prerequisites](https://goharbor.io/docs/main/install-config/installation-prereqs/)).
+
+The optional Prometheus/Grafana and OpenCost profile is documented in
+[`../docs/OBSERVABILITY-AND-COST.md`](../docs/OBSERVABILITY-AND-COST.md). It is
+not enabled by default. When enabling both paths in
+`fleet/gitrepos/platform-apps.yaml`, `deploy-platform-profile.sh` prepares the
+Grafana admin secret and waits for both Fleet bundles and their workloads.
+Access remains platform-operator-only; tenant-safe Grafana access is not yet
+implemented.
 
 After adding these host entries on the laptop, open the app URLs:
 

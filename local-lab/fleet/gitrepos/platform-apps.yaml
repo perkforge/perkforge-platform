@@ -18,7 +18,9 @@ spec:
     # - local-lab/fleet/bundles/mattermost-operator
     # - local-lab/fleet/bundles/mattermost
     # Metrics, logs, and traces (optional profiles)
+    # Enable both observability paths only after reviewing local node memory.
     # - local-lab/fleet/bundles/prometheus-grafana
+    # - local-lab/fleet/bundles/opencost
     # - local-lab/fleet/bundles/alloy-loki
     # - local-lab/fleet/bundles/tempo
     # Code quality and supply-chain scanning

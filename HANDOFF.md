@@ -146,3 +146,123 @@ by Fleet. The old GitHub repository is archived and read-only; its local
 ## Working tree
 
 Review `git status` before committing. Root-level `kubectl` and `kubectl.sha256` artifacts are ignored and should not be committed.
+
+## Tenant isolation implementation handoff — 2026-10-23
+
+The active implementation is in `/home/corey/src/perkforge-platform`, branch
+`main`. The working tree has a large set of uncommitted tenant-foundation,
+Keycloak/Rancher binding, security verification, and optional monitoring/OpenCost
+changes. Nothing was committed or pushed in this session.
+
+The latest work added
+`local-lab/scripts/verify-tenant-observability.py` and its tests. It is
+plan-only unless `--apply` is given. The live path checks tenant attribution
+labels in Prometheus, shared-service denial from restricted tenant probe Pods,
+Prometheus scrape ingress policy, and observability service exposure. It writes
+sanitized JSON/Markdown evidence and removes uniquely labeled probe Pods. The
+live path has not been run; the optional monitoring and OpenCost Fleet bundles
+remain disabled and undeployed.
+
+Validation before the last verifier edit: all 53 tests passed,
+`render-tenant-foundation.py --check` passed, the verifier plan-only command
+passed, and `git diff --check` passed. A direct `py_compile` attempt could not
+write the repository's `__pycache__` because that location is read-only; use
+`PYTHONPYCACHEPREFIX=/tmp/perkforge-pycache python3 -m py_compile ...` if needed.
+
+The final verifier edit broadened exposure checks to reject any non-ClusterIP
+Service or Ingress in the dedicated `monitoring` and `opencost` namespaces. It
+was not re-tested before stopping. Begin by updating the verifier tests to
+match this behavior (the existing service-exposure assertions still expect the
+older error wording), then rerun the suite and static checks. Afterwards add
+operator instructions to `local-lab/README.md` and the appropriate row to
+`docs/CONTROL-EVIDENCE-MATRIX.md`. Do not run the verifier with `--apply` or
+change the live cluster without explicit authorization.
+
+The main objective remains the full multi-tenant platform capability, not just
+the observability verifier. Rancher OIDC is still not enabled, and live
+Keycloak-to-Rancher login, effective dashboard permissions, runtime/network
+enforcement, and quota behavior need actual cluster verification before any
+completion claim.
+
+## Current tenant-platform state — 2026-10-26
+
+Read-only cluster checks were run after resuming work:
+
+- `cks-control` and `cks-worker` are Ready on RKE2 `v1.36.5+rke2r1`.
+- Fleet GitRepos `local-lab` and `platform-apps` are Ready at remote commit
+  `ead406248994b53ab133f01522ad11c5e3ba0a85`; the current tenant changes are
+  uncommitted and are not what Fleet is reconciling.
+- The tenant foundation bundle currently reports Ready, but this is the older
+  deployed revision. `tenant-alpha` and `tenant-bravo` exist with legacy
+  `platform.homelab/tenant` labels, restricted Pod Security labels, default
+  deny policies, and tenant-specific allow policy names. They do not yet have
+  the new `platform.perkforge.io/*` ownership labels or Rancher project
+  association annotations expected by the current catalog/verifiers.
+- The only Rancher projects are the system `p-fbkk4` and default `p-s5xx7` in
+  management namespace `local`; neither has PerkForge tenant ownership labels
+  or project quotas. Do not silently adopt them or move namespaces into another
+  project. The current renderer/reconciler expects catalog-owned project IDs
+  and has ownership safeguards; review migration behavior before applying.
+- Rancher local AuthConfig is not enabled for OIDC. Keycloak client/group
+  provisioning is scripted, but it does not establish effective Rancher
+  authentication. No live tenant RBAC, project association, quota, or new
+  network/admission enforcement validation has passed.
+- The monitoring and OpenCost Fleet paths are disabled. The optional verifier's
+  live mode was not run.
+
+The observability verifier's exposure tests were aligned with its current
+behavior. Validation now passes: 54 local tests, tenant manifest renderer
+`--check`, Python compilation using `PYTHONPYCACHEPREFIX=/tmp/perkforge-pycache`,
+verifier plan-only mode, and `git diff --check`. No cluster resources were
+changed. The verifier workflow and its limits are documented in
+`local-lab/README.md`, `docs/OBSERVABILITY-AND-COST.md`, and
+`docs/CONTROL-EVIDENCE-MATRIX.md`.
+
+Next work should review the uncommitted tenant foundation migration against the
+existing Helm-managed tenant namespaces, complete a safe and idempotent
+association/adoption path (or document the required explicit transition), and
+resolve the Rancher OIDC activation flow. Keep changes local until reviewed;
+Fleet watches the older published revision. Do not push or run deployment/live
+verification without the user's applicable authorization. Preserve existing
+projects and namespaces during this review.
+
+Additional read-only inspection on 2026-10-26 confirmed the installed tenant
+NetworkPolicies select all Pods in each namespace. Their allow policy permits
+same-namespace ingress/egress plus CoreDNS; there is no Keycloak egress or
+Prometheus scrape-ingress exception in the currently deployed revision.
+
+## Tenant-platform continuation — 2026-10-26
+
+The user clarified that the local RKE2 environment is intentionally disposable:
+when starting over, prefer the fastest reproducible teardown/rebuild over
+preserving synthetic tenant state. This supersedes the prior recommendation to
+preserve/migrate the existing tenant Projects and namespaces. Rancher local
+bootstrap/admin access must remain available throughout.
+
+Rancher authentication safeguards and validation:
+
+- `configure-rancher-oidc.py` refuses to configure OIDC unless Rancher's `local`
+  AuthConfig exists and is enabled. Its apply path rechecks local auth remains
+  enabled after configuring Generic OIDC. It does not modify the `local`
+  AuthConfig or Rancher local user records.
+- The rebuild playbook stores the Rancher bootstrap password in ignored,
+  owner-only `.secrets/rancher-bootstrap-password`; reruns reuse that file.
+- Read-only live checks confirmed `local` is enabled (`localConfig`),
+  `genericoidc` is currently disabled, and the Rancher `admin` user object is
+  present. No live authentication configuration was changed.
+- All 61 `local-lab/tests` tests pass; `git diff --check` and shell syntax
+  checks for the deploy and rebuild scripts pass.
+- A Rancher API server-side dry-run accepted the planned Generic OIDC
+  AuthConfig. It used a temporary dummy secret and did not persist resources.
+
+The cluster API is reachable only with network access outside the restricted
+execution sandbox; ordinary sandboxed kubectl calls fail with `operation not
+permitted`. The server-side dry-run and read-only auth checks succeeded when run
+with elevated access. Do not enable OIDC, apply tenant policies, or start the
+rebuild unless that is part of the user's explicitly authorized next action.
+
+Next: update the checklist/implementation phase status to account for this
+validation, then proceed with the controlled clean-rebuild path when authorized.
+After rebuild, validate Keycloak login, Rancher project access, and the tenant
+isolation evidence against the actual cluster. Local Rancher bootstrap/admin
+login remains the recovery path and must not be disabled.
