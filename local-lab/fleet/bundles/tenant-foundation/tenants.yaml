@@ -12,7 +12,6 @@ description: Manage tenant workloads and tenant-owned secrets without administer
 displayName: PerkForge Tenant Administrator
 external: false
 hidden: false
-projectCreatorDefault: false
 rules:
 - apiGroups:
   - ''
@@ -105,7 +104,6 @@ description: Deploy and troubleshoot tenant workloads without reading secrets or
 displayName: PerkForge Tenant Developer
 external: false
 hidden: false
-projectCreatorDefault: false
 rules:
 - apiGroups:
   - ''
@@ -216,7 +214,6 @@ description: Read tenant workload status without mutation or secret access.
 displayName: PerkForge Tenant Viewer
 external: false
 hidden: false
-projectCreatorDefault: false
 rules:
 - apiGroups:
   - ''
@@ -321,7 +318,7 @@ metadata:
     pod-security.kubernetes.io/warn-version: v1.36
   annotations:
     field.cattle.io/projectId: local:p-tenant-alpha-local
-    field.cattle.io/resourceQuota: '{"limit":{"pods":"15","requestsCpu":"1","requestsMemory":"1500Mi","limitsCpu":"2","limitsMemory":"2Gi","persistentVolumeClaims":"5","requestsStorage":"10Gi","services":"10"}}'
+    field.cattle.io/resourceQuota: '{"limit":{"pods":"15","services":"10","persistentVolumeClaims":"5","requestsCpu":"1","requestsMemory":"1500Mi","requestsStorage":"10Gi","limitsCpu":"2","limitsMemory":"2Gi"}}'
 ---
 apiVersion: v1
 kind: ResourceQuota
@@ -465,7 +462,7 @@ metadata:
     pod-security.kubernetes.io/warn-version: v1.36
   annotations:
     field.cattle.io/projectId: local:p-tenant-bravo-local
-    field.cattle.io/resourceQuota: '{"limit":{"pods":"15","requestsCpu":"1","requestsMemory":"1500Mi","limitsCpu":"2","limitsMemory":"2Gi","persistentVolumeClaims":"5","requestsStorage":"10Gi","services":"10"}}'
+    field.cattle.io/resourceQuota: '{"limit":{"pods":"15","services":"10","persistentVolumeClaims":"5","requestsCpu":"1","requestsMemory":"1500Mi","requestsStorage":"10Gi","limitsCpu":"2","limitsMemory":"2Gi"}}'
 ---
 apiVersion: v1
 kind: ResourceQuota

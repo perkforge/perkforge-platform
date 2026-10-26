@@ -190,7 +190,6 @@ def render(catalog: dict) -> str:
             "displayName": role["displayName"],
             "external": False,
             "hidden": False,
-            "projectCreatorDefault": False,
             "rules": role["rules"],
         })
     for tenant in tenants:
@@ -257,9 +256,14 @@ def render(catalog: dict) -> str:
                         # Rancher project quotas are pooled across namespaces.
                         # Specify each namespace's reserved allocation so Rancher
                         # does not seed every namespace with the project default.
+                        # Keep Rancher's API struct field order: it stores this
+                        # value as a JSON string and Fleet otherwise sees harmless
+                        # ordering drift after Rancher normalizes the annotation.
                         "field.cattle.io/resourceQuota": json.dumps({"limit": {
-                            rancher_quota_names[key]: str(value)
-                            for key, value in env["allocation"].items()}}, separators=(",", ":")),
+                            rancher_quota_names[key]: str(env["allocation"][key])
+                            for key in ("pods", "services", "persistentvolumeclaims",
+                                        "requests.cpu", "requests.memory", "requests.storage",
+                                        "limits.cpu", "limits.memory")}}, separators=(",", ":")),
                     },
                 },
             })

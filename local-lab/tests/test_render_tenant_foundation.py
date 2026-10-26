@@ -97,6 +97,10 @@ class TenantFoundationTests(unittest.TestCase):
             quota = json.loads(namespace["metadata"]["annotations"]["field.cattle.io/resourceQuota"])
             self.assertEqual(quota["limit"]["requestsCpu"], "1")
             self.assertEqual(quota["limit"]["requestsMemory"], "1500Mi")
+            self.assertEqual(list(quota["limit"]), [
+                "pods", "services", "persistentVolumeClaims", "requestsCpu",
+                "requestsMemory", "requestsStorage", "limitsCpu", "limitsMemory",
+            ])
 
     def test_rancher_namespace_reservation_matches_environment_allocation(self):
         catalog = yaml.safe_load(yaml.safe_dump(self.catalog))
@@ -124,6 +128,10 @@ class TenantFoundationTests(unittest.TestCase):
     def test_custom_roles_do_not_grant_developer_or_viewer_secret_access(self):
         objects = list(yaml.safe_load_all(module.render(self.catalog)))
         roles = {obj["metadata"]["name"]: obj for obj in objects if obj["kind"] == "RoleTemplate"}
+        for role in roles.values():
+            # Rancher defaults this boolean to false and omits it from the
+            # stored object; avoid perpetual Fleet drift from an explicit false.
+            self.assertNotIn("projectCreatorDefault", role)
         for name in ("perkforge-tenant-developer", "perkforge-tenant-viewer"):
             resources = {resource for rule in roles[name]["rules"] for resource in rule.get("resources", [])}
             self.assertNotIn("secrets", resources)
