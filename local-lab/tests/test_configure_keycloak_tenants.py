@@ -110,6 +110,53 @@ class KeycloakTenantConfigurationTests(unittest.TestCase):
         self.assertEqual(leaf["attributes"]["platform-tenant"], ["tenant-alpha"])
         self.assertEqual(leaf["attributes"]["platform-role"], ["admins"])
 
+    def test_adopts_only_empty_legacy_tenants_container(self):
+        admin = module.KeycloakAdmin.__new__(module.KeycloakAdmin)
+        groups = {
+            "root": {"id": "root", "name": "tenants", "path": "/tenants",
+                     "attributes": {}, "parent": None},
+            "tenant": {"id": "tenant", "name": "tenant-alpha",
+                       "path": "/tenants/tenant-alpha",
+                       "attributes": {"perkforge-managed": ["true"]}, "parent": "root",
+                       "platform-tenant": ["tenant-alpha"]},
+            "admins": {"id": "admins", "name": "admins",
+                       "path": "/tenants/tenant-alpha/admins",
+                       "attributes": {"perkforge-managed": ["true"],
+                                      "platform-tenant": ["tenant-alpha"],
+                                      "platform-role": ["admins"]}, "parent": "tenant"},
+        }
+
+        def api(method, path, value=None, accepted=(200,)):
+            pieces = path.split("?", 1)[0].strip("/").split("/")
+            if method == "GET" and "members" in pieces:
+                return b"[]"
+            if method == "GET" and pieces[-1] in {"groups", "children"}:
+                parent = pieces[-2] if pieces[-1] == "children" else None
+                return json.dumps([group for group in groups.values()
+                                   if group["parent"] == parent]).encode()
+            if method == "PUT" and pieces[-2] == "groups":
+                groups[pieces[-1]].update(value)
+                return b""
+            raise AssertionError(f"unexpected Keycloak API request: {method} {path}")
+
+        admin.api = api
+        admin.ensure_group_path("/tenants/tenant-alpha/admins")
+        self.assertEqual(groups["root"]["attributes"], {"perkforge-managed": ["true"]})
+
+    def test_refuses_to_adopt_populated_legacy_tenants_container(self):
+        admin = module.KeycloakAdmin.__new__(module.KeycloakAdmin)
+
+        def api(method, path, value=None, accepted=(200,)):
+            if method == "GET" and "search=tenants" in path:
+                return json.dumps([{"id": "root", "name": "tenants", "attributes": {}}]).encode()
+            if method == "GET" and "members" in path:
+                return json.dumps([{"id": "existing-user"}]).encode()
+            raise AssertionError(f"unexpected Keycloak API request: {method} {path}")
+
+        admin.api = api
+        with self.assertRaisesRegex(RuntimeError, "without PerkForge ownership metadata"):
+            admin.ensure_group_path("/tenants/tenant-alpha/admins")
+
     def test_adopts_only_empty_legacy_synthetic_user(self):
         admin = module.KeycloakAdmin.__new__(module.KeycloakAdmin)
         user = {"id": "user-1", "username": "tenant-alpha-admins",

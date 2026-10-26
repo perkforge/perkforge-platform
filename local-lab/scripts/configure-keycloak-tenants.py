@@ -208,7 +208,21 @@ class KeycloakAdmin:
             if exact:
                 group = exact[0]
                 if group.get("attributes", {}).get(OWNERSHIP_ATTRIBUTE) != ["true"]:
-                    raise RuntimeError(f"group {path!r} already exists without PerkForge ownership metadata")
+                        # A previous local setup may have created only the
+                        # top-level /tenants container. Adopt that exact empty
+                        # directory group, but never adopt populated groups or
+                        # tenant/role groups without ownership metadata.
+                        attributes = group.get("attributes", {})
+                        safe_container = index == 0 and segment == "tenants" and not attributes
+                        if safe_container:
+                            members = json.loads(self.api(
+                                "GET", f"/realms/{REALM}/groups/{group['id']}/members?max=1"))
+                            safe_container = not members
+                        if not safe_container:
+                            raise RuntimeError(f"group {path!r} already exists without PerkForge ownership metadata")
+                        group["attributes"] = {OWNERSHIP_ATTRIBUTE: ["true"]}
+                        self.api("PUT", f"/realms/{REALM}/groups/{group['id']}",
+                                 group, accepted=(204,))
                 if index == len(segments) - 1:
                     group_attributes = group.get("attributes", {})
                     expected_identity = {"platform-tenant": [tenant_id], "platform-role": [role]}
