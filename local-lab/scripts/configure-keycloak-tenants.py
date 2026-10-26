@@ -264,10 +264,25 @@ class KeycloakAdmin:
                 raise RuntimeError(f"Keycloak did not return the created user {username!r}")
         user = users[0]
         attributes = user.get("attributes", {})
-        if attributes.get(OWNERSHIP_ATTRIBUTE) != ["true"] or \
-                attributes.get("platform-tenant") != [tenant_id] or \
-                attributes.get("platform-role") != [role]:
-            raise RuntimeError(f"user {username!r} exists but is not owned by this tenant catalog")
+        expected_identity = {
+            OWNERSHIP_ATTRIBUTE: ["true"],
+            "platform-tenant": [tenant_id],
+            "platform-role": [role],
+        }
+        memberships = json.loads(self.api("GET", f"/realms/{REALM}/users/{user['id']}/groups"))
+        if any(attributes.get(key) != value for key, value in expected_identity.items()):
+            # Permit migration of an older generated demo account only when its
+            # deterministic placeholder email, empty attributes, and no group
+            # memberships prove it has no assigned identity or access.
+            safe_synthetic_account = (
+                not attributes
+                and user.get("email") == f"{username}@example.invalid"
+                and not memberships
+            )
+            if not safe_synthetic_account:
+                raise RuntimeError(f"user {username!r} exists but is not owned by this tenant catalog")
+            user["attributes"] = expected_identity
+            self.api("PUT", f"/realms/{REALM}/users/{user['id']}", user, accepted=(204,))
         if user.get("enabled") is not True:
             user["enabled"] = True
             self.api("PUT", f"/realms/{REALM}/users/{user['id']}", user, accepted=(204,))
@@ -286,7 +301,6 @@ class KeycloakAdmin:
             self.api("PUT", f"/realms/{REALM}/users/{user['id']}/reset-password",
                      payload, accepted=(204,))
 
-        memberships = json.loads(self.api("GET", f"/realms/{REALM}/users/{user['id']}/groups"))
         for current_group in memberships:
             group_attributes = current_group.get("attributes", {})
             if group_attributes.get(OWNERSHIP_ATTRIBUTE) == ["true"] and \

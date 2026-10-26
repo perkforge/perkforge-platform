@@ -110,6 +110,62 @@ class KeycloakTenantConfigurationTests(unittest.TestCase):
         self.assertEqual(leaf["attributes"]["platform-tenant"], ["tenant-alpha"])
         self.assertEqual(leaf["attributes"]["platform-role"], ["admins"])
 
+    def test_adopts_only_empty_legacy_synthetic_user(self):
+        admin = module.KeycloakAdmin.__new__(module.KeycloakAdmin)
+        user = {"id": "user-1", "username": "tenant-alpha-admins",
+                "email": "tenant-alpha-admins@example.invalid", "enabled": True,
+                "attributes": {}}
+        calls = []
+
+        def api(method, path, value=None, accepted=(200,)):
+            calls.append((method, path, value))
+            if method == "GET" and "/users?" in path:
+                return json.dumps([user]).encode()
+            if method == "GET" and path.endswith("/groups"):
+                return b"[]"
+            if method == "PUT" and path.endswith("/users/user-1"):
+                user.update(value)
+                return b""
+            if method == "PUT" and path.endswith("/groups/group-1"):
+                return b""
+            raise AssertionError(f"unexpected Keycloak API request: {method} {path}")
+
+        admin.api = api
+        with tempfile.TemporaryDirectory() as directory:
+            password_file = Path(directory) / "tenant-alpha-admins-password"
+            password_file.write_text("existing-local-secret\n")
+            admin.ensure_user("tenant-alpha", "admins", "tenant-alpha-admins",
+                              "group-1", password_file)
+        self.assertEqual(user["attributes"], {
+            "perkforge-managed": ["true"],
+            "platform-tenant": ["tenant-alpha"],
+            "platform-role": ["admins"],
+        })
+        self.assertTrue(any(method == "PUT" and path.endswith("/users/user-1")
+                            for method, path, _ in calls))
+        self.assertFalse(any("reset-password" in path for _, path, _ in calls))
+
+    def test_rejects_unowned_user_with_group_membership(self):
+        admin = module.KeycloakAdmin.__new__(module.KeycloakAdmin)
+        user = {"id": "user-1", "username": "tenant-alpha-admins",
+                "email": "tenant-alpha-admins@example.invalid", "enabled": True,
+                "attributes": {}}
+
+        def api(method, path, value=None, accepted=(200,)):
+            if method == "GET" and "/users?" in path:
+                return json.dumps([user]).encode()
+            if method == "GET" and path.endswith("/groups"):
+                return json.dumps([{"id": "unowned-group"}]).encode()
+            raise AssertionError(f"unexpected Keycloak API request: {method} {path}")
+
+        admin.api = api
+        with tempfile.TemporaryDirectory() as directory:
+            password_file = Path(directory) / "tenant-alpha-admins-password"
+            password_file.write_text("existing-local-secret\n")
+            with self.assertRaisesRegex(RuntimeError, "not owned by this tenant catalog"):
+                admin.ensure_user("tenant-alpha", "admins", "tenant-alpha-admins",
+                                  "group-1", password_file)
+
     def test_secret_file_is_owner_only(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "private" / "client-secret"
