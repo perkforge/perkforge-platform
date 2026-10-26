@@ -101,13 +101,41 @@ catalog ownership, and plans one Rancher ProjectRoleTemplateBinding per
 Keycloak group and role. It refuses to adopt a conflicting project or binding.
 It is plan-only by default. `--apply` is intentionally separate and refuses to
 run unless Rancher Keycloak OIDC reports enabled; it then applies only the
-catalog-owned group bindings. Keycloak tenant groups/client configuration and
-Rancher Generic OIDC are active. The live suite has passed Kubernetes API
-authorization (94/94), Pod Security Admission (9/9), quota checks (4/4), and
-network checks (7/7). These
-results do not verify browser SSO, Rancher dashboard behavior, or group
-revocation; see [the security boundary](../docs/TENANT-SECURITY-BOUNDARY.md)
-for the current evidence and limitations.
+catalog-owned group bindings. A live Playwright run using the synthetic
+`tenant-alpha-viewers` account passed 10/10 checks for Keycloak login, Alpha
+project visibility, denied Bravo project/workload access, and denied secret
+listing. It used the local-only TLS bypass described below. Membership
+revocation, session expiry, and CAC authentication remain unverified. The
+Kubernetes API suites separately passed RBAC (94/94), Pod Security Admission
+(9/9), quota (4/4), and network (7/7). See
+[the security boundary](../docs/TENANT-SECURITY-BOUNDARY.md) for evidence scope.
+
+### Browser SSO and Rancher tenant access
+
+Install the separate, pinned browser-test dependency and Chromium in a Python
+virtual environment:
+
+```sh
+python3 -m venv .venv-e2e
+. .venv-e2e/bin/activate
+python -m pip install -r local-lab/requirements-e2e.txt
+python -m playwright install chromium
+```
+
+The read-only test uses a synthetic user's password file under `.secrets/`,
+creates an ephemeral browser context, and does not save screenshots, traces,
+cookies, tokens, or browser state:
+
+```sh
+python local-lab/scripts/verify-rancher-tenant-ui.py --allow-local-tls-bypass
+```
+
+The flag is only for the self-signed certificate in this disposable `local-lab`
+and disables Chromium's TLS verification for that run. Use a normally trusted
+certificate without the flag in other environments. The test does not simulate
+CAC/PIV middleware or card/PIN prompts; those require a separate approved,
+attended identity test. It also does not verify Keycloak membership revocation
+or session expiry.
 
 After OIDC, Projects, RoleTemplates, and PRTBs are active, verify the resulting
 Kubernetes authorization and write JSON/Markdown evidence with:
@@ -197,8 +225,10 @@ removes only probe Pods labeled with its unique run ID and writes sanitized
 evidence under `local-lab/evidence/tenant-observability/`. Live mode requires
 the optional services to be ready and enough namespace quota for one small Pod
 per namespace. It does not validate Grafana data-source query isolation or
-provide tenant dashboards; live evidence is pending because the observability
-profile is not deployed.
+tenant dashboard authorization. The dashboard in the Fleet bundle is
+platform-operator-only. The paths are enabled in the repository configuration;
+runtime evidence remains pending until that revision is published and Fleet
+reports the profile ready.
 
 
 ## Run the tenant security suite
@@ -304,7 +334,7 @@ It creates local credentials in ignored `.secrets/`, installs the Keycloak and G
 
 This initial GitLab profile disables GitLab Runner to keep the first deployment smaller. GitLab can host groups and projects, but CI pipelines will remain pending until a Runner is configured. GitLab object storage is also disabled for this local profile, so uploads and artifacts use local storage. Harbor uses a self-signed generated ingress certificate. These are deliberate local-only settings to revisit when sizing the lab; they are not suitable for production. GitLab's own minimum example disables Runner and targets a single-user test deployment; its chart's standard target is much larger than these two 4-GiB VMs ([minimum profile](https://gitlab.com/gitlab-org/charts/gitlab/-/raw/master/examples/values-gke-minimum.yaml), [resource guidance](https://docs.gitlab.com/charts/installation/cloud/)).
 
-The local VMs currently run Keycloak, Harbor, and GitLab's database/Valkey dependencies. A prior Harbor upgrade OOM-killed its PostgreSQL pod while memory was high, and the GitLab application has not been installed. The one-command rebuild therefore applies only the conservative Fleet profile. Enable GitLab, Harbor, Mattermost, or observability bundles after reviewing node headroom or increasing VM memory. Harbor's documented minimum is 4 GB by itself ([Harbor prerequisites](https://goharbor.io/docs/main/install-config/installation-prereqs/)).
+The local VMs currently run Keycloak and GitLab's database/Valkey dependencies. A prior Harbor upgrade OOM-killed its PostgreSQL pod while memory was high, and the GitLab application has not been installed. The current Fleet profile enables Prometheus/Grafana and OpenCost with low resource requests pinned to the worker; live memory and pod behavior must be checked after reconciliation. GitLab, Harbor, and Mattermost remain opt-in. Harbor's documented minimum is 4 GB by itself ([Harbor prerequisites](https://goharbor.io/docs/main/install-config/installation-prereqs/)).
 
 The optional Prometheus/Grafana and OpenCost profile is documented in
 [`../docs/OBSERVABILITY-AND-COST.md`](../docs/OBSERVABILITY-AND-COST.md). It is

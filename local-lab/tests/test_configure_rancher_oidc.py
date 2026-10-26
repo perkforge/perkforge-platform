@@ -28,8 +28,11 @@ class RancherOidcConfigurationTests(unittest.TestCase):
         self.assertEqual(len(desired["allowedPrincipalIds"]), 6)
         self.assertIn("genericoidc_group:///tenants/tenant-alpha/admins",
                       desired["allowedPrincipalIds"])
-        config = desired["genericOIDCConfig"]
+        config = desired
         self.assertEqual(config["issuer"], module.KEYCLOAK_PUBLIC_REALM)
+        self.assertEqual(config["rancherUrl"], module.RANCHER_REDIRECT_URL)
+        self.assertEqual(config["rancherApiHost"], module.RANCHER_URL)
+        self.assertNotIn("genericOIDCConfig", desired)
         self.assertIn("keycloak.local-lab.test", config["authEndpoint"])
         self.assertIn(".svc.cluster.local", config["tokenEndpoint"])
         self.assertTrue(config["groupSearchEnabled"])
@@ -47,18 +50,18 @@ class RancherOidcConfigurationTests(unittest.TestCase):
         desired = module.auth_config(self.catalog, "fixture")
         local = {"metadata": {"name": "local"}, "enabled": True}
         builtin = {"metadata": {"name": "genericoidc"}, "type": module.AUTH_TYPE,
-                   "genericOIDCConfig": {}}
+                   "clientId": "", "authEndpoint": ""}
         with self.assertRaisesRegex(ValueError, "another external Rancher auth provider"):
             module.validate_target([local, builtin, {"metadata": {"name": "keycloakoidc"},
                                                        "enabled": True}], desired)
-        unowned = {**builtin, "genericOIDCConfig": {"clientId": "some-other-client"}}
+        unowned = {**builtin, "clientId": "some-other-client"}
         with self.assertRaisesRegex(ValueError, "unowned settings"):
             module.validate_target([local, unowned], desired)
 
     def test_refuses_to_enable_oidc_if_local_auth_is_disabled_or_missing(self):
         desired = module.auth_config(self.catalog, "fixture")
         generic = {"metadata": {"name": "genericoidc"}, "type": module.AUTH_TYPE,
-                   "genericOIDCConfig": {}}
+                   "clientId": "", "authEndpoint": ""}
         with self.assertRaisesRegex(ValueError, "local authentication must already be enabled"):
             module.validate_target([generic, {"metadata": {"name": "local"}, "enabled": False}], desired)
         with self.assertRaisesRegex(ValueError, "local authentication must already be enabled"):
@@ -76,7 +79,7 @@ class RancherOidcConfigurationTests(unittest.TestCase):
             self.assertTrue(fake.local["enabled"])
             module.reconcile(self.catalog, secret_file, fake, apply=True)
             self.assertEqual(fake.apply_count, first + 1)
-            self.assertEqual(fake.current["genericOIDCConfig"]["clientSecret"], "fixture-secret")
+            self.assertEqual(fake.current["clientSecret"], "fixture-secret")
 
     def test_server_dry_run_passes_dry_run_flag_without_persisting(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -86,7 +89,7 @@ class RancherOidcConfigurationTests(unittest.TestCase):
             module.reconcile(self.catalog, secret_file, fake, server_dry_run=True)
             self.assertEqual(fake.apply_count, 1)
             self.assertTrue(fake.last_dry_run)
-            self.assertIsNone(fake.current["genericOIDCConfig"].get("clientId"))
+            self.assertEqual(fake.current.get("clientId"), "")
 
     def test_plan_mode_does_not_expose_or_read_secret_content(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -104,8 +107,9 @@ class RancherOidcConfigurationTests(unittest.TestCase):
 class FakeKubectl:
     def __init__(self):
         self.local = {"metadata": {"name": "local"}, "type": "localConfig", "enabled": True}
-        self.current = {"metadata": {"name": "genericoidc"}, "type": module.AUTH_TYPE,
-                        "genericOIDCConfig": {}}
+        self.current = {"metadata": {"name": "genericoidc",
+                                     "labels": {module.OWNER_LABEL: module.OWNER_VALUE}},
+                        "type": module.AUTH_TYPE, "clientId": "", "authEndpoint": ""}
         self.apply_count = 0
         self.last_dry_run = False
 

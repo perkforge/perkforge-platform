@@ -17,9 +17,9 @@ observability configuration.
 
 | Layer | Intended enforcement | Current evidence/state |
 |---|---|---|
-| Identity | Keycloak role groups: `/tenants/<tenant>/{admins,developers,viewers}`; OIDC group claim in token | Synthetic groups/client and Rancher Generic OIDC are configured; browser login, group-claim behavior, and membership revocation/session expiry remain unverified |
-| Rancher management | Per-cluster Rancher Project and least-privilege custom project RoleTemplates | Live RBAC/quota preflights found catalog-owned Projects, RoleTemplates, PRTBs, and namespace project associations; interactive dashboard access remains unverified |
-| Kubernetes authorization | Project role templates translate to scoped Kubernetes RBAC; no tenant cluster-admin bindings | Live impersonated-group authorization suite passed 94/94 expected allow/deny checks; browser-issued identity remains unverified |
+| Identity | Keycloak role groups: `/tenants/<tenant>/{admins,developers,viewers}`; OIDC group claim in token | Synthetic Keycloak login and the Alpha viewer's mapped project visibility passed in Playwright; group removal/revocation and session-expiry behavior remain unverified |
+| Rancher management | Per-cluster Rancher Project and least-privilege custom project RoleTemplates | Live checks found catalog-owned Projects, RoleTemplates, PRTBs, and namespace associations. Playwright reached Rancher as Alpha viewer, listed Alpha, and received HTTP 403 for Bravo; remaining roles and UI workflows need separate checks |
+| Kubernetes authorization | Project role templates translate to scoped Kubernetes RBAC; no tenant cluster-admin bindings | Impersonated-group suite passed 94/94. The browser-issued Alpha viewer could list Alpha pods, could not list Bravo pods, and could not list secrets in either namespace |
 | Namespace ownership | Protected tenant/environment labels and Rancher project association | Live quota preflight validated catalog tenant labels, Rancher project association, and reserved allocation for catalog namespaces |
 | Network | Default-deny ingress/egress, same-tenant traffic, DNS, and explicit platform exceptions | Live probe suite passed 7/7 same-tenant, cross-tenant, Keycloak discovery, and DNS checks; broader egress/ingress/host paths remain untested |
 | Runtime | Pod Security Admission Restricted labels, supplemented by admission policy where needed | Live server-side dry-run passed 9/9 Pod Security Admission cases; this verifies admission decisions, not runtime isolation or shared-kernel behavior |
@@ -73,10 +73,14 @@ and [DoD PKI/PKE middleware](https://www.cyber.mil/pki-pke/end-users/middleware/
 - **Platform administrator:** retains control of cluster-scoped security,
   tenant budgets, identity integration, shared services, and lifecycle actions.
 
-The custom RoleTemplates and ProjectRoleTemplateBindings are applied, and the
-Kubernetes API permissions passed the current impersonation matrix. Tenant
-browser SSO and Rancher dashboard authorization have not yet been verified.
-Hiding dashboard controls is not an authorization test.
+The custom RoleTemplates and ProjectRoleTemplateBindings are applied. The
+Kubernetes API impersonation matrix passed 94/94 checks. A separate Playwright
+test authenticated the synthetic Alpha viewer through Keycloak into Rancher,
+confirmed Alpha project visibility, and confirmed HTTP 403 for direct Bravo
+project/pod API reads and secret listing. This verifies one role and a targeted
+set of UI-session API permissions; it is not complete UI workflow coverage.
+Hiding dashboard controls is not an authorization test. Group revocation,
+session expiry, and CAC/PIV integration remain untested.
 
 ## Network boundary and caveats
 

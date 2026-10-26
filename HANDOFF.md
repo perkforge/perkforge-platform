@@ -318,3 +318,73 @@ the privileged Pod probe is valid before Pod Security Admission evaluates it.
 - Phase 5 tenant observability remains unverified because its optional profile is not deployed. Phase 6 has runner/evidence groundwork; scheduling and findings/remediation workflow remain. Phase 7 is future work.
 - CAC note for a future IL5-like target: Playwright's built-in client-certificate setting accepts PEM key material or a PKCS#12/PFX bundle; do not export a CAC private key for automation. Routine identity/authorization checks should use synthetic identities. A separate authorized CAC end-to-end test should use approved smart-card middleware and test credentials, with an attended step if policy requires user presence. See `docs/TENANT-SECURITY-BOUNDARY.md`.
 - Next: verify Keycloak-authenticated tenant login and Rancher project/dashboard permissions in the local synthetic-identity environment; keep CAC authentication as a separate authorized integration test for environments that require it. Then continue Phase 5 and Phase 6 acceptance criteria.
+
+## Phase 2 browser validation and Phase 5 observability prep — 2026-10-26
+
+The user authorized Playwright for Phase 2 and asked to complete all feasible
+Phase 5 work, leaving the Phase 5 dashboard Playwright test as a follow-up.
+
+### Phase 2
+
+- Diagnosed why Rancher's OIDC button generated an invalid login URL. The
+  Generic OIDC reconciler nested the provider settings under
+  `genericOIDCConfig`; Rancher 2.15.2 expects the inline OIDC fields at the
+  AuthConfig root. The wrong shape was accepted as unknown CRD data, so the
+  provider appeared populated but returned nil-valued client/redirect fields.
+- Updated `local-lab/scripts/configure-rancher-oidc.py` and its tests to emit
+  inline fields, use Rancher's `/verify-auth` callback URL, validate ownership,
+  and retain the check that Rancher `local` authentication remains enabled.
+- Applied the corrected, ownership-checked config to the live cluster. Rancher
+  local auth was confirmed enabled before and after; the public provider API
+  now returns `https://rancher.local-lab.test/v1-oidc/genericoidc`.
+- Added `local-lab/scripts/verify-rancher-tenant-ui.py` and pinned
+  `playwright==1.64.1` in `local-lab/requirements-e2e.txt`. Live Playwright
+  validation passed 10/10 checks as `tenant-alpha-viewers`: Keycloak redirect
+  and login, Rancher dashboard, Alpha project visibility/read, Bravo project
+  denial (403), Alpha pods readable, Bravo pods denied (403), and secrets
+  denied in both namespaces (403).
+- The test used `--allow-local-tls-bypass` because Chromium did not trust the
+  disposable lab ingress certificate. It uses a fresh context and does not
+  persist browser state, tokens, cookies, screenshots, or traces. The bypass is
+  documented as local-lab-only.
+- Still unverified: other browser roles and workflows, group membership
+  removal/revocation, session expiry, and CAC/PIV middleware.
+
+### Phase 5
+
+- Reviewed live node headroom. At the check, worker use was 2,024 MiB with
+  1,152 MiB in requests and 3,740,808 Ki allocatable; control requests were
+  about 90% of memory and 91% of CPU. The observability workloads are pinned to
+  `cks-worker` except node-exporter, which runs as a daemonset on both nodes.
+- Tuned the pinned chart values to about 525m CPU / 688 MiB memory requests and
+  1,792 MiB summed main-container memory limits; Prometheus uses 3-day,
+  1-GiB retention on a 2-GiB capped ephemeral volume. These are configuration
+  estimates, not measured post-deployment use.
+- Enabled the Prometheus/Grafana and OpenCost Fleet paths, retained private
+  ClusterIP-only services, and added a platform-operator Grafana overview
+  dashboard. Tenant Grafana access remains prohibited until a tenant-safe data
+  plane or query proxy is implemented and verified.
+- Static profile tests cover the chart pins, exposure settings, resource
+  budgets, node selectors, label allowlist, and dashboard JSON. Updated the
+  observability runbook and control-evidence matrix.
+- **Not yet live:** Fleet watches published `main`; this working tree has not
+  been committed or pushed, so the monitoring bundles and dashboard have not
+  been reconciled. Consequently Prometheus ingestion, OpenCost allocation,
+  tenant denial probes, and dashboard runtime behavior are pending. Phase 5's
+  dashboard Playwright test is the explicit follow-up requested by the user.
+
+### Working tree / next actions
+
+- No commit or push was performed. Check `git status` and review the existing
+  untracked `local-lab/evidence/` and `.orig` files before staging; they were
+  left untouched.
+- Run focused tests, then full `local-lab/tests` and static checks. Review the
+  deployment script's observability wait/probe path.
+- Once the user authorizes publishing, push the validated Fleet/profile changes
+  so the two bundles reconcile. Confirm resources land on the worker and watch
+  actual memory, OOM events, and pod restarts. The deployment script runs the
+  tenant observability verifier when the profile is enabled.
+- After live observability verification, Phase 5's remaining work is the
+  Grafana dashboard Playwright access test. Do not grant tenant Grafana access.
+- Continue Phase 6 evidence scheduling/findings/remediation after the Phase 5
+  runtime work. Do not describe CAC/PIV or IL authorization as validated.

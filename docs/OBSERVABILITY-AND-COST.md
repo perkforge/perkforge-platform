@@ -2,24 +2,33 @@
 
 ## Local profile
 
-The optional Fleet profile uses the Prometheus Community `kube-prometheus-stack`
-chart for Prometheus, Grafana, kube-state-metrics, and node-exporter. OpenCost is
-a separate optional bundle and depends on the monitoring bundle. Both paths are
-commented out in `local-lab/fleet/gitrepos/platform-apps.yaml`; enable them only
-after reviewing node capacity. The charts are pinned to kube-prometheus-stack
-`92.11.0` and OpenCost `2.5.33`.
+The Fleet profile uses the Prometheus Community `kube-prometheus-stack` chart
+for Prometheus, Grafana, kube-state-metrics, and node-exporter. OpenCost is a
+separate bundle and depends on the monitoring bundle. Both paths are enabled in
+`local-lab/fleet/gitrepos/platform-apps.yaml`. They take effect in the lab only
+after the repository revision is published and Fleet reconciles it. The charts
+are pinned to kube-prometheus-stack `92.11.0` and OpenCost `2.5.33`.
 
 The Prometheus stack exports only the platform tenant, environment, and
-isolation-tier namespace labels from kube-state-metrics. Prometheus retention is
-seven days on ephemeral storage in the disposable VM profile. Its data is lost
-when the Prometheus Pod or VM is replaced. Alertmanager is disabled in this
-low-footprint profile. For the two-node VM lab, the configured main-container
-requests total about 675 millicores and 1,184 MiB for Prometheus, Grafana,
-kube-state-metrics, the operator, two node exporters, and OpenCost. Their
-configured limits total about 3.15 CPU and 3,584 MiB. These are sums of chart
-resource settings, not measured use, and exclude sidecars, init containers,
-RKE2, Rancher, Keycloak, databases, and other workloads. Measure actual use
-before enabling this profile beside GitLab or other large applications.
+isolation-tier namespace labels from kube-state-metrics. Prometheus keeps three
+days of data on ephemeral storage, with a 1 GiB retention-size ceiling and a
+2 GiB `emptyDir` ceiling. Data is lost when its Pod or VM is replaced.
+Alertmanager is disabled. Prometheus, Grafana, kube-state-metrics, the operator,
+two node exporters, and OpenCost request about 525 millicores and 688 MiB total;
+configured main-container memory limits sum to about 1,792 MiB. The Prometheus,
+Grafana, kube-state-metrics, operator, and OpenCost workloads are pinned to
+`cks-worker`; node-exporter runs on both nodes. These are configured values, not
+measured use. They exclude sidecars, init containers, RKE2, Rancher, Keycloak,
+databases, and other workloads.
+
+At the latest read-only capacity check, `cks-worker` used about 2,024 MiB of
+memory, had 1,152 MiB in workload memory requests, and had 3,740,808 Ki
+allocatable (about 3.65 GiB). Adding the configured observability requests
+would bring worker requests to about 1.8 GiB, roughly 50% of allocatable memory.
+The control node already had about 90% of memory and 91% of CPU reserved by
+requests, which is why the main monitoring workloads are pinned to the worker.
+The memory figures are a point-in-time observation, not a capacity guarantee;
+monitor actual use, OOM events, and scheduling after deployment.
 
 Grafana and Prometheus have no Ingress. Grafana uses a randomly generated admin
 password stored in `.secrets/grafana-admin-password` and a Kubernetes Secret
@@ -27,6 +36,10 @@ created by `local-lab/scripts/prepare-observability-secrets.sh`. Use a local
 port-forward for platform-administrator access. OpenCost UI and API also have
 no Ingress. Tenant namespaces default-deny egress to these services, so a
 tenant workload cannot query shared cluster metrics through their ClusterIP.
+The Fleet bundle adds a platform-only overview dashboard with tenant namespace
+count, CPU, memory, pod, and namespace quota panels. Its metrics include tenant
+labels and therefore remain for platform administrators; it is not a tenant
+dashboard or an authorization boundary.
 
 ## Tenant access boundary
 
@@ -57,15 +70,19 @@ selecting a production or tenant-facing capability.
 
 ## Validation status
 
-Fleet values and label allowlists are statically checked. Live metric ingestion,
-OpenCost allocation, retention behavior, and dashboard authorization have not
-been verified because this profile is not deployed. The opt-in
+Fleet values, resource budgets, node selectors, dashboard structure, and label
+allowlists are statically checked. Live metric ingestion, OpenCost allocation,
+retention behavior, and dashboard authorization remain unverified until the
+enabled Fleet paths are published and reconciled. The
 `local-lab/scripts/verify-tenant-observability.py --apply` verifier checks
 namespace attribution labels, Prometheus scrape policy, shared-service exposure,
 and tenant denial to Prometheus/Grafana. It does not establish Grafana query
 isolation or tenant dashboard authorization. Do not run live mode until the
-optional observability profile is deployed and ready. Passing manifest checks
-must not be recorded as runtime evidence.
+observability profile is deployed and ready. The platform deployment script runs
+the verifier when the bundle paths are enabled. Passing manifest checks must
+not be recorded as runtime evidence. A Playwright dashboard-access test is a
+follow-up for Phase 5; do not grant tenant Grafana access until a tenant-safe
+data plane or query proxy has been implemented and verified.
 
 ## References
 

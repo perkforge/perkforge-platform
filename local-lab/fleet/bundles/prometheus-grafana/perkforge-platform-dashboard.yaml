@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: perkforge-platform-overview
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: perkforge-platform
+data:
+  perkforge-platform-overview.json: |
+    {
+      "annotations": {"list": []},
+      "description": "Platform-operator overview of tenant namespace health and resource use. This dashboard is not tenant-scoped.",
+      "editable": false,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showPercentChange": false, "textMode": "auto", "wideLayout": true},
+          "targets": [{"expr": "count(count by (label_platform_perkforge_io_tenant) (kube_namespace_labels{label_platform_perkforge_io_tenant!=\"\"}))", "refId": "A"}],
+          "title": "Configured tenants",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+          "id": 2,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "targets": [{"expr": "count(kube_namespace_labels{label_platform_perkforge_io_tenant!=\"\"})", "refId": "A"}],
+          "title": "Tenant namespaces",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "cores"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 3,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "targets": [{"expr": "sum by (namespace) (rate(container_cpu_usage_seconds_total{container!=\"\",image!=\"\"}[5m])) * on (namespace) group_left() kube_namespace_labels{label_platform_perkforge_io_tenant!=\"\"}", "legendFormat": "{{namespace}}", "refId": "A"}],
+          "title": "Tenant CPU usage",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+          "id": 4,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "targets": [{"expr": "sum by (namespace) (container_memory_working_set_bytes{container!=\"\",image!=\"\"}) * on (namespace) group_left() kube_namespace_labels{label_platform_perkforge_io_tenant!=\"\"}", "legendFormat": "{{namespace}}", "refId": "A"}],
+          "title": "Tenant memory working set",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 5,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "targets": [{"expr": "sum by (namespace) (kube_pod_info) * on (namespace) group_left() kube_namespace_labels{label_platform_perkforge_io_tenant!=\"\"}", "legendFormat": "{{namespace}}", "refId": "A"}],
+          "title": "Tenant pods",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 13},
+          "id": 6,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "targets": [{"expr": "100 * sum by (namespace) (kube_resourcequota{resource=\"requests.memory\",type=\"used\"}) / sum by (namespace) (kube_resourcequota{resource=\"requests.memory\",type=\"hard\"})", "legendFormat": "{{namespace}}", "refId": "A"}],
+          "title": "Namespace memory quota used (%)",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "1m",
+      "schemaVersion": 39,
+      "tags": ["perkforge", "platform", "tenant"],
+      "time": {"from": "now-6h", "to": "now"},
+      "timepicker": {},
+      "timezone": "utc",
+      "title": "PerkForge Platform Overview",
+      "uid": "perkforge-platform-overview",
+      "version": 1
+    }

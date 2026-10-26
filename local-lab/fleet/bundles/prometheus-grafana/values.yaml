@@ -14,10 +14,12 @@ grafana:
   resources:
     requests:
       cpu: 100m
-      memory: 192Mi
+      memory: 96Mi
     limits:
       cpu: 500m
-      memory: 512Mi
+      memory: 256Mi
+  nodeSelector:
+    kubernetes.io/hostname: cks-worker
 
 kubeStateMetrics:
   enabled: true
@@ -27,30 +29,34 @@ kube-state-metrics:
   resources:
     requests:
       cpu: 50m
-      memory: 96Mi
+      memory: 48Mi
     limits:
-      cpu: 250m
-      memory: 256Mi
+      cpu: 200m
+      memory: 128Mi
+  nodeSelector:
+    kubernetes.io/hostname: cks-worker
 
 nodeExporter:
   enabled: true
 prometheus-node-exporter:
   resources:
     requests:
-      cpu: 25m
-      memory: 48Mi
+      cpu: 20m
+      memory: 24Mi
     limits:
       cpu: 100m
-      memory: 128Mi
+      memory: 64Mi
 
 prometheusOperator:
+  nodeSelector:
+    kubernetes.io/hostname: cks-worker
   resources:
     requests:
-      cpu: 100m
-      memory: 128Mi
+      cpu: 50m
+      memory: 64Mi
     limits:
-      cpu: 500m
-      memory: 384Mi
+      cpu: 250m
+      memory: 192Mi
 
 prometheus:
   enabled: true
@@ -58,7 +64,8 @@ prometheus:
     enabled: false
   prometheusSpec:
     replicas: 1
-    retention: 7d
+    retention: 3d
+    retentionSize: 1GB
     scrapeInterval: 60s
     evaluationInterval: 60s
     externalLabels:
@@ -68,11 +75,14 @@ prometheus:
     serviceMonitorNamespaceSelector: {}
     podMonitorNamespaceSelector: {}
     storageSpec:
-      emptyDir: {}
+      emptyDir:
+        sizeLimit: 2Gi
     resources:
       requests:
-        cpu: 250m
-        memory: 512Mi
+        cpu: 200m
+        memory: 320Mi
       limits:
         cpu: "1"
-        memory: 1536Mi
+        memory: 768Mi
+    nodeSelector:
+      kubernetes.io/hostname: cks-worker

@@ -33,6 +33,7 @@ AUTH_TYPE = "genericOIDCConfig"
 OWNER_LABEL = "platform.perkforge.io/managed-by"
 OWNER_VALUE = "tenant-foundation"
 RANCHER_URL = "https://rancher.local-lab.test"
+RANCHER_REDIRECT_URL = f"{RANCHER_URL}/verify-auth"
 KEYCLOAK_PUBLIC_REALM = "http://keycloak.local-lab.test/auth/realms/perkforge"
 KEYCLOAK_INTERNAL_REALM = (
     "http://keycloak-keycloakx-http.keycloak.svc.cluster.local/auth/realms/perkforge"
@@ -66,24 +67,27 @@ def auth_config(catalog: dict, client_secret: str) -> dict:
         # Restricted allows explicitly authorized provider groups and project members.
         "accessMode": "restricted",
         "allowedPrincipalIds": group_principals(catalog),
-        "genericOIDCConfig": {
-            "clientId": "rancher",
-            "clientSecret": client_secret,
-            "rancherUrl": RANCHER_URL,
-            "rancherApiHost": RANCHER_URL,
-            "issuer": KEYCLOAK_PUBLIC_REALM,
-            # Browser redirect remains public; server-to-server endpoints use cluster DNS.
-            "authEndpoint": f"{KEYCLOAK_PUBLIC_REALM}/protocol/openid-connect/auth",
-            "tokenEndpoint": f"{KEYCLOAK_INTERNAL_REALM}/protocol/openid-connect/token",
-            "userInfoEndpoint": f"{KEYCLOAK_INTERNAL_REALM}/protocol/openid-connect/userinfo",
-            "jwksUrl": f"{KEYCLOAK_INTERNAL_REALM}/protocol/openid-connect/certs",
-            "scope": "openid profile email",
-            "groupsClaim": "groups",
-            "nameClaim": "preferred_username",
-            "emailClaim": "email",
-            "groupSearchEnabled": True,
-            "clientAuthenticatedSearch": False,
-        },
+        # Rancher's GenericOIDCConfig embeds OIDCConfig inline. These settings
+        # belong at the AuthConfig root; a nested genericOIDCConfig object is
+        # accepted as unknown data by the CRD but ignored by Rancher's provider.
+        "clientId": "rancher",
+        "clientSecret": client_secret,
+        # Rancher requires the OIDC callback path here, while rancherApiHost
+        # remains the public base URL used by its callback handler.
+        "rancherUrl": RANCHER_REDIRECT_URL,
+        "rancherApiHost": RANCHER_URL,
+        "issuer": KEYCLOAK_PUBLIC_REALM,
+        # Browser redirect remains public; server-to-server endpoints use cluster DNS.
+        "authEndpoint": f"{KEYCLOAK_PUBLIC_REALM}/protocol/openid-connect/auth",
+        "tokenEndpoint": f"{KEYCLOAK_INTERNAL_REALM}/protocol/openid-connect/token",
+        "userInfoEndpoint": f"{KEYCLOAK_INTERNAL_REALM}/protocol/openid-connect/userinfo",
+        "jwksUrl": f"{KEYCLOAK_INTERNAL_REALM}/protocol/openid-connect/certs",
+        "scope": "openid profile email",
+        "groupsClaim": "groups",
+        "nameClaim": "preferred_username",
+        "emailClaim": "email",
+        "groupSearchEnabled": True,
+        "clientAuthenticatedSearch": False,
     }
 
 
@@ -101,9 +105,13 @@ def validate_target(configs: list[dict], desired: dict) -> None:
                     if obj.get("metadata", {}).get("name") == AUTH_NAME), None)
     if current is None:
         raise ValueError(f"Rancher AuthConfig {AUTH_NAME} is missing")
-    current_config = current.get("genericOIDCConfig", {})
-    current_has_settings = any(value not in (None, "", [], {})
-                               for key, value in current_config.items() if key != "clientSecret")
+    current_has_settings = any(
+        value not in (None, "", [], {})
+        for key, value in current.items()
+        if key not in {"apiVersion", "kind", "metadata", "status", "type",
+                       "enabled", "accessMode", "allowedPrincipalIds",
+                       "logoutAllSupported", "clientSecret"}
+    )
     owned = current.get("metadata", {}).get("labels", {}).get(OWNER_LABEL) == OWNER_VALUE
     if current_has_settings and not owned:
         raise ValueError("Rancher Generic OIDC has unowned settings; refusing to replace them")
@@ -118,13 +126,13 @@ def nonsecret_errors(current: dict, expected: dict) -> list[str]:
     for field in ("type", "enabled", "accessMode", "allowedPrincipalIds"):
         if current.get(field) != expected.get(field):
             errors.append(field)
-    current_config = current.get("genericOIDCConfig", {})
-    expected_config = expected["genericOIDCConfig"]
-    for field, value in expected_config.items():
+    for field, value in expected.items():
         if field == "clientSecret":
             continue
-        if current_config.get(field) != value:
-            errors.append(f"genericOIDCConfig.{field}")
+        if field in {"apiVersion", "kind", "metadata"}:
+            continue
+        if current.get(field) != value:
+            errors.append(field)
     return errors
 
 
@@ -195,7 +203,7 @@ def main() -> int:
                 raise ValueError(f"Rancher OIDC client secret file is missing: {args.secret_file}")
             principals = group_principals(catalog)
             print(f"Plan: enable Rancher Generic OIDC through Keycloak for {len(principals)} tenant role groups.")
-            print(f"Provider access mode: restricted; browser URL: {RANCHER_URL}; local authentication remains enabled.")
+            print(f"Provider access mode: restricted; callback URL: {RANCHER_REDIRECT_URL}; local authentication remains enabled.")
             print("Plan only; no Rancher resources were changed. Use --apply after Keycloak is ready.")
             return 0
         kubectl = Kubectl(args.kubectl, args.kubeconfig, args.context)

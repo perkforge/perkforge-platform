@@ -19,11 +19,11 @@ opencost:
       enabled: false
     resources:
       requests:
-        cpu: 100m
-        memory: 128Mi
+        cpu: 75m
+        memory: 96Mi
       limits:
-        cpu: 500m
-        memory: 512Mi
+        cpu: 300m
+        memory: 256Mi
   prometheus:
     internal:
       enabled: true
@@ -36,8 +36,11 @@ opencost:
       enabled: false
     resources:
       requests:
-        cpu: 25m
-        memory: 32Mi
+        cpu: 10m
+        memory: 16Mi
       limits:
-        cpu: 200m
-        memory: 128Mi
+        cpu: 100m
+        memory: 64Mi
+
+nodeSelector:
+  kubernetes.io/hostname: cks-worker
