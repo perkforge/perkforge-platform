@@ -240,8 +240,8 @@ It is plan-only by default and makes no Kubernetes API requests:
 python3 local-lab/scripts/run-tenant-security-suite.py
 ```
 
-To run the checks and generate an overall timestamped summary plus each
-verifier's detailed JSON/Markdown evidence:
+To run the checks and generate an overall timestamped summary, each verifier's
+detailed JSON/Markdown evidence, and candidate findings from failed checks:
 
 ```sh
 python3 local-lab/scripts/run-tenant-security-suite.py --apply
@@ -256,6 +256,12 @@ an overall picture. Exit status is `0` when all pass, `1` for test failures,
 and `2` when a verifier could not execute or clean up. The suite-level
 `summary.json` and `summary.md` live under
 `local-lab/evidence/tenant-suite/tenant-suite-<UTC timestamp>/`.
+The same directory contains `candidate-findings.json` and
+`candidate-findings.md`. They record failed checks that produced an actual
+expected/actual mismatch, with evidence links and potential control mappings.
+Verifier execution errors are not treated as security findings. Each candidate
+is marked untriaged with risk unassessed and owner/remediation unassigned; the
+runner does not decide severity, accept risk, or close findings.
 
 The optional observability verifier is excluded by default because it requires
 the optional monitoring profile to be installed:

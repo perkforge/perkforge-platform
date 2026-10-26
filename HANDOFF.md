@@ -327,7 +327,7 @@ the privileged Pod probe is valid before Pod Security Admission evaluates it.
 - Commit `7190639` added a plan-only-by-default suite runner and operator instructions.
 - Local unit suite: 72 tests passed. Live suite: RBAC 94/94, admission 9/9, quota 4/4, network 7/7. Overall evidence: `local-lab/evidence/tenant-suite/tenant-suite-20261026T172504322350Z/`.
 - These results verify the current project/binding preflights, impersonated-group Kubernetes authorization, selected admission/quota paths, and tested pod-network paths. Browser SSO, Rancher dashboard behavior, group revocation, aggregate/storage quota enforcement, runtime isolation, and broader network paths remain unverified.
-- Phase 5 tenant observability remains unverified because its optional profile is not deployed. Phase 6 has runner/evidence groundwork; scheduling and findings/remediation workflow remain. Phase 7 is future work.
+- Phase 5 tenant observability remains unverified because its optional profile is disabled. Phase 6 has a runner, timestamped evidence, and untriaged finding-candidate extraction. Scheduling, alerting, risk assessment, findings ownership, and remediation workflow remain. Phase 7 is future work.
 - CAC note for a future IL5-like target: Playwright's built-in client-certificate setting accepts PEM key material or a PKCS#12/PFX bundle; do not export a CAC private key for automation. Routine identity/authorization checks should use synthetic identities. A separate authorized CAC end-to-end test should use approved smart-card middleware and test credentials, with an attended step if policy requires user presence. See `docs/TENANT-SECURITY-BOUNDARY.md`.
 - Next: verify Keycloak-authenticated tenant login and Rancher project/dashboard permissions in the local synthetic-identity environment; keep CAC authentication as a separate authorized integration test for environments that require it. Then continue Phase 5 and Phase 6 acceptance criteria.
 
@@ -423,5 +423,19 @@ Phase 5 work, leaving the Phase 5 dashboard Playwright test as a follow-up.
 | 3 — Security isolation | Network suite 7/7; admission suite 9/9 | Broader ingress/egress and host paths; actual runtime isolation beyond admission | For broader live enforcement checks |
 | 4 — Resource governance | Selected quota checks 4/4 | Aggregate tenant usage, storage enforcement, and bypass validation | For live capacity and enforcement checks |
 | 5 — Observability and cost | Prometheus/Grafana briefly reconciled; OpenCost CrashLooped on control due to a misplaced chart selector; paths now removed and cluster recovered | On larger nodes, validate ingestion and tenant denial, deploy corrected OpenCost placement, then dashboard Playwright | Yes — defer runtime acceptance |
-| 6 — Lifecycle and security evidence | Runner and machine-readable evidence groundwork exists | Lifecycle operations, scheduled assessment, alerting, findings/risk/remediation workflow | No for code/design; yes for scheduled live evidence validation |
+| 6 — Lifecycle and security evidence | Runner, timestamped evidence, and untriaged candidate findings from failed checks | Lifecycle operations, scheduling, alerting, risk assessment, findings ownership, remediation workflow | No for code/design; yes for scheduled live evidence validation |
 | 7 — Advanced isolation | Future work | Dedicated node pools and dedicated clusters with enforced placement and boundaries | Yes — requires suitable infrastructure |
+
+## Phase 6 offline evidence enhancement — 2026-10-26
+
+- `run-tenant-security-suite.py` now writes `candidate-findings.json` and
+  `candidate-findings.md` alongside each live suite summary. It extracts only
+  explicit failed check rows; verifier execution errors are not security
+  findings.
+- Candidates contain the expected/actual result, evidence path, and potential
+  NIST control mappings. They remain `untriaged`; risk is `unassessed`, owner
+  and remediation are `unassigned`. The runner does not assign severity,
+  accept risk, or close findings.
+- Focused offline unit suite passed 6/6. No cluster tests were run for this
+  change. Scheduling, alerting, persistent finding ownership, and remediation
+  tracking remain future Phase 6 work.

@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -24,6 +25,13 @@ SUITES = {
     "observability": ("verify-tenant-observability.py", True),
 }
 DEFAULT_SUITES = ("rbac", "admission", "quota", "network")
+SUITE_CONTROLS = {
+    "rbac": ["AC-3", "AC-6"],
+    "admission": ["CM-6", "SC-39"],
+    "quota": ["SC-6"],
+    "network": ["AC-4", "SC-7"],
+    "observability": ["AC-4", "CA-7"],
+}
 
 
 def display_path(path: Path) -> str:
@@ -46,8 +54,90 @@ def build_command(name: str, apply: bool, kubectl: str, kubeconfig: str,
     return command
 
 
+def candidate_findings(run_dir: Path, results: list[dict]) -> list[dict]:
+    """Extract failed checks into untriaged finding candidates.
+
+    Verifier execution errors are not findings. Risk, ownership, and remediation
+    are deliberately left unassessed for an authorized reviewer to determine.
+    """
+    findings = []
+    for suite_result in results:
+        suite = suite_result["suite"]
+        if suite_result["status"] != "failed":
+            continue
+        evidence_dir = run_dir / suite
+        for evidence_path in sorted(evidence_dir.glob("*.json")):
+            try:
+                report = json.loads(evidence_path.read_text())
+            except (OSError, json.JSONDecodeError):
+                continue
+            observed_at = report.get("timestamp") or report.get("startedAt")
+            for row in report.get("results", []):
+                if row.get("passed") is not False or row.get("error"):
+                    continue
+                test_id = str(row.get("id", "unknown"))
+                slug = re.sub(r"[^A-Za-z0-9-]+", "-", test_id).strip("-").upper()
+                expected = row.get("expected", row.get("expectedAllowed"))
+                actual = row.get("actual", row.get("actualAllowed"))
+                if expected is True:
+                    expected = "allow"
+                elif expected is False:
+                    expected = "deny"
+                if actual is True:
+                    actual = "allow"
+                elif actual is False:
+                    actual = "deny"
+                findings.append({
+                    "findingId": f"PF-{suite.upper()}-{slug}",
+                    "title": f"{suite} check {test_id} did not meet its expected result",
+                    "status": "untriaged",
+                    "testSuite": report.get("testSuite", suite),
+                    "testId": test_id,
+                    "potentialControlIds": SUITE_CONTROLS.get(suite, []),
+                    "observedAt": observed_at,
+                    "target": {key: row[key] for key in
+                               ("tenant", "role", "namespace", "cluster") if key in row},
+                    "expected": expected,
+                    "actual": actual,
+                    "evidenceArtifact": display_path(evidence_path),
+                    "riskAssessment": "unassessed",
+                    "owner": "unassigned",
+                    "remediationStatus": "unassigned",
+                })
+    return findings
+
+
+def write_findings(run_dir: Path, started: dt.datetime, findings: list[dict]) -> tuple[Path, Path]:
+    json_path = run_dir / "candidate-findings.json"
+    markdown_path = run_dir / "candidate-findings.md"
+    data = {
+        "schemaVersion": "perkforge.security-findings/v1alpha1",
+        "generatedAt": started.isoformat().replace("+00:00", "Z"),
+        "statusSemantics": "Candidates are untriaged observations, not confirmed vulnerabilities or control failures.",
+        "findings": findings,
+    }
+    json_path.write_text(json.dumps(data, indent=2) + "\n")
+    lines = ["# Candidate security findings", "",
+             "These records require human triage. No severity, risk acceptance, owner, or remediation is inferred.",
+             "Verifier execution errors are not converted into security findings.", "",
+             f"- Generated: `{data['generatedAt']}`",
+             f"- Candidate findings: **{len(findings)}**", "",
+             "| Finding | Potential controls | Target | Expected | Actual | Evidence |", "|---|---|---|---|---|---|"]
+    for finding in findings:
+        target = ", ".join(f"{key}={value}" for key, value in finding["target"].items()) or "—"
+        lines.append(
+            f"| `{finding['findingId']}` | {', '.join(finding['potentialControlIds']) or '—'} | `{target}` | "
+            f"{finding['expected']} | {finding['actual']} | `{finding['evidenceArtifact']}` |"
+        )
+    lines.append("")
+    markdown_path.write_text("\n".join(lines))
+    return json_path, markdown_path
+
+
 def write_summary(run_dir: Path, started: dt.datetime, finished: dt.datetime,
                   apply: bool, context: str | None, results: list[dict]) -> tuple[Path, Path]:
+    findings = candidate_findings(run_dir, results)
+    findings_json_path, findings_md_path = write_findings(run_dir, started, findings)
     data = {
         "schemaVersion": "perkforge.security-evidence/v1alpha1",
         "testSuite": "tenant-security-suite",
@@ -62,6 +152,11 @@ def write_summary(run_dir: Path, started: dt.datetime, finished: dt.datetime,
             "errors": sum(item["status"] == "error" for item in results),
         },
         "results": results,
+        "candidateFindings": {
+            "count": len(findings),
+            "jsonArtifact": display_path(findings_json_path),
+            "markdownArtifact": display_path(findings_md_path),
+        },
         "limitations": [
             "This index summarizes verifier runs; each suite report is the detailed evidence record.",
             "RBAC checks use Kubernetes impersonation and do not prove browser SSO or Rancher UI behavior.",
@@ -82,6 +177,7 @@ def write_summary(run_dir: Path, started: dt.datetime, finished: dt.datetime,
         detail = item.get("evidenceDirectory", "—")
         lines.append(f"| `{item['suite']}` | {item['status']} | {item['exitCode']} | `{detail}` |")
     lines += ["", "Individual JSON/Markdown reports reside in each suite's evidence directory.",
+              f"Candidate findings requiring triage: **{len(findings)}** (`{display_path(findings_md_path)}`).",
               "A plan-only run makes no Kubernetes API requests.", ""]
     md_path.write_text("\n".join(lines))
     return json_path, md_path

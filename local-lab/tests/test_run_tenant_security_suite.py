@@ -62,6 +62,40 @@ class TenantSecuritySuiteTests(unittest.TestCase):
             self.assertEqual(data["mode"], "live")
             self.assertIn("`network` | error | 2", markdown_path.read_text())
             self.assertIn("not prove browser SSO", data["limitations"][1])
+            findings = json.loads((run_dir / "candidate-findings.json").read_text())
+            self.assertEqual(findings["findings"], [])
+            self.assertEqual(data["candidateFindings"]["count"], 0)
+
+    def test_failed_checks_become_untriaged_candidates_but_errors_do_not(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            suite_dir = run_dir / "rbac"
+            suite_dir.mkdir()
+            report = {
+                "testSuite": "tenant-rbac-authorization",
+                "timestamp": "2026-10-26T14:00:00Z",
+                "results": [
+                    {"id": "alpha-viewer-deny-bravo-pods", "tenant": "alpha",
+                     "role": "viewers", "namespace": "bravo-dev",
+                     "expectedAllowed": False, "actualAllowed": True, "passed": False},
+                    {"id": "alpha-viewer-allowed-alpha-pods", "passed": True},
+                    {"id": "alpha-viewer-api-error", "passed": False,
+                     "error": "authorization API unavailable"},
+                ],
+            }
+            (suite_dir / "rbac.json").write_text(json.dumps(report))
+            findings = module.candidate_findings(run_dir, [
+                {"suite": "rbac", "status": "failed"},
+            ])
+            self.assertEqual(len(findings), 1)
+            finding = findings[0]
+            self.assertEqual(finding["findingId"],
+                             "PF-RBAC-ALPHA-VIEWER-DENY-BRAVO-PODS")
+            self.assertEqual(finding["potentialControlIds"], ["AC-3", "AC-6"])
+            self.assertEqual(finding["expected"], "deny")
+            self.assertEqual(finding["actual"], "allow")
+            self.assertEqual(finding["riskAssessment"], "unassessed")
+            self.assertEqual(finding["remediationStatus"], "unassigned")
 
 
 if __name__ == "__main__":
