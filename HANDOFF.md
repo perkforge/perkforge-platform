@@ -266,3 +266,46 @@ validation, then proceed with the controlled clean-rebuild path when authorized.
 After rebuild, validate Keycloak login, Rancher project access, and the tenant
 isolation evidence against the actual cluster. Local Rancher bootstrap/admin
 login remains the recovery path and must not be disabled.
+
+## Clean rebuild and tenant verification — 2026-10-26
+
+The user authorized a destructive clean rebuild, followed by non-destructive
+resumes. The first run deleted both VM definitions and root disks, then installed
+fresh RHEL 10.2 VMs. Later `--resume` runs preserved both VM disks. The final
+`local-lab/scripts/rebuild-local-lab.sh --resume` completed successfully and
+stored checkpoint `completed` in `.secrets/local-lab-rebuild-state`.
+
+Final live state:
+
+- `cks-control` (`192.168.122.201`) and `cks-worker` (`192.168.122.202`) are
+  Ready on RKE2 `v1.36.5+rke2r1`.
+- Rancher is reachable at `https://rancher.local-lab.test`; `/ping` returned
+  `pong`. Local authentication remains enabled, the local `admin` user exists,
+  and Generic OIDC is enabled with restricted tenant-group access. The bootstrap
+  password remains at `.secrets/rancher-bootstrap-password`.
+- Keycloak and its database are Ready; `http://keycloak.local-lab.test/auth/`
+  returned HTTP 302. Keycloak admin credentials are in
+  `.secrets/keycloak-admin-password`.
+- Six synthetic tenant users/groups and six Rancher Project RoleTemplateBindings
+  were reconciled. The three tenant role templates use least-privilege rules;
+  tenant admins cannot directly create Pods, which also prevents `pods/exec`
+  through that permission path.
+- Fleet fetched the published `main` revision and all seven enabled profile
+  bundles became Ready. Valkey returned `PONG`; GitLab's database is Ready while
+  the GitLab application remains opt-in.
+- Live evidence passed: RBAC 94/94, Pod Security Admission 9/9, quota 4/4, and
+  network isolation 7/7. Final JSON/Markdown artifacts are present under
+  `local-lab/evidence/{tenant-rbac,tenant-admission,tenant-quota,tenant-network}/`.
+
+The final automated rebuild does not test interactive browser SSO. The user
+should confirm Rancher local admin login, Keycloak admin login, and tenant login
+through Keycloak in the two UIs. Until that browser flow is checked, mark
+Keycloak-to-Rancher interactive login and tenant dashboard access as pending;
+the Kubernetes RBAC evidence verifies API authorization only.
+
+Implementation corrections published during the rebuild: Rancher quota
+annotation key ordering and unset RoleTemplate defaults were normalized for
+Fleet; Keycloak 26 mapper defaults were pinned; synthetic account ownership now
+uses catalog group membership because unmanaged user attributes are disabled by
+default; the RBAC verifier handles kubectl's non-namespace-scoped warning; and
+the privileged Pod probe is valid before Pod Security Admission evaluates it.
