@@ -1,4 +1,4 @@
 {
-  "change": "Schema-correct CA item comparisons and guarded dynamic Deployment-only strategy access; no relaxation of runtime checks",
-  "digest": "e1d714cd2d6c9b362db72710d51fa6550598cce511ee2c1e58d916736114c08f"
+  "change": "Accept absent empty API request group/subResource fields; nonempty subresources remain forbidden",
+  "digest": "7b08d003dcdf694b8fd44c15129f143e500d1419606d3b073d05faf5286c0b34"
 }
