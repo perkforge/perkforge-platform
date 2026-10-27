@@ -18,7 +18,7 @@ The provisioning script creates the VMs and installs RHEL 10.2 unattended with K
 - Retrieves the cluster kubeconfig and bundled `kubectl` into the ignored `.secrets/` directory.
 - Installs Rancher and cert-manager on the local RKE2 cluster, exposing the UI through RKE2's built-in Traefik ingress.
 
-The script expects a Linux host with libvirt's `default` NAT network (`192.168.122.0/24`) and the RHEL 10.2 x86_64 DVD ISO at `images/rhel-10.2-x86_64-dvd.iso`. It checks the ISO checksum and volume label, creates DHCP reservations for `.201` and `.202`, and creates two 2-vCPU, 4-GiB, 30-GiB VMs in the libvirt `images` pool. The ISO stays in `images/`, and VM disks are ignored by Git. The script creates a lab SSH key and console password in ignored `.secrets/`, injects the public key into the RHEL install, and records the new SSH host keys there. It uses direct libvirt access when available and asks for sudo only when needed. RHEL remains unregistered, so it will not receive Red Hat CDN updates.
+The script expects a Linux host with libvirt's `default` NAT network (`192.168.122.0/24`) and the RHEL 10.2 x86_64 DVD ISO at `images/rhel-10.2-x86_64-dvd.iso`. It checks the ISO checksum and volume label, creates DHCP reservations for `.201` and `.202`, and creates two 2-vCPU, 4-GiB VMs with a 30-GiB control disk and a 100-GiB worker disk in the libvirt `images` pool. The ISO stays in `images/`, and VM disks are ignored by Git. The script creates a lab SSH key and console password in ignored `.secrets/`, injects the public key into the RHEL install, and records the new SSH host keys there. It uses direct libvirt access when available and asks for sudo only when needed. RHEL remains unregistered, so it will not receive Red Hat CDN updates.
 
 Existing VMs and disks are left intact. For a VM created during the current provisioning run, the provisioner monitors DVD and root-disk I/O while waiting for SSH. If both remain idle for six minutes, it automatically discards that incomplete new VM and retries the unattended install once. It never applies this retry to a pre-existing VM. If a VM definition is missing while its disk remains, the script stops for manual review. If both laptop and VMs are lost, download the ISO again from Red Hat; it is not stored in Git.
 
@@ -39,12 +39,23 @@ local-lab/scripts/provision-vms.sh
 
 The script asks for sudo when it needs access to system libvirt and waits for both RHEL installs to accept SSH. It keeps the DVD attached to both VMs for their local package repositories. It generates a lab-only SSH key and console password if they do not already exist; that password is also used for Ansible privilege escalation and is stored in `.secrets/rhel-lab-console-password`. Keep `.secrets/` private; it is ignored by Git.
 
+The worker uses an explicit Kickstart LVM layout: 2-GiB `/boot`, 3-GiB swap,
+and a root XFS logical volume that grows into the remaining capacity (about
+95 GiB). This keeps space available to `/opt/local-path-provisioner` rather than
+a separate `/home`. The provisioning script leaves existing VM disks untouched;
+its 100-GiB setting applies to newly created workers, including a future approved
+full rebuild. On 2026-10-26 the existing worker was separately expanded online
+from 30 to 100 GiB with its partition, PV, root LV and XFS filesystem grown.
+No VM reboot, disk formatting or physical-disk partition changes were required.
+
 ## Tenant foundation
 
 The synthetic tenant foundation is managed by the existing Fleet bundle at
 `local-lab/fleet/bundles/tenant-foundation/`. Its input is
-`local-lab/tenant-config/tenants.yaml`; validate or render it before changing
-the applied manifest. The renderer and tests use the pinned dependency in
+`local-lab/tenant-config/tenants.yaml`, a small index containing cluster settings
+and explicit `tenantFiles` references. Edit the individual tenant files under
+`local-lab/tenant-config/tenants/`; validate or render before changing the
+applied manifests. The renderer and tests use the pinned dependency in
 `local-lab/requirements.txt` (PyYAML 6.0.2).
 
 ```sh
@@ -52,9 +63,39 @@ python3 local-lab/scripts/render-tenant-foundation.py --check
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s local-lab/tests -v
 ```
 
-Use `--write` to regenerate the bundle manifest after editing the catalog.
-That command only writes the local generated file; it does not contact or
-modify the cluster. Tenant budgets are aggregate ceilings, and the renderer
+Use `--write` to regenerate the bundle files after editing the catalog.
+That command only changes local generated files; it does not contact or
+modify the cluster. Shared roles and per-tenant output are organized as:
+
+```text
+tenant-config/
+  tenants.yaml                  # cluster settings and explicit file index
+  tenants/
+    tenant-alpha.yaml
+    tenant-bravo.yaml
+    home.yaml
+fleet/bundles/tenant-foundation/
+  fleet.yaml                    # existing Fleet bundle identity
+  shared/roletemplates.yaml
+  tenants/<tenant-id>/
+    project.yaml
+    namespaces.yaml
+    quotas.yaml
+    limits.yaml
+    networkpolicies.yaml
+```
+
+These subdirectories remain part of the same Fleet bundle; there are no nested
+`fleet.yaml` files or resource-ownership transfers. Home's application bundles
+remain in the separate Nextcloud repository. The loader resolves only explicitly
+listed tenant YAML files, so stray files cannot silently create tenants. The
+renderer validates all tenants together, including duplicate IDs, namespaces,
+Projects and aggregate budget limits. Existing scripts share this loader.
+Legacy inline catalogs and an explicit `--output /path/to/combined.yaml` remain
+supported. `--check` checks the entire generated tree and rejects stale output.
+Removing a tenant from the index removes its generated YAML on `--write`, which
+can cause live resource deletion after publication. Protected tenant removal
+still requires separate approval and a verified backup. Tenant budgets are aggregate ceilings, and the renderer
 rejects environment allocations that exceed them. The renderer emits stable
 Rancher Project IDs with project-wide budget ceilings, custom tenant
 administrator/developer/viewer RoleTemplates, namespace associations, and

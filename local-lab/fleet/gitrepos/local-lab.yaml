@@ -10,3 +10,5 @@ spec:
     - local-lab/fleet/bundles/storage
     - local-lab/fleet/bundles/tenant-foundation
     - local-lab/fleet/bundles/cnpg-operator
+    - local-lab/fleet/bundles/nextcloud-support
+    - local-lab/fleet/bundles/nextcloud-registration

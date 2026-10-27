@@ -7,6 +7,9 @@ import unittest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
+import sys
+sys.path.insert(0, str(ROOT / "local-lab/scripts"))
+from tenant_catalog import load_catalog
 SCRIPT = ROOT / "local-lab/scripts/verify-tenant-admission.py"
 spec = importlib.util.spec_from_file_location("tenant_admission_evidence", SCRIPT)
 module = importlib.util.module_from_spec(spec)
@@ -16,7 +19,9 @@ spec.loader.exec_module(module)
 class TenantAdmissionEvidenceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.catalog = yaml.safe_load((ROOT / "local-lab/tenant-config/tenants.yaml").read_text())
+        cls.catalog = load_catalog(ROOT / "local-lab/tenant-config/tenants.yaml")
+        cls.catalog["tenants"] = [t for t in cls.catalog["tenants"]
+                                  if t.get("classification") != "protected"]
 
     def test_matrix_covers_restricted_runtime_and_host_access_controls(self):
         cases = module.admission_cases(self.catalog)

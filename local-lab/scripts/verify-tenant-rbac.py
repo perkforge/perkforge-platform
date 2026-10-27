@@ -14,6 +14,8 @@ from pathlib import Path
 
 import yaml
 
+from tenant_catalog import load_catalog
+
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CATALOG = ROOT / "local-lab/tenant-config/tenants.yaml"
 DEFAULT_OUTPUT = ROOT / "local-lab/evidence/tenant-rbac"
@@ -255,7 +257,7 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()
     try:
-        catalog = yaml.safe_load(args.catalog.read_text())
+        catalog = load_catalog(args.catalog)
         _bindings._renderer.validate_catalog(catalog)
         kubectl = Kubectl(args.kubectl, args.kubeconfig, args.context)
         cluster_ids = preflight(catalog, kubectl)

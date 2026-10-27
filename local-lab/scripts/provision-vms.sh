@@ -14,6 +14,7 @@ sudo_prefix=()
 declare -a names=(cks-control cks-worker)
 declare -a ips=(192.168.122.201 192.168.122.202)
 declare -a macs=(52:54:00:86:c8:6a 52:54:00:82:33:16)
+declare -A disk_sizes_gib=([cks-control]=30 [cks-worker]=100)
 
 die() {
   printf 'Error: %s\n' "$*" >&2
@@ -87,6 +88,18 @@ ensure_dhcp_reservation() {
 
 write_kickstart() {
   local name="$1" ks_file="$2"
+  local storage_layout='autopart --type=lvm'
+  if [[ "$name" == cks-worker ]]; then
+    # Keep the expanded worker capacity available to /opt/local-path-provisioner.
+    # Automatic partitioning can create a separate /home or cap the root LV.
+    storage_layout='ignoredisk --only-use=vda
+part biosboot --fstype=biosboot --size=1 --ondisk=vda
+part /boot --fstype=xfs --size=2048 --ondisk=vda
+part pv.01 --fstype=lvmpv --size=1 --grow --ondisk=vda
+volgroup rhel_cks-worker pv.01
+logvol swap --fstype=swap --name=swap --vgname=rhel_cks-worker --size=3072
+logvol / --fstype=xfs --name=root --vgname=rhel_cks-worker --size=8192 --grow'
+  fi
   cat > "$ks_file" <<EOF
 #version=RHEL10
 text
@@ -104,7 +117,7 @@ firewall --disabled
 firstboot --disable
 zerombr
 clearpart --all --initlabel
-autopart --type=lvm
+${storage_layout}
 bootloader --location=mbr
 reboot
 
@@ -175,7 +188,7 @@ create_vm() {
     --memory 4096 \
     --vcpus 2 \
     --os-variant rhel10.0 \
-    --disk "path=${disk_file},size=30,format=qcow2,bus=virtio" \
+    --disk "path=${disk_file},size=${disk_sizes_gib[$name]},format=qcow2,bus=virtio" \
     --network "network=default,model=virtio,mac=${mac}" \
     --location "$libvirt_iso" \
     --initrd-inject "$ks_file" \

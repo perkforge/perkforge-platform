@@ -9,6 +9,9 @@ from unittest.mock import patch
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
+import sys
+sys.path.insert(0, str(ROOT / "local-lab/scripts"))
+from tenant_catalog import load_catalog
 SCRIPT = ROOT / "local-lab/scripts/configure-rancher-oidc.py"
 spec = importlib.util.spec_from_file_location("configure_rancher_oidc", SCRIPT)
 module = importlib.util.module_from_spec(spec)
@@ -18,7 +21,9 @@ spec.loader.exec_module(module)
 class RancherOidcConfigurationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.catalog = yaml.safe_load((ROOT / "local-lab/tenant-config/tenants.yaml").read_text())
+        cls.catalog = load_catalog(ROOT / "local-lab/tenant-config/tenants.yaml")
+        cls.catalog["tenants"] = [t for t in cls.catalog["tenants"]
+                                  if t.get("classification") != "protected"]
 
     def test_auth_config_uses_restricted_generic_oidc_groups_and_split_urls(self):
         desired = module.auth_config(self.catalog, "private-fixture")

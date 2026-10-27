@@ -12,6 +12,8 @@ from pathlib import Path
 
 import yaml
 
+from tenant_catalog import load_catalog
+
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CATALOG = ROOT / "local-lab/tenant-config/tenants.yaml"
 DEFAULT_OUTPUT = ROOT / "local-lab/evidence/tenant-quota"
@@ -216,7 +218,7 @@ def main() -> int:
     parser.add_argument("--apply", action="store_true", help="send non-persisting server dry-run requests")
     args = parser.parse_args()
     try:
-        catalog = yaml.safe_load(args.catalog.read_text())
+        catalog = load_catalog(args.catalog)
         cases = quota_cases(catalog)
         if not args.apply:
             print("Plan only; no API requests sent.")

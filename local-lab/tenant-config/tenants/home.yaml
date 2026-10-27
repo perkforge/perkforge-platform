@@ -1,0 +1,48 @@
+id: home
+displayName: Home — protected Nextcloud
+cluster: local
+rancher:
+  projectName: home
+  dashboardAccess: false
+identity:
+  provider: keycloak
+  groups:
+    admins: /tenants/home/admins
+    developers: /tenants/home/developers
+    viewers: /tenants/home/viewers
+isolation:
+  tier: shared
+  network: restricted
+  runtime: restricted
+observability:
+  metrics: false
+  costAllocation: false
+resources:
+  budget:
+    pods: '6'
+    requests.cpu: 600m
+    requests.memory: 1Gi
+    limits.cpu: '2'
+    limits.memory: 2Gi
+    persistentvolumeclaims: '3'
+    requests.storage: 6Gi
+    services: '5'
+  defaults:
+    requestCpu: 100m
+    requestMemory: 128Mi
+    limitCpu: 500m
+    limitMemory: 512Mi
+environments:
+- name: local-vm
+  namespace: tenant-home-nextcloud
+  allocation:
+    pods: '6'
+    requests.cpu: 600m
+    requests.memory: 1Gi
+    limits.cpu: '2'
+    limits.memory: 2Gi
+    persistentvolumeclaims: '3'
+    requests.storage: 6Gi
+    services: '5'
+classification: protected
+application: nextcloud

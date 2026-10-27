@@ -13,6 +13,8 @@ from pathlib import Path
 
 import yaml
 
+from tenant_catalog import load_catalog
+
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CATALOG = ROOT / "local-lab/tenant-config/tenants.yaml"
 OIDC_AUTH_NAME = "genericoidc"
@@ -44,6 +46,10 @@ def build_bindings(catalog: dict, projects: dict[str, dict], *,
     management_cluster = catalog["rancherManagementCluster"]
     for tenant in catalog["tenants"]:
         tenant_id = tenant["id"]
+        # Protected application tenants initially have operator-only access.
+        # Do not grant the synthetic admin/developer roles to their data.
+        if tenant.get("rancher", {}).get("dashboardAccess", True) is False:
+            continue
         lifecycle_state = tenant.get("lifecycle", {}).get("state", "active")
         if lifecycle_state != "active" and not include_inactive:
             continue
@@ -184,7 +190,7 @@ def main() -> int:
                         help="reconcile Rancher PRTBs; requires enabled Generic OIDC through Keycloak")
     args = parser.parse_args()
     try:
-        catalog = yaml.safe_load(args.catalog.read_text())
+        catalog = load_catalog(args.catalog)
         _renderer.validate_catalog(catalog)
         kubectl = Kubectl(args.kubectl, args.kubeconfig, args.context)
         bindings = reconcile(catalog, kubectl, args.apply)

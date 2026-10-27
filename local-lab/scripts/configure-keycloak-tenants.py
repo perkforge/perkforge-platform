@@ -18,6 +18,8 @@ from pathlib import Path
 
 import yaml
 
+from tenant_catalog import load_catalog
+
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CATALOG = ROOT / "local-lab/tenant-config/tenants.yaml"
 DEFAULT_SECRETS = ROOT / ".secrets"
@@ -498,7 +500,7 @@ def main() -> int:
                         help="local port for the loopback-only port-forward (0 selects a free port)")
     args = parser.parse_args()
     try:
-        catalog = yaml.safe_load(args.catalog.read_text())
+        catalog = load_catalog(args.catalog)
         group_list = group_paths(catalog)
         if args.apply:
             configure(args, catalog)

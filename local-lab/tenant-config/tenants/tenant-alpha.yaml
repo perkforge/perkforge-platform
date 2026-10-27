@@ -1,0 +1,46 @@
+id: tenant-alpha
+displayName: Tenant Alpha
+cluster: local
+rancher:
+  projectName: tenant-alpha
+  dashboardAccess: true
+identity:
+  provider: keycloak
+  groups:
+    admins: /tenants/tenant-alpha/admins
+    developers: /tenants/tenant-alpha/developers
+    viewers: /tenants/tenant-alpha/viewers
+isolation:
+  tier: shared
+  network: restricted
+  runtime: restricted
+observability:
+  metrics: true
+  costAllocation: true
+resources:
+  budget:
+    pods: '15'
+    requests.cpu: '1'
+    requests.memory: 1500Mi
+    limits.cpu: '2'
+    limits.memory: 2Gi
+    persistentvolumeclaims: '5'
+    requests.storage: 10Gi
+    services: '10'
+  defaults:
+    requestCpu: 100m
+    requestMemory: 128Mi
+    limitCpu: 500m
+    limitMemory: 512Mi
+environments:
+- name: default
+  namespace: tenant-alpha
+  allocation:
+    pods: '15'
+    requests.cpu: '1'
+    requests.memory: 1500Mi
+    limits.cpu: '2'
+    limits.memory: 2Gi
+    persistentvolumeclaims: '5'
+    requests.storage: 10Gi
+    services: '10'

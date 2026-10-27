@@ -1,0 +1,22 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: tenant-home-nextcloud
+  namespace: fleet-local
+  labels:
+    platform.perkforge.io/tenant: home
+    platform.perkforge.io/classification: protected
+spec:
+  repo: https://github.com/perkforge/perkforge-tenant-nextcloud.git
+  paused: true
+  targetNamespace: tenant-home-nextcloud
+  serviceAccount: home-nextcloud-deployer
+  keepResources: true
+  deleteNamespace: false
+  paths:
+  - bundles/database
+  - bundles/nextcloud
+  targets:
+  - name: local
+    clusterName: local
+  revision: 0a63d7183645f2a56ad3183c6029936682007af6

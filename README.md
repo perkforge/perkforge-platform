@@ -48,7 +48,7 @@ PXE requires a boot and installation service on the network. Decide where that s
 The first RKE2 learning cluster uses two existing libvirt VMs on the host's default NAT network (`192.168.122.0/24`). It is a single-server cluster for practice, not a highly available design or the final three-node physical homelab.
 
 - `cks-control` — RHEL 10.2, 2 vCPU, 4 GiB RAM, 30 GiB disk, `192.168.122.201`.
-- `cks-worker` — RHEL 10.2, 2 vCPU, 4 GiB RAM, 30 GiB disk, `192.168.122.202`.
+- `cks-worker` — RHEL 10.2, 2 vCPU, 4 GiB RAM, 100 GiB disk, `192.168.122.202`.
 - Both nodes use RKE2 `v1.36.5+rke2r1`, SELinux enforcing, and the RKE2 SELinux policy.
 - Rancher `2.15.2` manages the local RKE2 cluster. Mattermost Team Edition runs as a Fleet-managed workload with CloudNativePG and the local-path provisioner.
 - The RHEL DVD ISO is attached to each VM and provides local BaseOS/AppStream package repositories. The installations are not registered to Red Hat, so they do not receive Red Hat CDN updates.

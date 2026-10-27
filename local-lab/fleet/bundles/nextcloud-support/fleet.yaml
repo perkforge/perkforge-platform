@@ -1,0 +1,7 @@
+name: local-lab-nextcloud-support
+dependsOn:
+- selector:
+    matchLabels:
+      local-lab.homelab/component: tenant-foundation
+helm:
+  takeOwnership: true

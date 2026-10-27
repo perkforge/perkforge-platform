@@ -2,6 +2,79 @@
 
 Last updated: 2026-10-26
 
+## Worker storage expansion — 2026-10-26
+
+- The user explicitly authorized expanding only cks-worker's virtual disk to
+  100 GiB and persisting that size in provisioning for a future approved rebuild.
+- Expanded the live qcow2 via libvirt blockresize, then extended GPT partition
+  vda3, resized its LVM PV, extended /dev/rhel_cks-worker/root into free extents,
+  and grew XFS online. No reboot, formatting, data deletion, image cleanup or
+  physical-disk partition changes occurred. Control VM storage is unchanged.
+- Verified worker disk 100 GiB, root about 95 GiB, swap 3 GiB, /boot 2 GiB,
+  and about 74 GiB free. local-path uses /opt/local-path-provisioner on root.
+  Guest metadata backup is /var/tmp/perkforge-worker-storage-before.mfc8cD/
+  (partition-table.sfdisk and lvm.conf); this is metadata, not a data backup.
+- provision-vms.sh now selects disk sizes by VM name (control 30, worker 100)
+  and explicitly allocates the new worker's remaining capacity to root instead
+  of a separate /home or a capped automatic root. Existing-VM provisioning
+  continues to leave disks untouched. Shell syntax validation passed; no
+  provisioning/rebuild or tests were run. Changes remain local, uncommitted.
+- The earlier disk-space blocker below is resolved; fresh Nextcloud capacity
+  checks and the remaining secret/bootstrap, LAN, publication and activation
+  gates still apply. Protected Nextcloud remains undeployed.
+
+## Tenant catalog layout refactor — 2026-10-26
+
+- The user approved splitting the unwieldy catalog and generated manifest.
+  `local-lab/tenant-config/tenants.yaml` is now a small index; editable tenant
+  records live under `tenant-config/tenants/{tenant-alpha,tenant-bravo,home}.yaml`.
+- Added shared `tenant_catalog.py` loader; all catalog-reading runtime scripts
+  use it. Explicit relative references prevent accidental discovery; legacy
+  inline catalogs remain supported. Existing test fixtures use the loader and
+  retain their two-synthetic-tenant scope. No tests were added or run.
+- Renderer still validates the assembled catalog globally. Output is now
+  `tenant-foundation/shared/roletemplates.yaml` plus `tenants/<id>/` files for
+  Project, namespaces, quotas, limits and NetworkPolicies. The old combined
+  generated `tenant-foundation/tenants.yaml` was removed.
+- Retained the same parent Fleet bundle identity and all resource identifiers
+  and content. Shared roles have a separate directory in that same bundle,
+  rather than a new Fleet bundle, to avoid transferring resource ownership.
+  No nested fleet.yaml files or GitRepo path migration are needed.
+- Semantic comparison confirmed all 20 generated objects identical before
+  and after splitting. Catalog sync, compilation and plan-only entry points
+  passed; no live API changes, tests, commits or pushes occurred for this work.
+- Nextcloud activation is still blocked by worker disk capacity, secret
+  bootstrap approval and LAN routing. The user declined cache cleanup; do not
+  reclaim cached images. Do not publish tenant removal as a harmless refactor.
+
+## Nextcloud implementation continuation — 2026-10-26
+
+- Keycloak pause commit `bb9c417` was pushed by the user; Fleet reconciled it.
+  Keycloak is 0/0, its DB is healthy. Subsequent Nextcloud files remain local
+  and uncommitted. No application deployment or secret bootstrap occurred.
+- Read `docs/NEXTCLOUD-INTEGRATION.md` for discovery, ownership, remaining gates,
+  and all validation limits. The separate application repo now contains two
+  Fleet bundles, pinned Helm values, architecture/operations/recovery docs and
+  a read-only capacity preflight. The platform has protected classification,
+  rendered Home foundation, support RBAC/policies, PAUSED Fleet registration,
+  and a plan-only development credential helper.
+- Chart 9.4.1 / Nextcloud 35.0.2-apache rendered successfully; chart archive
+  SHA256 matched its repository index. CNPG reuses the existing PG17.6 pin.
+  Python compilation, catalog synchronization and whitespace checks passed.
+  No tests were added or run (repository guidance). Runtime compatibility,
+  registry images, server admission, LAN access and persistence are unverified.
+- Network escalation is now available through automatic review; the public
+  chart downloads and read-only node stats succeeded with require_escalated.
+- Worker free space is only about 5.16 GiB, below the planned 6-GiB PVC requests
+  and 8-GiB preflight floor. Activation remains blocked. No image cleanup,
+  disk modification, workload deletion, or shared capacity change authorized.
+- Pending user answers: approve development-only secret bootstrap and confirm
+  hostname/private LAN route. Also obtain commit/push authorization for these
+  concrete new changes before publication. Preserve existing untracked files.
+- Publish/reconcile platform foundation/support before secrets and activation;
+  registration stays paused until prerequisites pass. Pin reviewed application
+  commit in registration before unpausing. Do not bypass GitOps with Helm install.
+
 ## Nextcloud preparation and Keycloak pause — 2026-10-26
 
 - The user requested Nextcloud as a protected reference tenant in the separate

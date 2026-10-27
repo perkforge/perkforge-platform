@@ -17,6 +17,8 @@ from pathlib import Path
 
 import yaml
 
+from tenant_catalog import load_catalog
+
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CATALOG = ROOT / "local-lab/tenant-config/tenants.yaml"
 DEFAULT_SECRETS = ROOT / ".secrets"
@@ -196,7 +198,7 @@ def main() -> int:
                       help="validate the AuthConfig with the API server without persisting it")
     args = parser.parse_args()
     try:
-        catalog = yaml.safe_load(args.catalog.read_text())
+        catalog = load_catalog(args.catalog)
         if not args.apply and not args.server_dry_run:
             _renderer.validate_catalog(catalog)
             if not args.secret_file.is_file():
