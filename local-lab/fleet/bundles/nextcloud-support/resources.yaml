@@ -210,3 +210,41 @@ spec:
     ports:
     - protocol: TCP
       port: 6443
+---
+apiVersion: management.cattle.io/v3
+kind: FleetWorkspace
+metadata:
+  name: fleet-home-nextcloud
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fleet-home-nextcloud
+  labels:
+    platform.perkforge.io/tenant: home
+    platform.perkforge.io/managed-by: nextcloud-support
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: Policy
+metadata:
+  name: nextcloud-only
+  namespace: fleet-home-nextcloud
+requireServiceAccount: true
+allowNamespaceCreation: false
+allowedServiceAccounts:
+- home-nextcloud-deployer
+gitRepo:
+  allowedRepoPatterns:
+  - ^https://github[.]com/perkforge/perkforge-tenant-nextcloud[.]git$
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: BundleNamespaceMapping
+metadata:
+  name: nextcloud-to-local
+  namespace: fleet-home-nextcloud
+bundleSelector:
+  matchLabels:
+    platform.perkforge.io/tenant: home
+namespaceSelector:
+  matchLabels:
+    kubernetes.io/metadata.name: fleet-local

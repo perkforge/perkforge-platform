@@ -1,9 +1,8 @@
-# Namespace deletion defaults to false; omit the zero value to avoid Fleet normalization drift.
 apiVersion: fleet.cattle.io/v1alpha1
 kind: GitRepo
 metadata:
   name: tenant-home-nextcloud
-  namespace: fleet-local
+  namespace: fleet-home-nextcloud
   labels:
     platform.perkforge.io/tenant: home
     platform.perkforge.io/classification: protected
