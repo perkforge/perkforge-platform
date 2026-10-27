@@ -50,7 +50,7 @@ The first RKE2 learning cluster uses two existing libvirt VMs on the host's defa
 - `cks-control` — RHEL 10.2, 2 vCPU, 4 GiB RAM, 30 GiB disk, `192.168.122.201`.
 - `cks-worker` — RHEL 10.2, 2 vCPU, 4 GiB RAM, 100 GiB disk, `192.168.122.202`.
 - Both nodes use RKE2 `v1.36.5+rke2r1`, SELinux enforcing, and the RKE2 SELinux policy.
-- Rancher `2.15.2` manages the local RKE2 cluster. Mattermost Team Edition runs as a Fleet-managed workload with CloudNativePG and the local-path provisioner.
+- Rancher `2.15.2` manages the local RKE2 cluster. Nextcloud is the first protected reference application, managed from the separate `perkforge-tenant-nextcloud` repository through a scoped Fleet workspace, CloudNativePG and local-path storage. Keycloak is temporarily paused to reserve worker memory; Mattermost remains opt-in.
 - The RHEL DVD ISO is attached to each VM and provides local BaseOS/AppStream package repositories. The installations are not registered to Red Hat, so they do not receive Red Hat CDN updates.
 - Firewalld is disabled in this isolated NAT-based exercise because the default Canal network plugin conflicts with firewalld. Revisit firewall rules before moving nodes onto a shared or physical network.
 - The lab-only SSH key, VM install answers, kubeconfig, kubectl copy, and other local credentials live under ignored `.secrets/`. The ISO under `images/` is also ignored. Recreate local credentials from the instructions in `local-lab/README.md` after a laptop replacement.

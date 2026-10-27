@@ -2,6 +2,57 @@
 
 Last updated: 2026-10-26
 
+## Nextcloud working local deployment — 2026-10-26
+
+- User authorized committing/pushing both repositories and carrying out the
+  published activation and trial acceptance workflow. Both repositories were
+  pushed; application workload pin is `3feb9b09686d5e1e08e9bf6616f6126335a1653f`.
+- Fleet app GitRepo is in dedicated Rancher Fleet workspace
+  `fleet-home-nextcloud`; app bundles 2/2, local-lab 5/5, platform-apps 4/4 Ready.
+  Home is associated with Rancher Project local:p-home-local. Keycloak stays 0/0.
+- The workspace Policy requires the scoped deployer and disables namespace
+  creation. A mapping selects only Home bundles for fleet-local/local. No tenant
+  namespace patch permission was added; namespace/policy/quota/RBAC remain owned
+  by the platform. Rancher owns its Fleet workspace namespace. A temporary
+  duplicate namespace declaration was removed only after Helm keep protection
+  was recorded in the installed release.
+- Nextcloud35.0.2/chart9.4.1 and single-instance CNPG PG17.6 are Ready on worker.
+  Both PVCs Bound (app4Gi, DB2Gi). Fixed live-discovered constraints through Git:
+  single-instance update strategy must be unsupervised; UID33 must create PVC
+  subdirectories before kubelet subPath mounts; trusted domain is explicit;
+  startup hook sets Cron mode; single Apache worker needs backend KeepAlive Off.
+  One-time ownership repair changed only the seven new app-volume directories,
+  with no file deletion or data reset. No privileged app container was added.
+- Developer-only bootstrap approval was taken from the user's activation
+  instruction. Credentials are in ignored owner-only
+  .secrets/nextcloud/nextcloud-admin-password and nextcloud-db-app-password.
+  Username home-admin. Immutable Secrets exist; no credentials were published.
+  Public self-signed certificate is .secrets/nextcloud/public-tls.crt.
+- Acceptance passed: verified-certificate HTTPS/WebDAV upload/download, checksum
+  after app-pod deletion/recreation, same app/DB PVC/volume identities, browser
+  login to dashboard, successful scheduled CronJobs, non-root app with no API
+  token, selected cross-tenant authorization denials and deployer RBAC denials.
+  Private evidence in application .evidence/smoke-20261027T011531Z/ and
+  .evidence/browser-20261027T012251Z/. Browser used local-only TLS bypass; HTTPS
+  curl used the verified public certificate. No browser state or screenshots.
+- Current profile: app512Mi, DB320Mi, cron128Mi limits; PHP192M with 64Mi opcode
+  cache; one Apache worker; CronJob concurrency Forbid, 900-second deadline.
+  Pre-deployment gate derives total960Mi plus512Mi reserve. After browser trial,
+  observed headroom was roughly0.75Gi control and1.1Gi worker; both nodes Ready.
+- Unverified/pending: separate home-LAN client access, full pod-network denial,
+  backup/restore and node-failure recovery. The workstation has LAN192.168.1.183;
+  VMs are behind libvirt NAT. Tests used temporary hostname mapping to
+  192.168.122.202. No host/router/network changes made. User was asked to approve
+  only a workstation hosts entry; answer is pending. Do not silently change
+  routing or public exposure. Use replaceable data until backup/restore exists.
+- The initial failed CronJob history remains; subsequent jobs completed. Do not
+  mistake those historical failures for a current failure or erase evidence.
+  Unit tests were not run; live trial checks were explicitly authorized.
+  Existing untracked evidence, .orig files and caches were preserved.
+- See docs/NEXTCLOUD-INTEGRATION.md and the separate app repo's operations and
+  recovery docs. Full platform deploy/rebuild scripts still assume running
+  Keycloak and must not be used on this temporary paused-identity profile.
+
 ## Worker storage expansion — 2026-10-26
 
 - The user explicitly authorized expanding only cks-worker's virtual disk to

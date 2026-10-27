@@ -1,5 +1,55 @@
 # Nextcloud discovery and integration — 2026-10-26
 
+## Current deployment
+
+Nextcloud is deployed and verified as a local trial. The app is pinned to
+`3feb9b09686d5e1e08e9bf6616f6126335a1653f`, chart 9.4.1, Nextcloud
+35.0.2-apache and PostgreSQL17.6. The app repository's later documentation commit
+does not change this deployed workload. Fleet reports app 2/2, foundation 5/5,
+and existing platform-apps 4/4 Ready. Keycloak remains paused.
+
+The user authorized publication, development-only credential bootstrap, activation
+and the trial acceptance workflow. Two immutable Kubernetes Secrets were created
+from owner-only files under `.secrets/nextcloud/`; values were never tracked.
+
+The application GitRepo now lives in Rancher Fleet workspace
+`fleet-home-nextcloud`, not fleet-local. A Policy requires
+`home-nextcloud-deployer`, restricts the source repository, and disables namespace
+creation. A Home-labeled BundleNamespaceMapping selects the existing local
+cluster in fleet-local. This avoids granting namespace patch authority to the
+tenant deployer. Rancher's FleetWorkspace controller owns the workspace namespace;
+the platform bundle does not also declare that Namespace. During migration a
+Helm keep safeguard was recorded before removing duplicate namespace ownership.
+
+Server admission passed for the application and CNPG. The installed operator
+requires unsupervised update strategy for a single-instance CNPG cluster; upgrades
+remain controlled by the platform's pinned Git revision. Runtime fixes include
+UID33 initialization of persistent subdirectories, an explicit trusted-domain
+config and Cron-mode hook, and KeepAlive disabled for the one-worker Apache
+profile. A one-time ownership repair touched only the new app PVC's seven
+subdirectories, retaining their contents and avoiding privileged app containers.
+No data reset, PVC deletion or shared controller change was needed.
+
+Verified: certificate-checked HTTPS/WebDAV upload/download; matching file checksum
+after deleting/recreating only the application pod; unchanged database/app PVC
+and volume IDs; browser login to the dashboard in an ephemeral context with a
+local-only TLS bypass; successful scheduled CronJobs; UID33 with no mounted API
+token; selected Alpha/Bravo group authorization denied to Home. The deployer
+cannot patch namespaces, delete PVCs, edit policies or create RoleBindings.
+The failed initial CronJob is retained as history; subsequent jobs completed.
+
+Private app evidence: `.evidence/smoke-20261027T011531Z/summary.json` and
+`.evidence/browser-20261027T012251Z/summary.json`. Runtime testing was authorized
+by the user's activation instruction; the offline unit suite was not run.
+
+Unverified: access from a separate LAN client, broad network denial, backups and
+restore, node-failure recovery and multi-user load. Workstation tests used temporary
+hostname overrides to 192.168.122.202. Hostname/router/bridge/firewall configuration
+has not been changed. Workstation /etc/hosts approval remains pending; other LAN
+clients need an approved route to the libvirt NAT subnet. Use replaceable data.
+The capacity script is an initial-deployment gate: its full additional workload
+budget is not a post-deployment health check.
+
 ## Discovery
 
 Both RHEL10.2/RKE2 v1.36.5+rke2r1 nodes are Ready. Fleet in `fleet-local`
@@ -46,7 +96,7 @@ was verified on that root filesystem. No physical disk was repartitioned or
 formatted, and no existing workload data was deleted. Fresh capacity preflight
 results take precedence over the earlier discovery snapshot.
 
-## Prepared implementation
+## Implementation
 
 - Catalog index `local-lab/tenant-config/tenants.yaml` references the per-tenant
   file `tenants/home.yaml`. Catalog tenant `home`, environment `local-vm`, application `nextcloud`, protected
@@ -57,8 +107,9 @@ results take precedence over the earlier discovery snapshot.
   Fleet deployer RBAC, and exact DNS/Traefik/PostgreSQL/CNPG exceptions.
   Its explicit Helm ownership adoption is limited to the new namespace's
   auto-created default ServiceAccount and newly declared support resources.
-- `nextcloud-registration` creates a PAUSED GitRepo with keepResources:true,
-  deleteNamespace:false, targetNamespace confinement and explicit local target.
+- `nextcloud-registration` creates the active, commit-pinned GitRepo in the
+  dedicated workspace, with keepResources:true, namespace deletion disabled by
+  default, targetNamespace confinement and explicit local target.
   It does not change shared controllers or existing applications.
 - App repo has two explicit paths: `bundles/database` and `bundles/nextcloud`.
   It owns CNPG Cluster, Nextcloud Helm chart, TLS and Apache tuning. Chart
@@ -67,21 +118,20 @@ results take precedence over the earlier discovery snapshot.
   namespaced API identity. The deployer cannot mutate policies/RBAC/quotas or
   delete PVCs/Clusters. No tenant user is given Fleet control.
 
-## Outstanding gates
+## Initial activation procedure (completed for the local trial)
 
-Confirm private hostname and LAN routing. Approve the development credential
-bootstrap. Worker disk capacity is now expanded; recheck capacity before activation.
-Publish reviewed changes only with commit/push authorization. Pin the reviewed
-application SHA and unpause its GitRepo through the platform source after
-support reconciliation, preflight and secrets are ready. Do not apply standalone
+For a new environment, confirm private hostname and LAN routing and approve
+the development credential bootstrap. Worker disk capacity is expanded; check
+fresh pre-deployment headroom. Publish reviewed changes with authorization, pin
+the application SHA, and unpause through platform source only after support
+reconciliation, preflight and secrets are ready. Do not apply standalone
 application YAML or install Helm releases outside Fleet.
 
 Run `python3 scripts/preflight.py` in the application repo for a read-only memory
-and disk gate. Application/DB compatibility and registry pulls, server admission,
-live CNPG API reachability, readiness, LAN/browser access, cross-tenant denial,
-backup/restore and restart persistence remain pending. Local Helm rendering and
-catalog sync are configuration checks, not runtime acceptance. No tests were
-added or run, following AGENTS.md.
+and disk gate. The current runtime results and their limits are recorded above. Registry
+pulls, application admission, CNPG health, readiness, browser login and restart
+persistence have passed for the current configuration. Broader denial and
+backup/restore remain pending; do not infer them from static rendering.
 
 Current full deploy/rebuild scripts assume Keycloak is up and must not be used
 for this temporary paused-identity application profile. Protected Home must be
