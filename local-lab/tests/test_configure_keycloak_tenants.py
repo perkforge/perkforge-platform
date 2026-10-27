@@ -57,6 +57,55 @@ class KeycloakTenantConfigurationTests(unittest.TestCase):
             admin.ensure_portal_client()
         self.assertTrue(all(method == "GET" for method, path in calls))
 
+    def test_openbao_client_is_separate_and_uses_id_token_groups(self):
+        client = module.openbao_client("synthetic-secret")
+        self.assertEqual(client["clientId"], "openbao")
+        self.assertEqual(client["defaultClientScopes"], ["profile"])
+        self.assertFalse(client["fullScopeAllowed"])
+        self.assertEqual(client["attributes"]["pkce.code.challenge.method"], "S256")
+        self.assertEqual(len(client["redirectUris"]), 2)
+        self.assertEqual(module.group_mapper()["config"]["id.token.claim"], "true")
+        for field in ("publicClient", "implicitFlowEnabled", "directAccessGrantsEnabled", "serviceAccountsEnabled"):
+            self.assertFalse(client[field])
+
+    def test_openbao_refuses_unowned_client_before_writes(self):
+        admin = object.__new__(module.KeycloakAdmin)
+        calls=[]
+        def api(method,path,value=None,accepted=(200,)):
+            calls.append((method,path))
+            if path.endswith("clients?clientId=openbao"):
+                return json.dumps([{"clientId":"openbao","id":"foreign"}]).encode()
+            return json.dumps({"attributes":{module.OWNERSHIP_ATTRIBUTE:"true"}}).encode()
+        admin.api=api
+        with self.assertRaisesRegex(RuntimeError,"not platform-owned"):
+            admin.ensure_openbao_client()
+        self.assertTrue(all(method=="GET" for method,path in calls))
+
+    def test_openbao_reconciliation_preserves_secret_and_never_grants_membership(self):
+        import copy
+        admin = object.__new__(module.KeycloakAdmin)
+        stored=module.openbao_client("synthetic-preserved")
+        stored["id"]="owned-client"
+        mappers=[{**module.group_mapper(),"id":"groups-id"}]
+        writes=[]
+        def api(method,path,value=None,accepted=(200,)):
+            nonlocal stored,mappers
+            if method!="GET":writes.append((method,path))
+            if path=="/realms/perkforge":return json.dumps({"attributes":{module.OWNERSHIP_ATTRIBUTE:"true"}}).encode()
+            if path.endswith("clients?clientId=openbao"):return json.dumps([stored]).encode()
+            if path.endswith("/scope-mappings"):return b'{}'
+            if path.endswith("/client-secret"):return json.dumps({"value":stored["secret"]}).encode()
+            if "/protocol-mappers/models" in path:
+                if method=="PUT":mappers=[copy.deepcopy(value)];return b''
+                return json.dumps(mappers).encode()
+            if method=="PUT":stored=copy.deepcopy(value);return b''
+            return json.dumps(stored).encode()
+        admin.api=api
+        self.assertEqual(admin.ensure_openbao_client(),"synthetic-preserved")
+        self.assertEqual(admin.ensure_openbao_client(),"synthetic-preserved")
+        self.assertTrue(all("/clients/owned-client" in path for method,path in writes))
+        self.assertFalse(any("groups/" in path or "users/" in path or "role-mappings" in path for method,path in writes))
+
     def test_group_paths_cover_all_tenants_and_roles(self):
         paths = module.group_paths(self.catalog)
         self.assertEqual(len(paths), 6)

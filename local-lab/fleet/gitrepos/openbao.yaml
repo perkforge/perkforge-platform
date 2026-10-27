@@ -1,0 +1,18 @@
+# Operator-applied only after this configuration is reviewed and merged.
+# Existing GitRepos do not select or recursively apply this registration.
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: openbao-runtime
+  namespace: fleet-local
+spec:
+  repo: https://github.com/perkforge/perkforge-platform.git
+  branch: main
+  keepResources: true
+  paths:
+  - local-lab/fleet/bundles/openbao-support
+  - local-lab/fleet/bundles/secrets-openbao
+  - local-lab/fleet/bundles/eso-home-portal
+  targets:
+  - name: local
+    clusterName: local

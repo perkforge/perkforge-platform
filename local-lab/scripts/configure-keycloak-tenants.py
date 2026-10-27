@@ -74,6 +74,19 @@ def portal_client(secret: str) -> dict:
     return client
 
 
+def openbao_client(secret: str) -> dict:
+    """Dedicated human login client; no users, memberships or administrative grants."""
+    client = rancher_client(secret)
+    client.update(clientId="openbao", name="PerkForge OpenBao",
+                  description="Platform secrets human OIDC login",
+                  redirectUris=["https://openbao.local-lab.test/ui/vault/auth/oidc/oidc/callback",
+                                "http://localhost:8250/oidc/callback"],
+                  webOrigins=["https://openbao.local-lab.test"], fullScopeAllowed=False,
+                  defaultClientScopes=["profile"], optionalClientScopes=[])
+    client["attributes"]["pkce.code.challenge.method"] = "S256"
+    return client
+
+
 def portal_mappers() -> list[dict]:
     groups = group_mapper()
     groups["config"]["access.token.claim"] = "true"
@@ -420,6 +433,67 @@ class KeycloakAdmin:
             raise RuntimeError("Rancher OIDC client verification failed for: " + ", ".join(errors))
         return secret
 
+    def ensure_openbao_client(self) -> str:
+        """Only the owned OpenBao client; no tenant lifecycle or membership changes."""
+        realm = json.loads(self.api("GET", f"/realms/{REALM}"))
+        if realm.get("attributes", {}).get(OWNERSHIP_ATTRIBUTE) != "true":
+            raise RuntimeError("OpenBao requires the existing managed realm")
+        query = "clientId=openbao"
+        clients = json.loads(self.api("GET", f"/realms/{REALM}/clients?{query}"))
+        clients = [c for c in clients if c.get("clientId") == "openbao"]
+        if len(clients) > 1:
+            raise RuntimeError("Multiple OpenBao clients found")
+        if clients:
+            client = clients[0]
+            if client.get("attributes", {}).get(OWNERSHIP_ATTRIBUTE) != "true":
+                raise RuntimeError("Existing OpenBao client is not platform-owned")
+            path = f"/realms/{REALM}/clients/{client['id']}"
+            mappers = json.loads(self.api("GET", path + "/protocol-mappers/models"))
+            if len(mappers) > 1 or any(m.get("name") != "groups" or
+                    m.get("protocolMapper") != group_mapper()["protocolMapper"] for m in mappers):
+                raise RuntimeError("Unexpected OpenBao mapper; review before changing")
+            scope = json.loads(self.api("GET", path + "/scope-mappings"))
+            if scope.get("realmMappings") or scope.get("clientMappings"):
+                raise RuntimeError("Unexpected OpenBao role scope; review before changing")
+            secret = json.loads(self.api("GET", path + "/client-secret")).get("value")
+            if not secret:
+                raise RuntimeError("Managed OpenBao client secret is missing; refusing rotation")
+        else:
+            secret = secrets.token_urlsafe(48)
+            self.api("POST", f"/realms/{REALM}/clients", openbao_client(secret), accepted=(201,))
+            clients = json.loads(self.api("GET", f"/realms/{REALM}/clients?{query}"))
+            clients = [c for c in clients if c.get("clientId") == "openbao"]
+            if len(clients) != 1:
+                raise RuntimeError("Created OpenBao client could not be uniquely verified")
+            client = clients[0]
+            path = f"/realms/{REALM}/clients/{client['id']}"
+            mappers = []
+        desired = openbao_client(secret)
+        client.update(desired)
+        self.api("PUT", path, client, accepted=(204,))
+        mapper = group_mapper()
+        if mappers:
+            self.api("PUT", path + "/protocol-mappers/models/" + mappers[0]["id"],
+                     {**mapper, "id":mappers[0]["id"]}, accepted=(204,))
+        else:
+            self.api("POST", path + "/protocol-mappers/models", mapper, accepted=(201,))
+        saved = json.loads(self.api("GET", path))
+        for key, value in desired.items():
+            if key == "secret":
+                continue
+            if key == "attributes":
+                if any(saved.get(key, {}).get(k) != v for k, v in value.items()):
+                    raise RuntimeError("OpenBao PKCE/ownership verification failed")
+            elif saved.get(key) != value:
+                raise RuntimeError("OpenBao client verification failed for " + key)
+        saved_mappers = json.loads(self.api("GET", path + "/protocol-mappers/models"))
+        if len(saved_mappers) != 1 or any(saved_mappers[0].get(k) != v for k,v in mapper.items()):
+            raise RuntimeError("OpenBao groups mapper verification failed")
+        saved_secret = json.loads(self.api("GET", path + "/client-secret")).get("value")
+        if saved_secret != secret:
+            raise RuntimeError("OpenBao client secret verification failed")
+        return secret
+
     def ensure_portal_client(self) -> str:
         """Only reconcile the portal client and Home reader grant; no Rancher/users changes."""
         realm = json.loads(self.api("GET", f"/realms/{REALM}"))
@@ -548,6 +622,11 @@ def configure(args: argparse.Namespace, catalog: dict) -> None:
             raise RuntimeError(f"{exc}; see {port_forward_log}") from None
         admin_password = admin_password_file.read_text().strip()
         admin = KeycloakAdmin(base_url, args.admin_username, admin_password)
+        if args.openbao_only:
+            secret = admin.ensure_openbao_client()
+            write_secret(secrets_dir / "openbao-keycloak-client-secret", secret)
+            print("Verified only OpenBao client/groups mapper; secret saved privately; no memberships changed.")
+            return
         if args.portal_only:
             secret = admin.ensure_portal_client()
             write_secret(secrets_dir / "portal-keycloak-client-secret", secret)
@@ -589,7 +668,9 @@ def configure(args: argparse.Namespace, catalog: dict) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
-    parser.add_argument("--portal-only", action="store_true", help="reconcile only portal client and Home reader grants; no users or Rancher client")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--openbao-only", action="store_true", help="only reconcile the owned OpenBao client; no users, groups or other clients")
+    mode.add_argument("--portal-only", action="store_true", help="reconcile only portal client and Home reader grants; no users or Rancher client")
     parser.add_argument("--apply", action="store_true",
                         help="connect to Keycloak and reconcile the realm, client, and groups")
     parser.add_argument("--secrets-dir", type=Path, default=DEFAULT_SECRETS)
@@ -605,6 +686,10 @@ def main() -> int:
         group_list = group_paths(catalog)
         if args.apply:
             configure(args, catalog)
+        elif args.openbao_only:
+            print("Plan: existing managed realm; dedicated OpenBao confidential client; S256 PKCE;")
+            print("      exact browser/localhost callbacks; full-path groups in ID token/userinfo;")
+            print("      no users, memberships, role grants or other clients changed. No live action.")
         elif args.portal_only:
             print("Plan: managed perkforge realm; household-portal confidential client; S256 PKCE;")
             print("      exact https://portal.local-lab.test/auth/callback; household-portal-api audience;")

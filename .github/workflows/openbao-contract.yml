@@ -1,9 +1,9 @@
 name: openbao-contract-offline
 on:
   push:
-    paths: ['local-lab/openbao/**', 'local-lab/secrets-config/**', 'local-lab/fleet/bundles/secrets-openbao/**', 'local-lab/fleet/bundles/eso-home-portal/**', 'local-lab/tests/test_openbao_secrets.py', '.github/workflows/openbao-contract.yml']
+    paths: ['local-lab/openbao/**', 'local-lab/secrets-config/**', 'local-lab/fleet/bundles/secrets-openbao/**', 'local-lab/fleet/bundles/eso-home-portal/**', 'local-lab/fleet/bundles/openbao-support/**', 'local-lab/fleet/gitrepos/openbao.yaml', 'local-lab/scripts/configure-keycloak-tenants.py', 'local-lab/tests/test_configure_keycloak_tenants.py', 'local-lab/tests/test_openbao_secrets.py', '.github/workflows/openbao-contract.yml']
   pull_request:
-    paths: ['local-lab/openbao/**', 'local-lab/secrets-config/**', 'local-lab/fleet/bundles/secrets-openbao/**', 'local-lab/fleet/bundles/eso-home-portal/**', 'local-lab/tests/test_openbao_secrets.py', '.github/workflows/openbao-contract.yml']
+    paths: ['local-lab/openbao/**', 'local-lab/secrets-config/**', 'local-lab/fleet/bundles/secrets-openbao/**', 'local-lab/fleet/bundles/eso-home-portal/**', 'local-lab/fleet/bundles/openbao-support/**', 'local-lab/fleet/gitrepos/openbao.yaml', 'local-lab/scripts/configure-keycloak-tenants.py', 'local-lab/tests/test_configure_keycloak_tenants.py', 'local-lab/tests/test_openbao_secrets.py', '.github/workflows/openbao-contract.yml']
 permissions:
   contents: read
 jobs:
@@ -35,6 +35,10 @@ jobs:
           582b1f3c2fdc5afd443b2d57a225ef654de75adea609fdb66731fd582a9cbc96  bao.tar.gz
           3e15a4adfaad2e795993bc938d4122071da40d03190c90e8a6426948f9a19a9a  bin/fleet
           CHECKSUMS
+          curl -fsSL --retry 3 https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz -o age.tgz
+          echo "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  age.tgz" | sha256sum --check
+          tar -xzf age.tgz
+          cp age/age age/age-keygen bin/
           tar -xzf openbao.tgz -C charts
           tar -xzf eso.tgz -C charts
           tar -xzf bao.tar.gz -C bin
@@ -43,5 +47,9 @@ jobs:
           echo "BAO_BIN=$RUNNER_TEMP/openbao-test/bin/bao" >> "$GITHUB_ENV"
           echo "OPENBAO_CHART=$RUNNER_TEMP/openbao-test/charts/openbao" >> "$GITHUB_ENV"
           echo "ESO_CHART=$RUNNER_TEMP/openbao-test/charts/external-secrets" >> "$GITHUB_ENV"
+      - name: Validate operator helper syntax and isolated Keycloak extension
+        run: |
+          bash -n local-lab/openbao/configure.sh local-lab/openbao/deliver-tls.sh local-lab/openbao/backup.sh
+          python -m unittest discover -s local-lab/tests -p test_configure_keycloak_tenants.py -v
       - name: Test synthetic OpenBao isolation and native rendering
         run: python -m unittest discover -s local-lab/tests -p test_openbao_secrets.py -v

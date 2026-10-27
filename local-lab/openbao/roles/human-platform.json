@@ -6,8 +6,7 @@
   ],
   "oidc_scopes": [
     "openid",
-    "profile",
-    "groups"
+    "profile"
   ],
   "allowed_redirect_uris": [
     "https://openbao.local-lab.test/ui/vault/auth/oidc/oidc/callback",
