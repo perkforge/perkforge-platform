@@ -65,6 +65,24 @@ func TestPoliciesWithKubernetesSchemaTypeChecker(t *testing.T) {
 			if warnings := checker.Check(&policy); len(warnings) > 0 {
 				t.Fatalf("API-server type warnings: %+v", warnings)
 			}
+			if policy.Name == "portal-pod-contract" || policy.Name == "portal-template-contract" {
+				pod := "object.spec"
+				if policy.Name == "portal-template-contract" {
+					pod = "object.spec.template.spec"
+				}
+				broken := policy.DeepCopy()
+				broken.Spec.Validations = append(broken.Spec.Validations, admissionv1.Validation{Expression: pod + `.volumes[0].configMap.items == [{"key":"ca.crt","path":"ca.crt"}]`})
+				if len(checker.Check(broken)) == 0 {
+					t.Fatal("checker failed to detect original typed-object/list-map comparison")
+				}
+			}
+			if policy.Name == "portal-template-contract" {
+				broken := policy.DeepCopy()
+				broken.Spec.Validations = append(broken.Spec.Validations, admissionv1.Validation{Expression: `request.kind.kind != "Deployment" || object.spec.strategy.type == "Recreate"`})
+				if len(checker.Check(broken)) == 0 {
+					t.Fatal("checker failed to detect original ReplicaSet strategy error")
+				}
+			}
 		})
 	}
 }
