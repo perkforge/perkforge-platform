@@ -18,4 +18,4 @@ spec:
   targets:
   - name: local
     clusterName: local
-  revision: 7d9f538429858006efa2a230fb9b8c088fa1064a
+  revision: 3261657c70a1bf60fc9bc4bbaf7539df3b8aa6c5
