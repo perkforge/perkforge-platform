@@ -19,6 +19,22 @@ spec.loader.exec_module(module)
 
 
 class RancherOidcConfigurationTests(unittest.TestCase):
+    def test_https_only_preserves_live_client_and_principal_list(self):
+        current = {"metadata":{"name":"genericoidc","resourceVersion":"17","labels":{module.OWNER_LABEL:module.OWNER_VALUE}},
+                   "type":module.AUTH_TYPE,"enabled":True,"clientId":"rancher","clientSecret":"fixture-only",
+                   "issuer":"http://keycloak.local-lab.test/auth/realms/perkforge",
+                   "authEndpoint":"http://keycloak.local-lab.test/auth/realms/perkforge/protocol/openid-connect/auth",
+                   "allowedPrincipalIds":["existing-review-group"]}
+        configs = [{"metadata":{"name":"local"},"enabled":True},current]
+        before, patch = module.https_only_config(configs)
+        self.assertEqual(set(patch), {"metadata","issuer","authEndpoint"})
+        self.assertEqual(patch["metadata"], {"resourceVersion":"17"})
+        self.assertEqual(before["allowedPrincipalIds"],["existing-review-group"])
+        self.assertNotIn("clientSecret",patch)
+        current["issuer"] = "https://unexpected.invalid"
+        with self.assertRaisesRegex(ValueError,"Unexpected existing issuer"):
+            module.https_only_config(configs)
+
     @classmethod
     def setUpClass(cls):
         cls.catalog = load_catalog(ROOT / "local-lab/tenant-config/tenants.yaml")

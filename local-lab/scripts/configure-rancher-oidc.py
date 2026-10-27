@@ -163,6 +163,42 @@ class Kubectl:
             raise RuntimeError("Rancher rejected the Generic OIDC configuration")
 
 
+def https_only_config(configs: list[dict]) -> tuple[dict, dict]:
+    current = next(obj for obj in configs if obj.get("metadata", {}).get("name") == AUTH_NAME)
+    validate_target(configs, current)
+    old_issuer = KEYCLOAK_PUBLIC_REALM.replace("https://", "http://", 1)
+    if current.get("clientId") != "rancher" or current.get("enabled") is not True:
+        raise ValueError("HTTPS migration requires the existing enabled Rancher client")
+    if current.get("issuer") not in {old_issuer, KEYCLOAK_PUBLIC_REALM}:
+        raise ValueError("Unexpected existing issuer; refusing endpoint migration")
+    expected_auth = {value + "/protocol/openid-connect/auth" for value in (old_issuer, KEYCLOAK_PUBLIC_REALM)}
+    if current.get("authEndpoint") not in expected_auth:
+        raise ValueError("Unexpected existing authorization endpoint")
+    patch = {"metadata": {"resourceVersion": current["metadata"]["resourceVersion"]},
+             "issuer": KEYCLOAK_PUBLIC_REALM,
+             "authEndpoint": KEYCLOAK_PUBLIC_REALM + "/protocol/openid-connect/auth"}
+    return current, patch
+
+
+def migrate_https(kubectl: Kubectl, apply: bool) -> None:
+    configs = kubectl.json("get", "authconfigs.management.cattle.io").get("items", [])
+    before, patch = https_only_config(configs)
+    if apply:
+        result = subprocess.run(kubectl.prefix + ["patch", "authconfigs.management.cattle.io", AUTH_NAME,
+                               "--type=merge", "-p", json.dumps(patch)], capture_output=True, text=True, timeout=90)
+        if result.returncode:
+            raise RuntimeError("Rancher HTTPS endpoint patch failed; no credential diagnostics printed")
+        after = kubectl.json("get", "authconfigs.management.cattle.io", AUTH_NAME)
+        expected = {**before, "issuer": patch["issuer"], "authEndpoint": patch["authEndpoint"]}
+        for field, value in expected.items():
+            if field not in {"metadata", "status"} and after.get(field) != value:
+                raise RuntimeError("Rancher HTTPS migration changed an unexpected field")
+        if kubectl.json("get", "authconfigs.management.cattle.io", "local").get("enabled") is not True:
+            raise RuntimeError("Rancher local recovery login changed; investigate")
+    print("Rancher HTTPS endpoint-only " + ("migration verified" if apply else "plan verified") +
+          "; existing client, credentials, groups and other settings preserved.")
+
+
 def reconcile(catalog: dict, secret_path: Path, kubectl: Kubectl,
               apply: bool = False, server_dry_run: bool = False) -> dict:
     _renderer.validate_catalog(catalog)
@@ -192,12 +228,18 @@ def main() -> int:
     parser.add_argument("--kubectl", default=str(DEFAULT_KUBECTL))
     parser.add_argument("--kubeconfig", default=str(DEFAULT_KUBECONFIG))
     parser.add_argument("--context")
+    parser.add_argument("--https-only", action="store_true", help="patch only existing issuer/authEndpoint, preserving live group and client settings")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--apply", action="store_true", help="enable Generic OIDC in Rancher")
     mode.add_argument("--server-dry-run", action="store_true",
                       help="validate the AuthConfig with the API server without persisting it")
     args = parser.parse_args()
     try:
+        if args.https_only:
+            if args.server_dry_run:
+                raise ValueError("HTTPS-only mode supports plan or apply, not server dry-run")
+            migrate_https(Kubectl(args.kubectl, args.kubeconfig, args.context), args.apply)
+            return 0
         catalog = load_catalog(args.catalog)
         if not args.apply and not args.server_dry_run:
             _renderer.validate_catalog(catalog)
