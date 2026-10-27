@@ -110,7 +110,8 @@ emit nothing; paused provisioned enrollments retain resource identities and cont
 CI checks reject implicit pruning and component removal; these are review gates, not
 live enforcement. Kubernetes CEL/schema checks and candidate-pair tests remain offline.
 
-Fleet0.16 does not support the older `allowNamespaceCreation` field. Existing
-Nextcloud configuration is preserved; confirm installed behavior separately.
+Fleet0.16.2 Policy supports `allowNamespaceCreation`; its default false combined with
+`requireServiceAccount` disables namespace creation in generated BundleDeployments.
+Existing Nextcloud configuration is preserved.
 Namespace authority relies on actual RBAC/admission. Release-Secret storage and
 independent authorization for future privileged APIs remain explicit requirements.

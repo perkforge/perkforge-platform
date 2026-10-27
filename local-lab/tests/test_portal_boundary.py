@@ -20,7 +20,7 @@ class PortalBoundaryTests(unittest.TestCase):
                 self.assertIs(obj['automountServiceAccountToken'], False)
             if obj['kind'] == 'Role':
                 for rule in obj['rules']:
-                    self.assertFalse(set(rule['resources']) & {'secrets', 'roles', 'rolebindings', 'namespaces', 'networkpolicies', 'resourcequotas', '*'})
+                    self.assertFalse(set(rule['resources']) & {'roles', 'rolebindings', 'namespaces', 'networkpolicies', 'resourcequotas', '*'})
                     self.assertNotIn('*', rule['verbs'])
             if obj['kind'] == 'RoleBinding':
                 self.assertEqual(obj['subjects'][0]['name'], 'home-portal-deployer')

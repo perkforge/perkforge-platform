@@ -7,7 +7,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 DIRECTORY = ROOT/'local-lab/tests/fixtures/portal/schemas'
 native=json.loads((DIRECTORY/'kubernetes-1.36.5.json').read_text())
-fleet=json.loads((DIRECTORY/'fleet-0.16.0.json').read_text())
+fleet=json.loads((DIRECTORY/'fleet-0.16.2.json').read_text())
 def normalize(schema):
     # Kubernetes OpenAPI v2's IntOrString format is a union, not plain string.
     if isinstance(schema,dict):

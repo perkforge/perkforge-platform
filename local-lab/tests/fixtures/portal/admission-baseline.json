@@ -1,4 +1,4 @@
 {
-  "sourceCommit": "f8648170fc08130a4e20101bb038b1adee049136",
-  "digest": "2f72f8de50b9fca2b7e7804a766f2dbfd6e2aa974f4f86754681c72ad4ee55fa"
+  "change": "Reviewed release-envelope extension; runtime identity controls unchanged",
+  "digest": "fe4289d34ad6efb5273db174820b08df0ec4f9d6c2ac73449e1b5da2b5734972"
 }

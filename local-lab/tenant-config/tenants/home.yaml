@@ -69,6 +69,8 @@ foundation:
       - bundles/portal
       namespace: tenant-home-portal
       deployerServiceAccount: home-portal-deployer
+      # Additional portal admission limits these writes to Helm history envelopes.
+      helmReleaseStorage: true
 applications:
   portal:
     namespace: tenant-home-portal
