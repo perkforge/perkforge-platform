@@ -151,3 +151,34 @@ Fleet fetch. That source uses Helm4 internally; the dependency-free chart is tes
 with Helm3.19 offline, and installed Fleet rendering remains an activation check.
 The same Helm configuration uses a Secret release driver, preserving the explicit
 release-storage permission blocker rather than silently broadening its Role.
+
+## Test a candidate pair before merging
+
+Platform and tenant changes do **not** have to reach `main` before integration
+checks. CI checks out the platform PR candidate and the exact tenant SHA in its
+contract (currently `ecafe09a497e971a4a4af04a331d837e4e1a146a`, which includes the
+ConfigMap connection). The pinned tenant chart is rendered with platform values
+and tested against that platform candidate's admission expressions. A moving
+branch name is never the cross-repository test input.
+
+For local review, use separate checkouts rather than changing an operational
+checkout. With the Python requirements, Go1.27.3 and Helm3.19 available:
+
+```sh
+git clone --branch feat/household-portal-proposal https://github.com/perkforge/perkforge-platform.git platform-review
+cd platform-review
+python3 local-lab/scripts/render-portal-identity.py --check
+tenant_pin=$(python3 -c 'import yaml; print(yaml.safe_load(open("local-lab/optional/portal/contract.yaml"))["tenantRevision"])')
+git clone --no-checkout https://github.com/perkforge/perkforge-tenant-portal.git ../tenant-review
+git -C ../tenant-review checkout --detach "$tenant_pin"
+export PORTAL_CHART_DIR="$(cd ../tenant-review && pwd)/bundles/portal/chart"
+python3 -m unittest discover -s local-lab/tests -v
+python3 local-lab/tests/validate_portal_schemas.py
+(cd local-lab/tests/portal-cel && GOMAXPROCS=1 GOMEMLIMIT=256MiB go test -p=1 -count=1 ./...)
+```
+
+The fixture digest is synthetic **only inside tests**, never a usable image or a
+live deployment pin. The contract still has no approved runtime image. Testing a
+future candidate means reviewing/updating its exact tenant commit and, separately,
+its approved image digest through platform review; it does not require a main merge,
+live GitRepo unpause, new test cluster, Keycloak startup or security changes.
