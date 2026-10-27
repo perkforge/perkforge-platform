@@ -126,3 +126,7 @@ Inspect the cluster from this repository with:
 - Make provisioning and configuration repeatable so a host can be rebuilt from documented inputs.
 - Keep secrets out of version control.
 - Record chosen versions, network ranges, host roles, and operational steps here as the design is settled.
+
+The inactive [OpenBao secrets stage](local-lab/openbao/README.md) records pinned
+official charts, human and ESO identity boundaries, offline isolation tests and
+the remaining approved-live-activation gates for issue #12.

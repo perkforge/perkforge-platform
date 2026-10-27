@@ -1,0 +1,15 @@
+{
+  "bound_service_account_names": [
+    "openbao-sync"
+  ],
+  "bound_service_account_namespaces": [
+    "tenant-home-portal"
+  ],
+  "audience": "openbao",
+  "token_policies": [
+    "eso-home-portal"
+  ],
+  "token_ttl": "5m",
+  "token_max_ttl": "15m",
+  "token_no_default_policy": true
+}

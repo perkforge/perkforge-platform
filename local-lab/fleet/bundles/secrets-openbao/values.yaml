@@ -1,0 +1,59 @@
+# Staged only: absent from every active GitRepo path.
+global:
+  tlsDisable: false
+injector:
+  enabled: false
+server:
+  image:
+    repository: quay.io/openbao/openbao
+    tag: 2.7.2
+  nodeSelector:
+    kubernetes.io/hostname: cks-worker
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+  authDelegator:
+    enabled: true
+  standalone:
+    enabled: false
+  ha:
+    enabled: true
+    replicas: 1
+    raft:
+      enabled: true
+      setNodeId: true
+      config: |
+        ui = true
+        disable_mlock = true
+        listener "tcp" {
+          address = "[::]:8200"
+          cluster_address = "[::]:8201"
+          tls_cert_file = "/openbao/tls/tls.crt"
+          tls_key_file = "/openbao/tls/tls.key"
+        }
+        storage "raft" {
+          path = "/openbao/data"
+        }
+        service_registration "kubernetes" {}
+  dataStorage:
+    size: 2Gi
+    storageClass: local-path
+  auditStorage:
+    enabled: true
+    size: 1Gi
+    storageClass: local-path
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  volumes:
+  - name: server-tls
+    secret:
+      secretName: openbao-server-tls
+  volumeMounts:
+  - name: server-tls
+    mountPath: /openbao/tls
+    readOnly: true
+  ingress:
+    enabled: false
+ui:
+  enabled: true
