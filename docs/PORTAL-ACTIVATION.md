@@ -100,3 +100,17 @@ can continue using its explicitly configured internal endpoints.
 
 References: [Keycloak hostname configuration](https://www.keycloak.org/server/hostname)
 and [Traefik headers](https://doc.traefik.io/traefik/middlewares/http/headers/).
+
+### API role claim contract
+
+The deployed app requires `resource_access.household-portal-api.roles` to
+contain `tenant-reader`, together with the exact audience, authorized client
+and Home group. The portal-only standard realm-role mapper places the existing
+resolved role at this path; it does not hardcode a role or grant membership.
+`fullScopeAllowed` remains false and the only explicit realm-role scope remains
+`tenant-reader`. Alpha accounts receive no Home role or group.
+
+After merging a mapper correction, rerun the existing `--portal-only --apply`
+provisioning step, then test a fresh Home login and Alpha denial. This does not
+rotate the client secret, reset passwords or change Rancher. Evaluated claims
+are useful diagnostics, but real authorization-code acceptance remains required.

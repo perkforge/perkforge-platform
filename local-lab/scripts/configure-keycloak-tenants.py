@@ -82,6 +82,15 @@ def portal_mappers() -> list[dict]:
         "protocolMapper": "oidc-audience-mapper", "consentRequired": False,
         "config": {"included.custom.audience": "household-portal-api",
                    "access.token.claim": "true", "id.token.claim": "false"},
+    }, {
+        # The client has fullScopeAllowed=false and only tenant-reader in its
+        # realm-role scope. Emit that resolved role at the API's required path.
+        "name": "portal-api-roles", "protocol": "openid-connect",
+        "protocolMapper": "oidc-usermodel-realm-role-mapper", "consentRequired": False,
+        "config": {"claim.name": "resource_access.household-portal-api.roles",
+                   "jsonType.label": "String", "multivalued": "true",
+                   "access.token.claim": "true", "id.token.claim": "false",
+                   "userinfo.token.claim": "false", "introspection.token.claim": "false"},
     }]
 
 
