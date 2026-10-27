@@ -15,7 +15,7 @@
   ],
   "token_ttl": "15m",
   "token_max_ttl": "1h",
-  "token_no_default_policy": true,
+  "token_no_default_policy": false,
   "bound_claims": {
     "groups": [
       "/tenants/home/admins"

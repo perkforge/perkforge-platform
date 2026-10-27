@@ -46,7 +46,9 @@ allowed folder. Developers/viewers receive no secrets role by default.
 
 OIDC roles in `roles/human-*.json` bind issuer-verified claims, `sub` identity,
 client audience `openbao`, exact groups and exact redirects, with 15-minute
-sessions bounded to one hour. A dedicated confidential Keycloak `openbao`
+sessions bounded to one hour. Humans retain OpenBao's standard default policy
+for UI token introspection, self-renewal and their private cubbyhole; it grants
+no tenant/platform KV access. ESO receives no default policy. A dedicated confidential Keycloak `openbao`
 client must use authorization-code flow, PKCE and a full-path group mapper in
 ID tokens/userinfo (`groups`); do not use realm roles or a caller-supplied tenant
 claim as a path. No default privileged OIDC role. Configure discovery against

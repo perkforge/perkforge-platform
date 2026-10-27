@@ -45,7 +45,7 @@ class PolicyIntegration(unittest.TestCase):
         cls.tokens = {}
         for role, policies in {'home':['human-home'], 'platform':['human-platform', 'human-platform-tenant-access'],
                 'restricted-platform':['human-platform'], 'eso':['eso-home-portal']}.items():
-            cls.tokens[role] = cls.api('POST', 'auth/token/create', {'policies':policies, 'no_default_policy':True})['auth']['client_token']
+            cls.tokens[role] = cls.api('POST', 'auth/token/create', {'policies':policies, 'no_default_policy':role == 'eso'})['auth']['client_token']
         for path in ('tenants/data/home/tenant-home-portal/registry/ghcr',
                 'tenants/data/bravo/tenant-bravo/registry/ghcr', 'platform/data/registry/ghcr'):
             cls.api('POST', path, {'data':{'dockerconfigjson':'synthetic-initial'}})
