@@ -131,6 +131,14 @@ class Rendering(unittest.TestCase):
         args=deployment['spec']['template']['spec']['containers'][0]['args']
         self.assertIn('--namespace=tenant-home-portal',args)
 
+    def test_explicit_synthetic_enrollment_never_targets_real_pull_secret(self):
+        objects=[x for x in yaml.safe_load_all(subprocess.check_output(['fleet','test','-f','enrollments/synthetic.yaml','-N','local',
+            str(ROOT/'local-lab/secrets-config')],text=True,env={**os.environ,'KUBECONFIG':'/dev/null'})) if x]
+        es=next(x for x in objects if x['kind']=='ExternalSecret')
+        self.assertEqual(es['spec']['target']['name'],'openbao-rotation-probe')
+        self.assertEqual(es['spec']['target']['creationPolicy'],'Merge')
+        self.assertFalse(any(x['metadata']['name']=='portal-ghcr' for x in objects))
+
     def test_disabled_and_enabled_delivery_actual_fleet(self):
         with tempfile.TemporaryDirectory() as directory:
             bundle=Path(directory)/'bundle'

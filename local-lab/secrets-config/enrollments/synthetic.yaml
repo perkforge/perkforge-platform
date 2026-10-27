@@ -7,7 +7,4 @@ targetCustomizations:
 - name: local
   clusterName: local
   helm:
-    valuesFiles: [values.yaml, tenants/home.yaml]
-    values:
-      enabled: true
-      targetSecret: openbao-rotation-probe
+    valuesFiles: [values.yaml, tenants/home.yaml, values-synthetic.yaml]
