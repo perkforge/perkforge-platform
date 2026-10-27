@@ -9,7 +9,7 @@ import subprocess
 import sys
 import unittest
 import yaml
-from portal_fleet_fixture import BUNDLE, ROOT, home_values, portal_values, provisioned, render, run_fleet
+from portal_fleet_fixture import BUNDLE, ROOT, home_values, portal_values, merged_values, provisioned, render, run_fleet
 
 sys.path.insert(0, str(ROOT / 'local-lab/scripts'))
 from tenant_catalog import load_catalog
@@ -19,29 +19,39 @@ spec.loader.exec_module(legacy)
 
 
 def review_transition(before, after):
-    previous = before.get('applications', {}).get('portal', {}).get('lifecycle', {}).get('state', 'disabled')
-    desired = after.get('applications', {}).get('portal', {}).get('lifecycle', {}).get('state', 'disabled')
-    if previous in ('active', 'paused') and desired not in ('active', 'paused'):
-        raise ValueError('Provisioned portal must remain active/paused; removal or decommission needs separate review')
+    previous = before.get('foundation', {})
+    desired = after.get('foundation', {})
+    if previous.get('lifecycle', {}).get('state', 'disabled') not in ('active', 'paused'):
+        return
+    if desired.get('lifecycle', {}).get('state', 'disabled') not in ('active', 'paused'):
+        raise ValueError('Provisioned foundation removal/decommission needs separate review')
+    for section in ('namespaces', 'repositories'):
+        if set(previous.get(section, {})) - set(desired.get(section, {})):
+            raise ValueError('Removing enrolled resources needs separate review')
+    old_components = merged_values(before)['foundation']['components']
+    new_components = merged_values(after)['foundation']['components']
+    if any(enabled and not new_components.get(name) for name, enabled in old_components.items()):
+        raise ValueError('Opting out of a provisioned component needs separate review')
 
 
 def review_budget(home):
-    # Reuse existing quantity/budget checks as TESTS, not as a configuration prerequisite.
-    catalog = load_catalog(BUNDLE / 'tenants.yaml')
-    reviewed = copy.deepcopy(home)
-    app = portal_values(home)
-    if app['lifecycle']['state'] != 'disabled':
-        reviewed['environments'].append({'name': 'portal-review', 'namespace': app['namespace'],
-                                        'allocation': app['resources']['allocation']})
-    catalog['tenants'] = [reviewed if t['id'] == 'home' else t for t in catalog['tenants']]
-    legacy.validate_catalog(catalog)
+    values = merged_values(home)
+    allocations = [env['allocation'] for env in home.get('environments', [])]
+    if values['foundation']['lifecycle']['state'] != 'disabled':
+        allocations += [ns['allocation'] for ns in values['foundation']['namespaces'].values()]
+    for allocation in allocations:
+        if set(allocation) != legacy.BUDGET_KEYS:
+            raise ValueError('Allocation must have the exact reviewed resource keys')
+    for key in legacy.BUDGET_KEYS:
+        total = sum(legacy.quantity(allocation[key], key) for allocation in allocations)
+        if total > legacy.quantity(home['resources']['budget'][key], key):
+            raise ValueError('Allocations exceed tenant budget')
 
 
-def existing_controls(objects):
-    # Fleet adds ownership metadata; comparing configuration must retain everything else.
+def admission_contract(objects):
     result = []
     for item in copy.deepcopy(objects):
-        if item['kind'] in ('Namespace', 'ResourceQuota', 'LimitRange'):
+        if not item['kind'].startswith('ValidatingAdmissionPolicy'):
             continue
         metadata = item['metadata']
         for key in ('annotations', 'labels'):
@@ -49,8 +59,6 @@ def existing_controls(objects):
                 metadata[key] = {k: v for k, v in metadata[key].items() if not k.startswith('objectset.rio.cattle.io/')}
                 if not metadata[key]:
                     del metadata[key]
-        if item['kind'] == 'ConfigMap':
-            item['data']['values.yaml'] = yaml.safe_load(item['data']['values.yaml'])
         result.append(item)
     return sorted(result, key=lambda o: (o['apiVersion'], o['kind'], o['metadata'].get('namespace', ''), o['metadata']['name']))
 
@@ -64,7 +72,7 @@ class PortalFleetTests(unittest.TestCase):
         self.assertNotIn('home-portal', legacy.render(load_catalog(BUNDLE / 'tenants.yaml')))
 
     def test_active_and_paused_preserve_all_identities_and_controls(self):
-        before = json.loads((Path(__file__).parent / 'fixtures/portal/native-controls-baseline.json').read_text())
+        before = json.loads((Path(__file__).parent / 'fixtures/portal/admission-baseline.json').read_text())
         identity_sets = []
         for state in ('active', 'paused'):
             objects = render(provisioned(state))
@@ -72,10 +80,10 @@ class PortalFleetTests(unittest.TestCase):
             self.assertEqual(len(identities), len(objects))
             identity_sets.append(identities)
             self.assertEqual(next(o for o in objects if o['kind'] == 'GitRepo')['spec']['paused'], state == 'paused')
-            controls = existing_controls(objects)
-            self.assertEqual(len(controls), 19)
+            controls = admission_contract(objects)
+            self.assertEqual(len(controls), 8)
             digest = hashlib.sha256(json.dumps(controls, sort_keys=True).encode()).hexdigest()
-            self.assertEqual(digest, before[state], 'Reviewed identity/security controls drifted')
+            self.assertEqual(digest, before['digest'], 'Reviewed identity/security controls drifted')
         self.assertEqual(identity_sets[0], identity_sets[1])
 
     def test_namespace_has_platform_owner_and_inherited_restrictions(self):
@@ -94,7 +102,7 @@ class PortalFleetTests(unittest.TestCase):
         home['environments'].append({'namespace': 'tenant-home-portal'})
         self.assertNotEqual(run_fleet(home).returncode, 0)
         home = provisioned()
-        home['applications']['portal']['lifecycle']['state'] = 'disabled'
+        home['foundation']['lifecycle']['state'] = 'disabled'
         self.assertNotEqual(run_fleet(home).returncode, 0)
 
     def test_budget_review_includes_existing_home_and_new_portal(self):
@@ -108,7 +116,7 @@ class PortalFleetTests(unittest.TestCase):
     def test_transition_review_forbids_deletion_or_disabled_after_provisioning(self):
         for previous in ('active', 'paused'):
             before = provisioned(previous)
-            for after in (home_values(), {k: v for k, v in home_values().items() if k != 'applications'}):
+            for after in (home_values(), {k: v for k, v in home_values().items() if k != 'foundation'}):
                 with self.assertRaisesRegex(ValueError, 'separate review'):
                     review_transition(before, after)
             for following in ('active', 'paused'):
@@ -117,7 +125,7 @@ class PortalFleetTests(unittest.TestCase):
     def test_current_git_candidate_against_review_base(self):
         review_budget(home_values())
         shared = yaml.safe_load((BUNDLE / 'values.yaml').read_text())
-        self.assertEqual(shared['applications']['portal']['lifecycle']['state'], 'disabled')
+        self.assertEqual(shared['foundation']['lifecycle']['state'], 'disabled')
         # CI supplies the exact base SHA and fetches history. No live inventory is inferred.
         base = os.environ.get('PORTAL_REVIEW_BASE')
         if base:

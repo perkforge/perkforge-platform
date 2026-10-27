@@ -3,3 +3,4 @@ tenants
 tenants.yaml
 values.yaml
 generated
+enrollments

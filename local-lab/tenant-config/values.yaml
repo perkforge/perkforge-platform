@@ -1,15 +1,21 @@
-# Shared portal defaults; Home-specific settings override these in tenants/home.yaml.
-applications:
-  portal:
-    lifecycle:
-      state: disabled
-    runtimeServiceAccount: portal-runtime
-    fleetAgentNamespace: cattle-fleet-local-system
-    imageRepository: ghcr.io/perkforge/perkforge-portal
-    imageDigest: null
-    resources:
-      allocation: null
-    identity:
-      realm: perkforge
-      secretKey: client-secret
-      requiredRole: tenant-reader
+# Platform-wide defaults. Tenant records may opt out of selected components with reasons.
+foundation:
+  lifecycle:
+    state: disabled
+  components:
+    project: true
+    namespaces: true
+    quotas: true
+    limits: true
+    networkPolicies: true
+    serviceAccounts: true
+    deploymentRbac: true
+    fleetAccess: true
+    registration: true
+  optOutReasons: {}
+  fleetAgentNamespace: cattle-fleet-local-system
+  clusterNamespace: fleet-local
+  workspace: ''
+  namespaces: {}
+  repositories: {}
+applications: {}

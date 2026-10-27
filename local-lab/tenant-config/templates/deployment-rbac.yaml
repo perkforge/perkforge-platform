@@ -1,0 +1,32 @@
+{{- $f := .Values.foundation }}
+{{- if and (ne $f.lifecycle.state "disabled") $f.components.deploymentRbac }}
+{{- range $key, $repo := $f.repositories }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $repo.deployerServiceAccount }}
+  namespace: {{ $repo.namespace }}
+rules:
+- apiGroups: [apps]
+  resources: [deployments]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: ['']
+  resources: [services]
+  verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $repo.deployerServiceAccount }}
+  namespace: {{ $repo.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $repo.deployerServiceAccount }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $repo.deployerServiceAccount }}
+  namespace: {{ $f.fleetAgentNamespace }}
+{{- end }}
+{{- end }}

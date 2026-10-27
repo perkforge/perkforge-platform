@@ -191,12 +191,12 @@ VM or physical environment. Follow AGENTS.md commit/push and test permissions.
 
 ## Portal draft — native Fleet configuration
 
-Portal uses `local-lab/tenant-config/fleet.yaml`, shared values and the existing
-Home `applications.portal` overrides, rendered directly by Fleet from `templates/`.
+Portal uses `local-lab/tenant-config/enrollments/home.yaml`, shared values and the existing
+Home `foundation` overrides plus separate `applications.portal` restrictions, rendered directly by Fleet from `templates/`.
 There is no Python portal generator or authored chart. The legacy foundation renderer
 and its 16 outputs are unchanged; wider Python cleanup follows successful integration.
 Portal is disabled, without an image/allocation, and its bundle is not in the live
-GitRepo paths. `KUBECONFIG=/dev/null fleet test -N local local-lab/tenant-config`
+GitRepo paths. `KUBECONFIG=/dev/null fleet test -f enrollments/home.yaml -N local local-lab/tenant-config`
 with pinned Fleet0.16 renders nothing. Python remains useful for offline tests.
 See `docs/PORTAL-INTEGRATION.md` for lifecycle review gates and activation blockers.
 No live portal/identity/security resource was changed or activated by this draft.

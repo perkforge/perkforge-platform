@@ -100,13 +100,15 @@ inherit the deployer's credentials or security-control authority.
 
 ## Catalog-owned portal implementation
 
-The [Home portal integration](PORTAL-INTEGRATION.md) uses `applications.portal` in
-`tenant-config/tenants/home.yaml` and the existing tenant foundation renderer.
-Disabled new applications emit nothing into active output; paused provisioned
-applications retain resource identities and security controls. Writer guards refuse
-implicit application pruning. Preview files are deterministic outputs from the same
-catalog, not an alternate source or lifecycle. Kubernetes CEL/schema checks and
-candidate-pair tests remain offline; no live enforcement is newly claimed.
+The [Home portal integration](PORTAL-INTEGRATION.md) uses shared Fleet-native foundation
+YAML with platform-owned tenant values and reviewed component opt-outs. Home's separate
+`applications.portal` contract adds runtime admission restrictions; it is not baked into
+the reusable baseline. The legacy renderer and existing owners remain unchanged.
+Downstream app repositories use ordinary inputs and existing-resource references, with
+no knowledge of platform values transport or routing labels. Disabled new enrollments
+emit nothing; paused provisioned enrollments retain resource identities and controls.
+CI checks reject implicit pruning and component removal; these are review gates, not
+live enforcement. Kubernetes CEL/schema checks and candidate-pair tests remain offline.
 
 Fleet0.16 does not support the older `allowNamespaceCreation` field. Existing
 Nextcloud configuration is preserved; confirm installed behavior separately.

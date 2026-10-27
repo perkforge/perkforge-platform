@@ -1,6 +1,6 @@
-name: local-lab-home-portal-controls
+name: local-lab-home-foundation
 labels:
-  local-lab.homelab/component: home-portal-controls
+  local-lab.homelab/component: tenant-foundation-native
 dependsOn:
 - selector:
     matchLabels:

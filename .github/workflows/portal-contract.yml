@@ -34,7 +34,7 @@ jobs:
           version: v3.19.0
       - name: Validate native Fleet defaults and unchanged legacy foundation
         run: |
-          KUBECONFIG=/dev/null fleet test -N local local-lab/tenant-config > "$RUNNER_TEMP/portal-default.yaml"
+          KUBECONFIG=/dev/null fleet test -f enrollments/home.yaml -N local local-lab/tenant-config > "$RUNNER_TEMP/portal-default.yaml"
           test ! -s "$RUNNER_TEMP/portal-default.yaml"
           python local-lab/scripts/render-tenant-foundation.py --check
           python -m unittest discover -s local-lab/tests -v
@@ -42,7 +42,7 @@ jobs:
       - name: Read tenant pin for test checkout
         id: contract
         run: |
-          python -c 'import yaml; print("revision=" + yaml.safe_load(open("local-lab/tenant-config/tenants/home.yaml"))["applications"]["portal"]["tenantRevision"])' >> "$GITHUB_OUTPUT"
+          python -c 'import yaml; print("revision=" + yaml.safe_load(open("local-lab/tenant-config/tenants/home.yaml"))["foundation"]["repositories"]["portal"]["revision"])' >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
           repository: perkforge/perkforge-tenant-portal

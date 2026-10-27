@@ -445,8 +445,9 @@ The inventory, RHEL DVD label, RKE2 version, network ranges, and firewalld behav
 
 ### Household portal configuration
 
-Home's disabled portal is an `applications.portal` entry in its existing tenant
-record. Native Fleet reads shared values and Home overrides directly; no Python
+Home's disabled portal enrollment uses shared foundation templates and platform-owned
+`foundation` values, with app-specific restrictions under `applications.portal`.
+`tenant-config/enrollments/home.yaml` loads shared defaults and Home overrides directly; no Python
 portal generation or authored chart is required. See
 [`PORTAL-INTEGRATION.md`](../docs/PORTAL-INTEGRATION.md) for the concise file walkthrough,
 offline Fleet command, lifecycle review gates and activation prerequisites. The new

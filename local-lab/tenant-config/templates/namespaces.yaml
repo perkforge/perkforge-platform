@@ -1,0 +1,24 @@
+{{- $f := .Values.foundation }}
+{{- if and (ne $f.lifecycle.state "disabled") $f.components.namespaces }}
+{{- range $name, $ns := $f.namespaces }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $name }}
+  labels:
+    platform.perkforge.io/tenant: {{ $.Values.id }}
+    platform.perkforge.io/classification: {{ $.Values.classification }}
+    {{- range $cluster := $.Values.clusters }}
+    {{- if eq $cluster.name $.Values.cluster }}
+    {{- range $mode := list "enforce" "audit" "warn" }}
+    pod-security.kubernetes.io/{{ $mode }}: restricted
+    pod-security.kubernetes.io/{{ $mode }}-version: {{ $cluster.podSecurityVersion }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+  annotations:
+    field.cattle.io/projectId: {{ printf "%s:p-%s-%s" $.Values.cluster $.Values.id $.Values.cluster | quote }}
+    field.cattle.io/resourceQuota: '{"limit":{"pods":{{ index $ns.allocation "pods" | quote }},"services":{{ index $ns.allocation "services" | quote }},"persistentVolumeClaims":{{ index $ns.allocation "persistentvolumeclaims" | quote }},"requestsCpu":{{ index $ns.allocation "requests.cpu" | quote }},"requestsMemory":{{ index $ns.allocation "requests.memory" | quote }},"requestsStorage":{{ index $ns.allocation "requests.storage" | quote }},"limitsCpu":{{ index $ns.allocation "limits.cpu" | quote }},"limitsMemory":{{ index $ns.allocation "limits.memory" | quote }}}}'
+{{- end }}
+{{- end }}

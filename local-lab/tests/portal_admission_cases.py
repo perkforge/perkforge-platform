@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 import yaml
 ROOT = Path(__file__).resolve().parents[2]
-from portal_fleet_fixture import provisioned, portal_values, render as render_platform, helm_values
+from portal_fleet_fixture import provisioned, portal_values, render as render_platform
 
 
 def cases():
@@ -30,8 +30,8 @@ def cases():
         def render(*overrides):
             output = subprocess.check_output([os.environ.get('HELM','helm'), 'template', 'home-portal', chart,
                 '--namespace', c['namespace'], '--kube-version', '1.36.5',
-                '-f', '-',
-                '--set', 'enabled=true', '--set', 'image.digest='+c['imageDigest'], *overrides], text=True, input=yaml.safe_dump(helm_values(platform)))
+                '-f', str(Path(chart).parent/'values.yaml'),
+                '--set', 'enabled=true', '--set', 'image.digest='+c['imageDigest'], *overrides], text=True)
             return list(yaml.safe_load_all(output))
         rendered=render()
         if rendered != objects:
@@ -39,7 +39,7 @@ def cases():
         for key,value in [('identity.issuer','https://attacker.invalid/realms/perkforge'),
                           ('identity.clientId','attacker'),('identity.audience','attacker-api'),
                           ('identity.existingSecret','privileged-secret'),
-                          ('portalOrigin','https://attacker.invalid')]:
+                          ('portalOrigin','https://attacker.invalid'), ('serviceAccount.name','privileged-account')]:
             modified=next(o for o in render('--set',key+'='+value) if o['kind']=='Deployment')
             add('real-chart-override-'+key,modified,False)
 

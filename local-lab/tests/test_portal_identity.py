@@ -2,7 +2,7 @@
 import copy
 import unittest
 import yaml
-from portal_fleet_fixture import BUNDLE, ROOT, home_values, portal_values, provisioned, render, run_fleet, helm_values
+from portal_fleet_fixture import BUNDLE, ROOT, home_values, portal_values, provisioned, render, run_fleet
 
 
 class PortalIdentityTests(unittest.TestCase):
@@ -24,20 +24,13 @@ class PortalIdentityTests(unittest.TestCase):
     def test_paused_fleet_and_immutable_identity_values(self):
         repo = next(o for o in self.objects if o['kind'] == 'GitRepo')['spec']
         self.assertIs(repo['paused'], True)
-        self.assertEqual(repo['revision'], self.contract['tenantRevision'])
+        self.assertEqual(repo['revision'], self.home['foundation']['repositories']['portal']['revision'])
         self.assertEqual(set(repo['targets'][0]), {'name', 'clusterName'})
-        self.assertIs(next(o for o in self.objects if o['kind'] == 'ConfigMap')['immutable'], True)
-        values = helm_values(self.objects)
-        self.assertTrue(values['enabled'])
-        self.assertEqual(values['identity']['issuer'], self.contract['identity']['issuer'])
-        self.assertEqual(values['identity']['existingSecret'], 'portal-oidc')
-        self.assertEqual(values['tenantSource'], 'disabled')
-        self.assertFalse(any(o['kind'] in ('Secret', 'Deployment', 'Job') for o in self.objects))
+        self.assertFalse(any(o['kind'] in ('ConfigMap', 'Secret', 'Deployment', 'Job') for o in self.objects))
 
     def test_runtime_guards_reject_bad_scope_identity_and_unapproved_activation(self):
-        changes = [('lifecycle', {'state': 'deleted'}), ('namespace', 'tenant-home-nextcloud'),
-                   ('imageDigest', None), ('imageDigest', 'latest'), ('tenantRevision', 'main'),
-                   ('secret', 'never-allowed'), ('resources', {'allocation': None})]
+        changes = [('namespace', 'tenant-home-nextcloud'),
+                   ('imageDigest', None), ('imageDigest', 'latest'), ('secret', 'never-allowed')]
         for key, value in changes:
             home = copy.deepcopy(self.home)
             home['applications']['portal'][key] = value
@@ -53,10 +46,7 @@ class PortalIdentityTests(unittest.TestCase):
 
     def test_rbac_only_workloads_and_named_config_read(self):
         role = next(o for o in self.objects if o['kind'] == 'Role')
-        self.assertEqual({r for rule in role['rules'] for r in rule['resources']}, {'deployments', 'services', 'configmaps'})
-        config = next(r for r in role['rules'] if r['resources'] == ['configmaps'])
-        self.assertEqual(config['verbs'], ['get'])
-        self.assertEqual(config['resourceNames'], ['portal-platform-values'])
+        self.assertEqual({r for rule in role['rules'] for r in rule['resources']}, {'deployments', 'services'})
         self.assertFalse(any(o['kind'] in ('ClusterRole', 'ClusterRoleBinding') for o in self.objects))
         for obj in self.objects:
             if obj['kind'] == 'ServiceAccount':
@@ -76,16 +66,15 @@ class PortalIdentityTests(unittest.TestCase):
 
     def test_native_values_override_and_data_files_excluded(self):
         shared = yaml.safe_load((BUNDLE / 'values.yaml').read_text())
-        shared['applications']['portal']['identity']['issuer'] = 'https://wrong.invalid/realms/perkforge'
-        shared['applications']['portal']['portalOrigin'] = 'https://wrong.invalid'
+        shared['foundation']['workspace'] = 'wrong-default'
         result = run_fleet(self.home, shared, extra_files={
             'tenants/not-a-resource.yaml': 'this is intentionally not a Kubernetes object',
+            'enrollments/never-apply.yaml': 'kind: Secret\nmetadata: {name: never-apply}\n',
             'generated/never-apply.yaml': 'kind: Secret\nmetadata: {name: never-apply}\n'})
         self.assertEqual(result.returncode, 0, result.stderr)
         objects = list(yaml.safe_load_all(result.stdout))
-        values = helm_values(objects)
-        self.assertEqual(values['identity']['issuer'], self.contract['identity']['issuer'])
-        self.assertEqual(values['portalOrigin'], self.contract['portalOrigin'])
+        workspace = next(o for o in objects if o['kind'] == 'FleetWorkspace')
+        self.assertEqual(workspace['metadata']['name'], self.home['foundation']['workspace'])
         self.assertNotIn('never-apply', result.stdout)
         self.assertNotIn('TenantCatalog', result.stdout)
-        self.assertEqual(len(objects), 22)
+        self.assertEqual(len(objects), 21)
