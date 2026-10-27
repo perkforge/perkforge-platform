@@ -42,6 +42,11 @@ records reviewed transitions; its human review workflow, security limits, and
 usage are documented in
 [`docs/SECURITY-FINDINGS-WORKFLOW.md`](docs/SECURITY-FINDINGS-WORKFLOW.md),
 with a record skeleton at `docs/templates/security-finding.yaml`.
+The inactive [portal identity contract](local-lab/optional/portal/README.md) supplies
+platform-owned identity configuration and tested admission controls without changing
+active Fleet paths or live credentials. It includes explicit image, TLS and deployment
+approval gates.
+
 The remaining Phase 6 recommendations and decisions to review are collected in
 [`docs/PHASE-6-REVIEW.md`](docs/PHASE-6-REVIEW.md).
 

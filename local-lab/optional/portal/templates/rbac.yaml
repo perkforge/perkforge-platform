@@ -1,4 +1,4 @@
-# INACTIVE proposal. Deliberately not a Fleet bundle.
+# Platform renderer input; not an active Fleet path.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -19,15 +19,38 @@ metadata:
   name: portal-deploy
   namespace: tenant-home-portal
 rules:
-- apiGroups: ['apps']
-  resources: ['deployments']
-  verbs: ['get', 'list', 'watch', 'create', 'update', 'patch', 'delete']
-- apiGroups: ['']
-  resources: ['services', 'configmaps']
-  verbs: ['get', 'list', 'watch', 'create', 'update', 'patch', 'delete']
-- apiGroups: ['']
-  resources: ['pods', 'events']
-  verbs: ['get', 'list', 'watch']
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ''
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  resourceNames:
+  - portal-platform-values
+  verbs:
+  - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

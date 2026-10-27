@@ -1,0 +1,544 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: home-portal-deployer
+  namespace: cattle-fleet-local-system
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: portal-runtime
+  namespace: tenant-home-portal
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: portal-deploy
+  namespace: tenant-home-portal
+rules:
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ''
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  resourceNames:
+  - portal-platform-values
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: portal-deploy
+  namespace: tenant-home-portal
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: portal-deploy
+subjects:
+- kind: ServiceAccount
+  name: home-portal-deployer
+  namespace: cattle-fleet-local-system
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: tenant-home-portal
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: tenant-home-portal
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: perkforge-portal
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+---
+apiVersion: management.cattle.io/v3
+kind: FleetWorkspace
+metadata:
+  name: fleet-home-portal
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: Policy
+metadata:
+  name: portal-only
+  namespace: fleet-home-portal
+requireServiceAccount: true
+allowedServiceAccounts:
+- home-portal-deployer
+gitRepo:
+  allowedRepoPatterns:
+  - ^https://github[.]com/perkforge/perkforge-tenant-portal[.]git$
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: BundleNamespaceMapping
+metadata:
+  name: portal-to-local
+  namespace: fleet-home-portal
+bundleSelector:
+  matchLabels:
+    platform.perkforge.io/tenant: home
+    platform.perkforge.io/application: portal
+namespaceSelector:
+  matchLabels:
+    kubernetes.io/metadata.name: fleet-local
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: tenant-home-portal
+  namespace: fleet-home-portal
+  labels:
+    platform.perkforge.io/tenant: home
+    platform.perkforge.io/application: portal
+spec:
+  repo: https://github.com/perkforge/perkforge-tenant-portal.git
+  revision: ecafe09a497e971a4a4af04a331d837e4e1a146a
+  paused: true
+  targetNamespace: tenant-home-portal
+  serviceAccount: home-portal-deployer
+  keepResources: true
+  paths:
+  - bundles/portal
+  targets:
+  - name: local
+    clusterName: local
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: portal-platform-values
+  namespace: tenant-home-portal
+immutable: true
+data:
+  values.yaml: "enabled: false\nimage:\n  repository: ghcr.io/perkforge/perkforge-portal\n\
+    \  digest: ''\nportalOrigin: https://portal.local-lab.test\ntenantSource: disabled\n\
+    identity:\n  issuer: https://keycloak.local-lab.test/auth/realms/perkforge\n \
+    \ clientId: household-portal\n  audience: household-portal-api\n  existingSecret:\
+    \ portal-oidc\n"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: portal-template-contract
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - apps
+      apiVersions:
+      - v1
+      resources:
+      - deployments
+      - replicasets
+      operations:
+      - CREATE
+      - UPDATE
+    matchPolicy: Equivalent
+  matchConditions:
+  - name: portal-namespace-only
+    expression: request.namespace == "tenant-home-portal"
+  validations:
+  - expression: object.spec.template.spec.containers.size() == 1
+    message: Exactly one approved portal container is required
+  - expression: 'false'
+    message: No approved image digest
+  - expression: has(object.spec.template.spec.serviceAccountName) && object.spec.template.spec.serviceAccountName
+      == "portal-runtime" && has(object.spec.template.spec.automountServiceAccountToken)
+      && !object.spec.template.spec.automountServiceAccountToken
+    message: Platform runtime identity with token automount disabled is required
+  - expression: (!has(object.spec.template.spec.initContainers) || object.spec.template.spec.initContainers.size()
+      == 0) && (!has(object.spec.template.spec.ephemeralContainers) || object.spec.template.spec.ephemeralContainers.size()
+      == 0)
+    message: Init and ephemeral containers are forbidden
+  - expression: (!has(object.spec.template.spec.volumes) || object.spec.template.spec.volumes.size()
+      == 0) && (!has(object.spec.template.spec.imagePullSecrets) || object.spec.template.spec.imagePullSecrets.size()
+      == 0)
+    message: No mounted volumes or extra secret references are allowed
+  - expression: has(object.spec.template.spec.containers[0].env) && object.spec.template.spec.containers[0].env.size()
+      == 7 && object.spec.template.spec.containers[0].env.all(e, object.spec.template.spec.containers[0].env.filter(x,
+      x.name == e.name).size() == 1)
+    message: Exactly the seven unique platform environment entries are required
+  - expression: 'object.spec.template.spec.containers[0].env.all(e, e.name == "OIDC_CLIENT_SECRET"
+      ? (!has(e.value) || e.value == "") && has(e.valueFrom) && has(e.valueFrom.secretKeyRef)
+      && !has(e.valueFrom.configMapKeyRef) && !has(e.valueFrom.fieldRef) && !has(e.valueFrom.resourceFieldRef)
+      && e.valueFrom.secretKeyRef.name == "portal-oidc" && e.valueFrom.secretKeyRef.key
+      == "client-secret" && (!has(e.valueFrom.secretKeyRef.optional) || !e.valueFrom.secretKeyRef.optional)
+      : e.name in {"LISTEN_HOST": "0.0.0.0", "PORTAL_ORIGIN": "https://portal.local-lab.test",
+      "TENANT_SOURCE": "disabled", "OIDC_ISSUER": "https://keycloak.local-lab.test/auth/realms/perkforge",
+      "OIDC_CLIENT_ID": "household-portal", "OIDC_AUDIENCE": "household-portal-api"}
+      && has(e.value) && e.value == {"LISTEN_HOST": "0.0.0.0", "PORTAL_ORIGIN": "https://portal.local-lab.test",
+      "TENANT_SOURCE": "disabled", "OIDC_ISSUER": "https://keycloak.local-lab.test/auth/realms/perkforge",
+      "OIDC_CLIENT_ID": "household-portal", "OIDC_AUDIENCE": "household-portal-api"}[e.name]
+      && !has(e.valueFrom))'
+    message: Identity, origin and secret wiring must exactly match the platform contract
+  - expression: (!has(object.spec.template.spec.containers[0].envFrom) || object.spec.template.spec.containers[0].envFrom.size()
+      == 0) && (!has(object.spec.template.spec.containers[0].command) || object.spec.template.spec.containers[0].command.size()
+      == 0) && (!has(object.spec.template.spec.containers[0].args) || object.spec.template.spec.containers[0].args.size()
+      == 0) && !has(object.spec.template.spec.containers[0].lifecycle)
+    message: No environment import, command override or lifecycle code is allowed
+  - expression: (!has(object.spec.template.spec.containers[0].volumeMounts) || object.spec.template.spec.containers[0].volumeMounts.size()
+      == 0) && (!has(object.spec.template.spec.containers[0].volumeDevices) || object.spec.template.spec.containers[0].volumeDevices.size()
+      == 0) && (!has(object.spec.template.spec.containers[0].workingDir) || object.spec.template.spec.containers[0].workingDir
+      == "")
+    message: No filesystem injection or working-directory override is allowed
+  - expression: (!has(object.spec.template.spec.hostNetwork) || !object.spec.template.spec.hostNetwork)
+      && (!has(object.spec.template.spec.hostPID) || !object.spec.template.spec.hostPID)
+      && (!has(object.spec.template.spec.hostIPC) || !object.spec.template.spec.hostIPC)
+      && (!has(object.spec.template.spec.hostAliases) || object.spec.template.spec.hostAliases.size()
+      == 0) && !has(object.spec.template.spec.dnsConfig) && (!has(object.spec.template.spec.dnsPolicy)
+      || object.spec.template.spec.dnsPolicy == "ClusterFirst") && !has(object.spec.template.spec.runtimeClassName)
+    message: Host access, custom DNS and runtime overrides are forbidden
+  - expression: has(object.spec.template.spec.securityContext) && object.spec.template.spec.securityContext.runAsNonRoot
+      == true && object.spec.template.spec.securityContext.runAsUser == 1000 && object.spec.template.spec.securityContext.runAsGroup
+      == 1000 && object.spec.template.spec.securityContext.seccompProfile.type ==
+      "RuntimeDefault"
+    message: Pod must use the platform non-root seccomp profile
+  - expression: has(object.spec.template.spec.containers[0].securityContext) && object.spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+      == false && object.spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+      == true && (!has(object.spec.template.spec.containers[0].securityContext.privileged)
+      || !object.spec.template.spec.containers[0].securityContext.privileged) && object.spec.template.spec.containers[0].securityContext.capabilities.drop
+      == ["ALL"] && (!has(object.spec.template.spec.containers[0].securityContext.capabilities.add)
+      || object.spec.template.spec.containers[0].securityContext.capabilities.add.size()
+      == 0) && (!has(object.spec.template.spec.containers[0].securityContext.runAsUser)
+      || object.spec.template.spec.containers[0].securityContext.runAsUser == 1000)
+      && (!has(object.spec.template.spec.containers[0].securityContext.runAsGroup)
+      || object.spec.template.spec.containers[0].securityContext.runAsGroup == 1000)
+      && (!has(object.spec.template.spec.containers[0].securityContext.runAsNonRoot)
+      || object.spec.template.spec.containers[0].securityContext.runAsNonRoot) &&
+      (!has(object.spec.template.spec.containers[0].securityContext.seccompProfile)
+      || object.spec.template.spec.containers[0].securityContext.seccompProfile.type
+      == "RuntimeDefault")
+    message: Container must retain restricted security settings
+  - expression: has(object.spec.template.spec.containers[0].ports) && object.spec.template.spec.containers[0].ports.size()
+      == 1 && object.spec.template.spec.containers[0].ports[0].name == "http" && object.spec.template.spec.containers[0].ports[0].containerPort
+      == 3000 && (!has(object.spec.template.spec.containers[0].ports[0].hostPort)
+      || object.spec.template.spec.containers[0].ports[0].hostPort == 0) && (!has(object.spec.template.spec.containers[0].ports[0].hostIP)
+      || object.spec.template.spec.containers[0].ports[0].hostIP == "")
+    message: Only the internal application port is allowed
+  - expression: (!has(object.spec.template.spec.securityContext.sysctls) || object.spec.template.spec.securityContext.sysctls.size()
+      == 0) && !has(object.spec.template.spec.securityContext.seLinuxOptions) && !has(object.spec.template.spec.securityContext.windowsOptions)
+      && (!has(object.spec.template.spec.securityContext.appArmorProfile) || object.spec.template.spec.securityContext.appArmorProfile.type
+      == "RuntimeDefault") && (!has(object.spec.template.spec.containers[0].securityContext.procMount)
+      || object.spec.template.spec.containers[0].securityContext.procMount == "Default")
+      && !has(object.spec.template.spec.containers[0].securityContext.seLinuxOptions)
+      && !has(object.spec.template.spec.containers[0].securityContext.windowsOptions)
+      && (!has(object.spec.template.spec.containers[0].securityContext.appArmorProfile)
+      || object.spec.template.spec.containers[0].securityContext.appArmorProfile.type
+      == "RuntimeDefault")
+    message: Additional operating-system security overrides are forbidden
+  - expression: (!has(object.spec.template.spec.containers[0].stdin) || !object.spec.template.spec.containers[0].stdin)
+      && (!has(object.spec.template.spec.containers[0].stdinOnce) || !object.spec.template.spec.containers[0].stdinOnce)
+      && (!has(object.spec.template.spec.containers[0].tty) || !object.spec.template.spec.containers[0].tty)
+      && (!has(object.spec.template.spec.shareProcessNamespace) || !object.spec.template.spec.shareProcessNamespace)
+    message: Interactive and shared process modes are forbidden
+  - expression: '!has(object.spec.template.spec.containers[0].livenessProbe) || (has(object.spec.template.spec.containers[0].livenessProbe.httpGet)
+      && !has(object.spec.template.spec.containers[0].livenessProbe.exec) && !has(object.spec.template.spec.containers[0].livenessProbe.tcpSocket)
+      && !has(object.spec.template.spec.containers[0].livenessProbe.grpc) && object.spec.template.spec.containers[0].livenessProbe.httpGet.path
+      == "/healthz" && object.spec.template.spec.containers[0].livenessProbe.httpGet.port
+      == "http" && (!has(object.spec.template.spec.containers[0].livenessProbe.httpGet.host)
+      || object.spec.template.spec.containers[0].livenessProbe.httpGet.host == "")
+      && (!has(object.spec.template.spec.containers[0].livenessProbe.httpGet.httpHeaders)
+      || object.spec.template.spec.containers[0].livenessProbe.httpGet.httpHeaders.size()
+      == 0))'
+    message: Health probes must not inject commands or alternate destinations
+  - expression: '!has(object.spec.template.spec.containers[0].readinessProbe) || (has(object.spec.template.spec.containers[0].readinessProbe.httpGet)
+      && !has(object.spec.template.spec.containers[0].readinessProbe.exec) && !has(object.spec.template.spec.containers[0].readinessProbe.tcpSocket)
+      && !has(object.spec.template.spec.containers[0].readinessProbe.grpc) && object.spec.template.spec.containers[0].readinessProbe.httpGet.path
+      == "/healthz" && object.spec.template.spec.containers[0].readinessProbe.httpGet.port
+      == "http" && (!has(object.spec.template.spec.containers[0].readinessProbe.httpGet.host)
+      || object.spec.template.spec.containers[0].readinessProbe.httpGet.host == "")
+      && (!has(object.spec.template.spec.containers[0].readinessProbe.httpGet.httpHeaders)
+      || object.spec.template.spec.containers[0].readinessProbe.httpGet.httpHeaders.size()
+      == 0))'
+    message: Health probes must not inject commands or alternate destinations
+  - expression: '!has(object.spec.template.spec.containers[0].startupProbe) || (has(object.spec.template.spec.containers[0].startupProbe.httpGet)
+      && !has(object.spec.template.spec.containers[0].startupProbe.exec) && !has(object.spec.template.spec.containers[0].startupProbe.tcpSocket)
+      && !has(object.spec.template.spec.containers[0].startupProbe.grpc) && object.spec.template.spec.containers[0].startupProbe.httpGet.path
+      == "/healthz" && object.spec.template.spec.containers[0].startupProbe.httpGet.port
+      == "http" && (!has(object.spec.template.spec.containers[0].startupProbe.httpGet.host)
+      || object.spec.template.spec.containers[0].startupProbe.httpGet.host == "")
+      && (!has(object.spec.template.spec.containers[0].startupProbe.httpGet.httpHeaders)
+      || object.spec.template.spec.containers[0].startupProbe.httpGet.httpHeaders.size()
+      == 0))'
+    message: Health probes must not inject commands or alternate destinations
+  - expression: request.kind.kind != "Deployment" || (object.metadata.name == "home-portal"
+      && object.spec.replicas == 1 && object.spec.strategy.type == "Recreate")
+    message: Only the single platform-reviewed portal deployment is allowed
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: portal-template-contract
+spec:
+  policyName: portal-template-contract
+  validationActions:
+  - Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: portal-pod-contract
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      resources:
+      - pods
+      - pods/ephemeralcontainers
+      operations:
+      - CREATE
+      - UPDATE
+    matchPolicy: Equivalent
+  matchConditions:
+  - name: portal-namespace-only
+    expression: request.namespace == "tenant-home-portal"
+  validations:
+  - expression: object.spec.containers.size() == 1
+    message: Exactly one approved portal container is required
+  - expression: 'false'
+    message: No approved image digest
+  - expression: has(object.spec.serviceAccountName) && object.spec.serviceAccountName
+      == "portal-runtime" && has(object.spec.automountServiceAccountToken) && !object.spec.automountServiceAccountToken
+    message: Platform runtime identity with token automount disabled is required
+  - expression: (!has(object.spec.initContainers) || object.spec.initContainers.size()
+      == 0) && (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.size()
+      == 0)
+    message: Init and ephemeral containers are forbidden
+  - expression: (!has(object.spec.volumes) || object.spec.volumes.size() == 0) &&
+      (!has(object.spec.imagePullSecrets) || object.spec.imagePullSecrets.size() ==
+      0)
+    message: No mounted volumes or extra secret references are allowed
+  - expression: has(object.spec.containers[0].env) && object.spec.containers[0].env.size()
+      == 7 && object.spec.containers[0].env.all(e, object.spec.containers[0].env.filter(x,
+      x.name == e.name).size() == 1)
+    message: Exactly the seven unique platform environment entries are required
+  - expression: 'object.spec.containers[0].env.all(e, e.name == "OIDC_CLIENT_SECRET"
+      ? (!has(e.value) || e.value == "") && has(e.valueFrom) && has(e.valueFrom.secretKeyRef)
+      && !has(e.valueFrom.configMapKeyRef) && !has(e.valueFrom.fieldRef) && !has(e.valueFrom.resourceFieldRef)
+      && e.valueFrom.secretKeyRef.name == "portal-oidc" && e.valueFrom.secretKeyRef.key
+      == "client-secret" && (!has(e.valueFrom.secretKeyRef.optional) || !e.valueFrom.secretKeyRef.optional)
+      : e.name in {"LISTEN_HOST": "0.0.0.0", "PORTAL_ORIGIN": "https://portal.local-lab.test",
+      "TENANT_SOURCE": "disabled", "OIDC_ISSUER": "https://keycloak.local-lab.test/auth/realms/perkforge",
+      "OIDC_CLIENT_ID": "household-portal", "OIDC_AUDIENCE": "household-portal-api"}
+      && has(e.value) && e.value == {"LISTEN_HOST": "0.0.0.0", "PORTAL_ORIGIN": "https://portal.local-lab.test",
+      "TENANT_SOURCE": "disabled", "OIDC_ISSUER": "https://keycloak.local-lab.test/auth/realms/perkforge",
+      "OIDC_CLIENT_ID": "household-portal", "OIDC_AUDIENCE": "household-portal-api"}[e.name]
+      && !has(e.valueFrom))'
+    message: Identity, origin and secret wiring must exactly match the platform contract
+  - expression: (!has(object.spec.containers[0].envFrom) || object.spec.containers[0].envFrom.size()
+      == 0) && (!has(object.spec.containers[0].command) || object.spec.containers[0].command.size()
+      == 0) && (!has(object.spec.containers[0].args) || object.spec.containers[0].args.size()
+      == 0) && !has(object.spec.containers[0].lifecycle)
+    message: No environment import, command override or lifecycle code is allowed
+  - expression: (!has(object.spec.containers[0].volumeMounts) || object.spec.containers[0].volumeMounts.size()
+      == 0) && (!has(object.spec.containers[0].volumeDevices) || object.spec.containers[0].volumeDevices.size()
+      == 0) && (!has(object.spec.containers[0].workingDir) || object.spec.containers[0].workingDir
+      == "")
+    message: No filesystem injection or working-directory override is allowed
+  - expression: (!has(object.spec.hostNetwork) || !object.spec.hostNetwork) && (!has(object.spec.hostPID)
+      || !object.spec.hostPID) && (!has(object.spec.hostIPC) || !object.spec.hostIPC)
+      && (!has(object.spec.hostAliases) || object.spec.hostAliases.size() == 0) &&
+      !has(object.spec.dnsConfig) && (!has(object.spec.dnsPolicy) || object.spec.dnsPolicy
+      == "ClusterFirst") && !has(object.spec.runtimeClassName)
+    message: Host access, custom DNS and runtime overrides are forbidden
+  - expression: has(object.spec.securityContext) && object.spec.securityContext.runAsNonRoot
+      == true && object.spec.securityContext.runAsUser == 1000 && object.spec.securityContext.runAsGroup
+      == 1000 && object.spec.securityContext.seccompProfile.type == "RuntimeDefault"
+    message: Pod must use the platform non-root seccomp profile
+  - expression: has(object.spec.containers[0].securityContext) && object.spec.containers[0].securityContext.allowPrivilegeEscalation
+      == false && object.spec.containers[0].securityContext.readOnlyRootFilesystem
+      == true && (!has(object.spec.containers[0].securityContext.privileged) || !object.spec.containers[0].securityContext.privileged)
+      && object.spec.containers[0].securityContext.capabilities.drop == ["ALL"] &&
+      (!has(object.spec.containers[0].securityContext.capabilities.add) || object.spec.containers[0].securityContext.capabilities.add.size()
+      == 0) && (!has(object.spec.containers[0].securityContext.runAsUser) || object.spec.containers[0].securityContext.runAsUser
+      == 1000) && (!has(object.spec.containers[0].securityContext.runAsGroup) || object.spec.containers[0].securityContext.runAsGroup
+      == 1000) && (!has(object.spec.containers[0].securityContext.runAsNonRoot) ||
+      object.spec.containers[0].securityContext.runAsNonRoot) && (!has(object.spec.containers[0].securityContext.seccompProfile)
+      || object.spec.containers[0].securityContext.seccompProfile.type == "RuntimeDefault")
+    message: Container must retain restricted security settings
+  - expression: has(object.spec.containers[0].ports) && object.spec.containers[0].ports.size()
+      == 1 && object.spec.containers[0].ports[0].name == "http" && object.spec.containers[0].ports[0].containerPort
+      == 3000 && (!has(object.spec.containers[0].ports[0].hostPort) || object.spec.containers[0].ports[0].hostPort
+      == 0) && (!has(object.spec.containers[0].ports[0].hostIP) || object.spec.containers[0].ports[0].hostIP
+      == "")
+    message: Only the internal application port is allowed
+  - expression: (!has(object.spec.securityContext.sysctls) || object.spec.securityContext.sysctls.size()
+      == 0) && !has(object.spec.securityContext.seLinuxOptions) && !has(object.spec.securityContext.windowsOptions)
+      && (!has(object.spec.securityContext.appArmorProfile) || object.spec.securityContext.appArmorProfile.type
+      == "RuntimeDefault") && (!has(object.spec.containers[0].securityContext.procMount)
+      || object.spec.containers[0].securityContext.procMount == "Default") && !has(object.spec.containers[0].securityContext.seLinuxOptions)
+      && !has(object.spec.containers[0].securityContext.windowsOptions) && (!has(object.spec.containers[0].securityContext.appArmorProfile)
+      || object.spec.containers[0].securityContext.appArmorProfile.type == "RuntimeDefault")
+    message: Additional operating-system security overrides are forbidden
+  - expression: (!has(object.spec.containers[0].stdin) || !object.spec.containers[0].stdin)
+      && (!has(object.spec.containers[0].stdinOnce) || !object.spec.containers[0].stdinOnce)
+      && (!has(object.spec.containers[0].tty) || !object.spec.containers[0].tty) &&
+      (!has(object.spec.shareProcessNamespace) || !object.spec.shareProcessNamespace)
+    message: Interactive and shared process modes are forbidden
+  - expression: '!has(object.spec.containers[0].livenessProbe) || (has(object.spec.containers[0].livenessProbe.httpGet)
+      && !has(object.spec.containers[0].livenessProbe.exec) && !has(object.spec.containers[0].livenessProbe.tcpSocket)
+      && !has(object.spec.containers[0].livenessProbe.grpc) && object.spec.containers[0].livenessProbe.httpGet.path
+      == "/healthz" && object.spec.containers[0].livenessProbe.httpGet.port == "http"
+      && (!has(object.spec.containers[0].livenessProbe.httpGet.host) || object.spec.containers[0].livenessProbe.httpGet.host
+      == "") && (!has(object.spec.containers[0].livenessProbe.httpGet.httpHeaders)
+      || object.spec.containers[0].livenessProbe.httpGet.httpHeaders.size() == 0))'
+    message: Health probes must not inject commands or alternate destinations
+  - expression: '!has(object.spec.containers[0].readinessProbe) || (has(object.spec.containers[0].readinessProbe.httpGet)
+      && !has(object.spec.containers[0].readinessProbe.exec) && !has(object.spec.containers[0].readinessProbe.tcpSocket)
+      && !has(object.spec.containers[0].readinessProbe.grpc) && object.spec.containers[0].readinessProbe.httpGet.path
+      == "/healthz" && object.spec.containers[0].readinessProbe.httpGet.port == "http"
+      && (!has(object.spec.containers[0].readinessProbe.httpGet.host) || object.spec.containers[0].readinessProbe.httpGet.host
+      == "") && (!has(object.spec.containers[0].readinessProbe.httpGet.httpHeaders)
+      || object.spec.containers[0].readinessProbe.httpGet.httpHeaders.size() == 0))'
+    message: Health probes must not inject commands or alternate destinations
+  - expression: '!has(object.spec.containers[0].startupProbe) || (has(object.spec.containers[0].startupProbe.httpGet)
+      && !has(object.spec.containers[0].startupProbe.exec) && !has(object.spec.containers[0].startupProbe.tcpSocket)
+      && !has(object.spec.containers[0].startupProbe.grpc) && object.spec.containers[0].startupProbe.httpGet.path
+      == "/healthz" && object.spec.containers[0].startupProbe.httpGet.port == "http"
+      && (!has(object.spec.containers[0].startupProbe.httpGet.host) || object.spec.containers[0].startupProbe.httpGet.host
+      == "") && (!has(object.spec.containers[0].startupProbe.httpGet.httpHeaders)
+      || object.spec.containers[0].startupProbe.httpGet.httpHeaders.size() == 0))'
+    message: Health probes must not inject commands or alternate destinations
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: portal-pod-contract
+spec:
+  policyName: portal-pod-contract
+  validationActions:
+  - Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: portal-deployer-surface
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - '*'
+      apiVersions:
+      - '*'
+      resources:
+      - '*'
+      - '*/*'
+      operations:
+      - CREATE
+      - UPDATE
+      - DELETE
+      - CONNECT
+    matchPolicy: Equivalent
+  matchConditions:
+  - name: restricted-request
+    expression: request.userInfo.username == "system:serviceaccount:cattle-fleet-local-system:home-portal-deployer"
+  validations:
+  - expression: request.namespace == "tenant-home-portal" && (request.resource.group
+      == "apps" && request.resource.resource == "deployments" && request.subResource
+      == "" || request.resource.group == "" && request.resource.resource == "services"
+      && request.subResource == "")
+    message: Tenant deployer may mutate only Deployment and Service resources
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: portal-deployer-surface
+spec:
+  policyName: portal-deployer-surface
+  validationActions:
+  - Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: portal-service-contract
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      resources:
+      - services
+      operations:
+      - CREATE
+      - UPDATE
+    matchPolicy: Equivalent
+  matchConditions:
+  - name: portal-namespace-only
+    expression: request.namespace == "tenant-home-portal"
+  validations:
+  - expression: object.metadata.name == "home-portal" && object.spec.type == "ClusterIP"
+      && (!has(object.spec.externalIPs) || object.spec.externalIPs.size() == 0) &&
+      !has(object.spec.externalName)
+    message: Only the internal portal ClusterIP Service is allowed
+  - expression: object.spec.selector.size() == 1 && object.spec.selector["app.kubernetes.io/name"]
+      == "perkforge-portal" && object.spec.ports.size() == 1 && object.spec.ports[0].port
+      == 3000 && object.spec.ports[0].targetPort == "http"
+    message: Service must route only to the approved portal port
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: portal-service-contract
+spec:
+  policyName: portal-service-contract
+  validationActions:
+  - Deny

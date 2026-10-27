@@ -97,3 +97,19 @@ reviews and implements the narrow policy or service integration. No tenant-owned
 RoleBinding or NetworkPolicy is an acceptable exception mechanism. Future portal
 GitLab/Keycloak API features require separate scope/role/audit approval and must not
 inherit the deployer's credentials or security-control authority.
+
+## Executable portal implementation
+
+The [optional portal contract](../local-lab/optional/portal/README.md) now supplies
+platform-owned identity values and generated native admission policies, with
+Kubernetes 1.36.5 CEL execution and pinned schema tests. All outputs remain outside
+active Fleet/catalog paths, the registration is paused, and a missing approved
+image makes workload admission fail closed. This is an implemented offline control
+set, not newly verified live enforcement. The broader adoption plan above remains
+applicable; Fleet/Helm Secret storage and independent privileged API authorization
+are not solved by config injection.
+
+The new Fleet 0.16 schema check found `allowNamespaceCreation` unsupported by that
+API. New portal output does not use it. Existing Nextcloud sources are preserved;
+confirm installed-version behavior separately instead of assuming this old field
+constrains namespace creation. Namespace security relies on actual RBAC/admission.

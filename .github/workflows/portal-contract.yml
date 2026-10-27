@@ -1,0 +1,50 @@
+name: portal-contract-offline
+on:
+  push:
+    paths: ['local-lab/**', 'docs/**', '.github/workflows/portal-contract.yml']
+  pull_request:
+    paths: ['local-lab/**', 'docs/**', '.github/workflows/portal-contract.yml']
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GOMAXPROCS: '2'
+      GOMEMLIMIT: 512MiB
+      GOFLAGS: -p=2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -r local-lab/optional/portal/requirements-test.txt
+      - name: Validate inactive contract and existing foundation
+        run: |
+          python local-lab/scripts/render-portal-identity.py --check
+          python local-lab/scripts/render-tenant-foundation.py --check
+          python -m unittest discover -s local-lab/tests -v
+          python local-lab/tests/validate_portal_schemas.py
+      - name: Read verified tenant pin
+        id: contract
+        run: |
+          python -c 'import yaml; c=yaml.safe_load(open("local-lab/optional/portal/contract.yaml")); print("revision=" + c["tenantRevision"])' >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: perkforge/perkforge-tenant-portal
+          ref: ${{ steps.contract.outputs.revision }}
+          path: .inputs/tenant
+          persist-credentials: false
+      - uses: azure/setup-helm@v4.3.1
+        with:
+          version: v3.19.0
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: '1.27.3'
+          cache-dependency-path: local-lab/tests/portal-cel/go.sum
+      - name: Execute native Kubernetes admission CEL against real chart output
+        env:
+          PORTAL_CHART_DIR: ${{ github.workspace }}/.inputs/tenant/bundles/portal/chart
+        working-directory: local-lab/tests/portal-cel
+        run: go test -count=1 -v ./...
