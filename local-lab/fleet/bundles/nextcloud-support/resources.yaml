@@ -223,6 +223,8 @@ metadata:
   labels:
     platform.perkforge.io/tenant: home
     platform.perkforge.io/managed-by: nextcloud-support
+  annotations:
+    helm.sh/resource-policy: keep
 ---
 apiVersion: fleet.cattle.io/v1alpha1
 kind: Policy
