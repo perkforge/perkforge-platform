@@ -131,6 +131,14 @@ class Rendering(unittest.TestCase):
         args=deployment['spec']['template']['spec']['containers'][0]['args']
         self.assertIn('--namespace=tenant-home-portal',args)
 
+    def test_explicit_synthetic_enrollment_never_targets_real_pull_secret(self):
+        objects=[x for x in yaml.safe_load_all(subprocess.check_output(['fleet','test','-f','enrollments/synthetic.yaml','-N','local',
+            str(ROOT/'local-lab/secrets-config')],text=True,env={**os.environ,'KUBECONFIG':'/dev/null'})) if x]
+        es=next(x for x in objects if x['kind']=='ExternalSecret')
+        self.assertEqual(es['spec']['target']['name'],'openbao-rotation-probe')
+        self.assertEqual(es['spec']['target']['creationPolicy'],'Merge')
+        self.assertFalse(any(x['metadata']['name']=='portal-ghcr' for x in objects))
+
     def test_disabled_and_enabled_delivery_actual_fleet(self):
         with tempfile.TemporaryDirectory() as directory:
             bundle=Path(directory)/'bundle'
@@ -160,6 +168,52 @@ class Rendering(unittest.TestCase):
 
 
 class StaticContract(unittest.TestCase):
+    def test_support_tls_and_network_allow_only_reviewed_peers(self):
+        objects=list(yaml.safe_load_all((ROOT/'local-lab/fleet/bundles/openbao-support/resources.yaml').read_text()))
+        cert=next(x for x in objects if x['kind']=='Certificate')
+        self.assertEqual(cert['metadata']['namespace'],'cattle-system')
+        self.assertEqual(cert['spec']['issuerRef'],{'name':'rancher','kind':'Issuer'})
+        self.assertIn('openbao.openbao.svc',cert['spec']['dnsNames'])
+        route=next(x for x in objects if x['kind']=='IngressRouteTCP')
+        self.assertEqual(route['spec']['tls'],{'passthrough':True})
+        self.assertEqual(route['spec']['routes'][0]['services'],[{'name':'openbao','port':8200}])
+        policies=[x for x in objects if x['kind']=='NetworkPolicy']
+        self.assertEqual(len(policies),2)
+        for policy in policies:
+            self.assertEqual(policy['spec']['policyTypes'],['Ingress','Egress'])
+            for rule in policy['spec']['egress']:
+                self.assertTrue(rule['to'])
+                self.assertTrue(rule['ports'])
+                for peer in rule['to']:
+                    if 'ipBlock' in peer:
+                        self.assertIn(peer['ipBlock']['cidr'],['10.43.0.1/32','192.168.122.201/32','10.43.163.193/32'])
+                    else:
+                        self.assertTrue(peer['namespaceSelector']['matchLabels'])
+                        self.assertTrue(peer['podSelector']['matchLabels'])
+        eso=next(x for x in policies if x['metadata']['namespace']=='external-secrets')
+        self.assertEqual(eso['spec']['ingress'],[])
+        for gitrepo in (ROOT/'local-lab/fleet/gitrepos').glob('*.yaml'):
+            if gitrepo.name != 'openbao.yaml':
+                self.assertNotIn('openbao-support',gitrepo.read_text())
+
+    def test_operator_helpers_default_to_plan_without_access(self):
+        for script in ('deliver-tls.sh','backup.sh'):
+            result=subprocess.run(['bash',str(CONFIG/script)],capture_output=True,text=True,env={'PATH':'/usr/bin:/bin'})
+            self.assertEqual(result.returncode,0)
+            self.assertIn('Plan only',result.stdout)
+            self.assertNotIn('secret value',result.stdout)
+
+    def test_native_keycloak_payload_has_scoped_human_flow(self):
+        client=json.loads((CONFIG/'config/keycloak-client.json').read_text())
+        self.assertEqual(client['clientId'],'openbao')
+        self.assertNotIn('secret',client)
+        self.assertFalse(client['fullScopeAllowed'])
+        self.assertEqual(client['attributes']['pkce.code.challenge.method'],'S256')
+        for field in ('publicClient','implicitFlowEnabled','directAccessGrantsEnabled','serviceAccountsEnabled'):
+            self.assertFalse(client[field])
+        self.assertEqual(client['protocolMappers'][0]['config']['full.path'],'true')
+        self.assertEqual(client['protocolMappers'][0]['config']['id.token.claim'],'true')
+
     def test_auth_roles_are_bound_and_distinct(self):
         home=json.loads((CONFIG/'roles/human-home.json').read_text())
         self.assertEqual(home['bound_claims'],{'groups':['/tenants/home/admins']})
@@ -170,6 +224,115 @@ class StaticContract(unittest.TestCase):
         self.assertEqual(eso['audience'],'openbao')
         self.assertEqual(eso['token_policies'],['eso-home-portal'])
 
+
+@unittest.skipUnless(os.environ.get('BAO_BIN') and shutil.which('openssl'), 'set BAO_BIN for isolated TLS/Raft recovery test')
+class PersistentRecovery(unittest.TestCase):
+    def test_tls_audit_and_snapshot_restore_into_separate_data_directory(self):
+        import ssl
+        with tempfile.TemporaryDirectory() as directory:
+            work=Path(directory)
+            subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1',
+                '-subj','/CN=localhost','-addext','subjectAltName=IP:127.0.0.1,DNS:localhost',
+                '-keyout',str(work/'key.pem'),'-out',str(work/'cert.pem')],check=True,
+                stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            context=ssl.create_default_context(cafile=str(work/'cert.pem'))
+            ports=None
+            def start(name):
+                nonlocal ports
+                data=work/name
+                data.mkdir()
+                if ports is None:
+                    with socket.socket() as a, socket.socket() as b:
+                        a.bind(('127.0.0.1',0)); b.bind(('127.0.0.1',0))
+                        ports=(a.getsockname()[1], b.getsockname()[1])
+                port,cluster_port=ports
+                # Exercise the actual staged audit stanza, not a second audit implementation.
+                values=yaml.safe_load((ROOT/'local-lab/fleet/bundles/secrets-openbao/values.yaml').read_text())
+                config=values['server']['ha']['raft']['config']
+                config=config.replace('[::]:8200',f'127.0.0.1:{port}').replace('[::]:8201',f'127.0.0.1:{cluster_port}')
+                config=config.replace('/openbao/tls/tls.crt',str(work/'cert.pem')).replace('/openbao/tls/tls.key',str(work/'key.pem'))
+                config=config.replace('/openbao/data',str(data)).replace('/openbao/audit/audit.json','audit.json')
+                config=config.replace('service_registration "kubernetes" {}','')
+                config += f'\napi_addr = "https://127.0.0.1:{port}"\ncluster_addr = "https://127.0.0.1:{cluster_port}"\n'
+                config=config.replace('storage "raft" {','storage "raft" {\n  node_id = "recovery-node"')
+                file=work/(name+'.hcl');file.write_text(config)
+                with (work/(name+'-server.log')).open('wb') as server_log:
+                    proc=subprocess.Popen([os.environ['BAO_BIN'],'server','-config',str(file)],stdout=server_log,stderr=subprocess.STDOUT,
+                        env={**os.environ,'BAO_TOKEN':'','VAULT_TOKEN':''},cwd=str(data))
+                self.addCleanup(lambda: proc.poll() is None and (proc.terminate(),proc.wait(timeout=10)))
+                url=f'https://127.0.0.1:{port}/v1/'
+                def api(method,path,payload=None,token=None,binary=False):
+                    raw=payload if isinstance(payload,bytes) else json.dumps(payload).encode() if payload is not None else None
+                    headers={'Content-Type':'application/octet-stream' if binary else 'application/json'}
+                    if token: headers['X-Vault-Token']=token
+                    with urllib.request.urlopen(urllib.request.Request(url+path,data=raw,headers=headers,method=method),context=context,timeout=10) as response:
+                        value=response.read()
+                        return value if binary else json.loads(value) if value else {}
+                for _ in range(100):
+                    try: api('GET','sys/init'); break
+                    except OSError: time.sleep(.1)
+                else: self.fail('isolated TLS OpenBao failed to start')
+                init=api('PUT','sys/init',{'secret_shares':1,'secret_threshold':1})
+                api('PUT','sys/unseal',{'key':init['keys_base64'][0]})
+                for _ in range(100):
+                    try: api('GET','sys/health');break
+                    except OSError:time.sleep(.1)
+                else:self.fail('isolated OpenBao failed to become active')
+                return proc,api,init
+            source,api,init=start('source')
+            token=init['root_token']
+            api('POST','sys/mounts/tenants',{'type':'kv','options':{'version':'2'}},token)
+            api('POST','tenants/data/home/tenant-home-portal/example',{'data':{'value':'synthetic-recovery-marker'}},token)
+            if not shutil.which('age') or not shutil.which('age-keygen'):
+                self.fail('age and age-keygen are required for the encrypted recovery acceptance')
+            identity=work/'backup-age.key'
+            subprocess.run(['age-keygen','-o',str(identity)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            recipient=subprocess.check_output(['age-keygen','-y',str(identity)],text=True).strip()
+            backups=work/'backups';backups.mkdir(mode=0o700)
+            env={**os.environ,'BAO_ADDR':f'https://127.0.0.1:{ports[0]}',
+                 'BAO_TOKEN':token,'BAO_CACERT':str(work/'cert.pem'),
+                 'OPENBAO_BACKUP_DIR':str(backups),'AGE_RECIPIENT':recipient,
+                 'PATH':str(Path(os.environ['BAO_BIN']).parent)+os.pathsep+os.environ['PATH']}
+            subprocess.run(['bash',str(CONFIG/'backup.sh'),'--apply'],env=env,check=True,
+                stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            encrypted=list(backups.glob('*.snap.age'))
+            self.assertEqual(len(encrypted),1)
+            self.assertEqual(encrypted[0].stat().st_mode & 0o777,0o600)
+            self.assertEqual({x.suffix for x in backups.iterdir()},{'.age','.sha256'})
+            subprocess.run(['sha256sum','--check',str(encrypted[0])+'.sha256'],check=True,stdout=subprocess.DEVNULL)
+            snapshot=subprocess.check_output(['age','-d','-i',str(identity),str(encrypted[0])])
+            self.assertGreater(len(snapshot),0)
+            audit=(work/'source/audit.json').read_text()
+            self.assertIn('tenants/data/home/tenant-home-portal/example',audit)
+            self.assertNotIn('synthetic-recovery-marker',audit)
+            self.assertEqual((work/'source/audit.json').stat().st_mode & 0o777,0o600)
+            source.terminate();source.wait(timeout=10)
+            restored,target,temporary=start('isolated-restore')
+            # Force is confined to a fresh synthetic local server, never a real cluster.
+            target('POST','sys/storage/raft/snapshot-force',snapshot,temporary['root_token'],binary=True)
+            for _ in range(100):
+                try:
+                    state=target('GET','sys/seal-status')
+                    if state['sealed']:break
+                except OSError:pass
+                time.sleep(.1)
+            target('PUT','sys/unseal',{'key':init['keys_base64'][0]})
+            for _ in range(100):
+                try:
+                    result=target('GET','tenants/data/home/tenant-home-portal/example',token=token)
+                    break
+                except urllib.error.HTTPError as exc:
+                    last_status=(exc.code, json.loads(exc.read()).get('errors', []))
+                    time.sleep(.1)
+                except OSError:
+                    last_status='connection error'
+                    time.sleep(.1)
+            else:
+                # Local synthetic lifecycle diagnostics only; HTTP request bodies are never logged.
+                lifecycle=[line for line in (work/'isolated-restore-server.log').read_text().splitlines() if any(word in line for word in ('ERROR','failed','restor','leader'))]
+                self.fail('isolated snapshot restore did not become readable: ' + str(last_status) + '; lifecycle=' + '\n'.join(lifecycle[-12:]))
+            self.assertEqual(result['data']['data']['value'],'synthetic-recovery-marker')
+            self.assertIn('tenants/data/home/tenant-home-portal/example',(work/'isolated-restore/audit.json').read_text())
 
 if __name__=='__main__':
     unittest.main()

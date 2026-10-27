@@ -6,15 +6,14 @@
   ],
   "oidc_scopes": [
     "openid",
-    "profile",
-    "groups"
+    "profile"
   ],
   "allowed_redirect_uris": [
     "https://openbao.local-lab.test/ui/vault/auth/oidc/oidc/callback",
     "http://localhost:8250/oidc/callback"
   ],
-  "token_ttl": "15m",
-  "token_max_ttl": "1h",
+  "token_ttl": 900,
+  "token_max_ttl": 3600,
   "token_no_default_policy": false,
   "bound_claims": {
     "groups": [

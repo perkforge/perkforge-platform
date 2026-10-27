@@ -2,6 +2,10 @@ name: local-lab-openbao
 labels:
   local-lab.homelab/component: openbao
 defaultNamespace: openbao
+dependsOn:
+- selector:
+    matchLabels:
+      local-lab.homelab/component: openbao-support
 helm:
   repo: https://openbao.github.io/openbao-helm
   chart: openbao

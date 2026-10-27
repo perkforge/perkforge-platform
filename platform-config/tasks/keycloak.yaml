@@ -1,0 +1,116 @@
+- name: Authenticate the existing Keycloak administrator
+  ansible.builtin.uri:
+    url: "{{ keycloak_url }}/realms/master/protocol/openid-connect/token"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      grant_type: password
+      client_id: admin-cli
+      username: "{{ keycloak_admin_username }}"
+      password: "{{ keycloak_password }}"
+  register: keycloak_login
+  no_log: true
+- name: Keep the administrator session in memory
+  ansible.builtin.set_fact:
+    kc_headers:
+      Authorization: "Bearer {{ keycloak_login.json.access_token }}"
+    kc_api: "{{ keycloak_url }}/admin/realms/{{ keycloak_realm }}"
+  no_log: true
+- name: Read the existing realm ownership
+  ansible.builtin.uri:
+    url: "{{ kc_api }}"
+    headers: "{{ kc_headers }}"
+  register: realm
+  no_log: true
+- name: Refuse an unmanaged realm
+  ansible.builtin.assert:
+    that: realm.json.attributes['perkforge-managed'] == 'true'
+  no_log: true
+- name: Find only the OpenBao client
+  ansible.builtin.uri:
+    url: "{{ kc_api }}/clients?clientId=openbao"
+    headers: "{{ kc_headers }}"
+  register: found_client
+  no_log: true
+- name: Refuse duplicates or unowned client adoption
+  ansible.builtin.assert:
+    that:
+      - found_client.json | length <= 1
+      - found_client.json | length == 0 or found_client.json[0].attributes['perkforge-managed'] | default('') == 'true'
+  no_log: true
+- name: Create only the missing OpenBao client with its direct groups mapper
+  ansible.builtin.uri:
+    url: "{{ kc_api }}/clients"
+    method: POST
+    headers: "{{ kc_headers }}"
+    body_format: json
+    body: "{{ desired_client }}"
+    status_code: 201
+  when: found_client.json | length == 0
+  changed_when: true
+  no_log: true
+- name: Read the uniquely configured client
+  ansible.builtin.uri:
+    url: "{{ kc_api }}/clients?clientId=openbao"
+    headers: "{{ kc_headers }}"
+  register: current_client
+  no_log: true
+- name: Require one exact client and retain its server identity
+  ansible.builtin.assert:
+    that:
+      - current_client.json | length == 1
+      - current_client.json[0].clientId == 'openbao'
+  no_log: true
+- name: Select the client's API and managed settings without its mapper
+  ansible.builtin.set_fact:
+    kc_client_api: "{{ kc_api }}/clients/{{ current_client.json[0].id }}"
+    client_settings: "{{ desired_client | dict2items | rejectattr('key', 'equalto', 'protocolMappers') | items2dict }}"
+  no_log: true
+- name: Read current mapper and role scope before updates
+  ansible.builtin.uri:
+    url: "{{ kc_client_api }}/{{ item }}"
+    headers: "{{ kc_headers }}"
+  loop: [protocol-mappers/models, scope-mappings]
+  register: client_surface
+  no_log: true
+- name: Refuse unexpected mapper or role scope
+  ansible.builtin.assert:
+    that:
+      - client_surface.results[0].json | length == 1
+      - client_surface.results[0].json[0].name == 'groups'
+      - client_surface.results[0].json[0].protocolMapper == 'oidc-group-membership-mapper'
+      - client_surface.results[1].json.realmMappings | default([]) | length == 0
+      - client_surface.results[1].json.clientMappings | default({}) | length == 0
+  no_log: true
+- name: Update only declared client settings when they differ
+  ansible.builtin.uri:
+    url: "{{ kc_client_api }}"
+    method: PUT
+    headers: "{{ kc_headers }}"
+    body_format: json
+    body: "{{ current_client.json[0] | combine(client_settings) }}"
+    status_code: 204
+  when: current_client.json[0] | combine(client_settings) != current_client.json[0]
+  changed_when: true
+  no_log: true
+- name: Update only the existing direct groups mapper when it differs
+  ansible.builtin.uri:
+    url: "{{ kc_client_api }}/protocol-mappers/models/{{ client_surface.results[0].json[0].id }}"
+    method: PUT
+    headers: "{{ kc_headers }}"
+    body_format: json
+    body: "{{ client_surface.results[0].json[0] | combine(desired_client.protocolMappers[0]) }}"
+    status_code: 204
+  when: client_surface.results[0].json[0] | combine(desired_client.protocolMappers[0]) != client_surface.results[0].json[0]
+  changed_when: true
+  no_log: true
+- name: Read the existing client credential without rotating or persisting it
+  ansible.builtin.uri:
+    url: "{{ kc_client_api }}/client-secret"
+    headers: "{{ kc_headers }}"
+  register: openbao_client_credential
+  no_log: true
+- name: Require a nonempty existing client credential
+  ansible.builtin.assert:
+    that: openbao_client_credential.json.value | length > 0
+  no_log: true

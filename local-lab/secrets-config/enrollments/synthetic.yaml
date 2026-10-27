@@ -1,0 +1,10 @@
+# Explicit operator-only validation enrollment; not selected by an active GitRepo.
+name: local-lab-home-secret-validation
+helm:
+  disablePreProcess: true
+  disableDNS: true
+targetCustomizations:
+- name: local
+  clusterName: local
+  helm:
+    valuesFiles: [values.yaml, tenants/home.yaml, values-synthetic.yaml]

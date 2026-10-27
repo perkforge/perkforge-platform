@@ -1,0 +1,3 @@
+# Applied only by the explicit validation enrollment, after live approval.
+enabled: true
+targetSecret: openbao-rotation-probe

@@ -2,6 +2,10 @@ name: local-lab-eso-home-portal
 labels:
   local-lab.homelab/component: eso-home-portal
 defaultNamespace: external-secrets
+dependsOn:
+- selector:
+    matchLabels:
+      local-lab.homelab/component: openbao-support
 helm:
   repo: https://charts.external-secrets.io
   chart: external-secrets

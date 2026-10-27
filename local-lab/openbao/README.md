@@ -1,4 +1,4 @@
-# OpenBao secrets management (issue #12, stage 1)
+# OpenBao secrets management (issue #12, inactive implementation)
 
 This is an **offline-tested, inactive configuration stage**, not a live service.
 No active Fleet GitRepo selects the new bundles. Secret enrollment defaults to
@@ -125,8 +125,8 @@ Before any live action, present one concrete approval plan covering:
    identities). Mount only `openbao-server-tls` into the server. Publish only the
    public CA in `openbao-ca` ConfigMap in the enrolled namespace. Do not copy CA
    private keys. Review internal DNS resolution for OIDC discovery, TLS chain,
-   ingress route and exact redirect before exposing the UI. No ingress is staged
-   in this PR; it must be reviewed with the security rules below.
+   ingress route and exact redirect before exposing the UI. The inactive support bundle now defines a passthrough TLS route and
+   exact lab endpoint rules; see [activation operations](OPERATIONS.md).
 3. Platform-owned default-deny NetworkPolicies with narrowly reviewed allows:
    Traefik and the scoped ESO pod to OpenBao 8200; OpenBao to DNS, the Kubernetes
    API TokenReview endpoint and Keycloak HTTPS; ESO to DNS, Kubernetes API and
@@ -157,7 +157,7 @@ Before any live action, present one concrete approval plan covering:
    enable the single enrollment, verify rotation without printing values and
    revoke superseded GitHub credentials only after approved validation.
 
-These actions are pending authorization and implementation of the final live
+These actions are pending authorization and live verification of the staged
 security/TLS wiring; they are not implied by chart rendering. No CA-key copying,
 secret migration/deletion, init/unseal, credential issuance, auth grant or deployment
 is authorized by this staged PR.
@@ -170,8 +170,10 @@ ESO read-only exact-path access, backend rotation visibility and later removal
 of platform tenant access. It also renders both pinned official charts and
 actual Fleet enrollment, testing disabled defaults, namespace RBAC, named
 TokenRequest and rejection of a foreign remote path. CI downloads tools with
-pinned checksums. Tests do not prove OIDC/Kubernetes login, network enforcement
-or actual Kubernetes Secret refresh.
+pinned checksums. The persistent test also initializes only temporary local instances,
+validates TLS and audit HMAC protection, and exercises native Raft recovery.
+Tests do not prove live OIDC/Kubernetes login, network enforcement or actual
+Kubernetes Secret refresh.
 
 Before marking the complete issue In Review, collect private live evidence of:
 OIDC allowed/denied groups and expired sessions; Kubernetes auth denial for
@@ -183,8 +185,14 @@ without changing its UID; a successful fresh private-image pull; validated TLS,
 audit events and isolated backup restore. Preserve failed evidence and record
 limitations. Only use synthetic values for public logs and CI.
 
-Stage 1 can be reviewed as configuration and offline evidence. Issue #12 remains
-In Progress until the separate approved live prerequisites and acceptance pass.
+PR #19 delivered the initial configuration stage. The follow-up adds concrete
+support manifests, native auth configuration, the small approved Ansible API adapter,
+private leaf-delivery and encrypted-snapshot helpers, plus an isolated TLS/Raft
+restore test. None activates the service. See [operations](OPERATIONS.md) for
+resource/action ordering and [capacity assessment](CAPACITY.md) for measured
+headroom and the optional separate Nextcloud pause. Operational acceptance is
+still pending; track it explicitly even if the initial PR's approval completes
+its configuration milestone on the project board.
 
 ## Official references
 

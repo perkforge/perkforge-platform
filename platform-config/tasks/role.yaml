@@ -1,0 +1,22 @@
+- name: Read the named authentication role
+  ansible.builtin.uri:
+    url: "{{ openbao_url }}/v1/auth/{{ role_record.path }}"
+    headers: "{{ bao_headers }}"
+    status_code: [200, 404]
+  register: current_role
+  no_log: true
+- name: Load the reviewed native role document
+  ansible.builtin.set_fact:
+    desired_role: "{{ lookup('ansible.builtin.file', desired_root + '/roles/' + role_record.file) | from_json }}"
+  no_log: true
+- name: Apply only missing or changed declared role fields
+  ansible.builtin.uri:
+    url: "{{ openbao_url }}/v1/auth/{{ role_record.path }}"
+    method: POST
+    headers: "{{ bao_headers }}"
+    body_format: json
+    body: "{{ desired_role }}"
+    status_code: 204
+  when: current_role.status == 404 or current_role.json.data | combine(desired_role) != current_role.json.data
+  changed_when: true
+  no_log: true
