@@ -1,3 +1,4 @@
+# paused and deleteNamespace default to false; omit zero values to avoid Fleet normalization drift.
 apiVersion: fleet.cattle.io/v1alpha1
 kind: GitRepo
 metadata:
@@ -8,7 +9,6 @@ metadata:
     platform.perkforge.io/classification: protected
 spec:
   repo: https://github.com/perkforge/perkforge-tenant-nextcloud.git
-  paused: false
   targetNamespace: tenant-home-nextcloud
   serviceAccount: home-nextcloud-deployer
   keepResources: true
