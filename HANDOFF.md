@@ -71,7 +71,7 @@ Security, NetworkPolicies, deployment RBAC and Fleet registration. Source paths:
   dedicated Rancher FleetWorkspace/Policy/BundleNamespaceMapping.
 - `local-lab/fleet/bundles/nextcloud-registration/gitrepo.yaml`: workload SHA pin.
 
-One loader assembles catalog records; the renderer validates them globally. The
+One loader assembles catalog records; the legacy renderer validates them globally. The
 split retained the same parent Fleet bundle and all 20 generated resource
 identities/content at refactoring time. Do not edit generated tenant files;
 regenerate with `python3 local-lab/scripts/render-tenant-foundation.py --write`.
@@ -188,3 +188,15 @@ Do not delete the archived repo or physical/external disks. Root `ansible/` is
 for future physical hosts; `ansible/aws-lab/` is separate and has no applicable
 provision/start/teardown/budget authorization. Do not mix its inventory with the
 VM or physical environment. Follow AGENTS.md commit/push and test permissions.
+
+## Portal draft — native Fleet configuration
+
+Portal uses `local-lab/tenant-config/enrollments/home.yaml`, shared values and the existing
+Home `foundation` overrides plus separate `applications.portal` restrictions, rendered directly by Fleet from `templates/`.
+There is no Python portal generator or authored chart. The legacy foundation renderer
+and its 16 outputs are unchanged; wider Python cleanup follows successful integration.
+Portal is disabled, without an image/allocation, and its bundle is not in the live
+GitRepo paths. `KUBECONFIG=/dev/null fleet test -f enrollments/home.yaml -N local local-lab/tenant-config`
+with pinned Fleet0.16 renders nothing. Python remains useful for offline tests.
+See `docs/PORTAL-INTEGRATION.md` for lifecycle review gates and activation blockers.
+No live portal/identity/security resource was changed or activated by this draft.

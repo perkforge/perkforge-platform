@@ -1,0 +1,34 @@
+{{- $f := .Values.foundation }}
+{{- if and (ne $f.lifecycle.state "disabled") $f.components.fleetAccess }}
+apiVersion: management.cattle.io/v3
+kind: FleetWorkspace
+metadata:
+  name: {{ $f.workspace }}
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: Policy
+metadata:
+  name: tenant-repositories
+  namespace: {{ $f.workspace }}
+requireServiceAccount: true
+allowedServiceAccounts:
+{{- range $f.repositories }}
+- {{ .deployerServiceAccount }}
+{{- end }}
+gitRepo:
+  allowedRepoPatterns:
+  {{- range $f.repositories }}
+  - {{ printf "^%s$" (regexQuoteMeta .url) | quote }}
+  {{- end }}
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: BundleNamespaceMapping
+metadata:
+  name: tenant-cluster
+  namespace: {{ $f.workspace }}
+# This dedicated platform-owned workspace routes its bundles; apps need no routing labels.
+bundleSelector: {}
+namespaceSelector:
+  matchLabels:
+    kubernetes.io/metadata.name: {{ $f.clusterNamespace }}
+{{- end }}

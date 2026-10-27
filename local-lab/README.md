@@ -442,3 +442,13 @@ For Rancher, the initial username is `admin`; the bootstrap password is in `.sec
 After changing the admin password at first login, store the new password in the ignored local secrets directory with `local-lab/scripts/store-rancher-password.sh`. It prompts without displaying the password and saves it as `.secrets/rancher-admin-password` with owner-only permissions.
 
 The inventory, RHEL DVD label, RKE2 version, network ranges, and firewalld behavior are in `local-lab/ansible/`. Change them there when intentionally changing this local VM exercise. Do not copy these VM addresses or variables into the physical homelab inventory.
+
+### Household portal configuration
+
+Home's disabled portal enrollment uses shared foundation templates and platform-owned
+`foundation` values, with app-specific restrictions under `applications.portal`.
+`tenant-config/enrollments/home.yaml` loads shared defaults and Home overrides directly; no Python
+portal generation or authored chart is required. See
+[`PORTAL-INTEGRATION.md`](../docs/PORTAL-INTEGRATION.md) for the concise file walkthrough,
+offline Fleet command, lifecycle review gates and activation prerequisites. The new
+bundle is not selected by the live GitRepo; the legacy foundation is unchanged.

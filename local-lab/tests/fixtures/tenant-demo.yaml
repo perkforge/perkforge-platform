@@ -1,0 +1,45 @@
+# Synthetic tenant used only in offline reuse tests; never enrolled for deployment.
+id: tenant-demo
+displayName: Synthetic second tenant
+cluster: local
+classification: experimental
+resources:
+  budget:
+    pods: '3'
+    requests.cpu: 300m
+    requests.memory: 512Mi
+    limits.cpu: '1'
+    limits.memory: 1Gi
+    persistentvolumeclaims: '0'
+    requests.storage: '0'
+    services: '2'
+  defaults:
+    requestCpu: 25m
+    requestMemory: 64Mi
+    limitCpu: 250m
+    limitMemory: 192Mi
+environments: []
+foundation:
+  lifecycle:
+    state: active
+  workspace: fleet-tenant-demo
+  namespaces:
+    tenant-demo-web:
+      runtimeServiceAccount: demo-runtime
+      allocation:
+        pods: '3'
+        requests.cpu: 300m
+        requests.memory: 512Mi
+        limits.cpu: '1'
+        limits.memory: 1Gi
+        persistentvolumeclaims: '0'
+        requests.storage: '0'
+        services: '2'
+  repositories:
+    web:
+      name: tenant-demo-web
+      url: https://example.invalid/tenant-demo.git
+      revision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      paths: [app]
+      namespace: tenant-demo-web
+      deployerServiceAccount: demo-deployer

@@ -1,0 +1,60 @@
+name: portal-contract-offline
+on:
+  push:
+    paths: ['local-lab/**', 'docs/**', '.github/workflows/portal-contract.yml']
+  pull_request:
+    paths: ['local-lab/**', 'docs/**', '.github/workflows/portal-contract.yml']
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GOMAXPROCS: '2'
+      GOMEMLIMIT: 512MiB
+      GOFLAGS: -p=2
+      PORTAL_REVIEW_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -r local-lab/tests/portal-cel/requirements.txt
+      - name: Install pinned Fleet CLI for offline tests only
+        run: |
+          curl -fsSL --retry 3 https://github.com/rancher/fleet/releases/download/v0.16.0/fleet-linux-amd64 -o "$RUNNER_TEMP/fleet"
+          echo "167fdb1aec0f6b627e111c998ce4d83472d3e4355c891726568ef1e18c93ce77  $RUNNER_TEMP/fleet" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/fleet"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - uses: azure/setup-helm@v4.3.1
+        with:
+          version: v3.19.0
+      - name: Validate native Fleet defaults and unchanged legacy foundation
+        run: |
+          KUBECONFIG=/dev/null fleet test -f enrollments/home.yaml -N local local-lab/tenant-config > "$RUNNER_TEMP/portal-default.yaml"
+          test ! -s "$RUNNER_TEMP/portal-default.yaml"
+          python local-lab/scripts/render-tenant-foundation.py --check
+          python -m unittest discover -s local-lab/tests -v
+          python local-lab/tests/validate_portal_schemas.py
+      - name: Read tenant pin for test checkout
+        id: contract
+        run: |
+          python -c 'import yaml; print("revision=" + yaml.safe_load(open("local-lab/tenant-config/tenants/home.yaml"))["foundation"]["repositories"]["portal"]["revision"])' >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: perkforge/perkforge-tenant-portal
+          ref: ${{ steps.contract.outputs.revision }}
+          path: .inputs/tenant
+          persist-credentials: false
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: '1.27.3'
+          cache-dependency-path: local-lab/tests/portal-cel/go.sum
+      - name: Execute native Kubernetes admission CEL against actual Fleet and tenant chart output
+        env:
+          PORTAL_CHART_DIR: ${{ github.workspace }}/.inputs/tenant/bundles/portal/chart
+        working-directory: local-lab/tests/portal-cel
+        run: go test -count=1 -v ./...

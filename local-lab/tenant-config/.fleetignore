@@ -1,0 +1,6 @@
+# Values are read explicitly before resource packaging. Never apply tenant data.
+tenants
+tenants.yaml
+values.yaml
+generated
+enrollments

@@ -1,0 +1,23 @@
+{{- $f := .Values.foundation }}
+{{- if and (ne $f.lifecycle.state "disabled") $f.components.registration }}
+{{- range $key, $repo := $f.repositories }}
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: {{ $repo.name }}
+  namespace: {{ $f.workspace }}
+spec:
+  repo: {{ $repo.url | quote }}
+  revision: {{ $repo.revision | quote }}
+  paused: {{ ne $f.lifecycle.state "active" }}
+  targetNamespace: {{ $repo.namespace }}
+  serviceAccount: {{ $repo.deployerServiceAccount }}
+  keepResources: true
+  paths:
+{{ $repo.paths | toYaml | indent 2 }}
+  targets:
+  - name: {{ $.Values.cluster }}
+    clusterName: {{ $.Values.cluster }}
+{{- end }}
+{{- end }}

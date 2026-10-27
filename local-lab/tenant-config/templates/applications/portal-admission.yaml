@@ -1,0 +1,112 @@
+{{- include "portal.validate" . -}}
+{{- if and (ne .Values.foundation.lifecycle.state "disabled") .Values.applications.portal }}
+{{- $c := .Values.applications.portal }}
+{{- range $target := list "template" "pod" }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: portal-{{ $target }}-contract
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups: [{{ if eq $target "template" }}apps{{ else }}""{{ end }}]
+      apiVersions: [v1]
+      resources: {{ if eq $target "template" }}[deployments, replicasets]{{ else }}[pods, pods/ephemeralcontainers]{{ end }}
+      operations: [CREATE, UPDATE]
+    matchPolicy: Equivalent
+  matchConditions:
+  - name: portal-namespace-only
+    expression: request.namespace == {{ $c.namespace | toJson }}
+  validations:
+{{ include "portal.workloadValidations" (dict "contract" $c "pod" (ternary "object.spec.template.spec" "object.spec" (eq $target "template"))) | indent 2 }}
+{{- if eq $target "template" }}
+  - expression: >-
+      request.kind.kind != "Deployment" || (object.metadata.name == {{ $c.releaseName | toJson }} && object.spec.replicas == 1 && object.spec.strategy.type == "Recreate")
+    message: Only the single platform-reviewed portal deployment is allowed
+{{- end }}
+{{- end }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: portal-deployer-surface
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - '*'
+      apiVersions:
+      - '*'
+      resources:
+      - '*'
+      - '*/*'
+      operations:
+      - CREATE
+      - UPDATE
+      - DELETE
+      - CONNECT
+    matchPolicy: Equivalent
+  matchConditions:
+  - name: restricted-request
+    expression: >-
+      request.userInfo.username == {{ printf "system:serviceaccount:%s:%s" $.Values.foundation.fleetAgentNamespace (index $.Values.foundation.repositories $c.repository).deployerServiceAccount | toJson }}
+  validations:
+  - expression: >-
+      request.namespace == {{ $c.namespace | toJson }} &&
+      (request.resource.group == "apps" &&
+      request.resource.resource == "deployments" &&
+      request.subResource == "" || request.resource.group == "" &&
+      request.resource.resource == "services" &&
+      request.subResource == "")
+    message: Tenant deployer may mutate only Deployment and Service resources
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: portal-service-contract
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      resources:
+      - services
+      operations:
+      - CREATE
+      - UPDATE
+    matchPolicy: Equivalent
+  matchConditions:
+  - name: portal-namespace-only
+    expression: >-
+      request.namespace == {{ $c.namespace | toJson }}
+  validations:
+  - expression: >-
+      object.metadata.name == {{ $c.releaseName | toJson }} &&
+      object.spec.type == "ClusterIP" &&
+      (!has(object.spec.externalIPs) || object.spec.externalIPs.size() == 0) &&
+      !has(object.spec.externalName)
+    message: Only the internal portal ClusterIP Service is allowed
+  - expression: >-
+      object.spec.selector.size() == 1 &&
+      object.spec.selector["app.kubernetes.io/name"] == "perkforge-portal" &&
+      object.spec.ports.size() == 1 &&
+      object.spec.ports[0].port == 3000 &&
+      object.spec.ports[0].targetPort == "http"
+    message: Service must route only to the approved portal port
+{{- range $name := list "portal-template-contract" "portal-pod-contract" "portal-deployer-surface" "portal-service-contract" }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ $name }}
+spec:
+  policyName: {{ $name }}
+  validationActions: [Deny]
+{{- end }}
+{{- end }}

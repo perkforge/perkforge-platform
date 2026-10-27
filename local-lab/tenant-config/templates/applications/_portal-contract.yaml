@@ -1,0 +1,24 @@
+{{- define "portal.validate" -}}
+{{- $c := .Values.applications.portal -}}
+{{- if $c -}}
+{{- range $key, $value := $c -}}
+  {{- if not (has $key (list "namespace" "repository" "releaseName" "runtimeServiceAccount" "portalOrigin" "imageRepository" "imageDigest" "identity")) -}}{{ fail "unexpected portal runtime field" }}{{- end -}}
+{{- end -}}
+{{- if not (hasKey .Values.foundation.namespaces $c.namespace) -}}{{ fail "portal must reference an enrolled namespace" }}{{- end -}}
+{{- $ns := index .Values.foundation.namespaces $c.namespace -}}
+{{- $repo := index .Values.foundation.repositories $c.repository -}}
+{{- if or (ne $repo.namespace $c.namespace) (ne $ns.runtimeServiceAccount $c.runtimeServiceAccount) -}}{{ fail "portal runtime references must match its platform foundation" }}{{- end -}}
+{{- range $key, $value := $c.identity -}}
+  {{- if not (has $key (list "realm" "issuer" "clientId" "audience" "existingSecret" "secretKey" "requiredRole")) -}}{{ fail "unexpected identity field; credentials are forbidden" }}{{- end -}}
+{{- end -}}
+{{- range $key := list "realm" "clientId" "audience" "existingSecret" "secretKey" "requiredRole" -}}
+  {{- if not (regexMatch "^[a-z][a-z0-9-]{0,62}$" (index $c.identity $key)) -}}{{ fail (printf "invalid portal identity %s" $key) }}{{- end -}}
+{{- end -}}
+{{- if or (ne $c.identity.secretKey "client-secret") (ne $c.identity.requiredRole "tenant-reader") (eq $c.identity.clientId $c.identity.audience) -}}{{ fail "portal requires its reviewed secret key, API role and separate client/audience" }}{{- end -}}
+{{- if not (regexMatch "^https://[a-zA-Z0-9.-]+(:[0-9]+)?$" $c.portalOrigin) -}}{{ fail "portal requires an exact HTTPS origin" }}{{- end -}}
+{{- if not (regexMatch "^https://[a-zA-Z0-9.-]+(:[0-9]+)?(/[a-zA-Z0-9._~-]+)*/realms/perkforge$" $c.identity.issuer) -}}{{ fail "portal requires its reviewed HTTPS realm issuer" }}{{- end -}}
+{{- if ne .Values.foundation.lifecycle.state "disabled" -}}
+  {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" ($c.imageDigest | default "")) -}}{{ fail "portal activation requires a reviewed image digest" }}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

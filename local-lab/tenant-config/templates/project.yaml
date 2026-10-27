@@ -1,0 +1,27 @@
+{{- include "foundation.validate" . -}}
+{{- if and (ne .Values.foundation.lifecycle.state "disabled") .Values.foundation.components.project }}
+apiVersion: management.cattle.io/v3
+kind: Project
+metadata:
+  name: {{ printf "p-%s-%s" .Values.id .Values.cluster }}
+  namespace: {{ .Values.rancherManagementCluster }}
+  annotations:
+    field.cattle.io/no-creator-rbac: 'true'
+  labels:
+    platform.perkforge.io/tenant: {{ .Values.id }}
+spec:
+  clusterName: {{ .Values.cluster }}
+  displayName: {{ .Values.displayName | quote }}
+  resourceQuota:
+    limit: &limits
+      pods: {{ index .Values.resources.budget "pods" | quote }}
+      requestsCpu: {{ index .Values.resources.budget "requests.cpu" | quote }}
+      requestsMemory: {{ index .Values.resources.budget "requests.memory" | quote }}
+      limitsCpu: {{ index .Values.resources.budget "limits.cpu" | quote }}
+      limitsMemory: {{ index .Values.resources.budget "limits.memory" | quote }}
+      persistentVolumeClaims: {{ index .Values.resources.budget "persistentvolumeclaims" | quote }}
+      requestsStorage: {{ index .Values.resources.budget "requests.storage" | quote }}
+      services: {{ index .Values.resources.budget "services" | quote }}
+  namespaceDefaultResourceQuota:
+    limit: *limits
+{{- end }}

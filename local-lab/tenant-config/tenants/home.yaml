@@ -46,3 +46,43 @@ environments:
     services: '5'
 classification: protected
 application: nextcloud
+
+# Only this new namespace is enrolled in the native foundation; existing namespaces stay legacy-owned.
+foundation:
+  lifecycle:
+    state: disabled
+  components:
+    project: false
+  optOutReasons:
+    project: Home Project remains owned by the existing legacy tenant-foundation bundle
+  workspace: fleet-home-portal
+  namespaces:
+    tenant-home-portal:
+      runtimeServiceAccount: portal-runtime
+      allocation: null
+  repositories:
+    portal:
+      name: tenant-home-portal
+      url: https://github.com/perkforge/perkforge-tenant-portal.git
+      revision: e82eb8daef435580c2edd54562f681c8ecf0a3d8
+      paths:
+      - bundles/portal
+      namespace: tenant-home-portal
+      deployerServiceAccount: home-portal-deployer
+applications:
+  portal:
+    namespace: tenant-home-portal
+    repository: portal
+    releaseName: home-portal
+    runtimeServiceAccount: portal-runtime
+    portalOrigin: https://portal.local-lab.test
+    imageRepository: ghcr.io/perkforge/perkforge-portal
+    imageDigest: null
+    identity:
+      realm: perkforge
+      issuer: https://keycloak.local-lab.test/auth/realms/perkforge
+      clientId: household-portal
+      audience: household-portal-api
+      existingSecret: portal-oidc
+      secretKey: client-secret
+      requiredRole: tenant-reader
