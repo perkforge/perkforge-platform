@@ -36,7 +36,7 @@ OWNER_LABEL = "platform.perkforge.io/managed-by"
 OWNER_VALUE = "tenant-foundation"
 RANCHER_URL = "https://rancher.local-lab.test"
 RANCHER_REDIRECT_URL = f"{RANCHER_URL}/verify-auth"
-KEYCLOAK_PUBLIC_REALM = "http://keycloak.local-lab.test/auth/realms/perkforge"
+KEYCLOAK_PUBLIC_REALM = "https://keycloak.local-lab.test/auth/realms/perkforge"
 KEYCLOAK_INTERNAL_REALM = (
     "http://keycloak-keycloakx-http.keycloak.svc.cluster.local/auth/realms/perkforge"
 )

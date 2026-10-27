@@ -212,3 +212,12 @@ catalog. The pending private-pull setup references only portal-ghcr; credentials
 authenticated pull checks and activation remain separately approved operations.
 See docs/PORTAL-INTEGRATION.md for ownership, token scope and rotation. The earlier
 local preload is not the selected registry artifact.
+
+## Portal HTTPS staging (review required)
+
+The next revision prepares a paused portal foundation (100m/128Mi requests,
+500m/384Mi limits, two pods, one Service, no PVC) and increases only Home's Project
+ceiling. Nextcloud's allocation remains unchanged. Keycloak's existing bundle resumes
+one replica and advertises HTTPS; coordinate Rancher Generic OIDC with the updated
+existing scripts. See docs/PORTAL-ACTIVATION.md for controlled apply order, leaf TLS
+synchronization, private credential delivery and remaining workload activation gate.

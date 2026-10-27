@@ -1,0 +1,16 @@
+# Applied by the operator only after reviewed platform prerequisites are ready.
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: home-portal-foundation
+  namespace: fleet-local
+spec:
+  repo: https://github.com/perkforge/perkforge-platform.git
+  branch: main
+  keepResources: true
+  bundles:
+  - base: local-lab/tenant-config
+    options: enrollments/home.yaml
+  targets:
+  - name: local
+    clusterName: local

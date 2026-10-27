@@ -1,0 +1,25 @@
+# Reuse the existing namespaced lab CA. Its private key stays in cattle-system.
+# The operator copies only issued leaf TLS Secrets to their target namespaces.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: keycloak-lan
+  namespace: cattle-system
+spec:
+  secretName: keycloak-lan-issued
+  dnsNames: [keycloak.local-lab.test]
+  issuerRef:
+    name: rancher
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: portal-lan
+  namespace: cattle-system
+spec:
+  secretName: portal-lan-issued
+  dnsNames: [portal.local-lab.test]
+  issuerRef:
+    name: rancher
+    kind: Issuer

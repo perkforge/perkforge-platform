@@ -116,7 +116,9 @@ class PortalFleetTests(unittest.TestCase):
     def test_transition_review_forbids_deletion_or_disabled_after_provisioning(self):
         for previous in ('active', 'paused'):
             before = provisioned(previous)
-            for after in (home_values(), {k: v for k, v in home_values().items() if k != 'foundation'}):
+            disabled = home_values()
+            disabled['foundation']['lifecycle']['state'] = 'disabled'
+            for after in (disabled, {k: v for k, v in home_values().items() if k != 'foundation'}):
                 with self.assertRaisesRegex(ValueError, 'separate review'):
                     review_transition(before, after)
             for following in ('active', 'paused'):

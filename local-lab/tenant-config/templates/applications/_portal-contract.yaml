@@ -2,7 +2,7 @@
 {{- $c := .Values.applications.portal -}}
 {{- if $c -}}
 {{- range $key, $value := $c -}}
-  {{- if not (has $key (list "namespace" "repository" "releaseName" "runtimeServiceAccount" "portalOrigin" "imageRepository" "imageDigest" "imagePullSecret" "identity")) -}}{{ fail "unexpected portal runtime field" }}{{- end -}}
+  {{- if not (has $key (list "namespace" "repository" "releaseName" "runtimeServiceAccount" "portalOrigin" "imageRepository" "imageDigest" "imagePullSecret" "caConfigMap" "identityIngressAddress" "identity")) -}}{{ fail "unexpected portal runtime field" }}{{- end -}}
 {{- end -}}
 {{- if not (hasKey .Values.foundation.namespaces $c.namespace) -}}{{ fail "portal must reference an enrolled namespace" }}{{- end -}}
 {{- $ns := index .Values.foundation.namespaces $c.namespace -}}
@@ -23,4 +23,9 @@
   {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" ($c.imageDigest | default "")) -}}{{ fail "portal activation requires a reviewed image digest" }}{{- end -}}
 {{- end -}}
 {{- end -}}
+{{- end -}}
+
+{{- if .Values.applications.portal -}}
+{{- if ne .Values.applications.portal.caConfigMap "portal-identity-ca" -}}{{ fail "reviewed public CA ConfigMap required" }}{{- end -}}
+{{- if ne .Values.applications.portal.identityIngressAddress "10.43.163.193" -}}{{ fail "reviewed local ingress address required" }}{{- end -}}
 {{- end -}}

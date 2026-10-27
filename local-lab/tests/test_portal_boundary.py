@@ -6,11 +6,10 @@ ROOT = Path(__file__).resolve().parents[2]
 from portal_fleet_fixture import provisioned, render
 
 class PortalBoundaryTests(unittest.TestCase):
-    def test_disabled_portal_not_in_active_fleet(self):
-        for folder in ('local-lab/fleet',):
-            for path in (ROOT / folder).rglob('*.yaml'):
-                self.assertNotIn('home-portal', path.read_text(), str(path))
-
+    def test_portal_enrollment_prepares_controls_without_starting_workload(self):
+        objects = render()
+        self.assertIs(next(o for o in objects if o['kind']=='GitRepo')['spec']['paused'], True)
+        self.assertFalse(any(o['kind']=='Deployment' for o in objects))
 
     def test_deployer_has_no_security_or_cluster_mutation(self):
         objects = render(provisioned())
@@ -25,13 +24,21 @@ class PortalBoundaryTests(unittest.TestCase):
             if obj['kind'] == 'RoleBinding':
                 self.assertEqual(obj['subjects'][0]['name'], 'home-portal-deployer')
 
-    def test_network_defaults_deny_and_only_dns_allowed(self):
+    def test_network_defaults_deny_with_dns_and_exact_portal_https(self):
         objects = [o for o in render(provisioned()) if o['kind']=='NetworkPolicy']
         deny = next(o for o in objects if o['metadata']['name']=='default-deny')
-        dns = next(o for o in objects if o['metadata']['name']!='default-deny')
+        dns = next(o for o in objects if o['metadata']['name']=='allow-dns')
         self.assertEqual(set(deny['spec']['policyTypes']), {'Ingress', 'Egress'})
         self.assertNotIn('ingress', deny['spec'])
         self.assertNotIn('egress', deny['spec'])
+        portal = next(o for o in objects if o['metadata']['name']=='portal-https')['spec']
+        self.assertEqual(portal['podSelector']['matchLabels'], {'app.kubernetes.io/name': 'perkforge-portal'})
+        self.assertEqual(portal['egress'][0]['ports'], [{'protocol':'TCP','port':8443}])
+        self.assertEqual(portal['ingress'][0]['ports'], [{'protocol':'TCP','port':3000}])
+        peer = {'namespaceSelector': {'matchLabels': {'kubernetes.io/metadata.name':'kube-system'}},
+                'podSelector': {'matchLabels': {'app.kubernetes.io/name':'rke2-traefik'}}}
+        self.assertEqual(portal['egress'][0]['to'], [peer])
+        self.assertEqual(portal['ingress'][0]['from'], [peer])
         rules = dns['spec']['egress']
         self.assertEqual(len(rules), 1)
         self.assertEqual({p['port'] for p in rules[0]['ports']}, {53})

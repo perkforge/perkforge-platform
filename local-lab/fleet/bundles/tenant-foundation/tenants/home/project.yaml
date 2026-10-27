@@ -16,13 +16,13 @@ spec:
   description: PerkForge tenant project managed from the tenant catalog.
   resourceQuota:
     limit: &id001
-      pods: '6'
-      requestsCpu: 600m
-      requestsMemory: 1Gi
-      limitsCpu: '2'
-      limitsMemory: 2Gi
+      pods: '8'
+      requestsCpu: 700m
+      requestsMemory: 1152Mi
+      limitsCpu: 2500m
+      limitsMemory: 2432Mi
       persistentVolumeClaims: '3'
       requestsStorage: 6Gi
-      services: '5'
+      services: '6'
   namespaceDefaultResourceQuota:
     limit: *id001

@@ -66,6 +66,6 @@ class ReleaseStorageBoundaryTests(unittest.TestCase):
         import yaml
         root = Path(__file__).resolve().parents[2]
         home = yaml.safe_load((root/'local-lab/tenant-config/tenants/home.yaml').read_text())
-        self.assertEqual(home['foundation']['lifecycle']['state'], 'disabled')
+        self.assertEqual(home['foundation']['lifecycle']['state'], 'paused')
         self.assertEqual(home['applications']['portal']['imageDigest'], 'sha256:2e07afbb31fd462911a365893d05796090883464560478bd70179466af5b17b7')
         self.assertEqual(home['applications']['portal']['imagePullSecret'], 'portal-ghcr')
