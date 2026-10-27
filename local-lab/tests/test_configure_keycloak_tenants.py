@@ -30,11 +30,19 @@ class KeycloakTenantConfigurationTests(unittest.TestCase):
         self.assertEqual(client["attributes"]["pkce.code.challenge.method"], "S256")
         for field in ("publicClient", "implicitFlowEnabled", "directAccessGrantsEnabled", "serviceAccountsEnabled", "fullScopeAllowed"):
             self.assertIs(client[field], False)
-        groups, audience = module.portal_mappers()
+        groups, audience, roles = module.portal_mappers()
         self.assertEqual(groups["config"]["access.token.claim"], "true")
         self.assertEqual(groups["config"]["full.path"], "true")
         self.assertEqual(audience["config"]["included.custom.audience"], "household-portal-api")
         self.assertEqual(module.group_mapper()["config"]["access.token.claim"], "false")
+        self.assertEqual(roles["protocolMapper"], "oidc-usermodel-realm-role-mapper")
+        self.assertEqual(roles["config"]["claim.name"], "resource_access.household-portal-api.roles")
+        self.assertEqual(roles["config"]["multivalued"], "true")
+        self.assertEqual(roles["config"]["access.token.claim"], "true")
+        for destination in ("id.token.claim", "userinfo.token.claim", "introspection.token.claim"):
+            self.assertEqual(roles["config"][destination], "false")
+        self.assertNotIn("claim.value", roles["config"])  # Never hardcode an entitlement.
+
 
     def test_portal_refuses_unowned_existing_client_before_writes(self):
         admin = object.__new__(module.KeycloakAdmin)
