@@ -177,9 +177,8 @@ client-secret delivery, approve exact internal TLS ingress/identity egress (curr
 network policies allow DNS only), and verify admission/CNI after mutating webhooks.
 Install and verify controls before supplying secrets or allowing workloads.
 
-**Fleet Helm release-storage permissions remain blocked.** Inspection of installed
-v0.16.2 found that cleanup reads deployment identity from the serialized release.
-A Secret envelope allowlist is insufficient to authenticate that payload; no Secret
-write grants are added. See [the storage assessment](PORTAL-RELEASE-STORAGE.md) for
-source evidence, the offline counterexample, alternatives and the preloaded image.
+**Fleet Helm release-storage permissions are prepared, not activated.** The draft
+adds namespace-local create/update/delete and fail-closed portal envelope admission,
+without Secret read/list/watch. See [the storage assessment](PORTAL-RELEASE-STORAGE.md)
+for exact permissions, conditional cleanup findings, tests and activation order.
 This remains offline configuration, not a successful live portal integration.

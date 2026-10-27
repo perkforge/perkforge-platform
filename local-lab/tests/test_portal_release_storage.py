@@ -1,4 +1,4 @@
-"""Regression evidence for a rejected grant, not a release admission implementation.
+"""Release permission regression and explicit envelope-integrity limitation.
 
 Helm's storage envelope cannot attest the compressed release's Fleet identity.
 No test contacts a cluster or performs a Helm operation. Live controller behavior
@@ -48,17 +48,19 @@ class ReleaseStorageBoundaryTests(unittest.TestCase):
         # Checking the old envelope on UPDATE/DELETE does not resolve the ambiguity.
         self.assertEqual(envelope(copy.deepcopy(altered)), envelope(expected))
 
-    def test_platform_does_not_grant_release_secret_access(self):
+    def test_platform_grants_only_release_write_verbs(self):
         objects = render(provisioned())
-        roles = [o for o in objects if o['kind'] in ('Role', 'ClusterRole')]
-        self.assertTrue(roles)
-        for role in roles:
-            for rule in role.get('rules', []):
-                self.assertNotIn('secrets', rule.get('resources', []))
-                self.assertNotIn('*', rule.get('resources', []))
-        surface = next(o for o in objects if o['kind'] == 'ValidatingAdmissionPolicy'
-                       and o['metadata']['name'] == 'portal-deployer-surface')
-        self.assertNotIn('secrets', surface['spec']['validations'][0]['expression'])
+        rules = [rule for o in objects if o['kind'] == 'Role'
+                 for rule in o['rules'] if 'secrets' in rule['resources']]
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(set(rules[0]['verbs']), {'create', 'update', 'delete'})
+
+    def test_storage_opt_out_removes_secret_authority(self):
+        home = provisioned()
+        home['foundation']['repositories']['portal']['helmReleaseStorage'] = False
+        for obj in render(home):
+            if obj['kind'] == 'Role':
+                self.assertFalse(any('secrets' in rule['resources'] for rule in obj['rules']))
 
     def test_catalog_does_not_activate_or_pin_local_image(self):
         import yaml

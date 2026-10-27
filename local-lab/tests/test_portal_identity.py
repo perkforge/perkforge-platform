@@ -44,9 +44,10 @@ class PortalIdentityTests(unittest.TestCase):
             with self.subTest(key=key):
                 self.assertNotEqual(run_fleet(home).returncode, 0)
 
-    def test_rbac_only_workloads_and_named_config_read(self):
+    def test_rbac_workloads_and_write_only_release_storage(self):
         role = next(o for o in self.objects if o['kind'] == 'Role')
-        self.assertEqual({r for rule in role['rules'] for r in rule['resources']}, {'deployments', 'services'})
+        self.assertEqual({r for rule in role['rules'] for r in rule['resources']}, {'deployments', 'services', 'secrets'})
+        self.assertEqual(next(rule['verbs'] for rule in role['rules'] if rule['resources'] == ['secrets']), ['create', 'update', 'delete'])
         self.assertFalse(any(o['kind'] in ('ClusterRole', 'ClusterRoleBinding') for o in self.objects))
         for obj in self.objects:
             if obj['kind'] == 'ServiceAccount':

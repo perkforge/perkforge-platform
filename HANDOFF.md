@@ -202,7 +202,7 @@ See `docs/PORTAL-INTEGRATION.md` for lifecycle review gates and activation block
 No live portal/identity/security resource was changed or activated by this draft.
 
 Portal preparation: installed Fleet agent v0.16.2 is now the offline CLI/schema target.
-Release-storage Secret grants remain withheld: stored Helm payloads influence cleanup
-identity. See docs/PORTAL-RELEASE-STORAGE.md before proposing any write grant. The local
+Release-storage create/update/delete plus portal envelope admission are prepared only.
+See docs/PORTAL-RELEASE-STORAGE.md for activation order and the conditional cleanup finding. The local
 portal image is preloaded on both nodes, but the catalog remains disabled/unselected,
 with no image/allocation activation. No live security change accompanies this review.

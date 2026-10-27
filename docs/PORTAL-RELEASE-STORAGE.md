@@ -1,79 +1,67 @@
-# Portal release storage: activation remains blocked
+# Portal Fleet release storage
 
-The proposed Secret create/update/delete grant is **withheld**. Portal remains disabled,
-with no Secret permissions in its deployer Role. A name/type/label allowlist would protect
-ordinary credential Secret names, but is not enough to protect the deployment identity
-stored inside Helm history. This is a source-derived trust-boundary finding, not a
-claim that an exploit has been run or that the existing cluster was compromised.
+Portal remains disabled and unselected. This draft supplies the missing Helm history
+permissions using Fleet's documented tenancy model; it does not apply live RBAC.
 
-## Installed implementation
+## Reviewable permission change
 
-Read-only inspection found Fleet agent v0.16.2 (source commit
-14b1cd93eea8772b3abcf1b3786c254233ac149a). Offline CLI/schema checks now match that
-version; Kubernetes CEL/schema checks remain on the installed 1.36.5 API generation.
+The generic deployment Role supports an explicit `helmReleaseStorage` opt-in per
+repository. Home portal opts in to Secret **create, update, delete** in
+`tenant-home-portal`, alongside its existing Deployment/Service permissions.
+No Secret get/list/watch/patch, namespace creation, RBAC modification, or impersonation
+permission is added. Other tenant Roles and legacy outputs remain unchanged.
 
-- [deployer.go](https://github.com/rancher/fleet/blob/v0.16.2/internal/helmdeployer/deployer.go):
-  getCfg builds the write client using the chosen service account's impersonation.
-  createCfg always selects the Helm Secret driver; setting HELM_DRIVER is not a solution.
-- [helmcache/secret.go](https://github.com/rancher/fleet/blob/v0.16.2/internal/helmdeployer/helmcache/secret.go):
-  Get/List use the agent's cache, while Create/Update/Delete use that write client.
-  Thus storage does not justify giving the tenant deployer Secret get/list/watch.
-- [Helm 4.2.2 secrets.go](https://github.com/helm/helm/blob/v4.2.2/pkg/storage/driver/secrets.go):
-  storage uses Get/List/Create/Update/Delete and release records of type helm.sh/release.v1.
-  Its payload contains the serialized chart, annotations and manifests.
-- [delete.go](https://github.com/rancher/fleet/blob/v0.16.2/internal/helmdeployer/delete.go):
-  deleteByRelease and delete read fleet.cattle.io/service-account from stored chart
-  annotations, then call getCfg with that identity. The stored payload is therefore
-  authorization-relevant, not just an opaque revision counter.
-- [list.go](https://github.com/rancher/fleet/blob/v0.16.2/internal/helmdeployer/list.go):
-  bundle/agent association and keepResources are also read from stored chart annotations.
-  Keeping resources is not a general integrity guarantee for tenant-writable history.
+Portal's separate fail-closed `portal-deployer-surface` admission checks the exact
+request identity, namespace, resource/subresource and operation. Secret envelopes must
+have the exact home-portal revision name, matching positive version, Helm owner/name
+labels and release type, known Helm status, and only a nonempty release data key.
+Owner references and finalizers are rejected. CREATE checks the new object; UPDATE
+checks old and new objects; DELETE checks the old object. OIDC and other nonrelease
+Secrets remain denied, including attempts to convert them into release records.
+Platform operators remain responsible for protected credentials; this rule scopes the
+deployer and does not prevent a platform administrator from managing those credentials.
 
-A tenant-controlled release record can retain its allowed name, namespace, type and
-labels while changing its compressed payload. Checking oldObject on update/delete is
-necessary for envelope integrity but cannot authenticate that payload. Kubernetes CEL
-has no general gzip/Helm-release decoder. The currently proposed policy matches the
-restricted deployer identity; it must not be assumed to constrain a different identity
-selected later from history. Granting namespace-wide write verbs without solving this
-would weaken the intended boundary, even with Secret reads denied.
+RBAC cannot limit Secret create by name. Install and verify admission before granting
+the Role; never activate the grant on its own. Existing policies, runtime image/env/SA
+constraints and network restrictions remain in place. No deployed controls change on merge.
 
-`test_portal_release_storage.py` demonstrates indistinguishable envelopes with distinct
-synthetic stored identities and asserts that desired RBAC still grants no Secret access.
-This is an offline counterexample, not an executed Fleet lifecycle exploit. Existing
-native CEL cases continue rejecting deployer Secret writes. No live write/dry-run,
-credential access, impersonation probe or controller operation was performed.
+## Documented model and pinned implementation
 
-## Choices requiring review
+[Fleet Tenant Setup](https://fleet.rancher.io/how-tos-for-operators/tenant-setup)
+describes operator-owned bootstrap, workspace Policy and a downstream deployment SA
+in the agent namespace, bound to Roles in workload namespaces. Its example includes
+broad Secret permissions and asks operators to adapt them. Our narrower storage verbs
+are derived from installed Fleet v0.16.2, not an official minimum-permissions recipe.
 
-1. **Preferred: fix/verify the upstream trust boundary.** Fleet must select cleanup
-   identities from trusted platform-owned deployment state, and keep release storage
-   writes under a distinct trusted identity, or authenticate and validate stored release
-   content before using it for authorization. Test install, upgrade, rollback, drift,
-   uninstall and orphan cleanup before proposing narrower tenant permissions. A version
-   upgrade alone is not evidence of a fix. No upstream issue or patch is submitted here.
-2. **Platform-owned deployment for the initial portal.** Treat its exact reviewed chart
-   and values as platform-trusted input, using a separate platform deployment identity.
-   This changes the ownership model and requires explicit approval; do not simply remove
-   serviceAccount and fall back to the cluster-admin Fleet agent. General tenant-writable
-   charts must not inherit that authority. The current PR does not implement this option.
-3. **Dedicated validating release-storage service/webhook.** Decode and validate the
-   payload against trusted state, including historical identities/manifests and bounded
-   decompression. This introduces a new security-critical component and substantial
-   maintenance; it is not the simple initial solution and is not implemented here.
+- [Policy](https://fleet.rancher.io/reference/ref-policy): requireServiceAccount and
+  an allow-list pin initial deployments to the approved account. Tenants cannot write
+  Policy or BundleDeployment resources. Namespace creation stays disabled.
+- [v0.16.2 storage client](https://github.com/rancher/fleet/blob/v0.16.2/internal/helmdeployer/helmcache/secret.go):
+  Get/List use the agent cache; Create/Update/Delete use the impersonated deployment client.
+- [v0.16.2 deployer](https://github.com/rancher/fleet/blob/v0.16.2/internal/helmdeployer/deployer.go):
+  selects Helm Secret storage. HELM_DRIVER is not a supported workaround here.
 
-Until a choice is approved and validated, do not grant even create/update/delete to the
-portal deployer. RBAC cannot scope create by resource name, and labels are not a security
-boundary. The existing Nextcloud deployer has broader Secret permissions; it is unchanged
-and is not a model for portal permissions. Its separate security review remains necessary.
+## Conditional cleanup concern and evidence limits
 
-## Namespace creation correction
+[Cleanup source](https://github.com/rancher/fleet/blob/v0.16.2/internal/helmdeployer/delete.go)
+reads identity from serialized Helm history. Synthetic offline fixtures demonstrate
+that two identical allowed envelopes can contain different compressed identities.
+Envelope admission does **not** authenticate this payload. Neither these tests nor
+source inspection demonstrate a successful live privilege escalation in our setup.
+The exact reviewed repository pin also prevents an arbitrary unreviewed commit from
+entering the current desired deployment.
 
-Fleet 0.16.2 Policy supports allowNamespaceCreation. With requireServiceAccount true and
-allowNamespaceCreation omitted/false, the controller sets CreateNamespace false on the
-BundleDeployment. Read-only inspection confirmed this for the existing Nextcloud bundles.
-The portal policy already has those defaults. Do not add namespace-create authority or
-invent a GitRepo field. This is version-specific behavior, now covered by pinned schemas;
-it is not a portal live integration pass.
+Fleet documents multi-tenant isolation, including independent teams. Do not dismiss a
+possible boundary failure as inherently unsupported, or label this conditional finding
+an established exploit. Follow the documented operating model, verify normal operation,
+and retain this concern for separately authorized investigation. No custom storage
+service or upstream redesign is an activation prerequisite established by this evidence.
+
+Offline tests cover release permission scope, valid history lifecycle statuses and
+negative old/new object mutations using Kubernetes 1.36 CEL against Fleet 0.16.2 output.
+They do not exercise live API defaulting, webhook ordering, Helm operations or cleanup.
+After explicit approval, verify install, upgrade, rollback and cleanup, plus Policy
+and cross-namespace RBAC denial. Retain expected/actual results and exact versions.
 
 ## Local image already prepared
 

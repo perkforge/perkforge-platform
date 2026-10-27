@@ -97,6 +97,54 @@ def cases():
     for resource,group,subresource,allowed in [('deployments','apps','',True),('services','','',True),('secrets','','',False),('configmaps','','',False),('roles','rbac.authorization.k8s.io','',False),('networkpolicies','networking.k8s.io','',False),('pods','','exec',False),('deployments','apps','scale',False),('serviceaccounts','','token',False)]:
         req=copy.deepcopy(request);req['resource']={'group':group,'version':'v1','resource':resource};req['subResource']=subresource
         add('deployer-'+resource+'-'+subresource,{},allowed,'portal-deployer-surface',req)
+    from test_portal_release_storage import release_record
+    secret_request = copy.deepcopy(request)
+    secret_request['resource'] = {'group': '', 'version': 'v1', 'resource': 'secrets'}
+    secret_request['kind'] = {'group': '', 'version': 'v1', 'kind': 'Secret'}
+    record = release_record('home-portal-deployer')
+    def release_case(name, obj, old, operation, allowed, req=None):
+        req = copy.deepcopy(req or secret_request)
+        req['operation'] = operation
+        add('release-' + name, obj, allowed, 'portal-deployer-surface', req)
+        result[-1]['oldObject'] = old
+    for operation in ['CREATE', 'UPDATE', 'DELETE']:
+        release_case(operation, None if operation == 'DELETE' else record,
+                     None if operation == 'CREATE' else record, operation, True)
+    for status in ['pending-install', 'pending-upgrade', 'pending-rollback', 'superseded', 'failed', 'uninstalling', 'uninstalled']:
+        new = copy.deepcopy(record); new['metadata']['labels']['status'] = status
+        release_case(status, new, record, 'UPDATE', True)
+    changes = {
+        'oidc-name': lambda o: o['metadata'].update(name='portal-oidc'),
+        'other-release': lambda o: o['metadata'].update(name='sh.helm.release.v1.other.v1'),
+        'wrong-namespace': lambda o: o['metadata'].update(namespace='tenant-home-nextcloud'),
+        'opaque': lambda o: o.update(type='Opaque'),
+        'token-secret': lambda o: o.update(type='kubernetes.io/service-account-token'),
+        'missing-data': lambda o: o.pop('data'),
+        'extra-key': lambda o: o['data'].update(password='synthetic'),
+        'empty-payload': lambda o: o['data'].update(release=''),
+        'string-data': lambda o: o.update(stringData={'password': 'synthetic'}),
+        'owner-reference': lambda o: o['metadata'].update(ownerReferences=[{'name': 'other'}]),
+        'finalizer': lambda o: o['metadata'].update(finalizers=['example.test/block']),
+        'missing-labels': lambda o: o['metadata'].pop('labels'),
+        'wrong-owner': lambda o: o['metadata']['labels'].update(owner='other'),
+        'wrong-release-label': lambda o: o['metadata']['labels'].update(name='other'),
+        'wrong-version': lambda o: o['metadata']['labels'].update(version='2'),
+        'invalid-version': lambda o: o['metadata']['labels'].update(version='0'),
+        'invalid-status': lambda o: o['metadata']['labels'].update(status='bogus'),
+    }
+    for name, change in changes.items():
+        bad = copy.deepcopy(record); change(bad)
+        release_case(name + '-create', bad, None, 'CREATE', False)
+        release_case(name + '-new-update', bad, record, 'UPDATE', False)
+        release_case(name + '-old-update', record, bad, 'UPDATE', False)
+        release_case(name + '-delete', None, bad, 'DELETE', False)
+    for operation in ['CREATE', 'UPDATE', 'DELETE', 'CONNECT']:
+        release_case('missing-objects-' + operation, None, None, operation, False)
+    other_secret_request = copy.deepcopy(secret_request)
+    other_secret_request['namespace'] = 'tenant-home-nextcloud'
+    release_case('cross-namespace', record, None, 'CREATE', False, other_secret_request)
+    # Explicit limit: envelope admission does not authenticate the compressed content.
+    release_case('altered-payload-envelope-only', release_record('synthetic-other'), None, 'CREATE', True)
     # Evaluate the exact matchConditions as well, not a Python substitute for CEL.
     for policy in policies.values():
         for condition in policy['spec']['matchConditions']:

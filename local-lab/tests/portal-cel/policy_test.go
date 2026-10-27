@@ -20,6 +20,7 @@ func (e expression) ReturnTypes() []*cel.Type { return []*cel.Type{cel.BoolType}
 type scenario struct {
 	Name        string         `json:"name"`
 	Expressions []string       `json:"expressions"`
+	OldObject   map[string]any `json:"oldObject"`
 	Object      map[string]any `json:"object"`
 	Request     map[string]any `json:"request"`
 	Allowed     bool           `json:"allowed"`
@@ -52,7 +53,14 @@ func TestGeneratedPoliciesWithKubernetesCEL(t *testing.T) {
 					program = result.Program
 					programs[source] = program
 				}
-				result, _, evalErr := program.ContextEval(context.Background(), map[string]any{"object": tc.Object, "oldObject": nil, "request": tc.Request, "namespaceObject": nil})
+				var object, oldObject any
+				if tc.Object != nil {
+					object = tc.Object
+				}
+				if tc.OldObject != nil {
+					oldObject = tc.OldObject
+				}
+				result, _, evalErr := program.ContextEval(context.Background(), map[string]any{"object": object, "oldObject": oldObject, "request": tc.Request, "namespaceObject": nil})
 				if evalErr != nil || result.Value() != true {
 					allowed = false
 				}
