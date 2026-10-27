@@ -50,9 +50,9 @@ The YAML uses normal Helm expressions inside Fleet's native `templates/` directo
 plain YAML elsewhere does not automatically consume values. This does not introduce
 a chart/library for the operator to maintain.
 
-Fleet v0.16's [renderer](https://github.com/rancher/fleet/blob/v0.16.0/internal/helmdeployer/render/helm.go)
+Fleet v0.16's [renderer](https://github.com/rancher/fleet/blob/v0.16.2/internal/helmdeployer/render/helm.go)
 handles `templates/*.yaml` and supplies its internal chart. Its
-[values loader](https://github.com/rancher/fleet/blob/v0.16.0/internal/bundlereader/resources.go)
+[values loader](https://github.com/rancher/fleet/blob/v0.16.2/internal/bundlereader/resources.go)
 loads target-customization values files without an authored chart. This is why
 `valuesFiles` is explicitly under the local target, rather than the top-level Helm
 block (whose values-file loading in this version is conditional on chart/repo settings).
@@ -135,7 +135,7 @@ or Keycloak administrative capability is granted.
 
 ## Offline checks, without deployment
 
-Use the checksum-pinned Fleet v0.16.0 CLI from `.github/workflows/portal-contract.yml`:
+Use the checksum-pinned Fleet v0.16.2 CLI from `.github/workflows/portal-contract.yml`:
 
 ```sh
 KUBECONFIG=/dev/null fleet test -f enrollments/home.yaml -N local local-lab/tenant-config
@@ -177,8 +177,9 @@ client-secret delivery, approve exact internal TLS ingress/identity egress (curr
 network policies allow DNS only), and verify admission/CNI after mutating webhooks.
 Install and verify controls before supplying secrets or allowing workloads.
 
-**Fleet Helm release-Secret storage remains unresolved.** Fleet uses the configured
-deployment identity for Helm operations. No broad Secret permissions
-were added to make installation succeed. Resolve and verify least-privilege release
-storage/impersonation before activating the child tenant GitRepo. This draft is tested
-offline configuration, not a claim of successful live integration.
+**Fleet Helm release-storage permissions remain blocked.** Inspection of installed
+v0.16.2 found that cleanup reads deployment identity from the serialized release.
+A Secret envelope allowlist is insufficient to authenticate that payload; no Secret
+write grants are added. See [the storage assessment](PORTAL-RELEASE-STORAGE.md) for
+source evidence, the offline counterexample, alternatives and the preloaded image.
+This remains offline configuration, not a successful live portal integration.

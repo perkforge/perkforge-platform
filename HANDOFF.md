@@ -200,3 +200,9 @@ GitRepo paths. `KUBECONFIG=/dev/null fleet test -f enrollments/home.yaml -N loca
 with pinned Fleet0.16 renders nothing. Python remains useful for offline tests.
 See `docs/PORTAL-INTEGRATION.md` for lifecycle review gates and activation blockers.
 No live portal/identity/security resource was changed or activated by this draft.
+
+Portal preparation: installed Fleet agent v0.16.2 is now the offline CLI/schema target.
+Release-storage Secret grants remain withheld: stored Helm payloads influence cleanup
+identity. See docs/PORTAL-RELEASE-STORAGE.md before proposing any write grant. The local
+portal image is preloaded on both nodes, but the catalog remains disabled/unselected,
+with no image/allocation activation. No live security change accompanies this review.
