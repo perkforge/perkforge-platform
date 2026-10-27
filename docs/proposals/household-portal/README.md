@@ -16,12 +16,12 @@ fresh capacity. Do not hand-edit generated tenant-foundation resources. Run
 suite. The paused Keycloak and memory pressure remain deployment blockers.
 
 Fleet should follow the existing scoped workspace model: `fleet-home-portal`,
-Policy restricting the exact portal repository, `allowNamespaceCreation: false`,
+Policy restricting the exact `perkforge-tenant-portal` repository, `allowNamespaceCreation: false`,
 required `home-portal-deployer`, and a mapping limited to fleet-local/local with
 both Home and portal labels. The workload GitRepo must use reviewed immutable SHA,
 `keepResources: true`, `targetNamespace: tenant-home-portal`, and be paused until
 activation is separately authorized. No registration is added now: there is not
-yet an approved workload bundle or image to point to.
+yet an approved tenant commit/image or resolved Helm release-storage boundary.
 
 `rbac.yaml.example` is a proposed deployer boundary only. The runtime account has
 no RoleBinding and must disable automount. Do not grant Secret reads to the app
@@ -33,8 +33,8 @@ PVC/CRD authority, wildcard verbs, or ClusterRoleBinding is proposed.
 `networkpolicy.yaml.example` defaults to deny both directions, allowing DNS only.
 It deliberately does not yet allow ingress or identity: approved TLS proxy and
 Keycloak endpoint routing are unresolved. No broad namespace egress, API server,
-GitLab or Internet allowance is proposed. The app uses a loopback listener and
-needs a reviewed same-pod HTTPS proxy topology. Future NetworkPolicy allowances
+GitLab or Internet allowance is proposed. The app defaults to loopback locally; the inactive tenant chart explicitly selects
+pod networking and needs a reviewed internal HTTPS ingress topology. Future NetworkPolicy allowances
 must use verified namespace AND pod selectors and exact ports; validate actual
 CNI enforcement rather than inferring it from rendered YAML.
 
@@ -47,3 +47,17 @@ Approval sequence: capacity → tenant quota/lifecycle review → image/config a
 TLS topology → exact OIDC audience/role/group mapping → scoped Fleet registration
 and network enforcement tests → explicit deployment. Backup/recovery and protected
 lifecycle safeguards must be considered before introducing persistent portal data.
+
+## Three repositories
+
+Application source/tests/image build: `perkforge/perkforge-portal`. Tenant Helm/Fleet
+bundle and app configuration: `perkforge/perkforge-tenant-portal`, path
+`bundles/portal`. Platform foundations/security and registration stay here.
+The tenant chart renders no objects by default (`enabled: false`) and only a
+Deployment/ClusterIP Service when explicitly configured. It cannot own RBAC,
+service accounts or NetworkPolicy. See [tenant boundary plan](../../TENANT-REPOSITORY-BOUNDARY.md).
+
+The example `fleet.yaml.example` is paused, outside active paths, and deliberately
+has an unresolved revision. It is review material, not ready for application.
+The no-Secret deployer boundary has an unresolved Fleet/Helm release-storage
+compatibility gate; do not add broad Secret rights as a workaround.

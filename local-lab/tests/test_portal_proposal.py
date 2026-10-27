@@ -35,3 +35,15 @@ class PortalProposalTests(unittest.TestCase):
         self.assertEqual(len(rules), 1)
         self.assertEqual({p['port'] for p in rules[0]['ports']}, {53})
         self.assertEqual(set(rules[0]['to'][0]), {'namespaceSelector', 'podSelector'})
+
+    def test_fleet_proposal_targets_only_tenant_repo_and_is_paused(self):
+        objects = list(yaml.safe_load_all((PROPOSAL / 'fleet.yaml.example').read_text()))
+        repo = next(o for o in objects if o['kind'] == 'GitRepo')['spec']
+        self.assertEqual(repo['repo'], 'https://github.com/perkforge/perkforge-tenant-portal.git')
+        self.assertIs(repo['paused'], True)
+        self.assertEqual(repo['paths'], ['bundles/portal'])
+        self.assertEqual(repo['serviceAccount'], 'home-portal-deployer')
+        policy = next(o for o in objects if o['kind'] == 'Policy')
+        self.assertIs(policy['allowNamespaceCreation'], False)
+        self.assertIs(policy['requireServiceAccount'], True)
+        self.assertEqual(policy['allowedServiceAccounts'], ['home-portal-deployer'])
