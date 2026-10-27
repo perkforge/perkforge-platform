@@ -71,10 +71,7 @@ Security, NetworkPolicies, deployment RBAC and Fleet registration. Source paths:
   dedicated Rancher FleetWorkspace/Policy/BundleNamespaceMapping.
 - `local-lab/fleet/bundles/nextcloud-registration/gitrepo.yaml`: workload SHA pin.
 
-One loader assembles catalog records; the renderer validates them globally.
-Shared Helm/YAML templates now own resource definitions under
-`local-lab/templates/tenant-foundation/`; Helm 3.19 is needed for offline checks.
-The Python entry point retains budget/lifecycle validation and safe output writing. The
+One loader assembles catalog records; the legacy renderer validates them globally. The
 split retained the same parent Fleet bundle and all 20 generated resource
 identities/content at refactoring time. Do not edit generated tenant files;
 regenerate with `python3 local-lab/scripts/render-tenant-foundation.py --write`.
@@ -192,13 +189,14 @@ for future physical hosts; `ansible/aws-lab/` is separate and has no applicable
 provision/start/teardown/budget authorization. Do not mix its inventory with the
 VM or physical environment. Follow AGENTS.md commit/push and test permissions.
 
-## Portal draft — offline catalog integration
+## Portal draft — native Fleet configuration
 
-Platform draft MR #2 now defines portal under `applications.portal` in Home's
-`local-lab/tenant-config/tenants/home.yaml`; it is not a separate tenant. Its state
-is disabled, with no approved image or namespace allocation. The existing
-`render-tenant-foundation.py` owns validation, active output and explicit
-`--preview-application home/portal` review artifacts. Default current rendering
-leaves all existing generated files unchanged. Paused retains resources; writers
-refuse implicit application pruning. See `docs/PORTAL-INTEGRATION.md`.
+Portal uses `local-lab/tenant-config/fleet.yaml`, shared values and the existing
+Home `applications.portal` overrides, rendered directly by Fleet from `templates/`.
+There is no Python portal generator or authored chart. The legacy foundation renderer
+and its 16 outputs are unchanged; wider Python cleanup follows successful integration.
+Portal is disabled, without an image/allocation, and its bundle is not in the live
+GitRepo paths. `KUBECONFIG=/dev/null fleet test -N local local-lab/tenant-config`
+with pinned Fleet0.16 renders nothing. Python remains useful for offline tests.
+See `docs/PORTAL-INTEGRATION.md` for lifecycle review gates and activation blockers.
 No live portal/identity/security resource was changed or activated by this draft.

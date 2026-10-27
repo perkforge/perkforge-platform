@@ -68,9 +68,7 @@ The synthetic tenant foundation is managed by the existing Fleet bundle at
 and explicit `tenantFiles` references. Edit the individual tenant files under
 `local-lab/tenant-config/tenants/`; validate or render before changing the
 applied manifests. The renderer and tests use the pinned dependency in
-`local-lab/requirements.txt` (PyYAML 6.0.2), plus Helm 3.19 for offline rendering.
-Shared declarative resources live in `local-lab/templates/tenant-foundation/`;
-Python retains validation and safe file writing. No Helm install is performed.
+`local-lab/requirements.txt` (PyYAML 6.0.2).
 
 ```sh
 python3 local-lab/scripts/render-tenant-foundation.py --check
@@ -445,10 +443,11 @@ After changing the admin password at first login, store the new password in the 
 
 The inventory, RHEL DVD label, RKE2 version, network ranges, and firewalld behavior are in `local-lab/ansible/`. Change them there when intentionally changing this local VM exercise. Do not copy these VM addresses or variables into the physical homelab inventory.
 
-### Household application catalog
+### Household portal configuration
 
 Home's disabled portal is an `applications.portal` entry in its existing tenant
-record, rendered through the same foundation command. See
-[`PORTAL-INTEGRATION.md`](../docs/PORTAL-INTEGRATION.md) for identity wiring,
-offline previews, preservation-oriented lifecycle and activation gates. No new
-portal objects enter the active bundle while the application is disabled.
+record. Native Fleet reads shared values and Home overrides directly; no Python
+portal generation or authored chart is required. See
+[`PORTAL-INTEGRATION.md`](../docs/PORTAL-INTEGRATION.md) for the concise file walkthrough,
+offline Fleet command, lifecycle review gates and activation prerequisites. The new
+bundle is not selected by the live GitRepo; the legacy foundation is unchanged.

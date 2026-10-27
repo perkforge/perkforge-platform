@@ -1,0 +1,47 @@
+{{- $c := .Values.applications.portal }}
+{{- if ne $c.lifecycle.state "disabled" }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $c.namespace }}
+  labels:
+    platform.perkforge.io/tenant: {{ .Values.id }}
+    platform.perkforge.io/application: portal
+    platform.perkforge.io/classification: protected
+    {{- range $cluster := .Values.clusters }}
+    {{- if eq $cluster.name $.Values.cluster }}
+    {{- range $mode := list "enforce" "audit" "warn" }}
+    pod-security.kubernetes.io/{{ $mode }}: restricted
+    pod-security.kubernetes.io/{{ $mode }}-version: {{ $cluster.podSecurityVersion }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+  annotations:
+    field.cattle.io/projectId: {{ printf "%s:p-%s-%s" .Values.cluster .Values.id .Values.cluster | quote }}
+    # Rancher API field order prevents harmless quota annotation drift.
+    field.cattle.io/resourceQuota: '{"limit":{"pods":{{ index $c.resources.allocation "pods" | quote }},"services":{{ index $c.resources.allocation "services" | quote }},"persistentVolumeClaims":{{ index $c.resources.allocation "persistentvolumeclaims" | quote }},"requestsCpu":{{ index $c.resources.allocation "requests.cpu" | quote }},"requestsMemory":{{ index $c.resources.allocation "requests.memory" | quote }},"requestsStorage":{{ index $c.resources.allocation "requests.storage" | quote }},"limitsCpu":{{ index $c.resources.allocation "limits.cpu" | quote }},"limitsMemory":{{ index $c.resources.allocation "limits.memory" | quote }}}}'
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tenant-budget
+  namespace: {{ $c.namespace }}
+spec:
+  hard:
+{{ $c.resources.allocation | toYaml | indent 4 }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: tenant-defaults
+  namespace: {{ $c.namespace }}
+spec:
+  limits:
+  - type: Container
+    defaultRequest:
+      cpu: {{ .Values.resources.defaults.requestCpu | quote }}
+      memory: {{ .Values.resources.defaults.requestMemory | quote }}
+    default:
+      cpu: {{ .Values.resources.defaults.limitCpu | quote }}
+      memory: {{ .Values.resources.defaults.limitMemory | quote }}
+{{- end }}

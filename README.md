@@ -42,11 +42,10 @@ records reviewed transitions; its human review workflow, security limits, and
 usage are documented in
 [`docs/SECURITY-FINDINGS-WORKFLOW.md`](docs/SECURITY-FINDINGS-WORKFLOW.md),
 with a record skeleton at `docs/templates/security-finding.yaml`.
-The catalog-owned [Home portal integration](docs/PORTAL-INTEGRATION.md) supplies
-platform-owned identity configuration and tested admission controls from the existing
-tenant catalog and shared Helm/YAML templates. Python retains catalog validation
-and safe output writing. The new application is disabled, preserving all active outputs and live credentials. It includes explicit image, TLS and deployment
-approval gates.
+The [Home portal integration](docs/PORTAL-INTEGRATION.md) supplies platform-owned
+identity and security controls through native Fleet YAML templates, shared values and
+Home overrides. The new portal path requires no Python generator or authored Helm chart.
+It remains disabled and unregistered; existing legacy tenant configuration is unchanged.
 
 The remaining Phase 6 recommendations and decisions to review are collected in
 [`docs/PHASE-6-REVIEW.md`](docs/PHASE-6-REVIEW.md).

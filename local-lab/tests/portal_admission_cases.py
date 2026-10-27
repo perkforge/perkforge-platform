@@ -1,24 +1,19 @@
 """Independent mutation cases against Helm-rendered tenant commit ecafe09 (test digest only)."""
 import copy
-import importlib.util
 import json
 import os
 import subprocess
 from pathlib import Path
 import yaml
 ROOT = Path(__file__).resolve().parents[2]
-import sys
-sys.path.insert(0, str(ROOT/'local-lab/scripts'))
-spec = importlib.util.spec_from_file_location('portal_identity', ROOT/'local-lab/scripts/portal_application.py')
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
+from portal_fleet_fixture import provisioned, portal_values, render as render_platform, helm_values
 
 
 def cases():
-    c = module.load_contract()
-    baseline = copy.deepcopy(c)
-    c['imageDigest'] = 'sha256:' + 'a'*64  # synthetic; never written to the desired contract
-    policies = {o['metadata']['name']: o for o in module.admission(c) if o['kind']=='ValidatingAdmissionPolicy'}
+    home = provisioned('active')
+    c = portal_values(home)
+    platform = render_platform(home)
+    policies = {o['metadata']['name']: o for o in platform if o['kind']=='ValidatingAdmissionPolicy'}
     objects = json.loads((ROOT/'local-lab/tests/fixtures/portal/workload.json').read_text())
     deployment = next(o for o in objects if o['kind']=='Deployment')
     service = next(o for o in objects if o['kind']=='Service')
@@ -35,8 +30,8 @@ def cases():
         def render(*overrides):
             output = subprocess.check_output([os.environ.get('HELM','helm'), 'template', 'home-portal', chart,
                 '--namespace', c['namespace'], '--kube-version', '1.36.5',
-                '-f', str(module.PREVIEW/'helm-values.yaml'),
-                '--set', 'enabled=true', '--set', 'image.digest='+c['imageDigest'], *overrides], text=True)
+                '-f', '-',
+                '--set', 'enabled=true', '--set', 'image.digest='+c['imageDigest'], *overrides], text=True, input=yaml.safe_dump(helm_values(platform)))
             return list(yaml.safe_load_all(output))
         rendered=render()
         if rendered != objects:
@@ -109,8 +104,6 @@ def cases():
     other=copy.deepcopy(request);other['namespace']='tenant-home-nextcloud'
     add('deployer-cannot-write-other-namespace',{},False,'portal-deployer-surface',other)
     result.append({'name':'other-namespace-not-selected','object':deployment,'request':other,'expressions':[policies['portal-template-contract']['spec']['matchConditions'][0]['expression']],'allowed':False})
-    baseline_policy=next(o for o in module.admission(baseline) if o['kind']=='ValidatingAdmissionPolicy')
-    result.append({'name':'unapproved-image-contract-denies-even-fixture','object':deployment,'request':request,'expressions':[v['expression'] for v in baseline_policy['spec']['validations']],'allowed':False})
     return result
 
 if __name__=='__main__':

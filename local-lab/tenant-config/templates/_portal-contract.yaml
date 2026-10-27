@@ -1,0 +1,49 @@
+{{- define "portal.validate" -}}
+{{- $c := .Values.applications.portal -}}
+{{- if not (has $c.lifecycle.state (list "disabled" "active" "paused")) -}}
+  {{- fail "portal lifecycle must be disabled, active or paused; decommission requires separate review" -}}
+{{- end -}}
+{{- if or (ne .Values.id "home") (ne .Values.cluster "local") (ne .Values.classification "protected") -}}
+  {{- fail "portal belongs to the protected Home tenant on local" -}}
+{{- end -}}
+{{- range $key, $expected := dict "namespace" "tenant-home-portal" "runtimeServiceAccount" "portal-runtime" "deployerServiceAccount" "home-portal-deployer" "fleetAgentNamespace" "cattle-fleet-local-system" "imageRepository" "ghcr.io/perkforge/perkforge-portal" -}}
+  {{- if ne (index $c $key) $expected -}}{{- fail (printf "portal %s must retain its reviewed platform scope" $key) -}}{{- end -}}
+{{- end -}}
+{{- range $key, $value := $c -}}
+  {{- if not (has $key (list "lifecycle" "namespace" "runtimeServiceAccount" "deployerServiceAccount" "fleetAgentNamespace" "portalOrigin" "identity" "tenantRevision" "imageRepository" "imageDigest" "resources")) -}}
+    {{- fail (printf "unexpected portal field: %s" $key) -}}
+  {{- end -}}
+{{- end -}}
+{{- range $key, $value := $c.identity -}}
+  {{- if not (has $key (list "realm" "issuer" "clientId" "audience" "existingSecret" "secretKey" "requiredRole")) -}}
+    {{- fail "unexpected portal identity field; credentials and independent group overrides are forbidden" -}}
+  {{- end -}}
+{{- end -}}
+{{- range $key := list "realm" "clientId" "audience" "existingSecret" "secretKey" "requiredRole" -}}
+  {{- if not (regexMatch "^[a-z][a-z0-9-]{0,62}$" (index $c.identity $key)) -}}{{- fail (printf "invalid portal identity %s" $key) -}}{{- end -}}
+{{- end -}}
+{{- if or (ne $c.identity.realm "perkforge") (ne $c.identity.secretKey "client-secret") (ne $c.identity.requiredRole "tenant-reader") (eq $c.identity.clientId $c.identity.audience) -}}
+  {{- fail "portal requires the reviewed realm, secret key, role and separate client/audience" -}}
+{{- end -}}
+{{- if not (regexMatch "^https://[a-zA-Z0-9.-]+(:[0-9]+)?$" $c.portalOrigin) -}}{{- fail "portal requires an exact HTTPS origin" -}}{{- end -}}
+{{- if not (regexMatch "^https://[a-zA-Z0-9.-]+(:[0-9]+)?(/[a-zA-Z0-9._~-]+)*/realms/perkforge$" $c.identity.issuer) -}}{{- fail "portal requires an exact HTTPS realm issuer" -}}{{- end -}}
+{{- if not (regexMatch "^[a-f0-9]{40}$" $c.tenantRevision) -}}{{- fail "portal tenant revision must be an immutable commit" -}}{{- end -}}
+{{- range $role := list "admins" "developers" "viewers" -}}
+  {{- if ne (index $.Values.identity.groups $role) (printf "/tenants/home/%s" $role) -}}{{- fail "portal inherits existing Home groups" -}}{{- end -}}
+{{- end -}}
+{{- $version := "" -}}
+{{- range .Values.clusters -}}{{- if eq .name $.Values.cluster -}}{{- $version = .podSecurityVersion -}}{{- end -}}{{- end -}}
+{{- if ne $version "v1.36" -}}{{- fail "portal admission targets reviewed Kubernetes v1.36" -}}{{- end -}}
+{{- range .Values.environments -}}
+  {{- if eq .namespace $c.namespace -}}{{- fail "portal namespace must not also be owned by the legacy foundation" -}}{{- end -}}
+{{- end -}}
+{{- if eq $c.lifecycle.state "disabled" -}}
+  {{- if $c.resources.allocation -}}{{- fail "disabled portal must not have an allocation; retain provisioned apps as paused" -}}{{- end -}}
+{{- else -}}
+  {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" ($c.imageDigest | default "")) -}}{{- fail "active/paused portal requires a reviewed image digest" -}}{{- end -}}
+  {{- if not $c.resources.allocation -}}{{- fail "active/paused portal requires an explicit reviewed allocation" -}}{{- end -}}
+  {{- range $key := list "pods" "requests.cpu" "requests.memory" "limits.cpu" "limits.memory" "persistentvolumeclaims" "requests.storage" "services" -}}
+    {{- if not (hasKey $c.resources.allocation $key) -}}{{- fail (printf "missing portal allocation %s" $key) -}}{{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}

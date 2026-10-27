@@ -20,7 +20,8 @@ def normalize(schema):
         for value in schema: normalize(value)
 normalize(native)
 normalize(fleet)
-objects=list(yaml.safe_load_all((ROOT/'local-lab/tenant-config/generated/home/portal/resources.yaml').read_text()))
+from portal_fleet_fixture import provisioned, render
+objects=render(provisioned())
 count=0
 for obj in objects:
     if obj['kind']=='FleetWorkspace':

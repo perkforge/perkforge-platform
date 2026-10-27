@@ -3,17 +3,17 @@ from pathlib import Path
 import unittest
 import yaml
 ROOT = Path(__file__).resolve().parents[2]
-CONTROLS = ROOT / 'local-lab/templates/tenant-foundation/files/portal'
+from portal_fleet_fixture import provisioned, render
 
 class PortalBoundaryTests(unittest.TestCase):
     def test_disabled_portal_not_in_active_fleet(self):
         for folder in ('local-lab/fleet',):
             for path in (ROOT / folder).rglob('*.yaml'):
                 self.assertNotIn('home-portal', path.read_text(), str(path))
-        self.assertFalse((CONTROLS / 'fleet.yaml').exists())
+
 
     def test_deployer_has_no_security_or_cluster_mutation(self):
-        objects = list(yaml.safe_load_all((CONTROLS / 'rbac.yaml').read_text()))
+        objects = render(provisioned())
         self.assertFalse(any(o['kind'] in ('ClusterRole', 'ClusterRoleBinding') for o in objects))
         for obj in objects:
             if obj['kind'] == 'ServiceAccount':
@@ -26,8 +26,9 @@ class PortalBoundaryTests(unittest.TestCase):
                 self.assertEqual(obj['subjects'][0]['name'], 'home-portal-deployer')
 
     def test_network_defaults_deny_and_only_dns_allowed(self):
-        objects = list(yaml.safe_load_all((CONTROLS / 'networkpolicy.yaml').read_text()))
-        deny, dns = objects
+        objects = [o for o in render(provisioned()) if o['kind']=='NetworkPolicy']
+        deny = next(o for o in objects if o['metadata']['name']=='default-deny')
+        dns = next(o for o in objects if o['metadata']['name']!='default-deny')
         self.assertEqual(set(deny['spec']['policyTypes']), {'Ingress', 'Egress'})
         self.assertNotIn('ingress', deny['spec'])
         self.assertNotIn('egress', deny['spec'])
@@ -37,7 +38,7 @@ class PortalBoundaryTests(unittest.TestCase):
         self.assertEqual(set(rules[0]['to'][0]), {'namespaceSelector', 'podSelector'})
 
     def test_fleet_registration_targets_only_tenant_repo_and_is_paused(self):
-        objects = list(yaml.safe_load_all((ROOT / 'local-lab/tenant-config/generated/home/portal/resources.yaml').read_text()))
+        objects = render(provisioned())
         repo = next(o for o in objects if o['kind'] == 'GitRepo')['spec']
         self.assertEqual(repo['repo'], 'https://github.com/perkforge/perkforge-tenant-portal.git')
         self.assertIs(repo['paused'], True)

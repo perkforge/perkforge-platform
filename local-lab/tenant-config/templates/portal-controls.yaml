@@ -1,0 +1,134 @@
+{{- $c := .Values.applications.portal }}
+{{- if ne $c.lifecycle.state "disabled" }}
+# Platform-owned controls; tenant repositories cannot create or edit these.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: home-portal-deployer
+  namespace: cattle-fleet-local-system
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: portal-runtime
+  namespace: tenant-home-portal
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: portal-deploy
+  namespace: tenant-home-portal
+rules:
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ''
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  resourceNames:
+  - portal-platform-values
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: portal-deploy
+  namespace: tenant-home-portal
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: portal-deploy
+subjects:
+- kind: ServiceAccount
+  name: home-portal-deployer
+  namespace: cattle-fleet-local-system
+---
+# INACTIVE proposal. Ingress and OIDC remain blocked pending endpoint review.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: tenant-home-portal
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: tenant-home-portal
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: perkforge-portal
+  policyTypes: [Egress]
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - {protocol: UDP, port: 53}
+    - {protocol: TCP, port: 53}
+---
+# Platform workspace controls. Registration uses the immutable Home tenant pin.
+apiVersion: management.cattle.io/v3
+kind: FleetWorkspace
+metadata:
+  name: fleet-home-portal
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: Policy
+metadata:
+  name: portal-only
+  namespace: fleet-home-portal
+requireServiceAccount: true
+allowedServiceAccounts:
+- home-portal-deployer
+gitRepo:
+  allowedRepoPatterns:
+  - ^https://github[.]com/perkforge/perkforge-tenant-portal[.]git$
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: BundleNamespaceMapping
+metadata:
+  name: portal-to-local
+  namespace: fleet-home-portal
+bundleSelector:
+  matchLabels:
+    platform.perkforge.io/tenant: home
+    platform.perkforge.io/application: portal
+namespaceSelector:
+  matchLabels:
+    kubernetes.io/metadata.name: fleet-local
+
+{{- end }}

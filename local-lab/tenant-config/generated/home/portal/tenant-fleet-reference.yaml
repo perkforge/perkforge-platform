@@ -1,6 +1,0 @@
-helm:
-  valuesFrom:
-  - configMapKeyRef:
-      name: portal-platform-values
-      namespace: tenant-home-portal
-      key: values.yaml

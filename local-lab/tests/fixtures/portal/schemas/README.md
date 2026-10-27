@@ -4,6 +4,9 @@ Kubernetes v1.36.5 definitions used by generated portal resources were extracted
 without modification from `api/openapi-spec/swagger.json` at:
 https://github.com/kubernetes/kubernetes/blob/v1.36.5/api/openapi-spec/swagger.json
 
+The native Fleet revision also includes Namespace, ResourceQuota and LimitRange
+and their reachable definitions from that same Kubernetes source.
+
 Fleet v0.16.0 GitRepo, Policy and BundleNamespaceMapping schemas were extracted
 without modification from:
 https://github.com/rancher/fleet/blob/v0.16.0/charts/fleet-crd/templates/crds.yaml

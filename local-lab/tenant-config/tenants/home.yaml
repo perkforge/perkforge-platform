@@ -47,24 +47,18 @@ environments:
 classification: protected
 application: nextcloud
 
-# Household application; no allocation or deployment until separately reviewed.
+# Fleet-native portal values, layered over ../values.yaml and ../tenants.yaml.
+# No namespace allocation or deployment until separately reviewed.
 applications:
   portal:
     lifecycle:
       state: disabled
     namespace: tenant-home-portal
-    runtimeServiceAccount: portal-runtime
     deployerServiceAccount: home-portal-deployer
-    fleetAgentNamespace: cattle-fleet-local-system
     portalOrigin: https://portal.local-lab.test
     identity:
-      realm: perkforge
       issuer: https://keycloak.local-lab.test/auth/realms/perkforge
       clientId: household-portal
       audience: household-portal-api
       existingSecret: portal-oidc
-      secretKey: client-secret
-      requiredRole: tenant-reader
     tenantRevision: ecafe09a497e971a4a4af04a331d837e4e1a146a
-    imageRepository: ghcr.io/perkforge/perkforge-portal
-    imageDigest: null

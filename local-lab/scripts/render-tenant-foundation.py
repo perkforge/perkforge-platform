@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from decimal import Decimal, InvalidOperation
@@ -12,8 +13,6 @@ from pathlib import Path
 import yaml
 
 from tenant_catalog import load_catalog
-import portal_application
-import tenant_templates
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CATALOG = ROOT / "local-lab/tenant-config/tenants.yaml"
@@ -145,14 +144,212 @@ def validate_catalog(catalog: dict) -> list[dict]:
         for key in ("metrics", "costAllocation"):
             if not isinstance(tenant.get("observability", {}).get(key), bool):
                 fail(f"{tenant_id}: observability.{key} must be boolean")
-    portal_application.validate_applications(catalog)
     return tenants
 
 
 def render(catalog: dict) -> str:
-    validate_catalog(catalog)
-    documents = tenant_templates.render('foundation', catalog=catalog)
-    documents.extend(portal_application.active_resources(catalog))
+    tenants = validate_catalog(catalog)
+    cluster_versions = {row["name"]: row["podSecurityVersion"] for row in catalog["clusters"]}
+    documents = []
+    roles = {
+        "perkforge-tenant-admin": {
+            "displayName": "PerkForge Tenant Administrator",
+            "description": "Manage tenant workloads and tenant-owned secrets without administering cluster or tenant security.",
+            "rules": [
+                {"apiGroups": [""], "resources": ["pods"], "verbs": ["get", "list", "watch", "delete"]},
+                {"apiGroups": [""], "resources": ["pods/log", "events"], "verbs": ["get", "list", "watch"]},
+                {"apiGroups": [""], "resources": ["services", "endpoints", "configmaps", "secrets", "persistentvolumeclaims"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]},
+                {"apiGroups": ["apps"], "resources": ["deployments", "replicasets", "statefulsets"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]},
+                {"apiGroups": ["batch"], "resources": ["jobs", "cronjobs"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]},
+                {"apiGroups": ["networking.k8s.io"], "resources": ["ingresses"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]},
+                {"apiGroups": ["autoscaling"], "resources": ["horizontalpodautoscalers"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]},
+                {"apiGroups": ["metrics.k8s.io"], "resources": ["pods"], "verbs": ["get", "list"]},
+            ],
+        },
+        "perkforge-tenant-developer": {
+            "displayName": "PerkForge Tenant Developer",
+            "description": "Deploy and troubleshoot tenant workloads without reading secrets or changing tenant security.",
+            "rules": [
+                {"apiGroups": [""], "resources": ["pods", "pods/log", "services", "endpoints", "configmaps", "persistentvolumeclaims", "events"], "verbs": ["get", "list", "watch"]},
+                {"apiGroups": [""], "resources": ["pods"], "verbs": ["delete"]},
+                {"apiGroups": [""], "resources": ["services", "configmaps", "persistentvolumeclaims"], "verbs": ["create", "update", "patch", "delete"]},
+                {"apiGroups": ["apps"], "resources": ["deployments", "statefulsets"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]},
+                {"apiGroups": ["apps"], "resources": ["replicasets"], "verbs": ["get", "list", "watch"]},
+                {"apiGroups": ["batch"], "resources": ["jobs", "cronjobs"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]},
+                {"apiGroups": ["networking.k8s.io"], "resources": ["ingresses"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]},
+                {"apiGroups": ["autoscaling"], "resources": ["horizontalpodautoscalers"], "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]},
+                {"apiGroups": ["metrics.k8s.io"], "resources": ["pods"], "verbs": ["get", "list"]},
+            ],
+        },
+        "perkforge-tenant-viewer": {
+            "displayName": "PerkForge Tenant Viewer",
+            "description": "Read tenant workload status without mutation or secret access.",
+            "rules": [
+                {"apiGroups": [""], "resources": ["pods", "services", "endpoints", "events", "persistentvolumeclaims"], "verbs": ["get", "list", "watch"]},
+                {"apiGroups": ["apps"], "resources": ["deployments", "replicasets", "statefulsets"], "verbs": ["get", "list", "watch"]},
+                {"apiGroups": ["batch"], "resources": ["jobs", "cronjobs"], "verbs": ["get", "list", "watch"]},
+                {"apiGroups": ["networking.k8s.io"], "resources": ["ingresses"], "verbs": ["get", "list", "watch"]},
+                {"apiGroups": ["autoscaling"], "resources": ["horizontalpodautoscalers"], "verbs": ["get", "list", "watch"]},
+                {"apiGroups": ["metrics.k8s.io"], "resources": ["pods"], "verbs": ["get", "list"]},
+            ],
+        },
+    }
+    for name, role in roles.items():
+        documents.append({
+            "apiVersion": "management.cattle.io/v3",
+            "kind": "RoleTemplate",
+            "metadata": {"name": name, "labels": {"platform.perkforge.io/managed-by": "tenant-foundation"}},
+            "builtin": False,
+            "context": "project",
+            "description": role["description"],
+            "displayName": role["displayName"],
+            "external": False,
+            "hidden": False,
+            "rules": role["rules"],
+        })
+    for tenant in tenants:
+        tenant_id = tenant["id"]
+        target_cluster = tenant["cluster"]
+        version = cluster_versions[target_cluster]
+        groups = tenant["identity"]["groups"]
+        defaults = tenant["resources"]["defaults"]
+        project_id = "p-" + tenant_id + "-" + target_cluster
+        lifecycle_state = tenant.get("lifecycle", {}).get("state")
+        budget = tenant["resources"]["budget"]
+        rancher_quota_names = {
+            "pods": "pods",
+            "requests.cpu": "requestsCpu",
+            "requests.memory": "requestsMemory",
+            "limits.cpu": "limitsCpu",
+            "limits.memory": "limitsMemory",
+            "persistentvolumeclaims": "persistentVolumeClaims",
+            "requests.storage": "requestsStorage",
+            "services": "services",
+        }
+        project_limits = {rancher_quota_names[key]: str(value) for key, value in budget.items()}
+        documents.append({
+            "apiVersion": "management.cattle.io/v3",
+            "kind": "Project",
+            "metadata": {
+                "name": project_id,
+                "namespace": catalog["rancherManagementCluster"],
+                "labels": {
+                    "platform.perkforge.io/tenant": tenant_id,
+                    "platform.perkforge.io/managed-by": "tenant-foundation",
+                    **({"platform.perkforge.io/lifecycle-state": lifecycle_state}
+                       if lifecycle_state else {}),
+                },
+                "annotations": {"field.cattle.io/no-creator-rbac": "true"},
+            },
+            "spec": {
+                "clusterName": target_cluster,
+                "displayName": tenant["displayName"],
+                "description": "PerkForge tenant project managed from the tenant catalog.",
+                "resourceQuota": {"limit": project_limits},
+                "namespaceDefaultResourceQuota": {"limit": project_limits},
+            },
+        })
+        for env in tenant["environments"]:
+            namespace = env["namespace"]
+            labels = {
+                "app.kubernetes.io/part-of": "opengovlocalpaas",
+                "platform.homelab/tenant": tenant_id,
+                "platform.perkforge.io/tenant": tenant_id,
+                "platform.perkforge.io/environment": env["name"],
+                "platform.perkforge.io/isolation-tier": tenant["isolation"]["tier"],
+                "platform.perkforge.io/managed-by": "tenant-foundation",
+                "platform.perkforge.io/metrics": str(tenant["observability"]["metrics"]).lower(),
+                "platform.perkforge.io/cost-allocation": str(tenant["observability"]["costAllocation"]).lower(),
+            }
+            if lifecycle_state:
+                labels["platform.perkforge.io/lifecycle-state"] = lifecycle_state
+            if "classification" in tenant:
+                labels["platform.perkforge.io/classification"] = tenant["classification"]
+            if "application" in tenant:
+                labels["platform.perkforge.io/application"] = tenant["application"]
+            for mode in ("enforce", "audit", "warn"):
+                labels[f"pod-security.kubernetes.io/{mode}"] = "restricted"
+                labels[f"pod-security.kubernetes.io/{mode}-version"] = version
+            documents.append({
+                "apiVersion": "v1", "kind": "Namespace",
+                "metadata": {
+                    "name": namespace,
+                    "labels": labels,
+                    "annotations": {
+                        "field.cattle.io/projectId": f"{target_cluster}:{project_id}",
+                        # Rancher project quotas are pooled across namespaces.
+                        # Specify each namespace's reserved allocation so Rancher
+                        # does not seed every namespace with the project default.
+                        # Keep Rancher's API struct field order: it stores this
+                        # value as a JSON string and Fleet otherwise sees harmless
+                        # ordering drift after Rancher normalizes the annotation.
+                        "field.cattle.io/resourceQuota": json.dumps({"limit": {
+                            rancher_quota_names[key]: str(env["allocation"][key])
+                            for key in ("pods", "services", "persistentvolumeclaims",
+                                        "requests.cpu", "requests.memory", "requests.storage",
+                                        "limits.cpu", "limits.memory")}}, separators=(",", ":")),
+                    },
+                },
+            })
+            documents.append({
+                "apiVersion": "v1", "kind": "ResourceQuota",
+                "metadata": {"name": "tenant-budget", "namespace": namespace},
+                "spec": {"hard": {k: str(v) for k, v in env["allocation"].items()}},
+            })
+            documents.append({
+                "apiVersion": "v1", "kind": "LimitRange",
+                "metadata": {"name": "tenant-defaults", "namespace": namespace},
+                "spec": {"limits": [{
+                    "type": "Container",
+                    "defaultRequest": {"cpu": defaults["requestCpu"], "memory": defaults["requestMemory"]},
+                    "default": {"cpu": defaults["limitCpu"], "memory": defaults["limitMemory"]},
+                }]},
+            })
+            if tenant.get("classification") == "protected":
+                # Application-specific exceptions belong to the platform's
+                # protected-tenant support bundle, rather than the shared
+                # synthetic-tenant allow policy.
+                documents.append({
+                    "apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
+                    "metadata": {"name": "default-deny", "namespace": namespace},
+                    "spec": {"podSelector": {}, "policyTypes": ["Ingress", "Egress"]},
+                })
+                continue
+            documents.extend([
+                {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
+                 "metadata": {"name": "default-deny", "namespace": namespace},
+                 "spec": {"podSelector": {}, "policyTypes": ["Ingress", "Egress"]}},
+                {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
+                 "metadata": {"name": "allow-tenant-internal-and-dns", "namespace": namespace},
+                 "spec": {
+                     "podSelector": {}, "policyTypes": ["Ingress", "Egress"],
+                     "ingress": [{"from": [
+                         {"namespaceSelector": {"matchLabels":
+                             {"platform.perkforge.io/tenant": tenant_id}}},
+                         {"namespaceSelector": {"matchLabels":
+                             {"kubernetes.io/metadata.name": "kube-system"}},
+                          "podSelector": {"matchLabels": {"app.kubernetes.io/name": "rke2-traefik"}}},
+                     # Only the platform Prometheus collector receives ingress
+                     # exceptions for tenant metrics scraping.
+                     {"namespaceSelector": {"matchLabels":
+                         {"kubernetes.io/metadata.name": "monitoring"}},
+                      "podSelector": {"matchLabels": {"app.kubernetes.io/name": "prometheus"}}},
+                     ]}],
+                     "egress": [
+                         {"to": [{"namespaceSelector": {"matchLabels":
+                             {"platform.perkforge.io/tenant": tenant_id}}}]},
+                         {"to": [{"namespaceSelector": {"matchLabels":
+                             {"kubernetes.io/metadata.name": "kube-system"}},
+                             "podSelector": {"matchLabels": {"k8s-app": "kube-dns"}}}],
+                          "ports": [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}]},
+                        # Tenant applications need the shared identity service.
+                        # Keycloak's in-cluster HTTP service targets container port 8080.
+                        {"to": [{"namespaceSelector": {"matchLabels":
+                            {"kubernetes.io/metadata.name": "keycloak"}}}],
+                         "ports": [{"protocol": "TCP", "port": 8080}]},
+                     ],
+                 }},
+            ])
     return yaml.safe_dump_all(documents, sort_keys=False, explicit_start=True)
 
 
@@ -170,9 +367,7 @@ def render_files(catalog: dict) -> dict[Path, str]:
                  "NetworkPolicy": "networkpolicies.yaml"}
     for document in documents:
         kind, metadata = document["kind"], document["metadata"]
-        if metadata.get("labels", {}).get("platform.perkforge.io/managed-by") == "tenant-application":
-            relative = Path("tenants/home/applications/portal/resources.yaml")
-        elif kind == "RoleTemplate":
+        if kind == "RoleTemplate":
             relative = Path("shared/roletemplates.yaml")
         else:
             tenant_id = (metadata["labels"]["platform.perkforge.io/tenant"]
@@ -184,24 +379,6 @@ def render_files(catalog: dict) -> dict[Path, str]:
             for path, rows in sorted(groups.items())}
 
 
-def refuse_application_identity_removal(previous, desired):
-    def identities(text, application_only=False):
-        result=set()
-        for obj in yaml.safe_load_all(text):
-            if not isinstance(obj, dict): continue
-            metadata=obj.get('metadata', {})
-            if application_only and metadata.get('labels', {}).get('platform.perkforge.io/managed-by')!='tenant-application': continue
-            result.add((obj.get('apiVersion'),obj.get('kind'),metadata.get('namespace'),metadata.get('name')))
-        return result
-    if identities(previous, True) - identities(desired):
-        raise ValueError('Refusing to prune provisioned application identities; use paused. Decommission requires separate review.')
-
-
-def refuse_application_pruning(stale):
-    if any('applications' in path.parts for path in stale):
-        raise ValueError('Refusing to prune provisioned application resources; retain the catalog entry as paused. Decommission requires separate review.')
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
@@ -210,27 +387,9 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--write", action="store_true", help="write rendered YAML to --output")
     mode.add_argument("--check", action="store_true", help="fail if --output differs from rendered tenant state")
-    parser.add_argument("--preview-application", choices=["home/portal"], help="render catalog-owned application review artifacts outside active Fleet output")
     args = parser.parse_args()
     try:
         catalog = load_catalog(args.catalog)
-        validate_catalog(catalog)
-        if args.preview_application:
-            destination = portal_application.PREVIEW if args.output == DEFAULT_OUTPUT else args.output
-            if destination.resolve().is_relative_to((ROOT / 'local-lab/fleet').resolve()):
-                raise ValueError('Application previews cannot be written into active Fleet paths')
-            files = portal_application.outputs(portal_application.contract_for(catalog))
-            if args.check:
-                if any(not (destination/name).exists() or (destination/name).read_text()!=text for name,text in files.items()):
-                    raise ValueError('Stale application preview; regenerate from the tenant catalog')
-                print('Catalog application preview is in sync; not an active Fleet output')
-            elif args.write:
-                destination.mkdir(parents=True, exist_ok=True)
-                for name,text in files.items(): (destination/name).write_text(text)
-                print(f'Wrote application review artifacts to {destination}; no deployment')
-            else:
-                sys.stdout.write(files['resources.yaml'])
-            return 0
         rendered = render(catalog)
         if args.output.suffix not in {".yaml", ".yml"}:
             files = render_files(catalog)
@@ -247,10 +406,6 @@ def main() -> int:
                 print(f"tenant catalog and {len(files)} generated files are in sync")
                 return 0
             if args.write:
-                refuse_application_pruning(stale)
-                for path,text in expected.items():
-                    if path.exists():
-                        refuse_application_identity_removal(path.read_text(), text)
                 # Only clean files this generator owns; never erase hand-authored YAML.
                 if any(not path.read_text().startswith(GENERATED_HEADER) for path in stale):
                     raise ValueError("unexpected YAML in generated directories; refusing to remove it")
@@ -275,8 +430,6 @@ def main() -> int:
             print("tenant catalog and Fleet manifest are in sync")
             return 0
         if args.write:
-            if args.output.exists():
-                refuse_application_identity_removal(args.output.read_text(), rendered)
             args.output.write_text(rendered)
             print(f"wrote {args.output}")
         else:

@@ -1,5 +1,0 @@
-apiVersion: v2
-name: tenant-foundation-renderer
-description: Offline shared templates; the catalog renderer owns validation and output lifecycle.
-type: application
-version: 0.1.0

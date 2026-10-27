@@ -1,0 +1,33 @@
+{{- include "portal.validate" . -}}
+{{- $c := .Values.applications.portal }}
+{{- if ne $c.lifecycle.state "disabled" }}
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: tenant-home-portal
+  namespace: fleet-home-portal
+  labels:
+    platform.perkforge.io/tenant: home
+    platform.perkforge.io/application: portal
+spec:
+  repo: https://github.com/perkforge/perkforge-tenant-portal.git
+  revision: {{ $c.tenantRevision | quote }}
+  paused: {{ ne $c.lifecycle.state "active" }}
+  targetNamespace: {{ $c.namespace | quote }}
+  serviceAccount: {{ $c.deployerServiceAccount | quote }}
+  keepResources: true
+  paths: [bundles/portal]
+  targets:
+  - name: local
+    clusterName: local
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: portal-platform-values
+  namespace: {{ $c.namespace | quote }}
+immutable: true
+data:
+  values.yaml: |
+{{ include "portal.values" $c | indent 4 }}
+{{- end }}
