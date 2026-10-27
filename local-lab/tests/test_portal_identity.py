@@ -7,31 +7,31 @@ import subprocess
 import unittest
 import yaml
 ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location('portal_identity', ROOT/'local-lab/scripts/render-portal-identity.py')
+import sys
+sys.path.insert(0, str(ROOT/'local-lab/scripts'))
+spec = importlib.util.spec_from_file_location('portal_identity', ROOT/'local-lab/scripts/portal_application.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 class PortalIdentityTests(unittest.TestCase):
     def setUp(self):
-        self.contract = yaml.safe_load(module.CONTRACT.read_text())
+        self.contract = module.load_contract()
         self.objects = module.resources(self.contract)
 
     def test_generated_outputs_match_and_never_include_secret_data(self):
         for name,content in module.outputs(self.contract).items():
-            self.assertEqual((module.DIRECTORY/'generated'/name).read_text(),content)
+            self.assertEqual((module.PREVIEW/name).read_text(),content)
         self.assertFalse(any(o['kind']=='Secret' for o in self.objects))
         self.assertFalse(any('secret' in client for client in module.identity_plan(self.contract)['clients']))
 
-    def test_safe_default_has_no_manifest_or_mutation_output(self):
-        result=subprocess.run(['python3',str(ROOT/'local-lab/scripts/render-portal-identity.py')],capture_output=True,text=True,check=True)
-        plan=json.loads(result.stdout)
-        self.assertEqual(plan['activation'],'disabled')
-        self.assertIs(plan['writes'],False)
-        self.assertIs(plan['networkCalls'],False)
-        self.assertIs(plan['approvedImage'],False)
+    def test_default_catalog_renderer_emits_no_portal_objects(self):
+        result=subprocess.run(['python3',str(ROOT/'local-lab/scripts/render-tenant-foundation.py')],capture_output=True,text=True,check=True)
+        self.assertNotIn('home-portal',result.stdout)
+        self.assertEqual(self.contract['lifecycle'],{'state':'disabled'})
+        self.assertIsNone(self.contract['imageDigest'])
 
     def test_contract_refuses_activation_unknown_fields_and_invalid_identity(self):
-        changes=[('activation','enabled'),('namespace','tenant-home-nextcloud'),('imageDigest','latest'),('tenantRevision','main'),('secret','never-allowed')]
+        changes=[('lifecycle',{'state':'deleted'}),('namespace','tenant-home-nextcloud'),('imageDigest','latest'),('tenantRevision','main'),('secret','never-allowed')]
         for key,value in changes:
             c=copy.deepcopy(self.contract);c[key]=value
             with self.subTest(key=key),self.assertRaises(ValueError):module.validate(c)
@@ -92,9 +92,7 @@ class PortalIdentityTests(unittest.TestCase):
         self.assertEqual(mapper['config']['access.token.claim'],'true')
         self.assertEqual(plan['requiredClientScopeMapping']['roles'],['tenant-reader'])
 
-    def test_no_new_active_paths_catalog_or_existing_security_output(self):
-        for folder in ('local-lab/fleet','local-lab/tenant-config'):
-            for path in (ROOT/folder).rglob('*.yaml'):
-                self.assertNotIn('optional/portal',path.read_text())
-                self.assertNotIn('portal-platform-values',path.read_text())
-        self.assertFalse(any(p.name=='fleet.yaml' for p in module.DIRECTORY.rglob('*')))
+    def test_no_new_active_fleet_output(self):
+        for path in (ROOT/'local-lab/fleet').rglob('*.yaml'):
+            self.assertNotIn('home-portal',path.read_text())
+        self.assertFalse(any(p.name=='fleet.yaml' for p in module.PREVIEW.rglob('*')))

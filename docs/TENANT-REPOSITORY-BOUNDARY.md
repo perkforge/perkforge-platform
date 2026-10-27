@@ -98,18 +98,17 @@ RoleBinding or NetworkPolicy is an acceptable exception mechanism. Future portal
 GitLab/Keycloak API features require separate scope/role/audit approval and must not
 inherit the deployer's credentials or security-control authority.
 
-## Executable portal implementation
+## Catalog-owned portal implementation
 
-The [optional portal contract](../local-lab/optional/portal/README.md) now supplies
-platform-owned identity values and generated native admission policies, with
-Kubernetes 1.36.5 CEL execution and pinned schema tests. All outputs remain outside
-active Fleet/catalog paths, the registration is paused, and a missing approved
-image makes workload admission fail closed. This is an implemented offline control
-set, not newly verified live enforcement. The broader adoption plan above remains
-applicable; Fleet/Helm Secret storage and independent privileged API authorization
-are not solved by config injection.
+The [Home portal integration](PORTAL-INTEGRATION.md) uses `applications.portal` in
+`tenant-config/tenants/home.yaml` and the existing tenant foundation renderer.
+Disabled new applications emit nothing into active output; paused provisioned
+applications retain resource identities and security controls. Writer guards refuse
+implicit application pruning. Preview files are deterministic outputs from the same
+catalog, not an alternate source or lifecycle. Kubernetes CEL/schema checks and
+candidate-pair tests remain offline; no live enforcement is newly claimed.
 
-The new Fleet 0.16 schema check found `allowNamespaceCreation` unsupported by that
-API. New portal output does not use it. Existing Nextcloud sources are preserved;
-confirm installed-version behavior separately instead of assuming this old field
-constrains namespace creation. Namespace security relies on actual RBAC/admission.
+Fleet0.16 does not support the older `allowNamespaceCreation` field. Existing
+Nextcloud configuration is preserved; confirm installed behavior separately.
+Namespace authority relies on actual RBAC/admission. Release-Secret storage and
+independent authorization for future privileged APIs remain explicit requirements.

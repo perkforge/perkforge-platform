@@ -7,13 +7,15 @@ import subprocess
 from pathlib import Path
 import yaml
 ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location('portal_identity', ROOT/'local-lab/scripts/render-portal-identity.py')
+import sys
+sys.path.insert(0, str(ROOT/'local-lab/scripts'))
+spec = importlib.util.spec_from_file_location('portal_identity', ROOT/'local-lab/scripts/portal_application.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 
 def cases():
-    c = yaml.safe_load(module.CONTRACT.read_text())
+    c = module.load_contract()
     baseline = copy.deepcopy(c)
     c['imageDigest'] = 'sha256:' + 'a'*64  # synthetic; never written to the desired contract
     policies = {o['metadata']['name']: o for o in module.admission(c) if o['kind']=='ValidatingAdmissionPolicy'}
@@ -33,7 +35,7 @@ def cases():
         def render(*overrides):
             output = subprocess.check_output([os.environ.get('HELM','helm'), 'template', 'home-portal', chart,
                 '--namespace', c['namespace'], '--kube-version', '1.36.5',
-                '-f', str(module.DIRECTORY/'generated/helm-values.yaml'),
+                '-f', str(module.PREVIEW/'helm-values.yaml'),
                 '--set', 'enabled=true', '--set', 'image.digest='+c['imageDigest'], *overrides], text=True)
             return list(yaml.safe_load_all(output))
         rendered=render()

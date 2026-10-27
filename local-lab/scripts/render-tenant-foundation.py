@@ -13,6 +13,7 @@ from pathlib import Path
 import yaml
 
 from tenant_catalog import load_catalog
+import portal_application
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CATALOG = ROOT / "local-lab/tenant-config/tenants.yaml"
@@ -144,6 +145,7 @@ def validate_catalog(catalog: dict) -> list[dict]:
         for key in ("metrics", "costAllocation"):
             if not isinstance(tenant.get("observability", {}).get(key), bool):
                 fail(f"{tenant_id}: observability.{key} must be boolean")
+    portal_application.validate_applications(catalog)
     return tenants
 
 
@@ -267,6 +269,9 @@ def render(catalog: dict) -> str:
                 labels["platform.perkforge.io/classification"] = tenant["classification"]
             if "application" in tenant:
                 labels["platform.perkforge.io/application"] = tenant["application"]
+            for app_name, app in tenant.get("applications", {}).items():
+                if app["namespace"] == namespace:
+                    labels["platform.perkforge.io/application"] = app_name
             for mode in ("enforce", "audit", "warn"):
                 labels[f"pod-security.kubernetes.io/{mode}"] = "restricted"
                 labels[f"pod-security.kubernetes.io/{mode}-version"] = version
@@ -350,6 +355,7 @@ def render(catalog: dict) -> str:
                      ],
                  }},
             ])
+    documents.extend(portal_application.active_resources(catalog))
     return yaml.safe_dump_all(documents, sort_keys=False, explicit_start=True)
 
 
@@ -367,7 +373,9 @@ def render_files(catalog: dict) -> dict[Path, str]:
                  "NetworkPolicy": "networkpolicies.yaml"}
     for document in documents:
         kind, metadata = document["kind"], document["metadata"]
-        if kind == "RoleTemplate":
+        if metadata.get("labels", {}).get("platform.perkforge.io/managed-by") == "tenant-application":
+            relative = Path("tenants/home/applications/portal/resources.yaml")
+        elif kind == "RoleTemplate":
             relative = Path("shared/roletemplates.yaml")
         else:
             tenant_id = (metadata["labels"]["platform.perkforge.io/tenant"]
@@ -379,6 +387,24 @@ def render_files(catalog: dict) -> dict[Path, str]:
             for path, rows in sorted(groups.items())}
 
 
+def refuse_application_identity_removal(previous, desired):
+    def identities(text, application_only=False):
+        result=set()
+        for obj in yaml.safe_load_all(text):
+            if not isinstance(obj, dict): continue
+            metadata=obj.get('metadata', {})
+            if application_only and metadata.get('labels', {}).get('platform.perkforge.io/managed-by')!='tenant-application': continue
+            result.add((obj.get('apiVersion'),obj.get('kind'),metadata.get('namespace'),metadata.get('name')))
+        return result
+    if identities(previous, True) - identities(desired):
+        raise ValueError('Refusing to prune provisioned application identities; use paused. Decommission requires separate review.')
+
+
+def refuse_application_pruning(stale):
+    if any('applications' in path.parts for path in stale):
+        raise ValueError('Refusing to prune provisioned application resources; retain the catalog entry as paused. Decommission requires separate review.')
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
@@ -387,9 +413,27 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--write", action="store_true", help="write rendered YAML to --output")
     mode.add_argument("--check", action="store_true", help="fail if --output differs from rendered tenant state")
+    parser.add_argument("--preview-application", choices=["home/portal"], help="render catalog-owned application review artifacts outside active Fleet output")
     args = parser.parse_args()
     try:
         catalog = load_catalog(args.catalog)
+        validate_catalog(catalog)
+        if args.preview_application:
+            destination = portal_application.PREVIEW if args.output == DEFAULT_OUTPUT else args.output
+            if destination.resolve().is_relative_to((ROOT / 'local-lab/fleet').resolve()):
+                raise ValueError('Application previews cannot be written into active Fleet paths')
+            files = portal_application.outputs(portal_application.contract_for(catalog))
+            if args.check:
+                if any(not (destination/name).exists() or (destination/name).read_text()!=text for name,text in files.items()):
+                    raise ValueError('Stale application preview; regenerate from the tenant catalog')
+                print('Catalog application preview is in sync; not an active Fleet output')
+            elif args.write:
+                destination.mkdir(parents=True, exist_ok=True)
+                for name,text in files.items(): (destination/name).write_text(text)
+                print(f'Wrote application review artifacts to {destination}; no deployment')
+            else:
+                sys.stdout.write(files['resources.yaml'])
+            return 0
         rendered = render(catalog)
         if args.output.suffix not in {".yaml", ".yml"}:
             files = render_files(catalog)
@@ -406,6 +450,10 @@ def main() -> int:
                 print(f"tenant catalog and {len(files)} generated files are in sync")
                 return 0
             if args.write:
+                refuse_application_pruning(stale)
+                for path,text in expected.items():
+                    if path.exists():
+                        refuse_application_identity_removal(path.read_text(), text)
                 # Only clean files this generator owns; never erase hand-authored YAML.
                 if any(not path.read_text().startswith(GENERATED_HEADER) for path in stale):
                     raise ValueError("unexpected YAML in generated directories; refusing to remove it")
@@ -430,6 +478,8 @@ def main() -> int:
             print("tenant catalog and Fleet manifest are in sync")
             return 0
         if args.write:
+            if args.output.exists():
+                refuse_application_identity_removal(args.output.read_text(), rendered)
             args.output.write_text(rendered)
             print(f"wrote {args.output}")
         else:

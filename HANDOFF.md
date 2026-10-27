@@ -188,3 +188,14 @@ Do not delete the archived repo or physical/external disks. Root `ansible/` is
 for future physical hosts; `ansible/aws-lab/` is separate and has no applicable
 provision/start/teardown/budget authorization. Do not mix its inventory with the
 VM or physical environment. Follow AGENTS.md commit/push and test permissions.
+
+## Portal draft — offline catalog integration
+
+Platform draft MR #2 now defines portal under `applications.portal` in Home's
+`local-lab/tenant-config/tenants/home.yaml`; it is not a separate tenant. Its state
+is disabled, with no approved image or namespace allocation. The existing
+`render-tenant-foundation.py` owns validation, active output and explicit
+`--preview-application home/portal` review artifacts. Default current rendering
+leaves all existing generated files unchanged. Paused retains resources; writers
+refuse implicit application pruning. See `docs/PORTAL-INTEGRATION.md`.
+No live portal/identity/security resource was changed or activated by this draft.

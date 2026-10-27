@@ -1,33 +1,34 @@
 #!/usr/bin/env python3
-"""Offline-only platform portal contract renderer. No apply/network/secret generation."""
+"""Portal application rendering helpers for the existing tenant foundation renderer."""
 from __future__ import annotations
-import argparse
 import json
 from pathlib import Path
 import re
-import sys
 from urllib.parse import urlsplit
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-DIRECTORY = ROOT / 'local-lab/optional/portal'
-CONTRACT = DIRECTORY / 'contract.yaml'
+PREVIEW = ROOT / 'local-lab/tenant-config/generated/home/portal'
+TEMPLATES = ROOT / 'local-lab/templates/tenant-applications/portal'
 TENANT_REPO = 'https://github.com/perkforge/perkforge-tenant-portal.git'
 
 
 def validate(c):
-    expected = {'apiVersion', 'kind', 'activation', 'kubernetesVersion', 'namespace',
+    expected = {'lifecycle', 'kubernetesVersion', 'namespace',
                 'runtimeServiceAccount', 'deployerServiceAccount', 'fleetAgentNamespace',
                 'portalOrigin', 'identity', 'tenantRevision', 'imageRepository', 'imageDigest'}
     if set(c) != expected:
         raise ValueError('Unexpected or missing contract fields')
-    fixed = {'apiVersion': 'platform.perkforge.io/v1alpha1', 'kind': 'PortalIdentityContract',
-             'activation': 'disabled', 'kubernetesVersion': '1.36', 'namespace': 'tenant-home-portal',
+    if c['lifecycle'] not in ({'state':'disabled'}, {'state':'paused'}, {'state':'active'}):
+        raise ValueError('Application lifecycle.state must be disabled, paused, or active; decommission is separate')
+    if c['lifecycle']['state'] != 'disabled' and c['imageDigest'] is None:
+        raise ValueError('Provisioned application requires a reviewed image digest')
+    fixed = {'kubernetesVersion': '1.36', 'namespace': 'tenant-home-portal',
              'runtimeServiceAccount': 'portal-runtime', 'deployerServiceAccount': 'home-portal-deployer',
              'fleetAgentNamespace': 'cattle-fleet-local-system',
              'imageRepository': 'ghcr.io/perkforge/perkforge-portal'}
     if any(c[k] != v for k, v in fixed.items()):
-        raise ValueError('Fixed scope, target version or disabled activation changed')
+        raise ValueError('Fixed application scope or target version changed')
     identity = c['identity']
     if set(identity) != {'realm', 'issuer', 'clientId', 'audience', 'existingSecret', 'secretKey', 'requiredRole', 'groups'}:
         raise ValueError('Unexpected identity fields (credentials are forbidden)')
@@ -57,7 +58,7 @@ def validate(c):
 
 def helm_values(c):
     i = c['identity']
-    return {'enabled': False, 'image': {'repository': c['imageRepository'], 'digest': c['imageDigest'] or ''},
+    return {'enabled': c['lifecycle']['state'] != 'disabled', 'image': {'repository': c['imageRepository'], 'digest': c['imageDigest'] or ''},
             'portalOrigin': c['portalOrigin'], 'tenantSource': 'disabled',
             'identity': {k: i[k] for k in ('issuer', 'clientId', 'audience', 'existingSecret')}}
 
@@ -160,14 +161,14 @@ def admission(c):
 
 def resources(c):
     # Reuse reviewed platform-only RBAC/NetworkPolicy definitions, never tenant manifests.
-    templates = DIRECTORY / 'templates'
+    templates = TEMPLATES
     objects = []
     for filename in ('rbac.yaml', 'networkpolicy.yaml', 'fleet-resources.yaml'):
         objects.extend(yaml.safe_load_all((templates / filename).read_text()))
     objects.append({'apiVersion': 'fleet.cattle.io/v1alpha1', 'kind': 'GitRepo',
         'metadata': {'name': 'tenant-home-portal', 'namespace': 'fleet-home-portal',
                      'labels': {'platform.perkforge.io/tenant': 'home', 'platform.perkforge.io/application': 'portal'}},
-        'spec': {'repo': TENANT_REPO, 'revision': c['tenantRevision'], 'paused': True,
+        'spec': {'repo': TENANT_REPO, 'revision': c['tenantRevision'], 'paused': c['lifecycle']['state'] != 'active',
                  'targetNamespace': c['namespace'], 'serviceAccount': c['deployerServiceAccount'],
                  'keepResources': True, 'paths': ['bundles/portal'],
                  'targets': [{'name': 'local', 'clusterName': 'local'}]}})
@@ -183,32 +184,56 @@ def outputs(c):
             'tenant-fleet-reference.yaml': yaml.safe_dump({'helm': {'valuesFrom': [{'configMapKeyRef': {'name': 'portal-platform-values', 'namespace': c['namespace'], 'key': 'values.yaml'}}]}}, sort_keys=False)}
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--contract', type=Path, default=CONTRACT)
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument('--write', action='store_true', help='write review outputs locally, never deploy')
-    mode.add_argument('--check', action='store_true', help='check committed generated outputs')
-    mode.add_argument('--emit-manifests', action='store_true', help='explicitly emit inactive resources for offline review')
-    args = parser.parse_args()
-    c = validate(yaml.safe_load(args.contract.read_text()))
-    result = outputs(c)
-    if args.write:
-        (DIRECTORY / 'generated').mkdir(exist_ok=True)
-        for filename, content in result.items():
-            (DIRECTORY / 'generated' / filename).write_text(content)
-    elif args.check:
-        for filename, content in result.items():
-            if (DIRECTORY / 'generated' / filename).read_text() != content:
-                raise ValueError(f'Stale generated {filename}')
-        print('Portal contract and generated review resources are in sync; activation disabled')
-    elif args.emit_manifests:
-        print(result['resources.yaml'], end='')
-    else:
-        print(json.dumps({'activation': 'disabled', 'namespace': c['namespace'], 'approvedImage': bool(c['imageDigest']), 'tenantRevision': c['tenantRevision'], 'writes': False, 'networkCalls': False}))
+def contract_for(catalog, tenant_id='home', application_id='portal'):
+    import copy
+    if (tenant_id, application_id) != ('home', 'portal'):
+        raise ValueError('Only the Home portal application is supported')
+    tenant = next((t for t in catalog['tenants'] if t['id'] == tenant_id), None)
+    if tenant is None or application_id not in tenant.get('applications', {}):
+        raise ValueError('Home portal application is absent from the catalog')
+    if tenant['cluster'] != 'local':
+        raise ValueError('Portal application currently supports Home on the local cluster only')
+    if tenant.get('classification') != 'protected' or tenant['identity']['provider'] != 'keycloak':
+        raise ValueError('Portal remains a protected Home Keycloak application')
+    c = copy.deepcopy(tenant['applications'][application_id])
+    if not isinstance(c,dict) or not isinstance(c.get('identity'),dict):
+        raise ValueError('Application and identity must be mappings')
+    if 'kubernetesVersion' in c or 'groups' in c.get('identity', {}):
+        raise ValueError('Application must inherit cluster version and Home groups')
+    c['kubernetesVersion'] = next(x['podSecurityVersion'] for x in catalog['clusters'] if x['name']==tenant['cluster']).removeprefix('v')
+    c['identity']['groups'] = [tenant['identity']['groups'][r] for r in ('admins','developers','viewers')]
+    validate(c)
+    if c['lifecycle']['state'] == 'disabled' and any(e['namespace']==c['namespace'] for e in tenant['environments']):
+        raise ValueError('Disabled means unprovisioned; an allocated portal namespace must remain paused or active')
+    if c['lifecycle']['state'] != 'disabled' and not any(e['namespace']==c['namespace'] for e in tenant['environments']):
+        raise ValueError('Provisioned portal requires an explicitly budgeted Home environment namespace')
+    return c
 
-if __name__ == '__main__':
-    try:
-        main()
-    except (ValueError, OSError, KeyError, TypeError) as exc:
-        sys.exit(str(exc))
+
+def load_contract():
+    from tenant_catalog import load_catalog
+    return contract_for(load_catalog(ROOT/'local-lab/tenant-config/tenants.yaml'))
+
+
+def validate_applications(catalog):
+    for tenant in catalog['tenants']:
+        apps=tenant.get('applications', {})
+        if not isinstance(apps,dict) or (apps and (tenant['id']!='home' or set(apps)!={'portal'})):
+            raise ValueError('Only applications.portal on existing Home is supported')
+        if apps:
+            contract_for(catalog)
+
+
+def active_resources(catalog):
+    validate_applications(catalog)
+    home=next((t for t in catalog['tenants'] if t['id']=='home'), {})
+    if not home.get('applications'):
+        return []
+    c=contract_for(catalog)
+    if c['lifecycle']['state']=='disabled':
+        return []
+    # Base tenant foundation already owns default-deny for protected namespaces.
+    result=[o for o in resources(c) if not (o["kind"]=="NetworkPolicy" and o["metadata"]["name"]=="default-deny")]
+    for obj in result:
+        obj['metadata'].setdefault('labels', {}).update({'platform.perkforge.io/tenant':'home', 'platform.perkforge.io/application':'portal', 'platform.perkforge.io/managed-by':'tenant-application'})
+    return result
