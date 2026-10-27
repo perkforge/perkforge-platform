@@ -5,7 +5,7 @@ without modification from `api/openapi-spec/swagger.json` at:
 https://github.com/kubernetes/kubernetes/blob/v1.36.5/api/openapi-spec/swagger.json
 
 The native Fleet revision also includes Namespace, ResourceQuota and LimitRange
-and their reachable definitions from that same Kubernetes source.
+Ingress, and their reachable definitions from that same Kubernetes source.
 
 Fleet v0.16.2 GitRepo, Policy and BundleNamespaceMapping schemas were extracted
 without modification from:
