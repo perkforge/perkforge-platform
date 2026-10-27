@@ -1,0 +1,10 @@
+name: local-lab-openbao
+labels:
+  local-lab.homelab/component: openbao
+defaultNamespace: openbao
+helm:
+  repo: https://openbao.github.io/openbao-helm
+  chart: openbao
+  version: 0.30.6
+  releaseName: openbao
+  valuesFiles: [values.yaml]

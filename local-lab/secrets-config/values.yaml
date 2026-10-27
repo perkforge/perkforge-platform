@@ -1,0 +1,4 @@
+# Platform-owned enrollment, separate from downstream application values.
+enabled: false
+server: https://openbao.openbao.svc:8200
+caConfigMap: openbao-ca

@@ -1,0 +1,6 @@
+tenant: home
+namespace: tenant-home-portal
+controller: home-portal
+role: eso-home-portal
+remoteKey: home/tenant-home-portal/registry/ghcr
+targetSecret: portal-ghcr

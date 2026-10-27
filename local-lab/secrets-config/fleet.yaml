@@ -1,0 +1,9 @@
+name: local-lab-home-secret-delivery
+helm:
+  disablePreProcess: true
+  disableDNS: true
+targetCustomizations:
+- name: local
+  clusterName: local
+  helm:
+    valuesFiles: [values.yaml, tenants/home.yaml]
