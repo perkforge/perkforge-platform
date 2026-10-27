@@ -12,6 +12,17 @@ secrets = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(secrets)
 
 class ActivationTests(unittest.TestCase):
+    def test_admission_gate_requires_current_warning_free_type_check(self):
+        policy = {'metadata':{'generation':2},'spec':{'failurePolicy':'Fail'},
+                  'status':{'observedGeneration':2,'typeChecking':{'expressionWarnings':[]}}}
+        binding = {'spec':{'validationActions':['Deny']}}
+        self.assertTrue(secrets.admission_ready(policy,binding))
+        policy['status']['typeChecking']['expressionWarnings'] = [{'warning':'fixture type error'}]
+        self.assertFalse(secrets.admission_ready(policy,binding))
+        policy['status']['typeChecking']['expressionWarnings'] = []
+        policy['status']['observedGeneration'] = 1
+        self.assertFalse(secrets.admission_ready(policy,binding))
+
     def test_registry_reader_rejects_permissions_and_symlinks(self):
         with tempfile.TemporaryDirectory() as name:
             p = Path(name)/'fixture'

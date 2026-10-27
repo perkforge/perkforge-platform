@@ -15,7 +15,7 @@ Only the published v0.2.0 digest is selected. GitLab remains disabled. No PR is 
    `spec.bundles`, **not an object in spec.paths**. It selects Home's shared templates
    with `enrollments/home.yaml`; existing foundation ownership stays separate.
 3. Verify namespace quotas, runtime/deployment identities, all four fail-closed admission
-   policies/bindings, NetworkPolicies and the paused tenant GitRepo before credentials.
+   policies/bindings with current observedGeneration and no expressionWarnings, NetworkPolicies and the paused tenant GitRepo before credentials.
    Home's existing Project ceiling changes; Nextcloud's namespace allocation does not.
 4. Wait for `cattle-system/{keycloak-lan,portal-lan}` Certificates to be Ready. They use
    the existing `rancher` namespaced Issuer; its CA private key remains in cattle-system.

@@ -20,3 +20,8 @@ and the three used Fleet schemas are retained to keep offline checks small. The
 Rancher management FleetWorkspace uses the repository's existing convention; its
 schema is not included. Schema checks supplement Kubernetes CEL execution tests;
 they do not replace live admission ordering, controller identity or CNI tests.
+
+`workload-types-1.36.5.json` contains Pod, Deployment, ReplicaSet, Service and Secret
+plus their reachable definitions from the same pinned Kubernetes swagger source.
+It feeds Kubernetes' actual ValidatingAdmissionPolicy TypeChecker, complementing
+the dynamic positive/negative runtime cases. It is test data only, not configuration.
