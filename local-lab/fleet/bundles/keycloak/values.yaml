@@ -26,7 +26,8 @@ http:
   relativePath: /auth
 proxy:
   enabled: true
-  mode: forwarded
+  # Traefik supplies X-Forwarded-* headers, including the original HTTPS scheme.
+  mode: xforwarded
 ingress:
   enabled: true
   ingressClassName: traefik

@@ -88,3 +88,15 @@ OIDC session and protected stub API, Alpha access denial, and existing service
 health. GitLab remains disabled. Pausing an existing tenant preserves controls
 and does not delete workloads; stopping a running replica requires a separate
 reviewed workload change.
+
+### Proxy discovery validation
+
+Traefik forwards `X-Forwarded-*` headers. Keycloak must use `proxy.mode:
+xforwarded`; the RFC `Forwarded` mode does not recover the external HTTPS
+scheme for dynamic backchannel discovery. Check **all** public discovery URLs
+(issuer, authorization, token, userinfo and JWKS), not only the issuer. The
+portal rejects HTTP JWKS URLs. Retain dynamic backchannel resolution so Rancher
+can continue using its explicitly configured internal endpoints.
+
+References: [Keycloak hostname configuration](https://www.keycloak.org/server/hostname)
+and [Traefik headers](https://doc.traefik.io/traefik/middlewares/http/headers/).

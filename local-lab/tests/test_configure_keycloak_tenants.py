@@ -103,6 +103,7 @@ class KeycloakTenantConfigurationTests(unittest.TestCase):
 
     def test_chart_pins_public_issuer_and_dynamic_backchannel(self):
         values = yaml.safe_load((ROOT / "local-lab/fleet/bundles/keycloak/values.yaml").read_text())
+        self.assertEqual(values["proxy"], {"enabled": True, "mode": "xforwarded"})
         environment = yaml.safe_load(values["extraEnv"])
         variables = {entry["name"]: entry.get("value") for entry in environment}
         self.assertEqual(variables["KC_HOSTNAME"], "https://keycloak.local-lab.test/auth")
