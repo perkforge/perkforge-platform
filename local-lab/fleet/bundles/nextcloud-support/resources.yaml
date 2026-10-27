@@ -216,16 +216,6 @@ kind: FleetWorkspace
 metadata:
   name: fleet-home-nextcloud
 ---
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: fleet-home-nextcloud
-  labels:
-    platform.perkforge.io/tenant: home
-    platform.perkforge.io/managed-by: nextcloud-support
-  annotations:
-    helm.sh/resource-policy: keep
----
 apiVersion: fleet.cattle.io/v1alpha1
 kind: Policy
 metadata:
