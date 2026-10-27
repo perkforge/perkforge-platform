@@ -1,6 +1,5 @@
-# Paused to reserve worker memory for the initial Nextcloud tenant.
-# Restore to 1 through GitOps when Keycloak SSO work resumes.
-replicas: 0
+# Approved single-instance identity service; monitor lab capacity during startup.
+replicas: 1
 nodeSelector:
   kubernetes.io/hostname: cks-worker
 command:
@@ -31,6 +30,9 @@ proxy:
 ingress:
   enabled: true
   ingressClassName: traefik
+  tls:
+    - hosts: [keycloak.local-lab.test]
+      secretName: keycloak-tls
   rules:
     - host: keycloak.local-lab.test
       paths:
@@ -45,6 +47,6 @@ extraEnv: |
         name: keycloak-admin
         key: password
   - name: KC_HOSTNAME
-    value: http://keycloak.local-lab.test/auth
+    value: https://keycloak.local-lab.test/auth
   - name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
     value: "true"

@@ -42,7 +42,7 @@ jobs:
       - name: Validate native Fleet defaults and unchanged legacy foundation
         run: |
           KUBECONFIG=/dev/null fleet test -f enrollments/home.yaml -N local local-lab/tenant-config > "$RUNNER_TEMP/portal-default.yaml"
-          test ! -s "$RUNNER_TEMP/portal-default.yaml"
+          python -c 'import yaml; x=list(yaml.safe_load_all(open("'"$RUNNER_TEMP"'/portal-default.yaml"))); assert next(o for o in x if o["kind"] == "GitRepo")["spec"]["paused"] is True; assert not any(o["kind"] == "Deployment" for o in x)'
           python local-lab/scripts/render-tenant-foundation.py --check
           python -m unittest discover -s local-lab/tests -v
           python local-lab/tests/validate_portal_schemas.py

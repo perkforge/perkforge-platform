@@ -1,4 +1,4 @@
 {
-  "change": "Exactly one platform-approved private registry pull Secret; existing runtime controls retained",
-  "digest": "632895c7d0f2d24bf0de5dca57168cd8fb4f714db5b1f83a119bbc14fca914f0"
+  "change": "Reviewed exact public CA mount and portal-local identity hostname mapping; existing private secret restrictions retained",
+  "digest": "7efe76abc4eb2bf980a54d536ed54eb862cddd7b2771b9124946b92eeff6325b"
 }

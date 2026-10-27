@@ -19,14 +19,14 @@ observability:
   costAllocation: false
 resources:
   budget:
-    pods: '6'
-    requests.cpu: 600m
-    requests.memory: 1Gi
-    limits.cpu: '2'
-    limits.memory: 2Gi
+    pods: '8'
+    requests.cpu: 700m
+    requests.memory: 1152Mi
+    limits.cpu: 2500m
+    limits.memory: 2432Mi
     persistentvolumeclaims: '3'
     requests.storage: 6Gi
-    services: '5'
+    services: '6'
   defaults:
     requestCpu: 100m
     requestMemory: 128Mi
@@ -50,7 +50,7 @@ application: nextcloud
 # Only this new namespace is enrolled in the native foundation; existing namespaces stay legacy-owned.
 foundation:
   lifecycle:
-    state: disabled
+    state: paused
   components:
     project: false
   optOutReasons:
@@ -59,12 +59,20 @@ foundation:
   namespaces:
     tenant-home-portal:
       runtimeServiceAccount: portal-runtime
-      allocation: null
+      allocation:
+        pods: '2'
+        requests.cpu: 100m
+        requests.memory: 128Mi
+        limits.cpu: 500m
+        limits.memory: 384Mi
+        persistentvolumeclaims: '0'
+        requests.storage: '0'
+        services: '1'
   repositories:
     portal:
       name: tenant-home-portal
       url: https://github.com/perkforge/perkforge-tenant-portal.git
-      revision: 06a1b511e77d13d5be9c3c0137d107f822dfaa92
+      revision: 11f149176488fd7fa6412b33d5a93d781b7ccedd
       paths:
       - bundles/portal
       namespace: tenant-home-portal
@@ -81,6 +89,8 @@ applications:
     imageRepository: ghcr.io/perkforge/perkforge-portal
     imageDigest: sha256:2e07afbb31fd462911a365893d05796090883464560478bd70179466af5b17b7
     imagePullSecret: portal-ghcr
+    caConfigMap: portal-identity-ca
+    identityIngressAddress: 10.43.163.193
     identity:
       realm: perkforge
       issuer: https://keycloak.local-lab.test/auth/realms/perkforge

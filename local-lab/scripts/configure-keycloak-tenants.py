@@ -28,7 +28,7 @@ DEFAULT_KUBECONFIG = DEFAULT_SECRETS / "rke2.yaml"
 REALM = "perkforge"
 CLIENT_ID = "rancher"
 RANCHER_URL = "https://rancher.local-lab.test"
-KEYCLOAK_PUBLIC_URL = "http://keycloak.local-lab.test/auth"
+KEYCLOAK_PUBLIC_URL = "https://keycloak.local-lab.test/auth"
 KEYCLOAK_INTERNAL_URL = "http://keycloak-keycloakx-http.keycloak.svc.cluster.local/auth"
 OWNERSHIP_ATTRIBUTE = "perkforge-managed"
 
@@ -62,6 +62,27 @@ def rancher_client(secret: str) -> dict:
         "webOrigins": [RANCHER_URL],
         "attributes": {OWNERSHIP_ATTRIBUTE: "true"},
     }
+
+
+def portal_client(secret: str) -> dict:
+    client = rancher_client(secret)
+    client.update(clientId="household-portal", name="PerkForge household portal",
+                  description="Platform-managed household portal; no administrative capabilities.",
+                  redirectUris=["https://portal.local-lab.test/auth/callback"],
+                  webOrigins=["https://portal.local-lab.test"], fullScopeAllowed=False)
+    client["attributes"]["pkce.code.challenge.method"] = "S256"
+    return client
+
+
+def portal_mappers() -> list[dict]:
+    groups = group_mapper()
+    groups["config"]["access.token.claim"] = "true"
+    return [groups, {
+        "name": "portal-api-audience", "protocol": "openid-connect",
+        "protocolMapper": "oidc-audience-mapper", "consentRequired": False,
+        "config": {"included.custom.audience": "household-portal-api",
+                   "access.token.claim": "true", "id.token.claim": "false"},
+    }]
 
 
 def group_mapper() -> dict:
@@ -390,6 +411,71 @@ class KeycloakAdmin:
             raise RuntimeError("Rancher OIDC client verification failed for: " + ", ".join(errors))
         return secret
 
+    def ensure_portal_client(self) -> str:
+        """Only reconcile the portal client and Home reader grant; no Rancher/users changes."""
+        realm = json.loads(self.api("GET", f"/realms/{REALM}"))
+        if realm.get("attributes", {}).get(OWNERSHIP_ATTRIBUTE) != "true":
+            raise RuntimeError("Portal requires the existing managed realm")
+        query = "clientId=household-portal"
+        clients = json.loads(self.api("GET", f"/realms/{REALM}/clients?{query}"))
+        clients = [c for c in clients if c.get("clientId") == "household-portal"]
+        if len(clients) > 1:
+            raise RuntimeError("Multiple portal clients found")
+        if clients:
+            client = clients[0]
+            if client.get("attributes", {}).get(OWNERSHIP_ATTRIBUTE) != "true":
+                raise RuntimeError("Existing portal client is not platform-owned")
+            secret = json.loads(self.api("GET", f"/realms/{REALM}/clients/{client['id']}/client-secret"))["value"]
+        else:
+            secret = secrets.token_urlsafe(48)
+            self.api("POST", f"/realms/{REALM}/clients", portal_client(secret), accepted=(201,))
+            clients = json.loads(self.api("GET", f"/realms/{REALM}/clients?{query}"))
+            if len(clients) != 1:
+                raise RuntimeError("Created portal client could not be uniquely verified")
+            client = clients[0]
+        path = f"/realms/{REALM}/clients/{client['id']}"
+        desired = portal_client(secret)
+        client.update(desired)
+        self.api("PUT", path, client, accepted=(204,))
+        mappers = json.loads(self.api("GET", path + "/protocol-mappers/models"))
+        desired_mappers = portal_mappers()
+        if any(m.get("name") not in {d["name"] for d in desired_mappers} for m in mappers):
+            raise RuntimeError("Unexpected portal-specific protocol mapper; review before changing")
+        for desired_mapper in desired_mappers:
+            matches = [m for m in mappers if m.get("name") == desired_mapper["name"]]
+            if len(matches) > 1 or (matches and matches[0].get("protocolMapper") != desired_mapper["protocolMapper"]):
+                raise RuntimeError("Conflicting portal mapper")
+            if matches:
+                self.api("PUT", path + "/protocol-mappers/models/" + matches[0]["id"],
+                         {**desired_mapper, "id": matches[0]["id"]}, accepted=(204,))
+            else:
+                self.api("POST", path + "/protocol-mappers/models", desired_mapper, accepted=(201,))
+        roles = json.loads(self.api("GET", f"/realms/{REALM}/roles"))
+        matches = [r for r in roles if r.get("name") == "tenant-reader"]
+        description = "PerkForge portal read-only API access"
+        if not matches:
+            self.api("POST", f"/realms/{REALM}/roles", {"name": "tenant-reader", "description": description}, accepted=(201,))
+        role = json.loads(self.api("GET", f"/realms/{REALM}/roles/tenant-reader"))
+        if role.get("description") != description or role.get("composite"):
+            raise RuntimeError("Existing tenant-reader role is not the expected non-composite portal role")
+        scope = json.loads(self.api("GET", path + "/scope-mappings"))
+        if scope.get("clientMappings") or any(r.get("name") != "tenant-reader" for r in scope.get("realmMappings", [])):
+            raise RuntimeError("Unexpected portal role scope; review before granting access")
+        self.api("POST", path + "/scope-mappings/realm", [role], accepted=(204,))
+        for name in ("admins", "developers", "viewers"):
+            group_id = self.ensure_group_path(f"/tenants/home/{name}")
+            self.api("POST", f"/realms/{REALM}/groups/{group_id}/role-mappings/realm", [role], accepted=(204,))
+        saved = json.loads(self.api("GET", path))
+        for key, value in desired.items():
+            if key == "secret":
+                continue
+            if key == "attributes":
+                if any(saved.get(key, {}).get(k) != v for k, v in value.items()):
+                    raise RuntimeError("Portal PKCE/ownership verification failed")
+            elif saved.get(key) != value:
+                raise RuntimeError("Portal client verification failed for " + key)
+        return secret
+
 
 def write_secret(path: Path, value: str) -> None:
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -453,6 +539,11 @@ def configure(args: argparse.Namespace, catalog: dict) -> None:
             raise RuntimeError(f"{exc}; see {port_forward_log}") from None
         admin_password = admin_password_file.read_text().strip()
         admin = KeycloakAdmin(base_url, args.admin_username, admin_password)
+        if args.portal_only:
+            secret = admin.ensure_portal_client()
+            write_secret(secrets_dir / "portal-keycloak-client-secret", secret)
+            print("Verified portal client and Home tenant-reader grants; secret saved locally, value not shown.")
+            return
         admin.ensure_realm()
 
         if client_secret_file.is_file():
@@ -489,6 +580,7 @@ def configure(args: argparse.Namespace, catalog: dict) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
+    parser.add_argument("--portal-only", action="store_true", help="reconcile only portal client and Home reader grants; no users or Rancher client")
     parser.add_argument("--apply", action="store_true",
                         help="connect to Keycloak and reconcile the realm, client, and groups")
     parser.add_argument("--secrets-dir", type=Path, default=DEFAULT_SECRETS)
@@ -504,6 +596,10 @@ def main() -> int:
         group_list = group_paths(catalog)
         if args.apply:
             configure(args, catalog)
+        elif args.portal_only:
+            print("Plan: managed perkforge realm; household-portal confidential client; S256 PKCE;")
+            print("      exact https://portal.local-lab.test/auth/callback; household-portal-api audience;")
+            print("      tenant-reader role only for existing Home groups; no users or Rancher changes.")
         else:
             print(f"Plan: Keycloak realm {REALM}; confidential OIDC client {CLIENT_ID};")
             print(f"      redirect URI {RANCHER_URL}/verify-auth; groups claim contains full paths.")

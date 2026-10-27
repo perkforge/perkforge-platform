@@ -12,12 +12,11 @@ class PortalIdentityTests(unittest.TestCase):
         cls.contract = portal_values(cls.home)
         cls.objects = render(cls.home)
 
-    def test_default_stays_empty_and_unregistered_with_published_image(self):
-        self.assertEqual(render(), [])
+    def test_default_prepares_controls_with_tenant_registration_paused(self):
+        objects = render()
+        self.assertTrue(next(o for o in objects if o['kind']=='GitRepo')['spec']['paused'])
+        self.assertFalse(any(o['kind']=='Deployment' for o in objects))
         self.assertEqual(portal_values()['imageDigest'], 'sha256:2e07afbb31fd462911a365893d05796090883464560478bd70179466af5b17b7')
-        for path in (ROOT / 'local-lab/fleet').rglob('*.yaml'):
-            self.assertNotIn('home-portal', path.read_text())
-            self.assertNotIn('local-lab/tenant-config', path.read_text())
         self.assertFalse(list(BUNDLE.rglob('Chart.yaml')))
         self.assertFalse(list(BUNDLE.rglob('*.py')))
 
@@ -78,4 +77,4 @@ class PortalIdentityTests(unittest.TestCase):
         self.assertEqual(workspace['metadata']['name'], self.home['foundation']['workspace'])
         self.assertNotIn('never-apply', result.stdout)
         self.assertNotIn('TenantCatalog', result.stdout)
-        self.assertEqual(len(objects), 21)
+        self.assertEqual(len(objects), 23)

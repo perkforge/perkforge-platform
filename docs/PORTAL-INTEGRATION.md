@@ -3,12 +3,16 @@
 Portal is a household application under Home, not another tenant or a platform-admin
 exception. Its new configuration uses Fleet-native YAML templates and values directly.
 There is no Python generation step, authored Helm chart/library, pre-rendered manifest
-source, or custom deployment wrapper. The existing legacy tenant foundation is unchanged;
+source, or custom deployment wrapper. Existing legacy namespace resources are unchanged; only Home's Project ceiling increases;
 its later Python cleanup is a separate effort.
 
-Portal is **disabled**. Its bundle path is not selected by the current platform GitRepo.
-Merging this draft neither deploys portal controls nor changes the 16 existing foundation
-files. No image, Keycloak client, Secret, role grant or live policy has been created.
+Portal workload remains **disabled**. This revision prepares foundation lifecycle
+**paused**: approved namespace/controls/ingress and a paused tenant GitRepo. The operator
+applies `local-lab/fleet/gitrepos/portal-foundation.yaml` only after review/merge. Keycloak
+resumes at one replica when its existing Fleet bundle reconciles this revision.
+Home's Project ceiling increases by the portal reservation; Nextcloud's allocation,
+quota and workloads are unchanged. Read [the activation runbook](PORTAL-ACTIVATION.md)
+before applying anything. Credential and login verification are live acceptance gates.
 
 ## Read the configuration in this order
 
@@ -29,10 +33,11 @@ All paths below are under `local-lab/tenant-config/`:
    approved image and runtime inputs. A tenant without that entry gets only the baseline.
 
 For another tenant, add a tenant values file and a small enrollment options file pointing
-at those values; reuse the same templates. At activation a platform GitRepo path entry
-selects this directory with `options: enrollments/home.yaml`. Do not add a root auto-discovered
+at those values; reuse the same templates. At activation a dedicated platform GitRepo uses `spec.bundles` with
+`base: local-lab/tenant-config` and `options: enrollments/home.yaml`. Do not add a root auto-discovered
 `fleet.yaml` that accidentally enrolls all tenants. Fleet GitRepo targets do not supply
-Helm value overrides. No registration of this new path is included in the current draft.
+Helm value overrides. The reviewed registration manifest is separate from existing GitRepo paths: Fleet
+0.16.2 driven scan replaces paths when bundles is present, so they must not be mixed.
 
 `foundation.components` enables each shared component by default. A platform-owned opt-out
 must have a matching `foundation.optOutReasons` explanation identifying the alternative
@@ -189,13 +194,13 @@ Home pins the Actions-published v0.2.0 manifest
 `sha256:2e07afbb31fd462911a365893d05796090883464560478bd70179466af5b17b7`
 from source `97efc86121e3f121e852f54e6b65665a7d68acec`, verified in
 [main run 40586703759](https://github.com/perkforge/perkforge-portal/actions/runs/40586703759).
-This is not the earlier local preload. The lifecycle remains disabled, allocation
-unapproved and enrollment unselected. No Secret or registry access is provisioned.
+This is not the earlier local preload. The workload remains disabled and its tenant GitRepo paused; namespace allocation
+is now prepared for the approved staged activation. No Secret or registry access is provisioned.
 
 The package must remain private. Platform supplies `portal-ghcr` of type
 `kubernetes.io/dockerconfigjson` in `tenant-home-portal`; the tenant chart references
 only its name. Admission permits exactly this one imagePullSecrets reference in both
-controller templates and Pods, rejects missing/extra/alternate references and still
+controller templates and Pods, rejects missing/extra/alternate references and allows only the reviewed public CA ConfigMap mount and still
 rejects Secret mounts/env injection. Release-storage admission denies deployer writes
 to the registry and OIDC Secrets. The runtime SA receives no Secret read permission.
 

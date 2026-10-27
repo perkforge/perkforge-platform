@@ -21,15 +21,19 @@
     (!has({{ $pod }}.ephemeralContainers) || {{ $pod }}.ephemeralContainers.size() == 0)
   message: Init and ephemeral containers are forbidden
 - expression: >-
-    (!has({{ $pod }}.volumes) || {{ $pod }}.volumes.size() == 0) &&
+    has({{ $pod }}.volumes) && {{ $pod }}.volumes.size() == 1 &&
+    {{ $pod }}.volumes[0].name == "identity-ca" && has({{ $pod }}.volumes[0].configMap) &&
+    {{ $pod }}.volumes[0].configMap.name == {{ $c.caConfigMap | toJson }} &&
+    {{ $pod }}.volumes[0].configMap.items == [{"key": "ca.crt", "path": "ca.crt"}] &&
+    (!has({{ $pod }}.volumes[0].configMap.optional) || !{{ $pod }}.volumes[0].configMap.optional) &&
     has({{ $pod }}.imagePullSecrets) && {{ $pod }}.imagePullSecrets.size() == 1 &&
     {{ $pod }}.imagePullSecrets[0].name == {{ $c.imagePullSecret | toJson }}
-  message: No mounted volumes; exactly the platform-approved registry Secret reference is required
+  message: Only the approved public CA volume and registry Secret reference are allowed
 - expression: >-
     has({{ $container }}.env) &&
-    {{ $container }}.env.size() == 7 &&
+    {{ $container }}.env.size() == 8 &&
     {{ $container }}.env.all(e, {{ $container }}.env.filter(x, x.name == e.name).size() == 1)
-  message: Exactly the seven unique platform environment entries are required
+  message: Exactly the eight unique platform environment entries are required
 - expression: >-
     {{ $container }}.env.all(e, e.name == "OIDC_CLIENT_SECRET" ? (!has(e.value) || e.value == "") &&
     has(e.valueFrom) &&
@@ -40,14 +44,16 @@
     e.valueFrom.secretKeyRef.name == {{ $c.identity.existingSecret | toJson }} &&
     e.valueFrom.secretKeyRef.key == {{ $c.identity.secretKey | toJson }} &&
     (!has(e.valueFrom.secretKeyRef.optional) || !e.valueFrom.secretKeyRef.optional) :
-    e.name in {"LISTEN_HOST": "0.0.0.0",
+    e.name in {"NODE_EXTRA_CA_CERTS": "/etc/portal/identity-ca/ca.crt",
+    "LISTEN_HOST": "0.0.0.0",
     "PORTAL_ORIGIN": {{ $c.portalOrigin | toJson }},
     "TENANT_SOURCE": "disabled",
     "OIDC_ISSUER": {{ $c.identity.issuer | toJson }},
     "OIDC_CLIENT_ID": {{ $c.identity.clientId | toJson }},
     "OIDC_AUDIENCE": {{ $c.identity.audience | toJson }}} &&
     has(e.value) &&
-    e.value == {"LISTEN_HOST": "0.0.0.0",
+    e.value == {"NODE_EXTRA_CA_CERTS": "/etc/portal/identity-ca/ca.crt",
+    "LISTEN_HOST": "0.0.0.0",
     "PORTAL_ORIGIN": {{ $c.portalOrigin | toJson }},
     "TENANT_SOURCE": "disabled",
     "OIDC_ISSUER": {{ $c.identity.issuer | toJson }},
@@ -62,15 +68,22 @@
     !has({{ $container }}.lifecycle)
   message: No environment import, command override or lifecycle code is allowed
 - expression: >-
-    (!has({{ $container }}.volumeMounts) || {{ $container }}.volumeMounts.size() == 0) &&
+    has({{ $container }}.volumeMounts) && {{ $container }}.volumeMounts.size() == 1 &&
+    {{ $container }}.volumeMounts[0].name == "identity-ca" &&
+    {{ $container }}.volumeMounts[0].mountPath == "/etc/portal/identity-ca" &&
+    {{ $container }}.volumeMounts[0].readOnly == true &&
+    !has({{ $container }}.volumeMounts[0].subPath) && !has({{ $container }}.volumeMounts[0].subPathExpr) &&
+    !has({{ $container }}.volumeMounts[0].mountPropagation) &&
     (!has({{ $container }}.volumeDevices) || {{ $container }}.volumeDevices.size() == 0) &&
     (!has({{ $container }}.workingDir) || {{ $container }}.workingDir == "")
-  message: No filesystem injection or working-directory override is allowed
+  message: Only the read-only public CA mount; no working-directory override
 - expression: >-
     (!has({{ $pod }}.hostNetwork) || !{{ $pod }}.hostNetwork) &&
     (!has({{ $pod }}.hostPID) || !{{ $pod }}.hostPID) &&
     (!has({{ $pod }}.hostIPC) || !{{ $pod }}.hostIPC) &&
-    (!has({{ $pod }}.hostAliases) || {{ $pod }}.hostAliases.size() == 0) &&
+    has({{ $pod }}.hostAliases) && {{ $pod }}.hostAliases.size() == 1 &&
+    {{ $pod }}.hostAliases[0].ip == {{ $c.identityIngressAddress | toJson }} &&
+    {{ $pod }}.hostAliases[0].hostnames == ["keycloak.local-lab.test"] &&
     !has({{ $pod }}.dnsConfig) &&
     (!has({{ $pod }}.dnsPolicy) || {{ $pod }}.dnsPolicy == "ClusterFirst") &&
     !has({{ $pod }}.runtimeClassName)

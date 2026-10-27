@@ -22,6 +22,33 @@ class KeycloakTenantConfigurationTests(unittest.TestCase):
         cls.catalog["tenants"] = [t for t in cls.catalog["tenants"]
                                   if t.get("classification") != "protected"]
 
+
+    def test_portal_client_has_pkce_no_admin_flows_and_exact_redirect(self):
+        client = module.portal_client("fixture-only")
+        self.assertEqual(client["clientId"], "household-portal")
+        self.assertEqual(client["redirectUris"], ["https://portal.local-lab.test/auth/callback"])
+        self.assertEqual(client["attributes"]["pkce.code.challenge.method"], "S256")
+        for field in ("publicClient", "implicitFlowEnabled", "directAccessGrantsEnabled", "serviceAccountsEnabled", "fullScopeAllowed"):
+            self.assertIs(client[field], False)
+        groups, audience = module.portal_mappers()
+        self.assertEqual(groups["config"]["access.token.claim"], "true")
+        self.assertEqual(groups["config"]["full.path"], "true")
+        self.assertEqual(audience["config"]["included.custom.audience"], "household-portal-api")
+        self.assertEqual(module.group_mapper()["config"]["access.token.claim"], "false")
+
+    def test_portal_refuses_unowned_existing_client_before_writes(self):
+        admin = object.__new__(module.KeycloakAdmin)
+        calls = []
+        def api(method, path, value=None, accepted=(200,)):
+            calls.append((method,path))
+            if path.endswith("/clients?clientId=household-portal"):
+                return json.dumps([{"clientId":"household-portal","id":"foreign"}]).encode()
+            return json.dumps({"attributes":{module.OWNERSHIP_ATTRIBUTE:"true"}}).encode()
+        admin.api = api
+        with self.assertRaisesRegex(RuntimeError, "not platform-owned"):
+            admin.ensure_portal_client()
+        self.assertTrue(all(method == "GET" for method, path in calls))
+
     def test_group_paths_cover_all_tenants_and_roles(self):
         paths = module.group_paths(self.catalog)
         self.assertEqual(len(paths), 6)
@@ -68,8 +95,8 @@ class KeycloakTenantConfigurationTests(unittest.TestCase):
     def test_rancher_oidc_uses_public_issuer_and_internal_backchannel(self):
         endpoints = module.rancher_oidc_endpoints()
         self.assertEqual(endpoints["issuer"],
-                         "http://keycloak.local-lab.test/auth/realms/perkforge")
-        self.assertTrue(endpoints["authEndpoint"].startswith("http://keycloak.local-lab.test/"))
+                         "https://keycloak.local-lab.test/auth/realms/perkforge")
+        self.assertTrue(endpoints["authEndpoint"].startswith("https://keycloak.local-lab.test/"))
         for name in ("tokenEndpoint", "userInfoEndpoint", "jwksUrl"):
             self.assertTrue(endpoints[name].startswith(
                 "http://keycloak-keycloakx-http.keycloak.svc.cluster.local/"))
@@ -78,7 +105,7 @@ class KeycloakTenantConfigurationTests(unittest.TestCase):
         values = yaml.safe_load((ROOT / "local-lab/fleet/bundles/keycloak/values.yaml").read_text())
         environment = yaml.safe_load(values["extraEnv"])
         variables = {entry["name"]: entry.get("value") for entry in environment}
-        self.assertEqual(variables["KC_HOSTNAME"], "http://keycloak.local-lab.test/auth")
+        self.assertEqual(variables["KC_HOSTNAME"], "https://keycloak.local-lab.test/auth")
         self.assertEqual(variables["KC_HOSTNAME_BACKCHANNEL_DYNAMIC"], "true")
 
     def test_keycloak_group_path_reconcile_is_idempotent_and_owned(self):

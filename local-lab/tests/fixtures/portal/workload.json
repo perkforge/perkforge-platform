@@ -54,6 +54,28 @@
               "name": "portal-ghcr"
             }
           ],
+          "hostAliases": [
+            {
+              "hostnames": [
+                "keycloak.local-lab.test"
+              ],
+              "ip": "10.43.163.193"
+            }
+          ],
+          "volumes": [
+            {
+              "name": "identity-ca",
+              "configMap": {
+                "name": "portal-identity-ca",
+                "items": [
+                  {
+                    "key": "ca.crt",
+                    "path": "ca.crt"
+                  }
+                ]
+              }
+            }
+          ],
           "securityContext": {
             "runAsNonRoot": true,
             "runAsUser": 1000,
@@ -82,7 +104,18 @@
                   "containerPort": 3000
                 }
               ],
+              "volumeMounts": [
+                {
+                  "name": "identity-ca",
+                  "mountPath": "/etc/portal/identity-ca",
+                  "readOnly": true
+                }
+              ],
               "env": [
+                {
+                  "name": "NODE_EXTRA_CA_CERTS",
+                  "value": "/etc/portal/identity-ca/ca.crt"
+                },
                 {
                   "name": "LISTEN_HOST",
                   "value": "0.0.0.0"

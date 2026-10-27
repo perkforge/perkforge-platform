@@ -12,3 +12,4 @@ spec:
     - local-lab/fleet/bundles/cnpg-operator
     - local-lab/fleet/bundles/nextcloud-support
     - local-lab/fleet/bundles/nextcloud-registration
+    - local-lab/fleet/bundles/local-tls
