@@ -1,4 +1,4 @@
 {
-  "change": "Reviewed exact public CA mount and portal-local identity hostname mapping; existing private secret restrictions retained",
-  "digest": "7efe76abc4eb2bf980a54d536ed54eb862cddd7b2771b9124946b92eeff6325b"
+  "change": "Correct Kubernetes all-resources wildcard syntax; unchanged admission expressions and identity boundaries",
+  "digest": "6716574e8ad74e74ac3854af304c27fa6907e8b6161e17cc0e0d59d9fe10ef31"
 }
