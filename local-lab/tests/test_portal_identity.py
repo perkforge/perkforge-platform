@@ -60,6 +60,8 @@ class PortalIdentityTests(unittest.TestCase):
             if policy['metadata']['name'] != 'portal-deployer-surface':
                 self.assertEqual(policy['spec']['matchConditions'][0]['expression'], 'request.namespace == "tenant-home-portal"')
             self.assertNotIn('objectSelector', policy['spec']['matchConstraints'])
+        surface = next(p for p in policies if p['metadata']['name']=='portal-deployer-surface')
+        self.assertEqual(surface['spec']['matchConstraints']['resourceRules'][0]['resources'], ['*/*'])
         bindings = [o for o in self.objects if o['kind'] == 'ValidatingAdmissionPolicyBinding']
         self.assertEqual({b['spec']['policyName'] for b in bindings}, {p['metadata']['name'] for p in policies})
         self.assertTrue(all(b['spec']['validationActions'] == ['Deny'] for b in bindings))

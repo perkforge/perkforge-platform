@@ -24,7 +24,8 @@ Only the published v0.2.0 digest is selected. GitLab remains disabled. No PR is 
    reconciles only household-portal and Home's non-composite tenant-reader role grants,
    and writes `portal-keycloak-client-secret` owner-only. It creates no users and does
    not modify the Rancher client. Unowned clients or unexpected role scopes fail closed.
-6. Run `configure-rancher-oidc.py --apply` with the same explicit operator paths. Verify
+6. Run `configure-rancher-oidc.py --https-only --apply` with explicit kubectl/kubeconfig paths. This mode preserves the live principal list
+   instead of reconciling the full catalog. Verify
    its plan first: only HTTPS issuer/browser authorization URL should change; existing
    client, groups/access permissions and local recovery login remain. Internal token,
    userinfo and JWKS endpoints remain compatible HTTP Services. Confirm discovery's
