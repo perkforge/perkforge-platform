@@ -25,6 +25,20 @@
 - The Mattermost database password is not an application login. Mattermost has no seeded admin password; its first registered user receives the System Admin role.
 - Root-level downloaded `kubectl` artifacts are ignored; do not add them to commits.
 
+## Protected Nextcloud tenant
+
+- Read the sibling application repository's `HANDOFF.md` and
+  `docs/operations.md` alongside the platform handoff before Nextcloud work.
+- Home (`tenant-home-nextcloud`) has persistent protected data. A local VM
+  rebuild deletes it too; do not apply synthetic-tenant disposability assumptions
+  without the user's applicable backup/disposability decision and action-specific
+  authorization. No backup/restore has been verified yet.
+- Keycloak is currently paused. Existing full deployment/rebuild verification
+  assumes it is running and is not a Nextcloud health check. Review capacity
+  before resuming Keycloak or enabling observability.
+- New worker VMs use 100-GiB disks with root grown into the remaining space;
+  control stays at 30 GiB. Existing VM provisioning does not resize disks.
+
 ## Running the local lab
 
 - The destructive rebuild is `local-lab/scripts/rebuild-local-lab.sh --confirm-destroy`. It deletes both VM disks and all cluster data on them, then rebuilds RHEL, host configuration, RKE2, Rancher, and the configured low-footprint Fleet profile.

@@ -26,6 +26,12 @@ The planned source-to-target GitHub move and its no-history-loss safeguards are 
 
 The platform's assurance goal is to connect each selected security control to its working implementation, repeatable verification, collected evidence, findings, risk decisions, and remediation. RMF artifacts describe this reference environment and do not claim a formal government authorization.
 
+For the working Nextcloud reference tenant, read
+[`docs/NEXTCLOUD-INTEGRATION.md`](docs/NEXTCLOUD-INTEGRATION.md) and the separate
+[application handoff](https://github.com/perkforge/perkforge-tenant-nextcloud/blob/main/HANDOFF.md).
+The current platform handoff links preserved historical session records; start
+with current state rather than earlier deployment checkpoints.
+
 The current shared-cluster tenant boundary and its known limits are recorded in
 [`docs/TENANT-SECURITY-BOUNDARY.md`](docs/TENANT-SECURITY-BOUNDARY.md), with
 implementation status and evidence expectations in

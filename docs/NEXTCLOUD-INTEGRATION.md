@@ -42,11 +42,17 @@ Private app evidence: `.evidence/smoke-20261027T011531Z/summary.json` and
 `.evidence/browser-20261027T012251Z/summary.json`. Runtime testing was authorized
 by the user's activation instruction; the offline unit suite was not run.
 
-Unverified: access from a separate LAN client, broad network denial, backups and
-restore, node-failure recovery and multi-user load. Workstation tests used temporary
-hostname overrides to 192.168.122.202. Hostname/router/bridge/firewall configuration
-has not been changed. Workstation /etc/hosts approval remains pending; other LAN
-clients need an approved route to the libvirt NAT subnet. Use replaceable data.
+The user subsequently confirmed interactive access and login. The account is
+`home-admin`, not `admin`. During troubleshooting, workstation resolution was
+192.168.122.201; the same credentials passed certificate-verified WebDAV checks
+through both ingress IPs, and browser login passed again. No credential reset or
+assistant host/router/bridge/firewall changes were needed. There is no pending
+hosts change for this working access. The device/network used by the user was
+not established, so independently verified second-LAN-client access remains
+unverified, along with broad network denial, backup/restore, node-failure recovery
+and multi-user load. Other LAN clients need an approved route to the VM subnet.
+Use replaceable data. Both repos now have current HANDOFF.md entry points;
+earlier checkpoints are preserved in docs/handoffs/2026-10-26-session-history.md.
 The capacity script is an initial-deployment gate: its full additional workload
 budget is not a post-deployment health check.
 
@@ -87,7 +93,7 @@ Metrics API is available for capacity review; container logs are ephemeral.
 No CNPG Backup or ScheduledBackup resources were found. No external backup or
 restore validation exists. No useful-data durability claim can yet be made.
 
-Latest observed working sets: control 2,875,624 Ki, worker 2,025,420 Ki; each
+Pre-expansion discovery working sets: control 2,875,624 Ki, worker 2,025,420 Ki; each
 has 3,740,808 Ki allocatable. Before expansion the worker had 5,538,328,576 bytes free (5.16 GiB), below
 its 8-GiB free-space gate. The user then approved expanding only the worker VM
 to 100 GiB; its existing partition, LVM PV/root LV and XFS filesystem were grown
