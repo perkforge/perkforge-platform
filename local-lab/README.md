@@ -10,6 +10,18 @@ shipped. It is separate from the physical deployment configuration under
 
 The provisioning script creates the VMs and installs RHEL 10.2 unattended with Kickstart. Ansible then configures RHEL and installs RKE2.
 
+## Current reduced-resource profile
+
+Nextcloud is the active protected reference tenant. Keycloak's application is
+paused at zero replicas, with its database retained; GitLab's PostgreSQL/Valkey
+dependencies remain active. Prometheus/Grafana and OpenCost paths are disabled.
+Review capacity before resuming Keycloak or enabling additional workloads.
+
+The deployment/rebuild procedures below still assume running Keycloak and are
+not health checks for this profile. A rebuild deletes both VM disks, including
+protected Nextcloud data, and requires action-specific authorization and the
+applicable backup/recovery decision. See the current [handoff](../HANDOFF.md).
+
 ## What this automates
 
 - Configures the attached RHEL DVD as persistent local BaseOS and AppStream repositories.
@@ -267,9 +279,9 @@ evidence under `local-lab/evidence/tenant-observability/`. Live mode requires
 the optional services to be ready and enough namespace quota for one small Pod
 per namespace. It does not validate Grafana data-source query isolation or
 tenant dashboard authorization. The dashboard in the Fleet bundle is
-platform-operator-only. The paths are enabled in the repository configuration;
-runtime evidence remains pending until that revision is published and Fleet
-reports the profile ready.
+platform-operator-only. The observability paths are currently disabled in
+`fleet/gitrepos/platform-apps.yaml`. Live verification requires a separately
+reviewed capacity decision, profile activation and ready services.
 
 
 ## Run the tenant security suite
@@ -354,12 +366,12 @@ ANSIBLE_CONFIG=local-lab/ansible/ansible.cfg ansible-playbook local-lab/ansible/
 Then inspect the cluster:
 
 ```sh
-.secrets/kubectl --kubeconfig .secrets/rke2.yaml get nodes -o wide
+.secrets/kubectl --kubeconfig .secrets/rke2.yaml --context default get nodes -o wide
 ```
 
 If `k9s` is installed, open the direct RKE2 context without changing the default kubeconfig with `k9s --kubeconfig .secrets/rke2.yaml`.
 
-The default `~/.kube/config` currently contains only the direct `rke2-lab` context, copied from `.secrets/rke2.yaml` after the Rancher-proxy context failed CA verification. The private repository kubeconfig remains the source for lab scripts. Rancher can generate a fresh kubeconfig from its cluster page if Rancher-proxy access is needed. See [Rancher access-cluster documentation](https://ranchermanager.docs.ranchermanager.com/how-to-guides/new-user-guides/manage-clusters/access-clusters/) and [Rancher kubeconfig token settings](https://ranchermanager.docs.ranchermanager.com/api/api-tokens).
+The repository kubeconfig `.secrets/rke2.yaml` uses context `default`. The workstation file `~/.kube/config` currently contains only the direct `rke2-lab` context, copied from the repository configuration after the Rancher-proxy context failed CA verification. Context names are local to each file: use `--context default` with `.secrets/rke2.yaml`, or `--context rke2-lab` with `~/.kube/config`. Inspect names safely with `kubectl --kubeconfig <file> config get-contexts`. The private repository kubeconfig remains the source for lab scripts. Rancher can generate a fresh kubeconfig from its cluster page if Rancher-proxy access is needed. See [Rancher access-cluster documentation](https://ranchermanager.docs.ranchermanager.com/how-to-guides/new-user-guides/manage-clusters/access-clusters/) and [Rancher kubeconfig token settings](https://ranchermanager.docs.ranchermanager.com/api/api-tokens).
 
 The local Rancher UI is at <https://rancher.local-lab.test>. Mattermost is at <http://mattermost.local-lab.test>. These `.test` names resolve through local hosts-file entries to the control VM:
 
@@ -369,7 +381,7 @@ The local Rancher UI is at <https://rancher.local-lab.test>. Mattermost is at <h
 
 ## Deploy local platform applications with Fleet
 
-`local-lab/fleet/` contains separate Fleet GitRepos for the disposable lab foundation and platform applications. The `local-lab` GitRepo manages storage, tenant foundations, and the CloudNativePG operator. The conservative `platform-apps` profile manages Keycloak and GitLab's PostgreSQL/Valkey dependencies. The GitLab application, Harbor, and Mattermost paths remain available but disabled until node memory is reviewed. Add or remove paths in `fleet/gitrepos/platform-apps.yaml` to select a profile. The GitLab database and Valkey are separate Fleet bundles under `gitlab-dependencies/`, so Fleet can process the database manifest and Helm chart independently.
+`local-lab/fleet/` contains separate Fleet GitRepos for the disposable lab foundation and platform applications. The `local-lab` GitRepo manages storage, tenant foundations, and the CloudNativePG operator. The current `platform-apps` profile retains Keycloak at zero application replicas, its database, and GitLab's PostgreSQL/Valkey dependencies. The GitLab application, Harbor, and Mattermost paths remain available but disabled until node memory is reviewed. Add or remove paths in `fleet/gitrepos/platform-apps.yaml` to select a profile. The GitLab database and Valkey are separate Fleet bundles under `gitlab-dependencies/`, so Fleet can process the database manifest and Helm chart independently.
 
 The platform baseline can be installed directly from the checked-out configuration with:
 
@@ -381,7 +393,7 @@ It creates local credentials in ignored `.secrets/`, installs the Keycloak and G
 
 This initial GitLab profile disables GitLab Runner to keep the first deployment smaller. GitLab can host groups and projects, but CI pipelines will remain pending until a Runner is configured. GitLab object storage is also disabled for this local profile, so uploads and artifacts use local storage. Harbor uses a self-signed generated ingress certificate. These are deliberate local-only settings to revisit when sizing the lab; they are not suitable for production. GitLab's own minimum example disables Runner and targets a single-user test deployment; its chart's standard target is much larger than these two 4-GiB VMs ([minimum profile](https://gitlab.com/gitlab-org/charts/gitlab/-/raw/master/examples/values-gke-minimum.yaml), [resource guidance](https://docs.gitlab.com/charts/installation/cloud/)).
 
-The local VMs run Keycloak and GitLab's database/Valkey dependencies; the GitLab application has not been installed. Keycloak is pinned to `cks-worker` to leave more memory for the single control plane. Prometheus/Grafana and OpenCost were briefly reconciled during a rollout that coincided with a control-node OOM that killed `kube-apiserver`; the OpenCost pod also crash-looped on the control node because its chart node selector was at the wrong value path. The value path is corrected, but both observability Fleet paths are paused. Keep them disabled on the two 4-GiB VMs until the cluster has adequate memory. GitLab, Harbor, and Mattermost remain opt-in. Harbor's documented minimum is 4 GB by itself ([Harbor prerequisites](https://goharbor.io/docs/main/install-config/installation-prereqs/)).
+Keycloak is paused at zero application replicas to reserve memory for Nextcloud; its database and GitLab's database/Valkey dependencies remain active. The GitLab application has not been installed. Keycloak retains its `cks-worker` placement configuration for a future reviewed resumption. Prometheus/Grafana and OpenCost were briefly reconciled during a rollout that coincided with a control-node OOM that killed `kube-apiserver`; the OpenCost pod also crash-looped on the control node because its chart node selector was at the wrong value path. The value path is corrected, but both observability Fleet paths are disabled. Keep them disabled on the two 4-GiB VMs until the cluster has adequate memory. GitLab, Harbor, and Mattermost remain opt-in. Harbor's documented minimum is 4 GB by itself ([Harbor prerequisites](https://goharbor.io/docs/main/install-config/installation-prereqs/)).
 
 The optional Prometheus/Grafana and OpenCost profile is documented in
 [`../docs/OBSERVABILITY-AND-COST.md`](../docs/OBSERVABILITY-AND-COST.md). It is

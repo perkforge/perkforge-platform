@@ -26,7 +26,7 @@ ThinkCentre hardware and a verified backup/restore path are pending.
 | Control VM | `cks-control`, `192.168.122.201`, 2 vCPU, 4 GiB RAM, 30 GiB disk |
 | Worker VM | `cks-worker`, `192.168.122.202`, 2 vCPU, 4 GiB RAM, 100 GiB disk |
 | Guest platform | RHEL 10.2, SELinux enforcing, RKE2 `v1.36.5+rke2r1` |
-| Cluster | Both nodes Ready; direct kubeconfig context `rke2-lab` |
+| Cluster | Both nodes Ready; repository kubeconfig context `default`, workstation context `rke2-lab` |
 | Rancher | `2.15.2`, `https://rancher.local-lab.test`; local admin auth retained |
 | Platform Fleet | `fleet-local/local-lab` 5/5; `fleet-local/platform-apps` 4/4 Ready |
 | Nextcloud Fleet | `fleet-home-nextcloud/tenant-home-nextcloud` 2/2 Ready |
@@ -176,8 +176,9 @@ blanket wipe permission. Worker-size settings are persisted for a future approve
 rebuild, not a request to run one now.
 
 Never print/commit `.secrets/` values or kubeconfigs. Direct `.secrets/rke2.yaml`
-is the source; default kubeconfig has verified `rke2-lab`, not the earlier broken
-Rancher proxy contexts. Rancher local admin remains the recovery identity while
+is the source and uses context `default`; `~/.kube/config` has verified
+`rke2-lab`, not the earlier broken Rancher proxy contexts. Context names belong
+to their respective files; use `--context default` with `.secrets/rke2.yaml`. Rancher local admin remains the recovery identity while
 Keycloak is paused. Mattermost has no seeded admin password; first registration
 creates its admin, and its DB password is not a UI login.
 
