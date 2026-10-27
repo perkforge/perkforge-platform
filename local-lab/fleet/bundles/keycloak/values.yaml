@@ -1,4 +1,6 @@
-replicas: 1
+# Paused to reserve worker memory for the initial Nextcloud tenant.
+# Restore to 1 through GitOps when Keycloak SSO work resumes.
+replicas: 0
 nodeSelector:
   kubernetes.io/hostname: cks-worker
 command:

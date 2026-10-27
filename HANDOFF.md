@@ -2,6 +2,34 @@
 
 Last updated: 2026-10-26
 
+## Nextcloud preparation and Keycloak pause — 2026-10-26
+
+- The user requested Nextcloud as a protected reference tenant in the separate
+  `perkforge-tenant-nextcloud` repository, which is currently empty.
+- Read-only discovery confirmed both nodes Ready, Fleet at `b7f666d` with 3/3
+  foundation and 4/4 application bundles Ready, explicit `local-path` storage
+  (not default, WaitForFirstConsumer, Delete reclaim), Traefik with node host
+  ports 80/443, and the existing CNPG operator. Only Rancher's namespace-scoped
+  certificate Issuer exists; no CNPG Backups or ScheduledBackups were found.
+- Metrics API working sets were 3,075,780 Ki on control and 2,451,072 Ki on
+  worker, against 3,740,808 Ki allocatable each. Observability stays disabled.
+- The user authorized pausing Keycloak to make room for Nextcloud, whose
+  initial deployment will not use Keycloak SSO. Local AuthConfig was verified
+  enabled. The Keycloak Helm values now request zero application replicas;
+  its PostgreSQL cluster, PVCs, secrets, ingress, and OIDC config are retained.
+  Tenant Keycloak/Rancher SSO is unavailable while the application is paused.
+- This is a LOCAL, UNPUBLISHED change until committed and pushed with explicit
+  authorization. The live StatefulSet was still 1/1 at preparation time.
+  Fleet watches origin/main; direct scaling would conflict with GitOps.
+- Restore `replicas: 1` through GitOps to resume. The existing full deployment
+  and rebuild checks assume running Keycloak and are incompatible with this
+  temporary paused profile; do not use them to apply this change. Allow Fleet
+  to reconcile the values change, then verify zero replicas and fresh capacity.
+- Nextcloud deployment remains pending: private LAN hostname/routing decision,
+  development-only secret bootstrap approval, reviewed application manifests,
+  and sufficient measured worker capacity after Keycloak is paused. No cluster
+  mutation, secret bootstrap, disk changes, commit, push, or tests performed.
+
 ## Resume location and local checkout move
 
 - Use `/home/corey/src/perkforge-platform` as the working directory. The old
