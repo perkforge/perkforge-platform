@@ -24,7 +24,9 @@
     has({{ $pod }}.volumes) && {{ $pod }}.volumes.size() == 1 &&
     {{ $pod }}.volumes[0].name == "identity-ca" && has({{ $pod }}.volumes[0].configMap) &&
     {{ $pod }}.volumes[0].configMap.name == {{ $c.caConfigMap | toJson }} &&
-    {{ $pod }}.volumes[0].configMap.items == [{"key": "ca.crt", "path": "ca.crt"}] &&
+    {{ $pod }}.volumes[0].configMap.items.size() == 1 &&
+    {{ $pod }}.volumes[0].configMap.items[0].key == "ca.crt" &&
+    {{ $pod }}.volumes[0].configMap.items[0].path == "ca.crt" &&
     (!has({{ $pod }}.volumes[0].configMap.optional) || !{{ $pod }}.volumes[0].configMap.optional) &&
     has({{ $pod }}.imagePullSecrets) && {{ $pod }}.imagePullSecrets.size() == 1 &&
     {{ $pod }}.imagePullSecrets[0].name == {{ $c.imagePullSecret | toJson }}

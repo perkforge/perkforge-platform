@@ -33,6 +33,17 @@ def owned_resource(kind, name, namespace, data, secret_type=None):
     return obj
 
 
+def admission_ready(policy, binding):
+    if not policy or not binding:
+        return False
+    status = policy.get('status', {})
+    return (policy['spec'].get('failurePolicy') == 'Fail'
+            and binding['spec'].get('validationActions') == ['Deny']
+            and status.get('observedGeneration') is not None
+            and status['observedGeneration'] == policy['metadata'].get('generation')
+            and not status.get('typeChecking', {}).get('expressionWarnings'))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--kubectl', type=Path, required=True)
@@ -61,7 +72,7 @@ def main():
     for name in ('portal-template-contract','portal-pod-contract','portal-deployer-surface','portal-service-contract'):
         policy = get('validatingadmissionpolicy',name)
         binding = get('validatingadmissionpolicybinding',name)
-        if not policy or policy['spec'].get('failurePolicy') != 'Fail' or not binding or binding['spec'].get('validationActions') != ['Deny']:
+        if not admission_ready(policy, binding):
             raise RuntimeError('Reviewed fail-closed portal admission must exist first')
     registry_text = private_file(args.registry_authfile)
     registry = json.loads(registry_text)

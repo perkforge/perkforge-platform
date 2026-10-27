@@ -23,7 +23,7 @@ spec:
 {{ include "portal.workloadValidations" (dict "contract" $c "pod" (ternary "object.spec.template.spec" "object.spec" (eq $target "template"))) | indent 2 }}
 {{- if eq $target "template" }}
   - expression: >-
-      request.kind.kind != "Deployment" || (object.metadata.name == {{ $c.releaseName | toJson }} && object.spec.replicas == 1 && object.spec.strategy.type == "Recreate")
+      request.kind.kind != "Deployment" || (object.metadata.name == {{ $c.releaseName | toJson }} && object.spec.replicas == 1 && dyn(object).spec.strategy.type == "Recreate")
     message: Only the single platform-reviewed portal deployment is allowed
 {{- end }}
 {{- end }}
