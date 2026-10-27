@@ -1,4 +1,4 @@
 {
-  "change": "Reviewed release-envelope extension; runtime identity controls unchanged",
-  "digest": "fe4289d34ad6efb5273db174820b08df0ec4f9d6c2ac73449e1b5da2b5734972"
+  "change": "Exactly one platform-approved private registry pull Secret; existing runtime controls retained",
+  "digest": "632895c7d0f2d24bf0de5dca57168cd8fb4f714db5b1f83a119bbc14fca914f0"
 }

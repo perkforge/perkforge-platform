@@ -49,6 +49,11 @@
         "spec": {
           "serviceAccountName": "portal-runtime",
           "automountServiceAccountToken": false,
+          "imagePullSecrets": [
+            {
+              "name": "portal-ghcr"
+            }
+          ],
           "securityContext": {
             "runAsNonRoot": true,
             "runAsUser": 1000,

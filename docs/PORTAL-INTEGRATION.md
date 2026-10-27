@@ -182,3 +182,39 @@ adds namespace-local create/update/delete and fail-closed portal envelope admiss
 without Secret read/list/watch. See [the storage assessment](PORTAL-RELEASE-STORAGE.md)
 for exact permissions, conditional cleanup findings, tests and activation order.
 This remains offline configuration, not a successful live portal integration.
+
+## Prepared private registry image
+
+Home pins the Actions-published v0.2.0 manifest
+`sha256:2e07afbb31fd462911a365893d05796090883464560478bd70179466af5b17b7`
+from source `97efc86121e3f121e852f54e6b65665a7d68acec`, verified in
+[main run 40586703759](https://github.com/perkforge/perkforge-portal/actions/runs/40586703759).
+This is not the earlier local preload. The lifecycle remains disabled, allocation
+unapproved and enrollment unselected. No Secret or registry access is provisioned.
+
+The package must remain private. Platform supplies `portal-ghcr` of type
+`kubernetes.io/dockerconfigjson` in `tenant-home-portal`; the tenant chart references
+only its name. Admission permits exactly this one imagePullSecrets reference in both
+controller templates and Pods, rejects missing/extra/alternate references and still
+rejects Secret mounts/env injection. Release-storage admission denies deployer writes
+to the registry and OIDC Secrets. The runtime SA receives no Secret read permission.
+
+For external Kubernetes pulls, [GHCR documents PAT classic authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry):
+use only `read:packages`, an expiry and SSO authorization if the organization requires
+it. Do not add repo/write/delete scopes. The token inherits its owner's readable
+package access; this scope is not a per-package restriction. Prefer a designated
+identity with read access only to this package where available; creating an identity
+or changing package access needs separate approval. Actions publishing continues to
+use GITHUB_TOKEN, which is not exported to the cluster.
+
+Credential creation/provisioning is pending explicit approval. The owner should
+create the expiring token in GitHub's UI and save it in the approved local secret
+store, never chat, Git, shell command arguments or logs. With approval, the platform
+operator prepares a mode-0600 Docker config in a private temporary directory using
+stdin/password input, creates or updates the named Secret securely, then removes the
+temporary material. [Kubernetes requires the Secret in the Pod namespace](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/).
+Verify an authenticated pull of the pinned manifest before activation; cached image
+availability alone is not evidence of valid registry authentication. No such test
+has run. Rotate before expiry by replacing the same Secret with a new read-only
+credential, verify a pull, then revoke the old token. No cluster-wide registry config,
+node credentials or default-SA modifications are proposed.

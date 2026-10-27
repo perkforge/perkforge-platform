@@ -2,7 +2,7 @@
 {{- $c := .Values.applications.portal -}}
 {{- if $c -}}
 {{- range $key, $value := $c -}}
-  {{- if not (has $key (list "namespace" "repository" "releaseName" "runtimeServiceAccount" "portalOrigin" "imageRepository" "imageDigest" "identity")) -}}{{ fail "unexpected portal runtime field" }}{{- end -}}
+  {{- if not (has $key (list "namespace" "repository" "releaseName" "runtimeServiceAccount" "portalOrigin" "imageRepository" "imageDigest" "imagePullSecret" "identity")) -}}{{ fail "unexpected portal runtime field" }}{{- end -}}
 {{- end -}}
 {{- if not (hasKey .Values.foundation.namespaces $c.namespace) -}}{{ fail "portal must reference an enrolled namespace" }}{{- end -}}
 {{- $ns := index .Values.foundation.namespaces $c.namespace -}}
@@ -17,6 +17,8 @@
 {{- if or (ne $c.identity.secretKey "client-secret") (ne $c.identity.requiredRole "tenant-reader") (eq $c.identity.clientId $c.identity.audience) -}}{{ fail "portal requires its reviewed secret key, API role and separate client/audience" }}{{- end -}}
 {{- if not (regexMatch "^https://[a-zA-Z0-9.-]+(:[0-9]+)?$" $c.portalOrigin) -}}{{ fail "portal requires an exact HTTPS origin" }}{{- end -}}
 {{- if not (regexMatch "^https://[a-zA-Z0-9.-]+(:[0-9]+)?(/[a-zA-Z0-9._~-]+)*/realms/perkforge$" $c.identity.issuer) -}}{{ fail "portal requires its reviewed HTTPS realm issuer" }}{{- end -}}
+{{- if not (regexMatch "^[a-z][a-z0-9-]{0,62}$" ($c.imagePullSecret | default "")) -}}{{ fail "portal requires an approved existing image pull Secret name" }}{{- end -}}
+{{- if eq $c.imagePullSecret $c.identity.existingSecret -}}{{ fail "registry and OIDC credentials must use separate Secrets" }}{{- end -}}
 {{- if ne .Values.foundation.lifecycle.state "disabled" -}}
   {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" ($c.imageDigest | default "")) -}}{{ fail "portal activation requires a reviewed image digest" }}{{- end -}}
 {{- end -}}

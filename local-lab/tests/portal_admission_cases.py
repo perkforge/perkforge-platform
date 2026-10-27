@@ -68,6 +68,11 @@ def cases():
     mutate('unapproved-secret-reference',secret)
     mutate('wrong-service-account',lambda o,p,v:p.update(serviceAccountName='admin'))
     mutate('token-automount',lambda o,p,v:p.update(automountServiceAccountToken=True))
+    mutate('missing-pull-secret',lambda o,p,v:p.pop('imagePullSecrets'))
+    mutate('wrong-pull-secret',lambda o,p,v:p.update(imagePullSecrets=[{'name':'other-registry'}]))
+    mutate('oidc-as-pull-secret',lambda o,p,v:p.update(imagePullSecrets=[{'name':'portal-oidc'}]))
+    mutate('extra-pull-secret',lambda o,p,v:p['imagePullSecrets'].append({'name':'other-registry'}))
+    mutate('duplicate-pull-secret',lambda o,p,v:p['imagePullSecrets'].append({'name':'portal-ghcr'}))
     mutate('secret-volume',lambda o,p,v:p.update(volumes=[{'name':'secret','secret':{'secretName':'admin-secret'}}]))
     mutate('hostPath',lambda o,p,v:p.update(volumes=[{'name':'host','hostPath':{'path':'/'}}]))
     mutate('projected-api-token',lambda o,p,v:p.update(volumes=[{'name':'token','projected':{'sources':[{'serviceAccountToken':{'path':'token'}}]}}]))
@@ -114,6 +119,7 @@ def cases():
         new = copy.deepcopy(record); new['metadata']['labels']['status'] = status
         release_case(status, new, record, 'UPDATE', True)
     changes = {
+        'pull-credential-name': lambda o: o['metadata'].update(name='portal-ghcr'),
         'oidc-name': lambda o: o['metadata'].update(name='portal-oidc'),
         'other-release': lambda o: o['metadata'].update(name='sh.helm.release.v1.other.v1'),
         'wrong-namespace': lambda o: o['metadata'].update(namespace='tenant-home-nextcloud'),
