@@ -1,0 +1,132 @@
+{{- define "portal.workloadValidations" -}}
+{{- $c := .contract -}}
+{{- $pod := .pod -}}
+{{- $container := printf "%s.containers[0]" $pod -}}
+# Applied to both controller templates and Pods; values are CEL literals, not parameters.
+- expression: >-
+    {{ $pod }}.containers.size() == 1
+  message: Exactly one approved portal container is required
+- expression: >-
+    {{ if $c.imageDigest }}{{ $container }}.name == "portal" &&
+    {{ $container }}.image == {{ printf "%s@%s" $c.imageRepository $c.imageDigest | toJson }}{{ else }}false{{ end }}
+  message: {{ if $c.imageDigest }}Only the platform-approved image digest is allowed{{ else }}No approved image digest{{ end }}
+- expression: >-
+    has({{ $pod }}.serviceAccountName) &&
+    {{ $pod }}.serviceAccountName == {{ $c.runtimeServiceAccount | toJson }} &&
+    has({{ $pod }}.automountServiceAccountToken) &&
+    !{{ $pod }}.automountServiceAccountToken
+  message: Platform runtime identity with token automount disabled is required
+- expression: >-
+    (!has({{ $pod }}.initContainers) || {{ $pod }}.initContainers.size() == 0) &&
+    (!has({{ $pod }}.ephemeralContainers) || {{ $pod }}.ephemeralContainers.size() == 0)
+  message: Init and ephemeral containers are forbidden
+- expression: >-
+    (!has({{ $pod }}.volumes) || {{ $pod }}.volumes.size() == 0) &&
+    (!has({{ $pod }}.imagePullSecrets) || {{ $pod }}.imagePullSecrets.size() == 0)
+  message: No mounted volumes or extra secret references are allowed
+- expression: >-
+    has({{ $container }}.env) &&
+    {{ $container }}.env.size() == 7 &&
+    {{ $container }}.env.all(e, {{ $container }}.env.filter(x, x.name == e.name).size() == 1)
+  message: Exactly the seven unique platform environment entries are required
+- expression: >-
+    {{ $container }}.env.all(e, e.name == "OIDC_CLIENT_SECRET" ? (!has(e.value) || e.value == "") &&
+    has(e.valueFrom) &&
+    has(e.valueFrom.secretKeyRef) &&
+    !has(e.valueFrom.configMapKeyRef) &&
+    !has(e.valueFrom.fieldRef) &&
+    !has(e.valueFrom.resourceFieldRef) &&
+    e.valueFrom.secretKeyRef.name == {{ $c.identity.existingSecret | toJson }} &&
+    e.valueFrom.secretKeyRef.key == {{ $c.identity.secretKey | toJson }} &&
+    (!has(e.valueFrom.secretKeyRef.optional) || !e.valueFrom.secretKeyRef.optional) :
+    e.name in {"LISTEN_HOST": "0.0.0.0",
+    "PORTAL_ORIGIN": {{ $c.portalOrigin | toJson }},
+    "TENANT_SOURCE": "disabled",
+    "OIDC_ISSUER": {{ $c.identity.issuer | toJson }},
+    "OIDC_CLIENT_ID": {{ $c.identity.clientId | toJson }},
+    "OIDC_AUDIENCE": {{ $c.identity.audience | toJson }}} &&
+    has(e.value) &&
+    e.value == {"LISTEN_HOST": "0.0.0.0",
+    "PORTAL_ORIGIN": {{ $c.portalOrigin | toJson }},
+    "TENANT_SOURCE": "disabled",
+    "OIDC_ISSUER": {{ $c.identity.issuer | toJson }},
+    "OIDC_CLIENT_ID": {{ $c.identity.clientId | toJson }},
+    "OIDC_AUDIENCE": {{ $c.identity.audience | toJson }}}[e.name] &&
+    !has(e.valueFrom))
+  message: Identity, origin and secret wiring must exactly match the platform contract
+- expression: >-
+    (!has({{ $container }}.envFrom) || {{ $container }}.envFrom.size() == 0) &&
+    (!has({{ $container }}.command) || {{ $container }}.command.size() == 0) &&
+    (!has({{ $container }}.args) || {{ $container }}.args.size() == 0) &&
+    !has({{ $container }}.lifecycle)
+  message: No environment import, command override or lifecycle code is allowed
+- expression: >-
+    (!has({{ $container }}.volumeMounts) || {{ $container }}.volumeMounts.size() == 0) &&
+    (!has({{ $container }}.volumeDevices) || {{ $container }}.volumeDevices.size() == 0) &&
+    (!has({{ $container }}.workingDir) || {{ $container }}.workingDir == "")
+  message: No filesystem injection or working-directory override is allowed
+- expression: >-
+    (!has({{ $pod }}.hostNetwork) || !{{ $pod }}.hostNetwork) &&
+    (!has({{ $pod }}.hostPID) || !{{ $pod }}.hostPID) &&
+    (!has({{ $pod }}.hostIPC) || !{{ $pod }}.hostIPC) &&
+    (!has({{ $pod }}.hostAliases) || {{ $pod }}.hostAliases.size() == 0) &&
+    !has({{ $pod }}.dnsConfig) &&
+    (!has({{ $pod }}.dnsPolicy) || {{ $pod }}.dnsPolicy == "ClusterFirst") &&
+    !has({{ $pod }}.runtimeClassName)
+  message: Host access, custom DNS and runtime overrides are forbidden
+- expression: >-
+    has({{ $pod }}.securityContext) &&
+    {{ $pod }}.securityContext.runAsNonRoot == true &&
+    {{ $pod }}.securityContext.runAsUser == 1000 &&
+    {{ $pod }}.securityContext.runAsGroup == 1000 &&
+    {{ $pod }}.securityContext.seccompProfile.type == "RuntimeDefault"
+  message: Pod must use the platform non-root seccomp profile
+- expression: >-
+    has({{ $container }}.securityContext) &&
+    {{ $container }}.securityContext.allowPrivilegeEscalation == false &&
+    {{ $container }}.securityContext.readOnlyRootFilesystem == true &&
+    (!has({{ $container }}.securityContext.privileged) || !{{ $container }}.securityContext.privileged) &&
+    {{ $container }}.securityContext.capabilities.drop == ["ALL"] &&
+    (!has({{ $container }}.securityContext.capabilities.add) || {{ $container }}.securityContext.capabilities.add.size() == 0) &&
+    (!has({{ $container }}.securityContext.runAsUser) || {{ $container }}.securityContext.runAsUser == 1000) &&
+    (!has({{ $container }}.securityContext.runAsGroup) || {{ $container }}.securityContext.runAsGroup == 1000) &&
+    (!has({{ $container }}.securityContext.runAsNonRoot) || {{ $container }}.securityContext.runAsNonRoot) &&
+    (!has({{ $container }}.securityContext.seccompProfile) || {{ $container }}.securityContext.seccompProfile.type == "RuntimeDefault")
+  message: Container must retain restricted security settings
+- expression: >-
+    has({{ $container }}.ports) &&
+    {{ $container }}.ports.size() == 1 &&
+    {{ $container }}.ports[0].name == "http" &&
+    {{ $container }}.ports[0].containerPort == 3000 &&
+    (!has({{ $container }}.ports[0].hostPort) || {{ $container }}.ports[0].hostPort == 0) &&
+    (!has({{ $container }}.ports[0].hostIP) || {{ $container }}.ports[0].hostIP == "")
+  message: Only the internal application port is allowed
+- expression: >-
+    (!has({{ $pod }}.securityContext.sysctls) || {{ $pod }}.securityContext.sysctls.size() == 0) &&
+    !has({{ $pod }}.securityContext.seLinuxOptions) &&
+    !has({{ $pod }}.securityContext.windowsOptions) &&
+    (!has({{ $pod }}.securityContext.appArmorProfile) || {{ $pod }}.securityContext.appArmorProfile.type == "RuntimeDefault") &&
+    (!has({{ $container }}.securityContext.procMount) || {{ $container }}.securityContext.procMount == "Default") &&
+    !has({{ $container }}.securityContext.seLinuxOptions) &&
+    !has({{ $container }}.securityContext.windowsOptions) &&
+    (!has({{ $container }}.securityContext.appArmorProfile) || {{ $container }}.securityContext.appArmorProfile.type == "RuntimeDefault")
+  message: Additional operating-system security overrides are forbidden
+- expression: >-
+    (!has({{ $container }}.stdin) || !{{ $container }}.stdin) &&
+    (!has({{ $container }}.stdinOnce) || !{{ $container }}.stdinOnce) &&
+    (!has({{ $container }}.tty) || !{{ $container }}.tty) &&
+    (!has({{ $pod }}.shareProcessNamespace) || !{{ $pod }}.shareProcessNamespace)
+  message: Interactive and shared process modes are forbidden
+{{- range $probe := list "livenessProbe" "readinessProbe" "startupProbe" }}
+- expression: >-
+    !has({{ $container }}.{{ $probe }}) || (has({{ $container }}.{{ $probe }}.httpGet) &&
+    !has({{ $container }}.{{ $probe }}.exec) &&
+    !has({{ $container }}.{{ $probe }}.tcpSocket) &&
+    !has({{ $container }}.{{ $probe }}.grpc) &&
+    {{ $container }}.{{ $probe }}.httpGet.path == "/healthz" &&
+    {{ $container }}.{{ $probe }}.httpGet.port == "http" &&
+    (!has({{ $container }}.{{ $probe }}.httpGet.host) || {{ $container }}.{{ $probe }}.httpGet.host == "") &&
+    (!has({{ $container }}.{{ $probe }}.httpGet.httpHeaders) || {{ $container }}.{{ $probe }}.httpGet.httpHeaders.size() == 0))
+  message: Health probes must not inject commands or alternate destinations
+{{- end }}
+{{- end -}}

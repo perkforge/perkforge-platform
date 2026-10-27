@@ -1,0 +1,158 @@
+{{- if eq .Values.section "foundation" }}
+{{ .Files.Get "files/roletemplates.yaml" }}
+{{- range $tenant := .Values.catalog.tenants }}
+{{- $project := printf "p-%s-%s" $tenant.id $tenant.cluster }}
+{{- $lifecycle := dig "lifecycle" "state" "" $tenant }}
+---
+apiVersion: management.cattle.io/v3
+kind: Project
+metadata:
+  name: {{ $project | quote }}
+  namespace: {{ $.Values.catalog.rancherManagementCluster | quote }}
+  labels:
+    platform.perkforge.io/tenant: {{ $tenant.id | quote }}
+    platform.perkforge.io/managed-by: tenant-foundation
+    {{- if $lifecycle }}
+    platform.perkforge.io/lifecycle-state: {{ $lifecycle | quote }}
+    {{- end }}
+  annotations:
+    field.cattle.io/no-creator-rbac: "true"
+spec:
+  clusterName: {{ $tenant.cluster | quote }}
+  displayName: {{ $tenant.displayName | quote }}
+  description: PerkForge tenant project managed from the tenant catalog.
+  resourceQuota:
+    limit: &projectLimits
+      {{- range $.Values.quotaFields }}
+      {{ .rancher }}: {{ index $tenant.resources.budget .kubernetes | toString | quote }}
+      {{- end }}
+  namespaceDefaultResourceQuota:
+    limit: *projectLimits
+{{- range $env := $tenant.environments }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $env.namespace | quote }}
+  labels:
+    app.kubernetes.io/part-of: opengovlocalpaas
+    platform.homelab/tenant: {{ $tenant.id | quote }}
+    platform.perkforge.io/tenant: {{ $tenant.id | quote }}
+    platform.perkforge.io/environment: {{ $env.name | quote }}
+    platform.perkforge.io/isolation-tier: {{ $tenant.isolation.tier | quote }}
+    platform.perkforge.io/managed-by: tenant-foundation
+    platform.perkforge.io/metrics: {{ $tenant.observability.metrics | toString | quote }}
+    platform.perkforge.io/cost-allocation: {{ $tenant.observability.costAllocation | toString | quote }}
+    {{- if $lifecycle }}
+    platform.perkforge.io/lifecycle-state: {{ $lifecycle | quote }}
+    {{- end }}
+    {{- if $tenant.classification }}
+    platform.perkforge.io/classification: {{ $tenant.classification | quote }}
+    {{- end }}
+    {{- $application := $tenant.application | default "" }}
+    {{- range $name, $app := $tenant.applications }}
+    {{- if eq $app.namespace $env.namespace }}{{ $application = $name }}{{ end }}
+    {{- end }}
+    {{- if $application }}
+    platform.perkforge.io/application: {{ $application | quote }}
+    {{- end }}
+    {{- range $cluster := $.Values.catalog.clusters }}
+    {{- if eq $cluster.name $tenant.cluster }}
+    {{- range $mode := list "enforce" "audit" "warn" }}
+    pod-security.kubernetes.io/{{ $mode }}: restricted
+    pod-security.kubernetes.io/{{ $mode }}-version: {{ $cluster.podSecurityVersion | quote }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+  annotations:
+    field.cattle.io/projectId: {{ printf "%s:%s" $tenant.cluster $project | quote }}
+    # Preserve Rancher's struct field order inside this JSON string to avoid drift.
+    field.cattle.io/resourceQuota: '{"limit":{ {{- range $i, $key := $.Values.rancherAnnotationFields }}{{ if $i }},{{ end }}{{ range $.Values.quotaFields }}{{ if eq .kubernetes $key }}{{ .rancher | toJson }}:{{ index $env.allocation $key | toString | toJson }}{{ end }}{{ end }}{{ end }}}}'
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tenant-budget
+  namespace: {{ $env.namespace | quote }}
+spec:
+  hard:
+    {{- range $.Values.quotaFields }}
+    {{ .kubernetes }}: {{ index $env.allocation .kubernetes | toString | quote }}
+    {{- end }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: tenant-defaults
+  namespace: {{ $env.namespace | quote }}
+spec:
+  limits:
+  - type: Container
+    defaultRequest:
+      cpu: {{ $tenant.resources.defaults.requestCpu | quote }}
+      memory: {{ $tenant.resources.defaults.requestMemory | quote }}
+    default:
+      cpu: {{ $tenant.resources.defaults.limitCpu | quote }}
+      memory: {{ $tenant.resources.defaults.limitMemory | quote }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: {{ $env.namespace | quote }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+{{- if ne ($tenant.classification | default "") "protected" }}
+# Protected applications get only default-deny here; exceptions remain platform-owned.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-tenant-internal-and-dns
+  namespace: {{ $env.namespace | quote }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          platform.perkforge.io/tenant: {{ $tenant.id | quote }}
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: rke2-traefik
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          platform.perkforge.io/tenant: {{ $tenant.id | quote }}
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - {protocol: UDP, port: 53}
+    - {protocol: TCP, port: 53}
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: keycloak
+    ports:
+    - {protocol: TCP, port: 8080}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -14,12 +14,23 @@ and leaves all 16 existing generated foundation files byte-for-byte unchanged.
   Secret name/key, service identities, immutable tenant revision and image approval.
   Home groups and the catalog cluster version are inherited, not independently stored.
   No secret values, admin credentials or tokens belong in the catalog.
-- `local-lab/scripts/render-tenant-foundation.py` validates the complete catalog and
-  owns ordinary active rendering, writing/checking, and explicit application previews.
-  `portal_application.py` is a pure helper, with no CLI, separate input file, apply
-  command, network client or credential generation. Other catalog consumers retain
-  their existing behavior; this does not run Keycloak provisioning.
-- `local-lab/templates/tenant-applications/portal/` contains platform renderer inputs.
+- `local-lab/templates/tenant-foundation/` is a shared, dependency-free Helm chart
+  used only for offline rendering. `values.yaml` contains common ordering/defaults;
+  catalog records supply instance values. Nothing renders with chart defaults.
+  This reuses the project's Helm/Fleet tooling rather than adding a new template
+  language. Kustomize overlays are unnecessary for these repeated catalog records.
+- `templates/foundation.yaml` declares Projects, namespaces, quotas, limits and
+  network policies once for all tenants. `files/roletemplates.yaml` holds shared roles.
+- `templates/portal.yaml` declares Fleet/configuration/admission resources, reusing
+  `files/portal/` for platform-owned RBAC/network/workspace controls.
+  `_portal-workload-validations.tpl` defines the CEL once for controller templates
+  and Pods. `_portal-values.tpl` supplies both the preview and Fleet ConfigMap.
+  `identity-plan.yaml` declares the review-only Keycloak plan.
+- `local-lab/scripts/render-tenant-foundation.py` keeps catalog validation, partitioning,
+  and safe write/check behavior. `tenant_templates.py` only passes data to local
+  `helm template` and parses its output. `portal_application.py` checks/inherits the
+  Home contract and selects lifecycle output. There is no install/apply command,
+  live lookup, credential generation, chart dependency or new controller.
 - `local-lab/tenant-config/generated/home/portal/` contains committed **review
   artifacts**, regenerated with `--preview-application home/portal`. They are outside
   active Fleet paths and never loaded as tenant inputs. These are outputs, not a
@@ -33,6 +44,22 @@ and leaves all 16 existing generated foundation files byte-for-byte unchanged.
 The old optional directory, standalone contract/renderer and proposal entry are
 retired. The tenant repository still owns only application Helm/Fleet definitions.
 Its approved ConfigMap reference is unchanged by this refactor.
+
+For review, trace `home.yaml → _portal-values.tpl → generated/home/portal/resources.yaml`
+(the ConfigMap) and `portal.yaml → _portal-workload-validations.tpl` (the constraints
+on those values). For shared foundation changes, trace a tenant record through
+`foundation.yaml` to `fleet/bundles/tenant-foundation/tenants/<id>/`.
+
+Python no longer constructs the Project/Namespace/quota/policy/Fleet/identity objects
+or CEL strings. It still validates aggregate budgets, uniqueness, protected lifecycle
+and secret-reference invariants, inherits Home groups/version, tags provisioned
+application output, avoids duplicate default-deny, and protects generated files from
+pruning. This is an incremental move toward declarative platform configuration, not
+completion of the wider platform migration. A later change can separate remaining
+validation/write orchestration from rendering without redesigning these YAML templates.
+The existing CLI stays intact; Helm 3.19 is now required for foundation checks too.
+Do not install this rendering chart: its selectable preview sections include
+non-Kubernetes review data, and direct Helm use omits catalog/lifecycle validation.
 
 ## Application lifecycle: preservation before convenience
 
@@ -129,7 +156,12 @@ export PORTAL_CHART_DIR="$(cd ../tenant-review && pwd)/bundles/portal/chart"
 The Go suite executes generated CEL using Kubernetes1.36.5 admission libraries,
 including real-chart negative overrides when PORTAL_CHART_DIR is supplied. Python
 tests cover catalog compatibility, inherited ownership, active/paused identity
-retention and no-prune behavior. Native/Fleet schemas are pinned to Kubernetes1.36.5
+retention and no-prune behavior. Frozen pre-refactor fingerprints compare all three
+lifecycle fixtures (full foundation plus four preview artifacts); only document order
+and embedded values-YAML presentation are normalized, while CEL strings match exactly.
+The 16 current foundation files are also compared byte-for-byte. Templates are checked
+for empty defaults and safe handling of YAML/template-like input as literal data.
+Native/Fleet schemas are pinned to Kubernetes1.36.5
 and Fleet0.16.0 with unknown-field rejection and IntOrString handling. These are
 **test targets**, not a fresh assertion of installed versions. Rancher FleetWorkspace
 schema, live API defaulting/type-check status, webhook order, CNI and controller

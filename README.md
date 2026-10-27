@@ -44,7 +44,8 @@ usage are documented in
 with a record skeleton at `docs/templates/security-finding.yaml`.
 The catalog-owned [Home portal integration](docs/PORTAL-INTEGRATION.md) supplies
 platform-owned identity configuration and tested admission controls from the existing
-tenant catalog. The new application is disabled, preserving all active outputs and live credentials. It includes explicit image, TLS and deployment
+tenant catalog and shared Helm/YAML templates. Python retains catalog validation
+and safe output writing. The new application is disabled, preserving all active outputs and live credentials. It includes explicit image, TLS and deployment
 approval gates.
 
 The remaining Phase 6 recommendations and decisions to review are collected in

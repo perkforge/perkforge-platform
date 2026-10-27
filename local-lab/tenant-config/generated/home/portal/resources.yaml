@@ -1,3 +1,39 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: tenant-home-portal
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: tenant-home-portal
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: perkforge-portal
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -11,6 +47,19 @@ metadata:
   name: portal-runtime
   namespace: tenant-home-portal
 automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: portal-platform-values
+  namespace: tenant-home-portal
+immutable: true
+data:
+  values.yaml: "enabled: false\nimage:\n  repository: \"ghcr.io/perkforge/perkforge-portal\"\
+    \n  digest: ''\nportalOrigin: \"https://portal.local-lab.test\"\ntenantSource:\
+    \ disabled\nidentity:\n  issuer: \"https://keycloak.local-lab.test/auth/realms/perkforge\"\
+    \n  clientId: \"household-portal\"\n  audience: \"household-portal-api\"\n  existingSecret:\
+    \ \"portal-oidc\"\n"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -65,59 +114,6 @@ subjects:
   name: home-portal-deployer
   namespace: cattle-fleet-local-system
 ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: default-deny
-  namespace: tenant-home-portal
-spec:
-  podSelector: {}
-  policyTypes:
-  - Ingress
-  - Egress
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-dns
-  namespace: tenant-home-portal
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: perkforge-portal
-  policyTypes:
-  - Egress
-  egress:
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: kube-system
-      podSelector:
-        matchLabels:
-          k8s-app: kube-dns
-    ports:
-    - protocol: UDP
-      port: 53
-    - protocol: TCP
-      port: 53
----
-apiVersion: management.cattle.io/v3
-kind: FleetWorkspace
-metadata:
-  name: fleet-home-portal
----
-apiVersion: fleet.cattle.io/v1alpha1
-kind: Policy
-metadata:
-  name: portal-only
-  namespace: fleet-home-portal
-requireServiceAccount: true
-allowedServiceAccounts:
-- home-portal-deployer
-gitRepo:
-  allowedRepoPatterns:
-  - ^https://github[.]com/perkforge/perkforge-tenant-portal[.]git$
----
 apiVersion: fleet.cattle.io/v1alpha1
 kind: BundleNamespaceMapping
 metadata:
@@ -130,6 +126,11 @@ bundleSelector:
 namespaceSelector:
   matchLabels:
     kubernetes.io/metadata.name: fleet-local
+---
+apiVersion: management.cattle.io/v3
+kind: FleetWorkspace
+metadata:
+  name: fleet-home-portal
 ---
 apiVersion: fleet.cattle.io/v1alpha1
 kind: GitRepo
@@ -152,18 +153,17 @@ spec:
   - name: local
     clusterName: local
 ---
-apiVersion: v1
-kind: ConfigMap
+apiVersion: fleet.cattle.io/v1alpha1
+kind: Policy
 metadata:
-  name: portal-platform-values
-  namespace: tenant-home-portal
-immutable: true
-data:
-  values.yaml: "enabled: false\nimage:\n  repository: ghcr.io/perkforge/perkforge-portal\n\
-    \  digest: ''\nportalOrigin: https://portal.local-lab.test\ntenantSource: disabled\n\
-    identity:\n  issuer: https://keycloak.local-lab.test/auth/realms/perkforge\n \
-    \ clientId: household-portal\n  audience: household-portal-api\n  existingSecret:\
-    \ portal-oidc\n"
+  name: portal-only
+  namespace: fleet-home-portal
+requireServiceAccount: true
+allowedServiceAccounts:
+- home-portal-deployer
+gitRepo:
+  allowedRepoPatterns:
+  - ^https://github[.]com/perkforge/perkforge-tenant-portal[.]git$
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
@@ -316,15 +316,6 @@ spec:
     message: Only the single platform-reviewed portal deployment is allowed
 ---
 apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingAdmissionPolicyBinding
-metadata:
-  name: portal-template-contract
-spec:
-  policyName: portal-template-contract
-  validationActions:
-  - Deny
----
-apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
   name: portal-pod-contract
@@ -455,15 +446,6 @@ spec:
     message: Health probes must not inject commands or alternate destinations
 ---
 apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingAdmissionPolicyBinding
-metadata:
-  name: portal-pod-contract
-spec:
-  policyName: portal-pod-contract
-  validationActions:
-  - Deny
----
-apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
   name: portal-deployer-surface
@@ -495,15 +477,6 @@ spec:
     message: Tenant deployer may mutate only Deployment and Service resources
 ---
 apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingAdmissionPolicyBinding
-metadata:
-  name: portal-deployer-surface
-spec:
-  policyName: portal-deployer-surface
-  validationActions:
-  - Deny
----
-apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
   name: portal-service-contract
@@ -533,6 +506,33 @@ spec:
       == "perkforge-portal" && object.spec.ports.size() == 1 && object.spec.ports[0].port
       == 3000 && object.spec.ports[0].targetPort == "http"
     message: Service must route only to the approved portal port
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: portal-template-contract
+spec:
+  policyName: portal-template-contract
+  validationActions:
+  - Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: portal-pod-contract
+spec:
+  policyName: portal-pod-contract
+  validationActions:
+  - Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: portal-deployer-surface
+spec:
+  policyName: portal-deployer-surface
+  validationActions:
+  - Deny
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding

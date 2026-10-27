@@ -1,0 +1,15 @@
+# Offline sections are selected by render-tenant-foundation.py. Nothing by default.
+section: ""
+catalog: {}
+portal: {}
+# Stable order preserves generated quotas and Rancher API annotation field order.
+quotaFields:
+- {kubernetes: pods, rancher: pods}
+- {kubernetes: requests.cpu, rancher: requestsCpu}
+- {kubernetes: requests.memory, rancher: requestsMemory}
+- {kubernetes: limits.cpu, rancher: limitsCpu}
+- {kubernetes: limits.memory, rancher: limitsMemory}
+- {kubernetes: persistentvolumeclaims, rancher: persistentVolumeClaims}
+- {kubernetes: requests.storage, rancher: requestsStorage}
+- {kubernetes: services, rancher: services}
+rancherAnnotationFields: [pods, services, persistentvolumeclaims, requests.cpu, requests.memory, requests.storage, limits.cpu, limits.memory]

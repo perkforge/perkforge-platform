@@ -68,7 +68,9 @@ The synthetic tenant foundation is managed by the existing Fleet bundle at
 and explicit `tenantFiles` references. Edit the individual tenant files under
 `local-lab/tenant-config/tenants/`; validate or render before changing the
 applied manifests. The renderer and tests use the pinned dependency in
-`local-lab/requirements.txt` (PyYAML 6.0.2).
+`local-lab/requirements.txt` (PyYAML 6.0.2), plus Helm 3.19 for offline rendering.
+Shared declarative resources live in `local-lab/templates/tenant-foundation/`;
+Python retains validation and safe file writing. No Helm install is performed.
 
 ```sh
 python3 local-lab/scripts/render-tenant-foundation.py --check

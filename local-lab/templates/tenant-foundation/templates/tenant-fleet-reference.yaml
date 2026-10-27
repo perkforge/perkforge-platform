@@ -1,0 +1,8 @@
+{{- if eq .Values.section "tenant-fleet-reference" }}
+helm:
+  valuesFrom:
+  - configMapKeyRef:
+      name: portal-platform-values
+      namespace: {{ .Values.portal.namespace | quote }}
+      key: values.yaml
+{{- end }}

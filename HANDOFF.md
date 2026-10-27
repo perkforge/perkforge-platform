@@ -71,7 +71,10 @@ Security, NetworkPolicies, deployment RBAC and Fleet registration. Source paths:
   dedicated Rancher FleetWorkspace/Policy/BundleNamespaceMapping.
 - `local-lab/fleet/bundles/nextcloud-registration/gitrepo.yaml`: workload SHA pin.
 
-One loader assembles catalog records; the renderer validates them globally. The
+One loader assembles catalog records; the renderer validates them globally.
+Shared Helm/YAML templates now own resource definitions under
+`local-lab/templates/tenant-foundation/`; Helm 3.19 is needed for offline checks.
+The Python entry point retains budget/lifecycle validation and safe output writing. The
 split retained the same parent Fleet bundle and all 20 generated resource
 identities/content at refactoring time. Do not edit generated tenant files;
 regenerate with `python3 local-lab/scripts/render-tenant-foundation.py --write`.

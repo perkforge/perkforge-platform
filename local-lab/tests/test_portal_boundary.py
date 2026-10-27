@@ -1,19 +1,19 @@
-"""Offline guards for the deliberately inactive household portal proposal."""
+"""Offline guards for platform-owned, inactive household portal controls."""
 from pathlib import Path
 import unittest
 import yaml
 ROOT = Path(__file__).resolve().parents[2]
-PROPOSAL = ROOT / 'local-lab/templates/tenant-applications/portal'
+CONTROLS = ROOT / 'local-lab/templates/tenant-foundation/files/portal'
 
-class PortalProposalTests(unittest.TestCase):
-    def test_not_in_active_fleet_or_catalog(self):
+class PortalBoundaryTests(unittest.TestCase):
+    def test_disabled_portal_not_in_active_fleet(self):
         for folder in ('local-lab/fleet',):
             for path in (ROOT / folder).rglob('*.yaml'):
                 self.assertNotIn('home-portal', path.read_text(), str(path))
-        self.assertFalse((PROPOSAL / 'fleet.yaml').exists())
+        self.assertFalse((CONTROLS / 'fleet.yaml').exists())
 
     def test_deployer_has_no_security_or_cluster_mutation(self):
-        objects = list(yaml.safe_load_all((PROPOSAL / 'rbac.yaml').read_text()))
+        objects = list(yaml.safe_load_all((CONTROLS / 'rbac.yaml').read_text()))
         self.assertFalse(any(o['kind'] in ('ClusterRole', 'ClusterRoleBinding') for o in objects))
         for obj in objects:
             if obj['kind'] == 'ServiceAccount':
@@ -26,7 +26,7 @@ class PortalProposalTests(unittest.TestCase):
                 self.assertEqual(obj['subjects'][0]['name'], 'home-portal-deployer')
 
     def test_network_defaults_deny_and_only_dns_allowed(self):
-        objects = list(yaml.safe_load_all((PROPOSAL / 'networkpolicy.yaml').read_text()))
+        objects = list(yaml.safe_load_all((CONTROLS / 'networkpolicy.yaml').read_text()))
         deny, dns = objects
         self.assertEqual(set(deny['spec']['policyTypes']), {'Ingress', 'Egress'})
         self.assertNotIn('ingress', deny['spec'])
@@ -36,7 +36,7 @@ class PortalProposalTests(unittest.TestCase):
         self.assertEqual({p['port'] for p in rules[0]['ports']}, {53})
         self.assertEqual(set(rules[0]['to'][0]), {'namespaceSelector', 'podSelector'})
 
-    def test_fleet_proposal_targets_only_tenant_repo_and_is_paused(self):
+    def test_fleet_registration_targets_only_tenant_repo_and_is_paused(self):
         objects = list(yaml.safe_load_all((ROOT / 'local-lab/tenant-config/generated/home/portal/resources.yaml').read_text()))
         repo = next(o for o in objects if o['kind'] == 'GitRepo')['spec']
         self.assertEqual(repo['repo'], 'https://github.com/perkforge/perkforge-tenant-portal.git')

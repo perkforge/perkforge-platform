@@ -1,0 +1,3 @@
+{{- if eq .Values.section "helm-values" }}
+{{ include "portal.values" .Values.portal }}
+{{- end }}
