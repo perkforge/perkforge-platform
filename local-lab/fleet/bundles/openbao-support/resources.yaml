@@ -25,7 +25,9 @@ spec:
   secretName: openbao-lab-issued
   privateKey:
     rotationPolicy: Always
+  ipAddresses: [127.0.0.1]
   dnsNames:
+  - localhost
   - openbao.local-lab.test
   - openbao.openbao.svc
   - openbao.openbao.svc.cluster.local

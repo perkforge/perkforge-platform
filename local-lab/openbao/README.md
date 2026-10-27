@@ -186,7 +186,7 @@ audit events and isolated backup restore. Preserve failed evidence and record
 limitations. Only use synthetic values for public logs and CI.
 
 PR #19 delivered the initial configuration stage. The follow-up adds concrete
-support manifests, native auth configuration, the OpenBao-only Keycloak mode,
+support manifests, native auth configuration, the small approved Ansible API adapter,
 private leaf-delivery and encrypted-snapshot helpers, plus an isolated TLS/Raft
 restore test. None activates the service. See [operations](OPERATIONS.md) for
 resource/action ordering and [capacity assessment](CAPACITY.md) for measured

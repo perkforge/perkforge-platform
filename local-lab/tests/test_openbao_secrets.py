@@ -197,11 +197,22 @@ class StaticContract(unittest.TestCase):
                 self.assertNotIn('openbao-support',gitrepo.read_text())
 
     def test_operator_helpers_default_to_plan_without_access(self):
-        for script in ('configure.sh','deliver-tls.sh','backup.sh'):
+        for script in ('deliver-tls.sh','backup.sh'):
             result=subprocess.run(['bash',str(CONFIG/script)],capture_output=True,text=True,env={'PATH':'/usr/bin:/bin'})
             self.assertEqual(result.returncode,0)
             self.assertIn('Plan only',result.stdout)
             self.assertNotIn('secret value',result.stdout)
+
+    def test_native_keycloak_payload_has_scoped_human_flow(self):
+        client=json.loads((CONFIG/'config/keycloak-client.json').read_text())
+        self.assertEqual(client['clientId'],'openbao')
+        self.assertNotIn('secret',client)
+        self.assertFalse(client['fullScopeAllowed'])
+        self.assertEqual(client['attributes']['pkce.code.challenge.method'],'S256')
+        for field in ('publicClient','implicitFlowEnabled','directAccessGrantsEnabled','serviceAccountsEnabled'):
+            self.assertFalse(client[field])
+        self.assertEqual(client['protocolMappers'][0]['config']['full.path'],'true')
+        self.assertEqual(client['protocolMappers'][0]['config']['id.token.claim'],'true')
 
     def test_auth_roles_are_bound_and_distinct(self):
         home=json.loads((CONFIG/'roles/human-home.json').read_text())

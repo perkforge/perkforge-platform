@@ -1,0 +1,113 @@
+- name: Read mount types without modifying existing engines
+  ansible.builtin.uri:
+    url: "{{ openbao_url }}/v1/sys/mounts"
+    headers: "{{ bao_headers }}"
+  register: bao_mounts
+  no_log: true
+- name: Refuse conflicting platform or tenant mounts
+  ansible.builtin.assert:
+    that:
+      - item + '/' not in bao_mounts.json.data or (bao_mounts.json.data[item + '/'].type == 'kv' and bao_mounts.json.data[item + '/'].options.version == '2')
+  loop: [platform, tenants]
+  no_log: true
+- name: Create only missing KV v2 scopes
+  ansible.builtin.uri:
+    url: "{{ openbao_url }}/v1/sys/mounts/{{ item }}"
+    method: POST
+    headers: "{{ bao_headers }}"
+    body_format: json
+    body: {type: kv, options: {version: '2'}}
+    status_code: 204
+  loop: [platform, tenants]
+  when: item + '/' not in bao_mounts.json.data
+  changed_when: true
+  no_log: true
+- name: Reconcile the explicit reviewed ACL policies
+  ansible.builtin.include_tasks: policy.yaml
+  loop:
+    - human-home
+    - human-platform
+    - human-platform-tenant-access
+    - eso-home-portal
+    - snapshot-reader
+  loop_control:
+    loop_var: policy_name
+- name: Read existing authentication mount types
+  ansible.builtin.uri:
+    url: "{{ openbao_url }}/v1/sys/auth"
+    headers: "{{ bao_headers }}"
+  register: bao_auths
+  no_log: true
+- name: Refuse conflicting authentication methods
+  ansible.builtin.assert:
+    that: item + '/' not in bao_auths.json.data or bao_auths.json.data[item + '/'].type == item
+  loop: [oidc, kubernetes]
+  no_log: true
+- name: Enable only missing approved authentication methods
+  ansible.builtin.uri:
+    url: "{{ openbao_url }}/v1/sys/auth/{{ item }}"
+    method: POST
+    headers: "{{ bao_headers }}"
+    body_format: json
+    body: {type: "{{ item }}"}
+    status_code: 204
+  loop: [oidc, kubernetes]
+  when: item + '/' not in bao_auths.json.data
+  changed_when: true
+  no_log: true
+- name: Read OIDC configuration
+  ansible.builtin.uri:
+    url: "{{ openbao_url }}/v1/auth/oidc/config"
+    headers: "{{ bao_headers }}"
+    status_code: [200, 404]
+  register: oidc_config
+  no_log: true
+- name: Define reviewed public OIDC settings
+  ansible.builtin.set_fact:
+    desired_oidc:
+      oidc_discovery_url: "{{ openbao_discovery_url }}"
+      oidc_client_id: openbao
+      oidc_discovery_ca_pem: "{{ lookup('ansible.builtin.file', public_ca_file) | trim }}"
+      default_role: ''
+  no_log: true
+- name: Configure OIDC only on public drift or explicit credential refresh
+  ansible.builtin.uri:
+    url: "{{ openbao_url }}/v1/auth/oidc/config"
+    method: POST
+    headers: "{{ bao_headers }}"
+    body_format: json
+    body: "{{ desired_oidc | combine({'oidc_client_secret': openbao_client_credential.json.value}) }}"
+    status_code: 204
+  when: oidc_config.status == 404 or oidc_config.json.data | combine(desired_oidc) != oidc_config.json.data or openbao_refresh_oidc_secret | bool
+  changed_when: true
+  no_log: true
+- name: Read Kubernetes authentication configuration
+  ansible.builtin.uri:
+    url: "{{ openbao_url }}/v1/auth/kubernetes/config"
+    headers: "{{ bao_headers }}"
+    status_code: [200, 404]
+  register: kubernetes_config
+  no_log: true
+- name: Define pod-local rotating reviewer configuration
+  ansible.builtin.set_fact:
+    desired_kubernetes: "{{ lookup('ansible.builtin.file', desired_root + '/config/kubernetes.json') | from_json }}"
+  no_log: true
+- name: Configure Kubernetes auth only when reviewed fields differ
+  ansible.builtin.uri:
+    url: "{{ openbao_url }}/v1/auth/kubernetes/config"
+    method: POST
+    headers: "{{ bao_headers }}"
+    body_format: json
+    body: "{{ desired_kubernetes }}"
+    status_code: 204
+  when: kubernetes_config.status == 404 or kubernetes_config.json.data | combine(desired_kubernetes) != kubernetes_config.json.data
+  changed_when: true
+  no_log: true
+- name: Reconcile only the explicit human and machine roles
+  ansible.builtin.include_tasks: role.yaml
+  loop:
+    - {path: oidc/role/home, file: human-home.json}
+    - {path: oidc/role/platform, file: human-platform.json}
+    - {path: kubernetes/role/eso-home-portal, file: eso-home-portal.json}
+  loop_control:
+    loop_var: role_record

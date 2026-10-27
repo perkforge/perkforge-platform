@@ -17,10 +17,10 @@ APIs. There is no foundation library or application dependency on this repositor
   retained PVCs (2+1 GiB). ESO adds its controller ServiceAccount/Deployment,
   Services, namespace-local controller/leader-election RBAC and CRDs. Render
   and review the exact resource list at the approved head before applying.
-- Run leaf delivery, private initialization/unseal ceremony, the existing
-  Keycloak script's `--openbao-only --apply`, and `configure.sh --apply`.
+- Run leaf delivery, private initialization/unseal ceremony, the small
+  `platform-config/configure.yaml` Ansible API playbook.
   These are separate security/credential actions included explicitly in the
-  approval. The Keycloak mode creates/reconciles only one owned client and
+  approval. The playbook creates/reconciles only one owned Keycloak client and
   groups mapper, preserves its secret and changes no users/memberships.
   Existing membership in `/platform/admins` or `/tenants/home/admins` is required;
   any new human membership is an additional named grant, not implied here.
@@ -100,19 +100,19 @@ failure. Root revocation and recovery verification are required below.
 Use the temporary root session privately for the initial auth configuration:
 
 ```sh
-python3 local-lab/scripts/configure-keycloak-tenants.py --openbao-only --apply \
-  --kubectl /path/to/kubectl --kubeconfig /private/rke2.yaml --secrets-dir /private/platform-secrets
-local-lab/openbao/configure.sh --apply \
-  /private/platform-secrets/openbao-keycloak-client-secret /public/lab-ca.pem
+ANSIBLE_LOCAL_TEMP=/tmp/perkforge-ansible-local \
+ANSIBLE_REMOTE_TEMP=/tmp/perkforge-ansible-remote \
+ansible-playbook -i localhost, platform-config/configure.yaml
 ```
 
-`configure.sh` refuses conflicting KV/auth mount types; writes plain reviewed
-HCL policies and JSON roles using the native CLI; configures OIDC discovery,
-public CA, audience, exact groups/redirects; and sets Kubernetes auth to use the
-OpenBao pod's rotating reviewer token/CA. It neither initializes nor issues an
-app token. There is no stored reviewer JWT or privileged default OIDC role.
-Role inputs use `openid,profile`, since the groups mapper is directly attached
-to this client—no nonexistent `groups` client scope is assumed.
+The approved [small Ansible API adapter](../../platform-config/README.md) uses
+native GET/POST/PUT through `ansible.builtin.uri`, refuses unowned client or
+conflicting mount adoption, preserves the existing client credential and writes
+only the reviewed native JSON/HCL desired state. All sensitive tasks use
+`no_log`. It configures OIDC discovery, CA, exact groups/redirects and the
+OpenBao pod's rotating Kubernetes reviewer token/CA. No stored reviewer JWT,
+Python configurator, app secret migration or user membership is introduced.
+Role inputs use `openid,profile`; groups are mapped directly on this client.
 
 Validate Home and platform login with preapproved users, then revoke the
 bootstrap root token using `bao token revoke -self` in that temporary session.

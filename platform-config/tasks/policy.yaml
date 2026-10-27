@@ -1,0 +1,19 @@
+- name: Read the named ACL policy
+  ansible.builtin.uri:
+    url: "{{ openbao_url }}/v1/sys/policies/acl/{{ policy_name }}"
+    headers: "{{ bao_headers }}"
+    status_code: [200, 404]
+  register: current_policy
+  no_log: true
+- name: Apply only a missing or changed ACL document
+  ansible.builtin.uri:
+    url: "{{ openbao_url }}/v1/sys/policies/acl/{{ policy_name }}"
+    method: PUT
+    headers: "{{ bao_headers }}"
+    body_format: json
+    body:
+      policy: "{{ lookup('ansible.builtin.file', desired_root + '/policies/' + policy_name + '.hcl') }}"
+    status_code: 204
+  when: current_policy.status == 404 or current_policy.json.data.policy | trim != lookup('ansible.builtin.file', desired_root + '/policies/' + policy_name + '.hcl') | trim
+  changed_when: true
+  no_log: true

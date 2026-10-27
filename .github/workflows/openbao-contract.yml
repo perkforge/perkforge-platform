@@ -1,9 +1,9 @@
 name: openbao-contract-offline
 on:
   push:
-    paths: ['local-lab/openbao/**', 'local-lab/secrets-config/**', 'local-lab/fleet/bundles/secrets-openbao/**', 'local-lab/fleet/bundles/eso-home-portal/**', 'local-lab/fleet/bundles/openbao-support/**', 'local-lab/fleet/gitrepos/openbao.yaml', 'local-lab/scripts/configure-keycloak-tenants.py', 'local-lab/tests/test_configure_keycloak_tenants.py', 'local-lab/tests/test_openbao_secrets.py', '.github/workflows/openbao-contract.yml']
+    paths: ['local-lab/openbao/**', 'platform-config/**', 'local-lab/tests/test_platform_config.py', 'local-lab/secrets-config/**', 'local-lab/fleet/bundles/secrets-openbao/**', 'local-lab/fleet/bundles/eso-home-portal/**', 'local-lab/fleet/bundles/openbao-support/**', 'local-lab/fleet/gitrepos/openbao.yaml', 'local-lab/tests/test_openbao_secrets.py', '.github/workflows/openbao-contract.yml']
   pull_request:
-    paths: ['local-lab/openbao/**', 'local-lab/secrets-config/**', 'local-lab/fleet/bundles/secrets-openbao/**', 'local-lab/fleet/bundles/eso-home-portal/**', 'local-lab/fleet/bundles/openbao-support/**', 'local-lab/fleet/gitrepos/openbao.yaml', 'local-lab/scripts/configure-keycloak-tenants.py', 'local-lab/tests/test_configure_keycloak_tenants.py', 'local-lab/tests/test_openbao_secrets.py', '.github/workflows/openbao-contract.yml']
+    paths: ['local-lab/openbao/**', 'platform-config/**', 'local-lab/tests/test_platform_config.py', 'local-lab/secrets-config/**', 'local-lab/fleet/bundles/secrets-openbao/**', 'local-lab/fleet/bundles/eso-home-portal/**', 'local-lab/fleet/bundles/openbao-support/**', 'local-lab/fleet/gitrepos/openbao.yaml', 'local-lab/tests/test_openbao_secrets.py', '.github/workflows/openbao-contract.yml']
 permissions:
   contents: read
 jobs:
@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.13'
-      - run: python -m pip install PyYAML==6.0.3
+      - run: python -m pip install PyYAML==6.0.3 -r platform-config/requirements.txt
       - uses: azure/setup-helm@v4.3.1
         with:
           version: v3.19.0
@@ -47,9 +47,16 @@ jobs:
           echo "BAO_BIN=$RUNNER_TEMP/openbao-test/bin/bao" >> "$GITHUB_ENV"
           echo "OPENBAO_CHART=$RUNNER_TEMP/openbao-test/charts/openbao" >> "$GITHUB_ENV"
           echo "ESO_CHART=$RUNNER_TEMP/openbao-test/charts/external-secrets" >> "$GITHUB_ENV"
-      - name: Validate operator helper syntax and isolated Keycloak extension
+      - name: Validate operator helper syntax
+        run: bash -n local-lab/openbao/deliver-tls.sh local-lab/openbao/backup.sh
+      - name: Verify Ansible syntax and isolated API idempotence
+        env:
+          RUN_PLATFORM_CONFIG_TESTS: '1'
+          ANSIBLE_LOCAL_TEMP: /tmp/perkforge-ansible-local
+          ANSIBLE_REMOTE_TEMP: /tmp/perkforge-ansible-remote
         run: |
-          bash -n local-lab/openbao/configure.sh local-lab/openbao/deliver-tls.sh local-lab/openbao/backup.sh
-          python -m unittest discover -s local-lab/tests -p test_configure_keycloak_tenants.py -v
+          ansible-playbook -i localhost, platform-config/configure.yaml --syntax-check
+          ansible-playbook -i localhost, platform-config/configure.yaml --check
+          python -m unittest discover -s local-lab/tests -p test_platform_config.py -v
       - name: Test synthetic OpenBao isolation and native rendering
         run: python -m unittest discover -s local-lab/tests -p test_openbao_secrets.py -v

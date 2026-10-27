@@ -1,0 +1,2 @@
+# Built-in URI only; no Galaxy collections or custom modules.
+ansible-core==2.19.11

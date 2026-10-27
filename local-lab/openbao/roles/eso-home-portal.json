@@ -9,7 +9,7 @@
   "token_policies": [
     "eso-home-portal"
   ],
-  "token_ttl": "5m",
-  "token_max_ttl": "15m",
+  "token_ttl": 300,
+  "token_max_ttl": 900,
   "token_no_default_policy": true
 }
