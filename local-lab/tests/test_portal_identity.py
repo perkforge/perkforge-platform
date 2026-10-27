@@ -12,9 +12,9 @@ class PortalIdentityTests(unittest.TestCase):
         cls.contract = portal_values(cls.home)
         cls.objects = render(cls.home)
 
-    def test_default_prepares_controls_with_tenant_registration_paused(self):
+    def test_default_activates_reviewed_tenant_registration(self):
         objects = render()
-        self.assertTrue(next(o for o in objects if o['kind']=='GitRepo')['spec']['paused'])
+        self.assertFalse(next(o for o in objects if o['kind']=='GitRepo')['spec']['paused'])
         self.assertFalse(any(o['kind']=='Deployment' for o in objects))
         self.assertEqual(portal_values()['imageDigest'], 'sha256:2e07afbb31fd462911a365893d05796090883464560478bd70179466af5b17b7')
         self.assertFalse(list(BUNDLE.rglob('Chart.yaml')))

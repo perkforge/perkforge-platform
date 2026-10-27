@@ -72,3 +72,19 @@ through Kubernetes CEL, and retain legacy ownership/transition/role tests. They 
 prove live identity claims, browser CA trust, CNI behavior, node pulls or available
 capacity. The initial stage keeps application disabled and registration paused. Pausing
 Fleet later preserves resources and does not stop an already running workload.
+
+## Reviewed activation
+
+The Home foundation now selects `active` and pins tenant commit
+`2df910faea77f5af71cad75829f6400ee52de890`. Merging this change unpauses
+Fleet and deploys one portal replica from the verified v0.2.0 GHCR digest.
+Platform controls and operator-owned TLS, OIDC, registry Secret and public CA
+were provisioned first. Twelve actual API-server dry-run checks passed, including
+seven denied mutations. The temporary registry credential copy was removed.
+
+This is activation intent, not a claim of completed live acceptance. After merge,
+verify the node's authenticated image pull, readiness, trusted HTTPS, real Home
+OIDC session and protected stub API, Alpha access denial, and existing service
+health. GitLab remains disabled. Pausing an existing tenant preserves controls
+and does not delete workloads; stopping a running replica requires a separate
+reviewed workload change.
