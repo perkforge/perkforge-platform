@@ -206,3 +206,9 @@ Release-storage create/update/delete plus portal envelope admission are prepared
 See docs/PORTAL-RELEASE-STORAGE.md for activation order and the conditional cleanup finding. The local
 portal image is preloaded on both nodes, but the catalog remains disabled/unselected,
 with no image/allocation activation. No live security change accompanies this review.
+
+Portal v0.2.0 now has an Actions-published GHCR digest recorded in the disabled Home
+catalog. The pending private-pull setup references only portal-ghcr; credentials,
+authenticated pull checks and activation remain separately approved operations.
+See docs/PORTAL-INTEGRATION.md for ownership, token scope and rotation. The earlier
+local preload is not the selected registry artifact.

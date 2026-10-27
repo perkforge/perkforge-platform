@@ -12,9 +12,9 @@ class PortalIdentityTests(unittest.TestCase):
         cls.contract = portal_values(cls.home)
         cls.objects = render(cls.home)
 
-    def test_default_is_empty_and_unregistered_without_approved_image(self):
+    def test_default_stays_empty_and_unregistered_with_published_image(self):
         self.assertEqual(render(), [])
-        self.assertIsNone(portal_values()['imageDigest'])
+        self.assertEqual(portal_values()['imageDigest'], 'sha256:2e07afbb31fd462911a365893d05796090883464560478bd70179466af5b17b7')
         for path in (ROOT / 'local-lab/fleet').rglob('*.yaml'):
             self.assertNotIn('home-portal', path.read_text())
             self.assertNotIn('local-lab/tenant-config', path.read_text())

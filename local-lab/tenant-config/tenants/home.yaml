@@ -64,7 +64,7 @@ foundation:
     portal:
       name: tenant-home-portal
       url: https://github.com/perkforge/perkforge-tenant-portal.git
-      revision: e82eb8daef435580c2edd54562f681c8ecf0a3d8
+      revision: 06a1b511e77d13d5be9c3c0137d107f822dfaa92
       paths:
       - bundles/portal
       namespace: tenant-home-portal
@@ -79,7 +79,8 @@ applications:
     runtimeServiceAccount: portal-runtime
     portalOrigin: https://portal.local-lab.test
     imageRepository: ghcr.io/perkforge/perkforge-portal
-    imageDigest: null
+    imageDigest: sha256:2e07afbb31fd462911a365893d05796090883464560478bd70179466af5b17b7
+    imagePullSecret: portal-ghcr
     identity:
       realm: perkforge
       issuer: https://keycloak.local-lab.test/auth/realms/perkforge

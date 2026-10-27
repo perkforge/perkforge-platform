@@ -22,8 +22,9 @@
   message: Init and ephemeral containers are forbidden
 - expression: >-
     (!has({{ $pod }}.volumes) || {{ $pod }}.volumes.size() == 0) &&
-    (!has({{ $pod }}.imagePullSecrets) || {{ $pod }}.imagePullSecrets.size() == 0)
-  message: No mounted volumes or extra secret references are allowed
+    has({{ $pod }}.imagePullSecrets) && {{ $pod }}.imagePullSecrets.size() == 1 &&
+    {{ $pod }}.imagePullSecrets[0].name == {{ $c.imagePullSecret | toJson }}
+  message: No mounted volumes; exactly the platform-approved registry Secret reference is required
 - expression: >-
     has({{ $container }}.env) &&
     {{ $container }}.env.size() == 7 &&

@@ -62,9 +62,10 @@ class ReleaseStorageBoundaryTests(unittest.TestCase):
             if obj['kind'] == 'Role':
                 self.assertFalse(any('secrets' in rule['resources'] for rule in obj['rules']))
 
-    def test_catalog_does_not_activate_or_pin_local_image(self):
+    def test_catalog_pins_published_image_without_activation(self):
         import yaml
         root = Path(__file__).resolve().parents[2]
         home = yaml.safe_load((root/'local-lab/tenant-config/tenants/home.yaml').read_text())
         self.assertEqual(home['foundation']['lifecycle']['state'], 'disabled')
-        self.assertIsNone(home['applications']['portal']['imageDigest'])
+        self.assertEqual(home['applications']['portal']['imageDigest'], 'sha256:2e07afbb31fd462911a365893d05796090883464560478bd70179466af5b17b7')
+        self.assertEqual(home['applications']['portal']['imagePullSecret'], 'portal-ghcr')
