@@ -57,10 +57,10 @@ spec:
       request.namespace == {{ $c.namespace | toJson }} &&
       (request.resource.group == "apps" &&
       request.resource.resource == "deployments" &&
-      request.subResource == "" || request.resource.group == "" &&
+      (!has(request.subResource) || request.subResource == "") || (!has(request.resource.group) || request.resource.group == "") &&
       request.resource.resource == "services" &&
-      request.subResource == "" || request.resource.group == "" &&
-      request.resource.resource == "secrets" && request.subResource == "" &&
+      (!has(request.subResource) || request.subResource == "") || (!has(request.resource.group) || request.resource.group == "") &&
+      request.resource.resource == "secrets" && (!has(request.subResource) || request.subResource == "") &&
       request.operation in ["CREATE", "UPDATE", "DELETE"] &&
       {{ include "portal.releaseEnvelope" (dict "contract" $c "object" "object") | indent 6 }} &&
       {{ include "portal.releaseEnvelope" (dict "contract" $c "object" "oldObject") | indent 6 }} &&

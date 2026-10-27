@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/cel-go/cel"
+	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/util/version"
 	admissioncel "k8s.io/apiserver/pkg/admission/plugin/cel"
 	"k8s.io/apiserver/pkg/cel/environment"
@@ -42,6 +43,23 @@ func TestGeneratedPoliciesWithKubernetesCEL(t *testing.T) {
 	programs := map[string]cel.Program{}
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
+			// Match API-server omitempty behavior instead of inventing empty request fields.
+			rawRequest, err := json.Marshal(tc.Request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var apiRequest admissionv1.AdmissionRequest
+			if err = json.Unmarshal(rawRequest, &apiRequest); err != nil {
+				t.Fatal(err)
+			}
+			rawRequest, err = json.Marshal(apiRequest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var runtimeRequest map[string]any
+			if err = json.Unmarshal(rawRequest, &runtimeRequest); err != nil {
+				t.Fatal(err)
+			}
 			allowed := true
 			for _, source := range tc.Expressions {
 				program, found := programs[source]
@@ -60,7 +78,7 @@ func TestGeneratedPoliciesWithKubernetesCEL(t *testing.T) {
 				if tc.OldObject != nil {
 					oldObject = tc.OldObject
 				}
-				result, _, evalErr := program.ContextEval(context.Background(), map[string]any{"object": object, "oldObject": oldObject, "request": tc.Request, "namespaceObject": nil})
+				result, _, evalErr := program.ContextEval(context.Background(), map[string]any{"object": object, "oldObject": oldObject, "request": runtimeRequest, "namespaceObject": nil})
 				if evalErr != nil || result.Value() != true {
 					allowed = false
 				}
