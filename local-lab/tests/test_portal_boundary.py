@@ -6,9 +6,9 @@ ROOT = Path(__file__).resolve().parents[2]
 from portal_fleet_fixture import provisioned, render
 
 class PortalBoundaryTests(unittest.TestCase):
-    def test_portal_enrollment_prepares_controls_without_starting_workload(self):
+    def test_portal_enrollment_activates_tenant_owned_workload(self):
         objects = render()
-        self.assertIs(next(o for o in objects if o['kind']=='GitRepo')['spec']['paused'], True)
+        self.assertIs(next(o for o in objects if o['kind']=='GitRepo')['spec']['paused'], False)
         self.assertFalse(any(o['kind']=='Deployment' for o in objects))
 
     def test_deployer_has_no_security_or_cluster_mutation(self):

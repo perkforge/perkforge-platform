@@ -50,7 +50,7 @@ application: nextcloud
 # Only this new namespace is enrolled in the native foundation; existing namespaces stay legacy-owned.
 foundation:
   lifecycle:
-    state: paused
+    state: active
   components:
     project: false
   optOutReasons:
@@ -72,7 +72,7 @@ foundation:
     portal:
       name: tenant-home-portal
       url: https://github.com/perkforge/perkforge-tenant-portal.git
-      revision: 11f149176488fd7fa6412b33d5a93d781b7ccedd
+      revision: 2df910faea77f5af71cad75829f6400ee52de890
       paths:
       - bundles/portal
       namespace: tenant-home-portal
