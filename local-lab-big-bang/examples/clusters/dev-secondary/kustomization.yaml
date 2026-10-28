@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../shared
+- ../../apps/openbao
+- ../../enrollments/dev-secondary
+- ../../providers/rke2
+- ../../profiles/il5
+- ../../bigbang
+configMapGenerator:
+- name: values-cluster
+  namespace: bigbang
+  files:
+  - values.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+commonAnnotations:
+  example.perkforge.io/cluster: dev-secondary
+  example.perkforge.io/environment: dev
+  example.perkforge.io/profile: il5

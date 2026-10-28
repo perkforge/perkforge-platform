@@ -7,7 +7,7 @@
   tasks:
   - name: Report selected entrypoint without contacting Kubernetes
     ansible.builtin.debug:
-      msg: "{{ inventory_hostname }} -> {{ gitops_path }}; apply={{ bootstrap_apply | bool }}"
+      msg: "{{ inventory_hostname }} -> {{ gitops_path }}; environment={{ deployment_environment }}, profile={{ impact_profile }}, apply={{ bootstrap_apply | bool }}"
   - name: Bootstrap requires separate live approval and complete target inputs
     when: bootstrap_apply | bool
     block:

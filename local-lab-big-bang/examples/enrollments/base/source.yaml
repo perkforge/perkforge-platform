@@ -9,6 +9,6 @@ spec:
   url: https://github.com/perkforge/perkforge-platform-tenants.git
   ref:
     # Review-stage enrollment PR #1 commit, not an adopted production revision.
-    commit: 05daf3e4d150e572ffbff17a8d4e39ab712c2ec3
+    commit: c9a3e51ca0fb713457c4b435a9aae41cf2b511c2
   secretRef:
     name: tenant-enrollments-read # Reference only; not provisioned.

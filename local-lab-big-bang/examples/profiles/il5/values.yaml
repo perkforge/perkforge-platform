@@ -1,0 +1,10 @@
+# IL5 is an unassessed example target, not an IL5 security baseline.
+# Retain the same local UI guardrails; real control requirements remain unreviewed.
+addons:
+  headlamp:
+    values:
+      upstream:
+        clusterRoleBinding:
+          create: false
+        config:
+          unsafeUseServiceAccountToken: false

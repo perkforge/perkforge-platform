@@ -103,7 +103,7 @@ Proposed sequence for a future approved clean-cluster evaluation:
    recorded above. Do not substitute moving upstream manifests.
 4. **Apply the root source and Flux Kustomization.** The source points to the
    protected environment repository and the root selects only
-   `clusters/local` or `clusters/dev`. It references the source and an explicit
+   a named `clusters/<cluster>` path. It references the source and an explicit
    platform deployer identity. Source Ready must precede successful path
    reconciliation. Local Kustomize composition produces the root objects; the
    Flux Kustomization then performs recurring reconciliation. The two clusters
@@ -199,7 +199,7 @@ local-lab-big-bang/              # new evaluation boundary
   ansible/                      # future small bootstrap, distinct inventory
   shared/{releases,values}/      # future pinned platform-owned definitions
   providers/{rke2,eks,...}/     # provider prerequisites; no impact-level meaning
-  profiles/{il2,il4,...}/        # reusable reviewed profiles, no inheritance chain
+  profiles/{il2,il5,...}/        # reusable reviewed profiles, no inheritance chain
   clusters/<cluster-name>/       # explicit profile selection + shallow overrides
   examples/                     # this PR: disabled Ansible + native Flux/Kustomize inputs
 ```
@@ -207,17 +207,27 @@ local-lab-big-bang/              # new evaluation boundary
 Prefer `profiles/<name>` selected by `clusters/<cluster-name>` over duplicating
 `cluster-name/il2` trees. Cluster name and impact profile are independent axes;
 cluster-specific secrets, addresses and capacity never belong in an IL profile.
-Only `il2` is illustrated here; the label expresses a possible future selection,
-not actual DoD requirements, suitability or authorization. Establish real
-requirements with the applicable system owner before creating real profiles.
-The example instance aliases are `local` and `dev`, both explicitly selecting
-`il2`. The user's intended dev target is the physical homelab; actual API inputs
-remain unconfigured. Environment names are not globally unique cluster IDs:
-several uniquely named dev instances can share optional dev defaults. Keep
-cluster identity, environment, Kubernetes distribution (RKE2/EKS), hosting
-(homelab/AWS) and impact profile separate. RKE2 on AWS is a valid future
-combination; AWS does not imply EKS. No mandatory folder per label, live cluster
-rename or existing `local-lab/` path change is introduced.
+`profiles/il2` is retained. The examples now show local/local/il2,
+dev/dev/il2, and dev-secondary/dev/il5 (cluster/environment/profile). The two dev
+clusters share an environment but select different reusable profiles. The il5
+case is an unassessed illustrative target, not a claim that the homelab supports
+IL5 or that any supplied values implement an IL5 baseline. Both platform profile
+files retain only the same illustrative UI guardrails. Establish real system
+requirements with the applicable owner before defining or adopting control sets.
+Cluster identity, environment, profile, Kubernetes distribution and hosting are
+independent; no hardware or live target is assigned to dev-secondary.
+
+The inventory, platform Flux parent, enrollment and app roots explicitly record
+`example.perkforge.io/{cluster,environment,profile}` context. Tests follow exact
+review pins and compare those claims with the actual selected paths/profile
+inputs. A profile does not automatically propagate across Git repositories.
+The app composes shared → environment → app profile → cluster values; its example
+profile only changes the supported identity-audience input. That is not DoD
+policy, permission or approval of the example identity registration. App context
+cannot override platform-owned security controls. Mismatched environment/profile,
+cluster path or revision fails the offline contract tests, including actual
+Ansible seed rendering. Context annotations are evidence, not live enforcement.
+
 The values order is chart defaults → shared/app defaults → provider values → selected profile → named
 cluster overrides. Match that order in local Helm commands and live valuesFrom;
 keep secrets on separate, disjoint key paths.
@@ -275,15 +285,15 @@ Ansible owns host/bootstrap and application configuration through APIs. Python
 is reserved for tests and evidence, not configuration generation. GitOps owns
 cluster manifests; Ansible must not continually overwrite GitOps-owned objects.
 
-### Concrete two-cluster specimen
+### Concrete named-cluster specimens
 
 The [new evaluation README](../local-lab-big-bang/README.md) links shared,
 provider/profile and named-cluster values, consumed Ansible inventory selection,
 root source/Kustomization, local cluster builds and outer Big Bang release wiring.
 Charts and authored values are the source of truth. Generated manifests are not
-checked in; temporary local rendering is validation evidence only. The two
-clusters select the same
-illustrative `il2` profile. Cluster overrides retain the one/two-replica UI
+checked in; temporary local rendering is validation evidence only. The named
+cluster roots explicitly select their illustrative il2/il5 profiles. Cluster
+overrides retain the one/two-replica UI
 precedence example. These are **not deployment profiles**: target, four-app
 integration, identity, admission/network policy, TLS, resource sizing and secret
 delivery are incomplete. The seed and outer release are suspended, bootstrap
@@ -313,7 +323,7 @@ disabled. Network policy disabled in this render specimen does not propose
 weakening any platform policy. A deployable profile must supply its reviewed
 replacement and all required flows.
 
-**Locally rendered:** Helm 3.19.0 lint and both outer chart renders passed for
+**Locally rendered:** Helm 3.19.0 lint and all selected outer chart renders passed for
 Big Bang 3.35.1. Pinned Headlamp `0.45.0-bb.1` and official OpenBao `0.30.6`
 child charts were rendered using their generated values Secrets. Headlamp
 replicas are 1/2 with zero ClusterRoleBindings. OpenBao has a 10 GiB PVC template

@@ -1,0 +1,57 @@
+name: gitops-selection-offline
+on:
+  pull_request:
+    paths: ['local-lab-big-bang/**', '.github/workflows/gitops-selection.yml']
+  push:
+    paths: ['local-lab-big-bang/**', '.github/workflows/gitops-selection.yml']
+permissions:
+  contents: read
+jobs:
+  selection:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      KUBECONFIG: /dev/null
+    steps:
+    - uses: actions/checkout@v4
+    - run: python3 -m pip install PyYAML==6.0.3
+    - name: Read exact public enrollment fixture revision
+      id: enrollment
+      run: |
+        python3 - <<'PY'
+        import os, re, yaml
+        value = yaml.safe_load(open('local-lab-big-bang/examples/enrollments/base/source.yaml'))['spec']['ref']['commit']
+        assert re.fullmatch('[0-9a-f]{40}', value)
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as output: output.write('revision=' + value + '\n')
+        PY
+    - uses: actions/checkout@v4
+      with:
+        repository: perkforge/perkforge-platform-tenants
+        ref: ${{ steps.enrollment.outputs.revision }}
+        path: .inputs/enrollment
+        persist-credentials: false
+    # This is a public integration-test fixture, not bootstrap tenant discovery.
+    - name: Read exact public tenant app fixture revision
+      id: app
+      run: |
+        python3 - <<'PY'
+        import os, re, yaml
+        value = yaml.safe_load(open('.inputs/enrollment/tenants/portal/source.yaml'))['spec']['ref']['commit']
+        assert re.fullmatch('[0-9a-f]{40}', value)
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as output: output.write('revision=' + value + '\n')
+        PY
+    - uses: actions/checkout@v4
+      with:
+        repository: perkforge/perkforge-tenant-portal
+        ref: ${{ steps.app.outputs.revision }}
+        path: .inputs/app
+        persist-credentials: false
+    - name: Check disabled Ansible bootstrap syntax
+      env:
+        ANSIBLE_LOCAL_TEMP: ${{ runner.temp }}/selection-ansible
+      run: ansible-playbook -i local-lab-big-bang/examples/ansible/inventory.yaml local-lab-big-bang/examples/ansible/bootstrap.yaml --syntax-check
+    - name: Validate declarative context across the pinned review chain
+      env:
+        ENROLLMENT_CHECKOUT: ${{ github.workspace }}/.inputs/enrollment
+        TENANT_APP_CHECKOUT: ${{ github.workspace }}/.inputs/app
+      run: python3 -m unittest discover -s local-lab-big-bang/tests -v
