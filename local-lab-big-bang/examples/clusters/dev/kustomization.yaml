@@ -3,7 +3,7 @@ kind: Kustomization
 resources:
 - ../../shared
 - ../../apps/openbao
-- ../../tenants/portal
+- ../../enrollments/dev
 - ../../providers/rke2
 - ../../profiles/il2
 - ../../bigbang
