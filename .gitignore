@@ -2,6 +2,7 @@
 images/*.iso
 images/*.qcow2
 .secrets/
+/local-lab/evidence/bigbang-trial/
 /kubectl
 /kubectl.sha256
 ansible/.vault-pass

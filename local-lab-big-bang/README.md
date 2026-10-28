@@ -5,6 +5,12 @@ This is a disabled, offline-testable example, not a deployable platform. Existin
 See the [architecture rationale](../docs/BIGBANG-FLUX-PROPOSAL.md) for source-backed
 tradeoffs and future live acceptance gates. Do not apply this to the tiny VMs.
 
+For the separately approved fresh local trial, use the
+[RKE2-only preparation plan](provision/README.md). It does not activate this example.
+Rancher remains the intended platform-engineer management UI; its omission from
+the initial tiny VM trial is temporary. Later integration needs a separate
+resource budget. Flux owns GitOps for the new stack, without Fleet reconciliation.
+
 ## Find the entrypoint
 
 | Target | Purpose | Environment | Profile |

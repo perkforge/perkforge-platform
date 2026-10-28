@@ -1,0 +1,4 @@
+---
+# Reuse the existing local host/RKE2 implementation; no Rancher or Fleet plays.
+- ansible.builtin.import_playbook: ../../local-lab/ansible/playbooks/configure-hosts.yml
+- ansible.builtin.import_playbook: ../../local-lab/ansible/playbooks/install-rke2.yml
