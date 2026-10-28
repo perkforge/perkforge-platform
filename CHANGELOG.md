@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/perkforge/perkforge-platform/compare/v0.3.0...v0.4.0) (2026-10-28)
+
+
+### Features
+
+* **local:** add scoped Headlamp Big Bang smoke stage ([#58](https://github.com/perkforge/perkforge-platform/issues/58)) ([6b3f0e2](https://github.com/perkforge/perkforge-platform/commit/6b3f0e2a6edb3aceaac5aee2b347c0a9456fad6d))
+* **local:** prepare RKE2-only Big Bang trial provisioning ([#56](https://github.com/perkforge/perkforge-platform/issues/56)) ([0498a94](https://github.com/perkforge/perkforge-platform/commit/0498a94f0fdfe3be57fc3afa9ac7cd0e0304a08c))
+
 ## [0.3.0](https://github.com/perkforge/perkforge-platform/compare/v0.2.0...v0.3.0) (2026-10-28)
 
 
