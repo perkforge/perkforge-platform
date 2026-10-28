@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/perkforge/perkforge-platform/compare/v0.2.0...v0.3.0) (2026-10-28)
+
+
+### Features
+
+* **local:** propose tiny resource profile and staged startup trial ([#54](https://github.com/perkforge/perkforge-platform/issues/54)) ([6abfc7c](https://github.com/perkforge/perkforge-platform/commit/6abfc7c830d8c1e3db0743e13127ec66c8fa5fbc))
+
 ## [0.2.0](https://github.com/perkforge/perkforge-platform/compare/v0.1.1...v0.2.0) (2026-10-28)
 
 
