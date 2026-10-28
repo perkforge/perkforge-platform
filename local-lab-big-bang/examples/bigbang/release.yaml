@@ -19,6 +19,9 @@ spec:
       name: values-shared
       valuesKey: values.yaml
     - kind: ConfigMap
+      name: values-openbao
+      valuesKey: values.yaml
+    - kind: ConfigMap
       name: values-provider
       valuesKey: values.yaml
     - kind: ConfigMap

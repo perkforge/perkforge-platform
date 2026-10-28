@@ -218,7 +218,7 @@ cluster identity, environment, Kubernetes distribution (RKE2/EKS), hosting
 (homelab/AWS) and impact profile separate. RKE2 on AWS is a valid future
 combination; AWS does not imply EKS. No mandatory folder per label, live cluster
 rename or existing `local-lab/` path change is introduced.
-The values order is chart defaults → shared defaults → provider values → selected profile → named
+The values order is chart defaults → shared/app defaults → provider values → selected profile → named
 cluster overrides. Match that order in local Helm commands and live valuesFrom;
 keep secrets on separate, disjoint key paths.
 
@@ -286,6 +286,13 @@ precedence example. These are **not deployment profiles**: target, four-app
 integration, identity, admission/network policy, TLS, resource sizing and secret
 delivery are incomplete. The seed and outer release are suspended, bootstrap
 writes default off, and no real cluster inputs or credentials are supplied.
+
+OpenBao's repository, chart pin and values are now grouped in the small
+`examples/apps/openbao/` folder. Its native ConfigMap generator and explicit
+outer `valuesFrom` entry keep the files traceable; Big Bang generates the
+HelmRepository and HelmRelease and remains their single owner. No chart,
+generated workload YAML or competing standalone release is copied into the repo.
+The seed template is unchanged.
 
 The specimen now renders Headlamp plus a platform-owned OpenBao extra package;
 Keycloak and portal remain candidate scope, not claimed rendered integrations.

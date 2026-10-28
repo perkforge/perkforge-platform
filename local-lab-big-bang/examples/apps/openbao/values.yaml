@@ -1,0 +1,29 @@
+# Big Bang values input, not a standalone HelmRepository or HelmRelease.
+# Big Bang generates both; this folder introduces no second release owner.
+helmRepositories:
+- name: openbao-official
+  existingSecret: ''
+  repository: https://openbao.github.io/openbao-helm
+  type: default
+packages:
+  openbao:
+    enabled: true
+    sourceType: helmRepo
+    namespace:
+      name: openbao
+    helmRelease:
+      namespace: bigbang
+    helmRepo:
+      repoName: openbao-official
+      chartName: openbao
+      tag: 0.30.6
+    wrapper:
+      enabled: false
+    bbCommonValues: false
+    passBigBangValues: false
+    values:
+      server:
+        dev:
+          enabled: false
+      injector:
+        enabled: false

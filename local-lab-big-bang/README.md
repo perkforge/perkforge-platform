@@ -21,7 +21,7 @@ ansible-playbook -i examples/ansible/inventory.yaml examples/ansible/bootstrap.y
   inventory host local: gitops_path = ./local-lab-big-bang/examples/clusters/local
   → template seed.yaml.j2 into GitRepository/cluster-config + Kustomization/cluster-root
   → cluster-root.spec.path selects examples/clusters/local
-  → clusters/local/kustomization.yaml composes shared/provider/profile/cluster inputs
+  → clusters/local/kustomization.yaml composes shared/app/provider/profile/cluster inputs
   → HelmRelease/bigbang references GitRepository/bigbang-chart and valuesFrom
   → pinned Big Bang chart creates component sources and HelmReleases
 ```
@@ -38,6 +38,7 @@ and skips every Kubernetes/Git task. It does not install or deploy anything.
 | [local kustomization.yaml](examples/clusters/local/kustomization.yaml), [dev](examples/clusters/dev/kustomization.yaml) | Local Kustomize build inputs; choose reusable directories and generate that cluster's values ConfigMap |
 | [bigbang/source.yaml](examples/bigbang/source.yaml) | Pinned chart source, Big Bang release tag `3.35.1`; no vendored chart or generated child YAML |
 | [bigbang/release.yaml](examples/bigbang/release.yaml) | Outer HelmRelease: `chart.spec.chart: ./chart`, sourceRef, and explicit ordered valuesFrom |
+| [OpenBao app folder](examples/apps/openbao/values.yaml) | Focused repository/package/chart values, consumed through its ConfigMap and outer valuesFrom; no standalone competing release |
 | [shared](examples/shared/values.yaml), [provider](examples/providers/rke2/values.yaml), [impact](examples/profiles/il2/values.yaml), [local](examples/clusters/local/values.yaml), [dev](examples/clusters/dev/values.yaml) | Non-secret authored values. Native configMapGenerator packages each values.yaml; fixed ConfigMap names match the release references |
 
 Inventory selection chooses **where Ansible connects** and **which Git path it
@@ -73,8 +74,8 @@ and rendered changes on future updates; no release upgrade is made here. The
 configuration repository's separate `config_commit` remains a precise future
 snapshot of PerkForge inputs, not the Big Bang release selection.
 
-Later values win: **chart defaults → values-shared → values-provider →
-values-impact → values-cluster**. The four references are explicit in
+Later values win: **chart defaults → values-shared → values-openbao →
+values-provider → values-impact → values-cluster**. The five references are explicit in
 `bigbang/release.yaml`; each ConfigMap has a `values.yaml` key. Secrets are not
 included. Future secret inputs need disjoint key paths and separately reviewed
 provisioning. No inline `spec.values` silently adds another override layer.
@@ -103,9 +104,9 @@ Use an environment-specific shared values input only when multiple clusters
 actually benefit from it. Select it explicitly in the named cluster build and
 add an optional `values-environment` reference between provider and impact in the
 outer release. Otherwise keep the few environment settings in cluster values;
-there is no mandatory new folder or layer. General order is defaults → shared →
+there is no mandatory new folder or layer. General order is defaults → shared/app defaults →
 provider → environment (if selected) → impact → cluster. The minimal example
-omits the environment input, so its existing four references remain exact.
+omits the environment input, so its existing five references remain exact.
 Avoid trees such as provider/environment/IL/tenant/cluster and automatic cross-products.
 
 Before live use, validate the selected environment/profile/tenant model together:
@@ -197,6 +198,24 @@ this PR. Preserve the existing household Nextcloud and stable portal.
 
 ## Platform-owned OpenBao extra package
 
+OpenBao's small authored configuration lives in
+[`examples/apps/openbao/values.yaml`](examples/apps/openbao/values.yaml).
+It contains only its `helmRepositories` entry and `packages.openbao` settings,
+including the official chart reference and chart values. The sibling
+[`kustomization.yaml`](examples/apps/openbao/kustomization.yaml) packages it as
+`ConfigMap/values-openbao`; each named-cluster root selects that folder, and the
+outer release explicitly consumes it immediately after shared defaults.
+Provider, impact and cluster inputs can still override its values in that order.
+
+This adds one small values file and native composition entry rather than a long
+combined shared file. It deliberately does **not** add authored standalone
+HelmRepository/HelmRelease objects: Big Bang generates those from these inputs
+and remains their single lifecycle owner. Do not add a second OpenBao release.
+The `helmRepositories` key is a Helm list, so a later override replaces the whole
+list; additional app folders must not independently define that same list and
+silently erase each other's repository entries. Review any future aggregation
+explicitly rather than introducing a merge wrapper.
+
 Big Bang 3.35.1's catalog offers Vault, not OpenBao. OpenBao is preferred for
 this evaluation in line with the user's licensing concern; confirm the selected
 software/image licenses separately rather than assuming interchangeability.
@@ -244,6 +263,7 @@ kubectl kustomize local-lab-big-bang/examples/clusters/local > /tmp/bigbang-loca
 kubectl kustomize local-lab-big-bang/examples/clusters/dev > /tmp/bigbang-dev-seed.yaml
 helm lint /tmp/perkforge-bigbang-3.35.1/chart --kube-version 1.36.5 \
   -f local-lab-big-bang/examples/shared/values.yaml \
+  -f local-lab-big-bang/examples/apps/openbao/values.yaml \
   -f local-lab-big-bang/examples/providers/rke2/values.yaml \
   -f local-lab-big-bang/examples/profiles/il2/values.yaml \
   -f local-lab-big-bang/examples/clusters/local/values.yaml
@@ -254,11 +274,13 @@ helm lint /tmp/perkforge-bigbang-3.35.1/chart --kube-version 1.36.5 \
 Both local Kustomize assemblies and Ansible syntax passed. The default playbook
 walkthrough selected local with `changed=0`, skipping all live tasks. Standard
 Ansible templating was checked locally with synthetic inputs. Local checks traced
-seed path → cluster build → chart source and all four ConfigMap references, then
+seed path → cluster build → chart source and all five ConfigMap references, then
 used their actual valuesFrom order for Helm lint/render. Pinned Flux CRD field
 contracts were inspected locally; this is not full server schema/CEL/admission
 validation. All generated output stayed in temporary files.
 
+Moving OpenBao inputs into the app folder preserved both clusters’ outer and
+child output in local comparisons, with one generated OpenBao repository/release.
 Pinned Headlamp 0.45.0-bb.1 and official OpenBao 0.30.6 child charts were rendered
 for validation only, using the outer chart's generated values. Headlamp replicas
 were 1/2 with no ClusterRoleBindings; wait Job and OpenBao injector were disabled.

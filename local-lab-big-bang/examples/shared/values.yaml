@@ -1,4 +1,4 @@
-# RENDER SPECIMEN ONLY: not a deployable profile or four-app integration.
+# RENDER SPECIMEN ONLY: disabled defaults and shared UI settings.
 domain: shared.invalid
 networkPolicies:
   enabled: false
@@ -104,31 +104,4 @@ addons:
         config:
           unsafeUseServiceAccountToken: false
       waitJob:
-        enabled: false
-helmRepositories:
-- name: openbao-official
-  existingSecret: ''
-  repository: https://openbao.github.io/openbao-helm
-  type: default
-packages:
-  openbao:
-    enabled: true
-    sourceType: helmRepo
-    namespace:
-      name: openbao
-    helmRelease:
-      namespace: bigbang
-    helmRepo:
-      repoName: openbao-official
-      chartName: openbao
-      tag: 0.30.6
-    wrapper:
-      enabled: false
-    bbCommonValues: false
-    passBigBangValues: false
-    values:
-      server:
-        dev:
-          enabled: false
-      injector:
         enabled: false

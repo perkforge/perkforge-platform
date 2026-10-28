@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: bigbang
 resources:
 - ../../shared
+- ../../apps/openbao
 - ../../providers/rke2
 - ../../profiles/il2
 - ../../bigbang
