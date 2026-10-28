@@ -1,0 +1,65 @@
+name: configuration-release
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: configuration-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  configuration:
+    uses: ./.github/workflows/gitops-selection.yml
+    permissions:
+      contents: read
+  release-checks:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        persist-credentials: false
+    - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      with:
+        node-version: '24'
+    - name: Test workflow boundaries and release inputs
+      run: |
+        python3 -m pip install PyYAML==6.0.3
+        python3 scripts/test_release_workflow.py
+    - name: Test actual release-please version decisions offline
+      run: |
+        npm install --prefix "$RUNNER_TEMP/release-tests" --ignore-scripts --no-audit --no-fund release-please@17.3.0
+        node scripts/release-version-check.mjs "$RUNNER_TEMP/release-tests/package.json"
+  release:
+    needs: [configuration, release-checks]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+    - id: release
+      uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        config-file: release-please-config.json
+        manifest-file: .release-please-manifest.json
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      if: steps.release.outputs.release_created == 'true'
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Record the release tag and resolved source commit
+      if: steps.release.outputs.release_created == 'true'
+      env:
+        RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
+      run: |
+        set -euo pipefail
+        [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+        resolved=$(git rev-parse "$RELEASE_TAG^{commit}")
+        test "$resolved" = "$GITHUB_SHA"
+        printf 'Release: `%s`\n\nSource commit: `%s`\n' "$RELEASE_TAG" "$resolved" >> "$GITHUB_STEP_SUMMARY"
