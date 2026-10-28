@@ -15,6 +15,8 @@ jobs:
       KUBECONFIG: /dev/null
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
     - run: python3 -m pip install PyYAML==6.0.3
     # Public test fixture resolution, not bootstrap tenant discovery.
     - name: Read reviewed enrollment release selection

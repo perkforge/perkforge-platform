@@ -1,10 +1,14 @@
-# Local deployment preflight — hold live installation
+# v0.2.0 baseline preflight — hold live installation
 
 **Recommendation: do not co-install this stack on the current VMs, and do not
 rebuild them merely to try the unchanged resource profile.** Prefer the separate
 physical `dev` cluster when ready. A local trial first needs a reviewed smaller
 Flux/resource profile and a preservation/discard decision for existing data.
 Nothing here deploys, resizes or rebuilds anything.
+
+This report preserves the published v0.2.0 baseline. The proposed local-only
+[smaller profile and staged protocol](LOCAL-TINY.md) is a separate comparison;
+dev stays on this baseline. Request-fit still is not runtime validation.
 
 ## Measured now vs rendered candidate
 
@@ -170,7 +174,9 @@ The user's disposable-VM preference is not execution authorization for this rebu
 
 ## Reproduce the offline result
 
-From repository root, with existing Helm/kubectl/Python/PyYAML and app checkout at
+To reproduce this historical table, use the v0.2.0 checkout; the current local
+profile produces the smaller numbers in LOCAL-TINY.md. From repository root,
+with existing Helm/kubectl/Python/PyYAML and app checkout at
 its selected published release:
 
 ```sh

@@ -1,10 +1,12 @@
-# Disabled example; browser hosts are per-cluster inputs, not DNS/TLS setup.
+# Disabled local-only trial; dev and shared budgets remain unchanged.
 domain: local-lab.test
 addons:
   headlamp:
     values:
       upstream:
         replicaCount: 1
+        nodeSelector:
+          kubernetes.io/hostname: cks-worker
       routes:
         inbound:
           headlamp:
@@ -27,6 +29,19 @@ addons:
             cypress_url: https://keycloak-local-il2.local-lab.test
       upstream:
         extraEnv: "- name: KC_HOSTNAME\n  value: keycloak-local-il2.local-lab.test\n"
+        nodeSelector:
+          kubernetes.io/hostname: cks-worker
+        resources:
+          requests:
+            cpu: 250m
+            memory: 768Mi
+          limits:
+            cpu: '1'
+            memory: 1536Mi
+      postgresql:
+        primary:
+          nodeSelector:
+            kubernetes.io/hostname: cks-worker
 packages:
   openbao:
     values:
@@ -36,3 +51,5 @@ packages:
           hosts:
           - host: openbao-local-il2.local-lab.test
             paths: []
+        nodeSelector:
+          kubernetes.io/hostname: cks-worker

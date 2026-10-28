@@ -1,0 +1,10 @@
+# Temporary native Kustomize assembly over the verified Big Bang checkout.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- {{ (flux_checkout ~ '/base/flux') | relpath(flux_staging.path) | to_json }}
+patches:
+- path: source.yaml
+- path: notification.yaml
+- path: helm.yaml
+- path: kustomize.yaml

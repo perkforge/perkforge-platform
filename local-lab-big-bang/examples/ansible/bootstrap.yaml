@@ -7,7 +7,12 @@
   tasks:
   - name: Report selected entrypoint without contacting Kubernetes
     ansible.builtin.debug:
-      msg: "{{ inventory_hostname }} -> {{ gitops_path }}; environment={{ deployment_environment }}, profile={{ impact_profile }}, tag={{ config_tag }}, apply={{ bootstrap_apply | bool }}"
+      msg: "{{ inventory_hostname }} -> {{ gitops_path }}; environment={{ deployment_environment }}, profile={{ impact_profile }}, tag={{ config_tag }}, flux={{ flux_resource_profile }}, apply={{ bootstrap_apply | bool }}"
+  - name: Refuse local-only Flux tuning for another environment
+    ansible.builtin.assert:
+      that:
+      - flux_resource_profile in ['pinned', 'local-tiny']
+      - flux_resource_profile == 'pinned' or (inventory_hostname == 'local' and deployment_environment == 'local')
   - name: Verify a published configuration release before any gated API work
     ansible.builtin.include_tasks: verify-release.yaml
     when: (bootstrap_apply | bool) or (bootstrap_verify_release | bool)
@@ -50,6 +55,8 @@
     - name: Refuse a release tag that no longer resolves to the reviewed commit
       ansible.builtin.assert:
         that: bigbang_source.after == bigbang_expected_commit
+    - name: Prepare selected Flux manifests with standard local tooling
+      ansible.builtin.include_tasks: prepare-flux.yaml
     - name: Apply only the pinned Flux prerequisites
       ansible.builtin.command:
         argv:
@@ -60,7 +67,7 @@
         - '{{ target_context }}'
         - apply
         - -k
-        - '{{ flux_checkout }}/base/flux'
+        - '{{ flux_manifest_path }}'
       register: flux_apply
       changed_when: "'created' in flux_apply.stdout or 'configured' in flux_apply.stdout"
     - name: Wait for required Flux CRDs before creating their resources

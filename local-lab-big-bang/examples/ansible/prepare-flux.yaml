@@ -1,0 +1,26 @@
+# Included only inside bootstrap_apply's separately approved live block.
+- name: Select unchanged pinned Flux for ordinary clusters
+  ansible.builtin.set_fact:
+    flux_manifest_path: '{{ flux_checkout }}/base/flux'
+- name: Stage local-only resource and placement overrides
+  when: flux_resource_profile == 'local-tiny'
+  block:
+  - name: Create temporary build directory without editing pinned sources
+    ansible.builtin.tempfile:
+      state: directory
+      prefix: perkforge-flux-local-
+    register: flux_staging
+  - name: Copy the four small authored patches
+    ansible.builtin.copy:
+      src: 'flux-local/{{ item }}.yaml'
+      dest: '{{ flux_staging.path }}/{{ item }}.yaml'
+      mode: '0600'
+    loop: [source, notification, helm, kustomize]
+  - name: Render the native Kustomize build recipe
+    ansible.builtin.template:
+      src: flux-local/kustomization.yaml.j2
+      dest: '{{ flux_staging.path }}/kustomization.yaml'
+      mode: '0600'
+  - name: Select the temporary assembly
+    ansible.builtin.set_fact:
+      flux_manifest_path: '{{ flux_staging.path }}'

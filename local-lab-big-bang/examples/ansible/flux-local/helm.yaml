@@ -1,0 +1,20 @@
+# Local trial only: resource/placement patch; no image or security changes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helm-controller
+  namespace: flux-system
+spec:
+  template:
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: cks-worker
+      containers:
+      - name: manager
+        resources:
+          requests:
+            cpu: 100m
+            memory: 192Mi
+          limits:
+            cpu: '1'
+            memory: 512Mi
