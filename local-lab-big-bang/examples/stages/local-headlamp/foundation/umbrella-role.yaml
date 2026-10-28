@@ -1,0 +1,20 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: stage-umbrella-installer, namespace: bigbang}
+rules:
+- apiGroups: ['']
+  resources: [secrets] # Helm history and the two generated values Secrets.
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [source.toolkit.fluxcd.io]
+  resources: [gitrepositories]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [helm.toolkit.fluxcd.io]
+  resources: [helmreleases] # Also covers the pinned chart's metrics-server lookup.
+  verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: stage-umbrella-installer, namespace: bigbang}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: stage-umbrella-installer}
+subjects:
+- {kind: ServiceAccount, name: platform-reconciler, namespace: bigbang}

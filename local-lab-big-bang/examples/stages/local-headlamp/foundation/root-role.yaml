@@ -1,0 +1,20 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: stage-root-writer, namespace: bigbang}
+rules:
+- apiGroups: ['']
+  resources: [configmaps]
+  verbs: [get, list, watch, create, update, patch]
+- apiGroups: [source.toolkit.fluxcd.io]
+  resources: [gitrepositories]
+  verbs: [get, list, watch, create, update, patch]
+- apiGroups: [helm.toolkit.fluxcd.io]
+  resources: [helmreleases]
+  verbs: [get, list, watch, create, update, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: stage-root-writer, namespace: bigbang}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: stage-root-writer}
+subjects:
+- {kind: ServiceAccount, name: platform-reconciler, namespace: flux-system}

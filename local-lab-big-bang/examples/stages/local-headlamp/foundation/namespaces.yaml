@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bigbang
+  labels:
+    app.kubernetes.io/managed-by: Ansible
+    example.perkforge.io/stage: local-headlamp
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: headlamp
+  labels:
+    app.kubernetes.io/managed-by: Ansible
+    example.perkforge.io/stage: local-headlamp

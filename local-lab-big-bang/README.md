@@ -11,6 +11,9 @@ Rancher remains the intended platform-engineer management UI; its omission from
 the initial tiny VM trial is temporary. Later integration needs a separate
 resource budget. Flux owns GitOps for the new stack, without Fleet reconciliation.
 
+For the first private Big Bang application test, see the separately gated
+[local Headlamp stage](examples/stages/local-headlamp/README.md).
+
 ## Find the entrypoint
 
 | Target | Purpose | Environment | Profile |
