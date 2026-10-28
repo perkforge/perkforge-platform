@@ -8,7 +8,7 @@ spec:
   interval: 10m
   url: https://github.com/perkforge/perkforge-platform-tenants.git
   ref:
-    # Verified merged main commit from enrollment PR #1; reconciliation remains paused.
-    commit: f74548ed5af9fd34b2bb85d5183e8de82c14acaa
+    # Published enrollment release containing portal tag selection.
+    tag: v0.1.1
   secretRef:
     name: tenant-enrollments-read # Reference only; not provisioned.

@@ -15,32 +15,27 @@ Both pre-1.0 downgrade options are false. Review the final merged commit subject
 and breaking footers, not just the original PR title. Config repo version and
 portal chart/image versions are independent; this does not bump either of those.
 
-## First rollout: do not invent missing refs
+## Published chain and rollout
 
-1. Merge each repository's release-workflow PR after checks. No tags are created
-   by these feature branches or by merging the workflow alone.
-2. Let the main workflow propose its release PR; review VERSION/manifest/changelog.
-   Approve any pending workflow runs, or run **configuration-release** manually
-   on that release branch for read-only checks. Human merge publishes the tag.
-3. Verify the **portal app config** release exists and resolves correctly. Only
-   then open the small enrollment PR switching its Flux source from commit to
-   exact `ref.tag` (for example `v0.1.0`, only if actually published). Validate and
-   release enrollment after that change merges.
-4. Verify the new **enrollment** release, then switch platform's enrollment ref to
-   that exact tag in a small PR. Its tests must resolve tags, check out the resolved
-   commits and validate the full platform → enrollment → app chain. Keep resolved
-   SHAs in release evidence, not human-maintained deployment inputs.
-5. Release **platform** after that change; in its next reviewed config change,
-   switch Ansible `config_commit`/seed `ref.commit` to validated `config_tag`/
-   `ref.tag` and use the published platform tag as the bootstrap selection.
-   Resolve and verify the tag before any gated bootstrap apply. The resulting
-   platform release includes the tag-aware bootstrap. No floating main/latest ref.
+Portal config `v0.1.0` and enrollment `v0.1.1` are published; the latter selects
+the portal tag. This platform change selects enrollment `v0.1.1` and adds a
+validated `config_tag` bootstrap input. Dependency resolution evidence lives in
+`release-evidence.json`; deployment source YAML contains the version tags.
 
-These are separate sequential PRs because **none of these repos has a release
-at setup time**. Current verified commit refs intentionally remain until the
-corresponding releases exist. No missing tag is accepted as a deployment input.
-Big Bang's existing 3.35.1 tag/commit verification and third-party Action SHA pins
-remain independent and unchanged. All deployment stays paused/disabled.
+Merge this feature PR, then review/check/merge the generated platform release PR.
+Verify the actual resulting tag and its source before choosing it as the
+bootstrap input. Existing platform `v0.1.0` is a pre-conversion baseline, used only
+as a read-only preflight fixture; it is not the new chain. No future/nonexistent
+self-tag is committed. Bootstrap defaults remain UNCONFIGURED and apply=false;
+its operator-supplied release metadata is separate from inventory/seed inputs.
+See [the short bootstrap guide](local-lab-big-bang/README.md#select-a-bootstrap-configuration-tag).
+
+For later updates: publish app release → PR/update enrollment tag and evidence →
+publish enrollment release → PR/update platform tag and evidence → publish
+platform release. Consumers must verify published compatible content, not merely
+tag existence. CI verifies both live resolution and exact checked-out contents.
+Keep resolved SHAs in release evidence; do not remove security-pinned Action SHAs
+or Big Bang 3.35.1's separate tag/commit verification. Deployment remains paused.
 
 ## Verify and preserve a published ref
 

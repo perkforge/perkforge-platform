@@ -101,7 +101,10 @@ Proposed sequence for a future approved clean-cluster evaluation:
    the chicken-and-egg seed; a Flux CR cannot install the controller needed to
    interpret that same CR on an empty cluster. The research pin is 3.35.1 as
    recorded above. Do not substitute moving upstream manifests.
-4. **Apply the root source and Flux Kustomization.** The source points to the
+4. **Apply the root source and Flux Kustomization.** Select an already published
+   platform configuration tag and verify its recorded source resolution and
+   named-cluster context before any gated apply. Bootstrap does not select a
+   future self-tag; release publication and live activation remain separate. The source points to the
    protected environment repository and the root selects only
    a named `clusters/<cluster>` path. It references the source and an explicit
    platform deployer identity. Source Ready must precede successful path
@@ -216,7 +219,7 @@ Cluster identity, environment, profile, distribution and hosting stay independen
 
 The inventory, platform Flux parent, enrollment and app roots explicitly record
 `example.perkforge.io/{cluster,environment,profile}` context. Tests follow exact
-review pins and compare those claims with the actual selected paths/profile
+published tag resolutions and compare those claims with the actual selected paths/profile
 inputs. A profile does not automatically propagate across Git repositories.
 The app composes shared → environment → app profile → cluster values; its example
 profile only changes the supported identity-audience input. That is not DoD

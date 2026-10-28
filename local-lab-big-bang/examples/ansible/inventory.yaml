@@ -5,7 +5,9 @@ all:
         ansible_connection: local
         bootstrap_apply: false
         config_repository: https://github.com/perkforge/perkforge-platform.git
-        config_commit: UNCONFIGURED
+        config_tag: UNCONFIGURED
+        config_release_evidence: /UNCONFIGURED/platform-release.json
+        bootstrap_verify_release: false
         target_kubeconfig: /UNCONFIGURED/kubeconfig
         target_context: UNCONFIGURED
         expected_cluster_uid: UNCONFIGURED

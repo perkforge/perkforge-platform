@@ -2,9 +2,9 @@ name: gitops-selection-offline
 on:
   workflow_call:
   pull_request:
-    paths: ['local-lab-big-bang/**', '.github/workflows/gitops-selection.yml']
+    paths: ['local-lab-big-bang/**', '.github/workflows/gitops-selection.yml', 'release-evidence.json', 'scripts/verify-release-ref.sh']
   push:
-    paths: ['local-lab-big-bang/**', '.github/workflows/gitops-selection.yml']
+    paths: ['local-lab-big-bang/**', '.github/workflows/gitops-selection.yml', 'release-evidence.json', 'scripts/verify-release-ref.sh']
 permissions:
   contents: read
 jobs:
@@ -16,36 +16,67 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - run: python3 -m pip install PyYAML==6.0.3
-    - name: Read exact public enrollment fixture revision
+    # Public test fixture resolution, not bootstrap tenant discovery.
+    - name: Read reviewed enrollment release selection
       id: enrollment
       run: |
-        python3 - <<'PY'
-        import os, re, yaml
-        value = yaml.safe_load(open('local-lab-big-bang/examples/enrollments/base/source.yaml'))['spec']['ref']['commit']
-        assert re.fullmatch('[0-9a-f]{40}', value)
-        with open(os.environ['GITHUB_OUTPUT'], 'a') as output: output.write('revision=' + value + '\n')
-        PY
+        python3 - <<'PYTHON'
+        import json, os, sys, yaml
+        sys.path.insert(0, 'local-lab-big-bang/tests')
+        from test_selection_contract import release_for
+        source = yaml.safe_load(open('local-lab-big-bang/examples/enrollments/base/source.yaml'))
+        evidence = json.load(open('release-evidence.json'))['dependencies']['enrollment']
+        release = release_for(source, evidence)
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+            for key in ('repository', 'tag', 'resolvedCommit'):
+                output.write(key + '=' + release[key] + '\n')
+        PYTHON
+    - name: Reject missing or moved enrollment release before checkout
+      env:
+        GH_TOKEN: ${{ github.token }}
+        RELEASE_REPOSITORY: ${{ steps.enrollment.outputs.repository }}
+        RELEASE_TAG: ${{ steps.enrollment.outputs.tag }}
+        RELEASE_COMMIT: ${{ steps.enrollment.outputs.resolvedCommit }}
+      run: |
+        set -euo pipefail
+        scripts/verify-release-ref.sh "$RELEASE_REPOSITORY" "$RELEASE_TAG" "$RELEASE_COMMIT" | tee -a "$GITHUB_STEP_SUMMARY"
     - uses: actions/checkout@v4
       with:
-        repository: perkforge/perkforge-platform-tenants
-        ref: ${{ steps.enrollment.outputs.revision }}
+        repository: ${{ steps.enrollment.outputs.repository }}
+        ref: ${{ steps.enrollment.outputs.tag }}
         path: .inputs/enrollment
+        fetch-depth: 0
         persist-credentials: false
-    # This is a public integration-test fixture, not bootstrap tenant discovery.
-    - name: Read exact public tenant app fixture revision
+    # Public test fixture resolution, not bootstrap tenant discovery.
+    - name: Read reviewed app release selection
       id: app
       run: |
-        python3 - <<'PY'
-        import os, re, yaml
-        value = yaml.safe_load(open('.inputs/enrollment/tenants/portal/source.yaml'))['spec']['ref']['commit']
-        assert re.fullmatch('[0-9a-f]{40}', value)
-        with open(os.environ['GITHUB_OUTPUT'], 'a') as output: output.write('revision=' + value + '\n')
-        PY
+        python3 - <<'PYTHON'
+        import json, os, sys, yaml
+        sys.path.insert(0, 'local-lab-big-bang/tests')
+        from test_selection_contract import release_for
+        source = yaml.safe_load(open('.inputs/enrollment/tenants/portal/source.yaml'))
+        evidence = json.load(open('.inputs/enrollment/release-evidence.json'))['dependencies']['portal']
+        release = release_for(source, evidence)
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+            for key in ('repository', 'tag', 'resolvedCommit'):
+                output.write(key + '=' + release[key] + '\n')
+        PYTHON
+    - name: Reject missing or moved app release before checkout
+      env:
+        GH_TOKEN: ${{ github.token }}
+        RELEASE_REPOSITORY: ${{ steps.app.outputs.repository }}
+        RELEASE_TAG: ${{ steps.app.outputs.tag }}
+        RELEASE_COMMIT: ${{ steps.app.outputs.resolvedCommit }}
+      run: |
+        set -euo pipefail
+        scripts/verify-release-ref.sh "$RELEASE_REPOSITORY" "$RELEASE_TAG" "$RELEASE_COMMIT" | tee -a "$GITHUB_STEP_SUMMARY"
     - uses: actions/checkout@v4
       with:
-        repository: perkforge/perkforge-tenant-portal
-        ref: ${{ steps.app.outputs.revision }}
+        repository: ${{ steps.app.outputs.repository }}
+        ref: ${{ steps.app.outputs.tag }}
         path: .inputs/app
+        fetch-depth: 0
         persist-credentials: false
     - name: Check disabled Ansible bootstrap syntax
       env:
@@ -56,3 +87,12 @@ jobs:
         ENROLLMENT_CHECKOUT: ${{ github.workspace }}/.inputs/enrollment
         TENANT_APP_CHECKOUT: ${{ github.workspace }}/.inputs/app
       run: python3 -m unittest discover -s local-lab-big-bang/tests -v
+    - name: Verify tag-aware bootstrap without Kubernetes access
+      env:
+        GH_TOKEN: ${{ github.token }}
+        ANSIBLE_LOCAL_TEMP: ${{ runner.temp }}/bootstrap-tag-ansible
+      run: |
+        ansible-playbook -i local-lab-big-bang/examples/ansible/inventory.yaml \
+          local-lab-big-bang/examples/ansible/bootstrap.yaml --limit local \
+          -e bootstrap_verify_release=true -e config_tag=v0.1.0 \
+          -e config_release_evidence="$GITHUB_WORKSPACE/local-lab-big-bang/tests/fixtures/platform-v0.1.0.json"

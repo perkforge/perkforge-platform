@@ -9,7 +9,7 @@ spec:
   interval: 1m
   url: {{ config_repository | to_json }}
   ref:
-    commit: {{ config_commit | to_json }}
+    tag: {{ config_tag | to_json }}
   secretRef:
     name: cluster-config-read # Must be provisioned separately, never by this example.
 ---

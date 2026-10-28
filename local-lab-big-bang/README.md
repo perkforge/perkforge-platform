@@ -18,8 +18,9 @@ From this directory, the safe default walkthrough is:
 ansible-playbook -i examples/ansible/inventory.yaml examples/ansible/bootstrap.yaml --limit local
 ```
 
-`bootstrap_apply: false` prints selection and skips every Git/API task (`changed=0`).
-No target kubeconfig/context/UID or configuration commit has been supplied.
+The default `bootstrap_apply: false` and `bootstrap_verify_release: false` print
+selection and skip every Git/API task (`changed=0`).
+No target kubeconfig/context/UID or configuration tag/evidence has been supplied.
 
 ```text
 examples/ansible/inventory.yaml: local.gitops_path
@@ -51,8 +52,9 @@ Shared app definitions are included explicitly, not installed on every cluster.
 
 Big Bang's chart source is release **tag `3.35.1`**. The bootstrap checks its
 observed commit `02efc8b0d259ee0cd2c31ea857d50a4021cf6d8e` before any gated apply.
-A tag alone is not immutable. Configuration and companion repos use exact commit
-pins, independently of the chart tag. Do not vendor charts or generated YAML.
+A tag alone is not immutable. Configuration and companion repos select exact
+release tags; reviewed resolved commits live in release metadata and are checked
+before use, independently of the chart tag. Do not vendor charts or generated YAML.
 
 ## Add a cluster
 
@@ -61,7 +63,7 @@ pins, independently of the chart tag. Do not vendor charts or generated YAML.
 2. Copy `examples/enrollments/dev/`; set its Flux `spec.path` to the matching
    enrollment `./clusters/<target>`, then select that component in the cluster root.
 3. Add the inventory alias and matching `gitops_path`, `deployment_environment`,
-   `impact_profile`. Real API identity and config commit stay unconfigured until reviewed.
+   `impact_profile`. Real API identity and config tag/evidence stay unconfigured until reviewed.
 4. Add matching enrollment and app cluster roots in their repositories; select
    reusable app environment/profile values there. Run the checks below.
 
@@ -125,18 +127,55 @@ reviewed enrollment/foundation work. No DNS/hosts/TLS/client/secret changes are 
 Headlamp OIDC/API trust and exact callback remain future pinned-version setup;
 no shared service-account token or default cluster-admin binding is allowed.
 
-## Review and merge order—pause at each pin
+## Release references and next merge step
 
-Portal [#5](https://github.com/perkforge/perkforge-tenant-portal/pull/5) is merged
-at `5a60023a2d1f6d36bd824a6e3ef66a06b6793e80`. Enrollment
-[#1](https://github.com/perkforge/perkforge-platform-tenants/pull/1) is merged
-at `f74548ed5af9fd34b2bb85d5183e8de82c14acaa` and pins that app revision.
-This platform source now pins the verified enrollment merge commit; the complete
-chain was revalidated. **Next: approve/merge platform #47 after its checks pass.**
+The actual checked chain is **platform feature → enrollment `v0.1.1` → portal
+`v0.1.0`**. Deployment sources use `ref.tag`; `release-evidence.json` records the
+reviewed dependency resolution separately. CI rejects missing, unpublished or
+moved tags and checks actual paths, context and paused scope at those revisions.
 
-For future updates, merge app → advance/revalidate enrollment pin → merge
-enrollment → advance/revalidate platform pin → merge platform. Pause at each
-pin: squash/rebase can change SHAs. Merge never unsuspends or authorizes live use.
+Merge this platform tag-conversion PR, then review/check/merge its generated
+platform release PR. Only that published release will contain the complete
+conversion and tag-aware bootstrap. Do not call platform `v0.1.0` the converted
+release: it predates this change. Release versions may change with other eligible
+commits; verify the actual publication rather than assuming a future tag.
+
+For future updates: release app → update/release enrollment → update/release
+platform. Each consumer selects an already published dependency tag. Merge/release
+never unsuspends or authorizes live use. Preserve third-party Action SHA pins.
+
+## Select a bootstrap configuration tag
+
+`config_tag: UNCONFIGURED` stays the default. After the new platform release is
+published, choose its actual tag and record reviewed non-secret metadata in a
+separate JSON file with `repository`, `tag`, `resolvedCommit` (same shape as the
+test fixture below). `scripts/verify-release-ref.sh` supplies the resolution for
+review; do not put a source hash back in the inventory or seed.
+
+Supply `config_tag` and `config_release_evidence` explicitly. The preflight
+uses the small `examples/ansible/verify-release.yaml` task file to verify the
+stable release/tag against that evidence, then reads the named
+cluster entrypoint at the resolved commit and checks cluster/environment/profile.
+It precedes any gated Kubernetes work. `bootstrap_verify_release=true` runs only
+that read-only GitHub preflight; it does not set `bootstrap_apply` or supply target
+credentials. Default walkthroughs perform neither network nor Kubernetes work.
+
+There is no circular self-version: this PR does not select its own future tag.
+Once its approved release exists, use that published version as the input to its
+bootstrap playbook. Keep all live gates separate. The CI fixture uses existing
+platform `v0.1.0` only to test preflight mechanics/context—not as the converted
+chain or a live recommendation:
+
+```sh
+ansible-playbook -i local-lab-big-bang/examples/ansible/inventory.yaml \
+  local-lab-big-bang/examples/ansible/bootstrap.yaml --limit local \
+  -e bootstrap_verify_release=true -e config_tag=v0.1.0 \
+  -e config_release_evidence="$PWD/local-lab-big-bang/tests/fixtures/platform-v0.1.0.json"
+```
+
+This bounded check contacts GitHub only and finishes with `changed=0`. Tag
+immutability needs reviewed repository protection before live reliance; a release
+name alone does not prevent a later retag. No settings are changed here.
 
 ## Offline local tests
 
@@ -155,7 +194,7 @@ TENANT_APP_CHECKOUT=/path/to/perkforge-tenant-portal \
 ```
 
 Checkouts must match source pins. Tests follow real paths and reject wrong context,
-source revision or cluster selection, and render the actual Ansible seed. App tests
+release/evidence or cluster selection, and render the actual Ansible seed. App tests
 render ordered values through the existing portal chart, checking disabled output,
 synthetic precedence, shared-environment reuse and missing-digest rejection.
 Render the cached pinned Big Bang chart with the same ordered `-f` files for lint,
