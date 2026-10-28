@@ -210,6 +210,19 @@ The values order is chart defaults → shared defaults → provider values → s
 cluster overrides. Match that order in local Helm commands and live valuesFrom;
 keep secrets on separate, disjoint key paths.
 
+Keep environment and impact-level selection separate from tenant identity,
+provider and cluster name. Preserve both shared clusters with namespace-scoped
+tenants and dedicated tenant clusters, including clusters organized around an
+environment/IL. Each named cluster explicitly selects applicable shared,
+provider, optional reusable environment, impact-profile and cluster values, plus
+its platform-owned tenant-foundation/enrollment resources. If environment values
+are shared, their precedence is between provider and impact; otherwise the
+minimal example keeps those settings in cluster values with no extra layer.
+Validate allowed combinations, cluster/tenant ownership, scoped identities,
+namespace/secret boundaries and final policy invariants. Neither example assigns
+a tenant model yet; no automatic overlay cross-product or dedicated-cluster
+security exemption is implied. See the evaluation README for the selection rule.
+
 RKE2 is the current target, not an application dependency. A future EKS provider
 must supply its own API identity/OIDC trust, IAM/workload identity, CSI/storage
 classes, CNI/network policy, load balancers/DNS/TLS and credentials. Keep Fleet

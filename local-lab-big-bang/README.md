@@ -59,6 +59,36 @@ Shared chart pins/release wiring stay in one place. `il2` labels an illustrative
 profile, not DoD requirements or authorization. Provider and impact are independent
 axes. There is no inheritance chain or custom generator.
 
+Keep **environment, impact level, tenant identity, provider and cluster name**
+independent. Support both shared clusters with namespace-scoped tenants and
+dedicated tenant clusters. A cluster can be organized around an environment/IL
+and host several tenants, or belong to one tenant with its own environment/IL
+selection. A dedicated cluster does not automatically grant its tenant platform
+administration or establish an authorization boundary.
+
+The named cluster's local Kustomization selects its shared/provider/profile
+inputs and platform-owned tenant-foundation/enrollment resources. Tenant model
+and membership are explicit platform-owned choices, not inferred from folder
+names or the IL label. The current `lab`/`physical` examples do not yet implement
+or assign either tenancy model; that remains a review gate, not a hidden default.
+
+Use an environment-specific shared values input only when multiple clusters
+actually benefit from it. Select it explicitly in the named cluster build and
+add an optional `values-environment` reference between provider and impact in the
+outer release. Otherwise keep the few environment settings in cluster values;
+there is no mandatory new folder or layer. General order is defaults → shared →
+provider → environment (if selected) → impact → cluster. The minimal example
+omits the environment input, so its existing four references remain exact.
+Avoid trees such as provider/environment/IL/tenant/cluster and automatic cross-products.
+
+Before live use, validate the selected environment/profile/tenant model together:
+allowed combinations, cluster ownership and tenant membership, namespace bindings,
+source/deployer identities, secret boundaries and admission/network enforcement.
+Reject silent profile weakening or unintended tenant enrollment. Reuse reviewed
+foundation controls for shared and dedicated models with explicit exceptions;
+do not duplicate the entire platform per combination or treat dedication as a
+replacement for RBAC, quotas, policies and recovery tests.
+
 After final merge, validate profile invariants independently of precedence.
 The illustrative guardrails reject default Headlamp cluster-admin binding and
 shared-SA authentication; a negative late-override check must fail. Real profiles
