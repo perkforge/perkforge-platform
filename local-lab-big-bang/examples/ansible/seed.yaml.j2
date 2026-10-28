@@ -1,0 +1,35 @@
+# Rendered by Ansible's standard template lookup; no credentials included.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: cluster-config
+  namespace: flux-system
+spec:
+  suspend: true
+  interval: 1m
+  url: {{ config_repository | to_json }}
+  ref:
+    commit: {{ config_commit | to_json }}
+  secretRef:
+    name: cluster-config-read # Must be provisioned separately, never by this example.
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cluster-root
+  namespace: flux-system
+  annotations:
+    example.perkforge.io/cluster: {{ inventory_hostname | to_json }}
+    example.perkforge.io/environment: {{ deployment_environment | to_json }}
+    example.perkforge.io/profile: {{ impact_profile | to_json }}
+spec:
+  suspend: true
+  interval: 5m
+  timeout: 5m
+  path: {{ gitops_path | to_json }}
+  sourceRef:
+    kind: GitRepository
+    name: cluster-config
+  serviceAccountName: platform-reconciler # Future reviewed identity, not created here.
+  prune: false # No deletion authority is introduced by this seed.
+  wait: true

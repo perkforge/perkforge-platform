@@ -1,0 +1,10 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: bigbang-chart
+spec:
+  suspend: true # Review-only example: no network reconciliation.
+  interval: 10m
+  url: https://repo1.dso.mil/big-bang/bigbang.git
+  ref:
+    tag: 3.35.1 # Observed commit: 02efc8b0d259ee0cd2c31ea857d50a4021cf6d8e

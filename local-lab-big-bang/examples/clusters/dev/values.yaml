@@ -1,0 +1,38 @@
+# Disabled example; browser hosts are per-cluster inputs, not DNS/TLS setup.
+domain: local-lab.test
+addons:
+  headlamp:
+    values:
+      upstream:
+        replicaCount: 2
+      routes:
+        inbound:
+          headlamp:
+            hosts:
+            - headlamp-dev-il2.local-lab.test
+      bbtests:
+        cypress:
+          envs:
+            cypress_url: https://headlamp-dev-il2.local-lab.test
+  keycloak:
+    values:
+      routes:
+        inbound:
+          keycloak:
+            hosts:
+            - keycloak-dev-il2.local-lab.test
+      bbtests:
+        cypress:
+          envs:
+            cypress_url: https://keycloak-dev-il2.local-lab.test
+      upstream:
+        extraEnv: "- name: KC_HOSTNAME\n  value: keycloak-dev-il2.local-lab.test\n"
+packages:
+  openbao:
+    values:
+      server:
+        ingress:
+          enabled: false
+          hosts:
+          - host: openbao-dev-il2.local-lab.test
+            paths: []

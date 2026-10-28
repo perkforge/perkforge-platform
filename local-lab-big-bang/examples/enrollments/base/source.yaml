@@ -1,0 +1,14 @@
+# Generic platform-owned enrollment repository; no individual tenant knowledge.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: tenant-enrollments
+spec:
+  suspend: true
+  interval: 10m
+  url: https://github.com/perkforge/perkforge-platform-tenants.git
+  ref:
+    # Verified merged main commit from enrollment PR #1; reconciliation remains paused.
+    commit: f74548ed5af9fd34b2bb85d5183e8de82c14acaa
+  secretRef:
+    name: tenant-enrollments-read # Reference only; not provisioned.
