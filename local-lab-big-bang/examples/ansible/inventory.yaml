@@ -11,7 +11,7 @@ all:
         expected_cluster_uid: UNCONFIGURED
         flux_checkout: /UNCONFIGURED/pinned-bigbang
       hosts:
-        lab:
-          gitops_path: ./local-lab-big-bang/examples/clusters/lab
-        physical:
-          gitops_path: ./local-lab-big-bang/examples/clusters/physical
+        local:
+          gitops_path: ./local-lab-big-bang/examples/clusters/local
+        dev:
+          gitops_path: ./local-lab-big-bang/examples/clusters/dev

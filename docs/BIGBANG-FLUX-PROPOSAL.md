@@ -31,7 +31,11 @@ and object ownership transfer require their own reviewed plan.
 ## What was verified
 
 **Documentation/source verified:** Big Bang **3.35.1**, commit
-`02efc8b0d259ee0cd2c31ea857d50a4021cf6d8e`, was inspected locally. This is a
+`02efc8b0d259ee0cd2c31ea857d50a4021cf6d8e`, was inspected locally. The authored
+chart source and Ansible prerequisite checkout now select release tag `3.35.1`;
+the bootstrap verifies its resolution against that observed commit. A tag is not
+intrinsically immutable, and the Flux tag reference alone does not enforce the
+recorded commit. This is a
 research pin, not a declaration of the newest or adopted release. Its
 [Chart.yaml](https://repo1.dso.mil/big-bang/bigbang/-/blob/3.35.1/chart/Chart.yaml)
 requires Kubernetes `>=1.34.0-0`; the repository's RKE2 `1.36.5` satisfies that
@@ -99,7 +103,7 @@ Proposed sequence for a future approved clean-cluster evaluation:
    recorded above. Do not substitute moving upstream manifests.
 4. **Apply the root source and Flux Kustomization.** The source points to the
    protected environment repository and the root selects only
-   `clusters/lab` or `clusters/physical`. It references the source and an explicit
+   `clusters/local` or `clusters/dev`. It references the source and an explicit
    platform deployer identity. Source Ready must precede successful path
    reconciliation. Local Kustomize composition produces the root objects; the
    Flux Kustomization then performs recurring reconciliation. The two clusters
@@ -206,6 +210,14 @@ cluster-specific secrets, addresses and capacity never belong in an IL profile.
 Only `il2` is illustrated here; the label expresses a possible future selection,
 not actual DoD requirements, suitability or authorization. Establish real
 requirements with the applicable system owner before creating real profiles.
+The example instance aliases are `local` and `dev`, both explicitly selecting
+`il2`. The user's intended dev target is the physical homelab; actual API inputs
+remain unconfigured. Environment names are not globally unique cluster IDs:
+several uniquely named dev instances can share optional dev defaults. Keep
+cluster identity, environment, Kubernetes distribution (RKE2/EKS), hosting
+(homelab/AWS) and impact profile separate. RKE2 on AWS is a valid future
+combination; AWS does not imply EKS. No mandatory folder per label, live cluster
+rename or existing `local-lab/` path change is introduced.
 The values order is chart defaults → shared defaults → provider values → selected profile → named
 cluster overrides. Match that order in local Helm commands and live valuesFrom;
 keep secrets on separate, disjoint key paths.

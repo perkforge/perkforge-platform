@@ -17,11 +17,11 @@ values are the source of truth. Build/render output belongs under `/tmp` for
 validation and diff review, never in the deployment source tree.
 
 ```text
-ansible-playbook -i examples/ansible/inventory.yaml examples/ansible/bootstrap.yaml --limit lab
-  inventory host lab: gitops_path = ./local-lab-big-bang/examples/clusters/lab
+ansible-playbook -i examples/ansible/inventory.yaml examples/ansible/bootstrap.yaml --limit local
+  inventory host local: gitops_path = ./local-lab-big-bang/examples/clusters/local
   → template seed.yaml.j2 into GitRepository/cluster-config + Kustomization/cluster-root
-  → cluster-root.spec.path selects examples/clusters/lab
-  → clusters/lab/kustomization.yaml composes shared/provider/profile/cluster inputs
+  → cluster-root.spec.path selects examples/clusters/local
+  → clusters/local/kustomization.yaml composes shared/provider/profile/cluster inputs
   → HelmRelease/bigbang references GitRepository/bigbang-chart and valuesFrom
   → pinned Big Bang chart creates component sources and HelmReleases
 ```
@@ -32,19 +32,46 @@ and skips every Kubernetes/Git task. It does not install or deploy anything.
 
 | Authored file | Role and consumed fields |
 | --- | --- |
-| [inventory.yaml](examples/ansible/inventory.yaml) | `lab` and `physical` are Ansible inventory aliases. `gitops_path` selects configuration; kubeconfig/context/expected UID select the target API, independently. Target and configuration commit remain unconfigured |
-| [bootstrap.yaml](examples/ansible/bootstrap.yaml) | Standard Ansible tasks: report selection; when separately enabled, validate target UID, obtain exact Big Bang commit, apply its `base/flux`, wait for required CRDs/controllers, then apply only the paused seed |
+| [inventory.yaml](examples/ansible/inventory.yaml) | `local` and `dev` are Ansible inventory aliases. `gitops_path` selects configuration; kubeconfig/context/expected UID select the target API, independently. Target and configuration commit remain unconfigured |
+| [bootstrap.yaml](examples/ansible/bootstrap.yaml) | Standard Ansible tasks: report selection; when separately enabled, validate target UID, obtain Big Bang release tag and verify its observed commit, apply its `base/flux`, wait for required CRDs/controllers, then apply only the paused seed |
 | [seed.yaml.j2](examples/ansible/seed.yaml.j2) | Standard Ansible template: config repository + exact `ref.commit` in GitRepository; `spec.sourceRef` and `spec.path` in root Flux Kustomization |
-| [lab kustomization.yaml](examples/clusters/lab/kustomization.yaml), [physical](examples/clusters/physical/kustomization.yaml) | Local Kustomize build inputs; choose reusable directories and generate that cluster's values ConfigMap |
-| [bigbang/source.yaml](examples/bigbang/source.yaml) | Pinned chart source, Big Bang 3.35.1 commit `02efc8b0d259ee0cd2c31ea857d50a4021cf6d8e`; no vendored chart or generated child YAML |
+| [local kustomization.yaml](examples/clusters/local/kustomization.yaml), [dev](examples/clusters/dev/kustomization.yaml) | Local Kustomize build inputs; choose reusable directories and generate that cluster's values ConfigMap |
+| [bigbang/source.yaml](examples/bigbang/source.yaml) | Pinned chart source, Big Bang release tag `3.35.1`; no vendored chart or generated child YAML |
 | [bigbang/release.yaml](examples/bigbang/release.yaml) | Outer HelmRelease: `chart.spec.chart: ./chart`, sourceRef, and explicit ordered valuesFrom |
-| [shared](examples/shared/values.yaml), [provider](examples/providers/rke2/values.yaml), [impact](examples/profiles/il2/values.yaml), [lab](examples/clusters/lab/values.yaml), [physical](examples/clusters/physical/values.yaml) | Non-secret authored values. Native configMapGenerator packages each values.yaml; fixed ConfigMap names match the release references |
+| [shared](examples/shared/values.yaml), [provider](examples/providers/rke2/values.yaml), [impact](examples/profiles/il2/values.yaml), [local](examples/clusters/local/values.yaml), [dev](examples/clusters/dev/values.yaml) | Non-secret authored values. Native configMapGenerator packages each values.yaml; fixed ConfigMap names match the release references |
 
 Inventory selection chooses **where Ansible connects** and **which Git path it
 seeds**. The root GitRepository URL/revision chooses the protected configuration
 snapshot. The root Flux Kustomization path chooses a directory within that
 snapshot. Local `kustomization.yaml` is a build recipe, not a controller CR.
 The separate Big Bang GitRepository selects the chart source, not cluster config.
+
+Both example instances explicitly select `../../profiles/il2` in their local
+Kustomizations. Here `local` and `dev` are short instance aliases, not a rule
+that environment names globally identify clusters. The user's intended `dev`
+target is the physical homelab; its actual API target remains unconfigured.
+Environment (`local`/`dev`), unique cluster identity, distribution (RKE2/EKS),
+hosting (homelab/AWS) and impact profile are separate choices. Another team's
+`dev` could be RKE2 on AWS: AWS does not imply EKS, and dev does not imply hardware.
+
+For multiple dev clusters, give them unique inventory aliases/directories such
+as `team-a-dev` and `team-b-dev`; their roots may select the same optional reusable
+dev values while retaining their own endpoints, target identities and overrides.
+The current `providers/rke2` placeholder is a distribution-specific adapter,
+not an AWS/homelab selector. Add separate hosting settings only when needed;
+there is no mandatory folder for every label or combined overlay tree. None of
+these names or selections establishes an IL authorization.
+
+The chart GitRepository uses **`spec.ref.tag: 3.35.1`**, not a moving branch.
+The Ansible prerequisite checkout uses the same `bigbang_tag`. This annotated
+tag was verified to resolve to commit
+`02efc8b0d259ee0cd2c31ea857d50a4021cf6d8e`; Ansible's gated bootstrap also checks
+that resolution against `bigbang_expected_commit` before any Flux apply.
+A release tag is human-readable but is not intrinsically immutable: a Flux tag
+reference alone does not enforce the recorded commit. Review tag resolution
+and rendered changes on future updates; no release upgrade is made here. The
+configuration repository's separate `config_commit` remains a precise future
+snapshot of PerkForge inputs, not the Big Bang release selection.
 
 Later values win: **chart defaults → values-shared → values-provider →
 values-impact → values-cluster**. The four references are explicit in
@@ -69,7 +96,7 @@ administration or establish an authorization boundary.
 The named cluster's local Kustomization selects its shared/provider/profile
 inputs and platform-owned tenant-foundation/enrollment resources. Tenant model
 and membership are explicit platform-owned choices, not inferred from folder
-names or the IL label. The current `lab`/`physical` examples do not yet implement
+names or the IL label. The current `local`/`dev` examples do not yet implement
 or assign either tenancy model; that remains a review gate, not a hidden default.
 
 Use an environment-specific shared values input only when multiple clusters
@@ -213,19 +240,19 @@ From repository root, using already available tools; no cluster contact:
 ANSIBLE_LOCAL_TEMP=/tmp/perkforge-ansible ANSIBLE_REMOTE_TEMP=/tmp/perkforge-remote \
   ansible-playbook -i local-lab-big-bang/examples/ansible/inventory.yaml \
   local-lab-big-bang/examples/ansible/bootstrap.yaml --syntax-check
-kubectl kustomize local-lab-big-bang/examples/clusters/lab > /tmp/bigbang-lab-seed.yaml
-kubectl kustomize local-lab-big-bang/examples/clusters/physical > /tmp/bigbang-physical-seed.yaml
+kubectl kustomize local-lab-big-bang/examples/clusters/local > /tmp/bigbang-local-seed.yaml
+kubectl kustomize local-lab-big-bang/examples/clusters/dev > /tmp/bigbang-dev-seed.yaml
 helm lint /tmp/perkforge-bigbang-3.35.1/chart --kube-version 1.36.5 \
   -f local-lab-big-bang/examples/shared/values.yaml \
   -f local-lab-big-bang/examples/providers/rke2/values.yaml \
   -f local-lab-big-bang/examples/profiles/il2/values.yaml \
-  -f local-lab-big-bang/examples/clusters/lab/values.yaml
+  -f local-lab-big-bang/examples/clusters/local/values.yaml
 # helm template with the same ordered -f inputs writes only /tmp output.
-# Repeat for physical; review per-cluster before/after diffs locally.
+# Repeat for dev; review per-cluster before/after diffs locally.
 ```
 
 Both local Kustomize assemblies and Ansible syntax passed. The default playbook
-walkthrough selected lab with `changed=0`, skipping all live tasks. Standard
+walkthrough selected local with `changed=0`, skipping all live tasks. Standard
 Ansible templating was checked locally with synthetic inputs. Local checks traced
 seed path → cluster build → chart source and all four ConfigMap references, then
 used their actual valuesFrom order for Helm lint/render. Pinned Flux CRD field

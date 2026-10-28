@@ -2,7 +2,8 @@
   hosts: bootstrap_clusters
   gather_facts: false
   vars:
-    bigbang_commit: 02efc8b0d259ee0cd2c31ea857d50a4021cf6d8e
+    bigbang_tag: 3.35.1
+    bigbang_expected_commit: 02efc8b0d259ee0cd2c31ea857d50a4021cf6d8e
   tasks:
   - name: Report selected entrypoint without contacting Kubernetes
     ansible.builtin.debug:
@@ -37,12 +38,16 @@
     - name: Refuse a different cluster
       ansible.builtin.assert:
         that: cluster_identity.stdout == expected_cluster_uid
-    - name: Obtain exact Big Bang source for initial Flux prerequisites
+    - name: Obtain the selected Big Bang release tag for Flux prerequisites
       ansible.builtin.git:
         repo: https://repo1.dso.mil/big-bang/bigbang.git
-        version: '{{ bigbang_commit }}'
+        version: '{{ bigbang_tag }}'
         dest: '{{ flux_checkout }}'
         force: false
+      register: bigbang_source
+    - name: Refuse a release tag that no longer resolves to the reviewed commit
+      ansible.builtin.assert:
+        that: bigbang_source.after == bigbang_expected_commit
     - name: Apply only the pinned Flux prerequisites
       ansible.builtin.command:
         argv:

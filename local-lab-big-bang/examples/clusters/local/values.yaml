@@ -1,4 +1,4 @@
-domain: lab.example.invalid
+domain: local.example.invalid
 addons:
   headlamp:
     values:

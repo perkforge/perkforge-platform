@@ -7,4 +7,4 @@ spec:
   interval: 10m
   url: https://repo1.dso.mil/big-bang/bigbang.git
   ref:
-    commit: 02efc8b0d259ee0cd2c31ea857d50a4021cf6d8e # 3.35.1
+    tag: 3.35.1 # Observed commit: 02efc8b0d259ee0cd2c31ea857d50a4021cf6d8e
