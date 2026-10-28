@@ -8,7 +8,7 @@ spec:
   interval: 10m
   url: https://github.com/perkforge/perkforge-platform-tenants.git
   ref:
-    # Review-stage enrollment PR #1 commit, not an adopted production revision.
-    commit: 8a227027a9d31dee8eeaf7e1727389c5fd6606e3
+    # Verified merged main commit from enrollment PR #1; reconciliation remains paused.
+    commit: f74548ed5af9fd34b2bb85d5183e8de82c14acaa
   secretRef:
     name: tenant-enrollments-read # Reference only; not provisioned.

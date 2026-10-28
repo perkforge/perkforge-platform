@@ -127,15 +127,16 @@ no shared service-account token or default cluster-admin binding is allowed.
 
 ## Review and merge order—pause at each pin
 
-1. Approve/merge [portal #5](https://github.com/perkforge/perkforge-tenant-portal/pull/5).
-2. **Pause:** update [enrollment #1](https://github.com/perkforge/perkforge-platform-tenants/pull/1)
-   to the actual approved app merge commit; rerun checks/CI, then approve/merge.
-3. **Pause:** update [platform #47](https://github.com/perkforge/perkforge-platform/pull/47)
-   to the actual approved enrollment merge commit; rerun exact-pin checks/CI,
-   then approve/merge. Squash/rebase can change both SHAs.
+Portal [#5](https://github.com/perkforge/perkforge-tenant-portal/pull/5) is merged
+at `5a60023a2d1f6d36bd824a6e3ef66a06b6793e80`. Enrollment
+[#1](https://github.com/perkforge/perkforge-platform-tenants/pull/1) is merged
+at `f74548ed5af9fd34b2bb85d5183e8de82c14acaa` and pins that app revision.
+This platform source now pins the verified enrollment merge commit; the complete
+chain was revalidated. **Next: approve/merge platform #47 after its checks pass.**
 
-Current companion pins are exact feature commits for review, not production
-adoption. Nothing auto-advances or unsuspends after merge.
+For future updates, merge app → advance/revalidate enrollment pin → merge
+enrollment → advance/revalidate platform pin → merge platform. Pause at each
+pin: squash/rebase can change SHAs. Merge never unsuspends or authorizes live use.
 
 ## Offline local tests
 
