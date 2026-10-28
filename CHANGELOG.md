@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/perkforge/perkforge-platform/compare/v0.4.0...v0.5.0) (2026-10-28)
+
+
+### Features
+
+* prepare local Keycloak-backed Headlamp login ([#59](https://github.com/perkforge/perkforge-platform/issues/59)) ([33eacd8](https://github.com/perkforge/perkforge-platform/commit/33eacd84c06b7cd6a1f1f1686c45787b9a34d7a6))
+
 ## [0.4.0](https://github.com/perkforge/perkforge-platform/compare/v0.3.0...v0.4.0) (2026-10-28)
 
 
