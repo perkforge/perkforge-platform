@@ -162,7 +162,7 @@ Companion PRs: [tenant app #5](https://github.com/perkforge/perkforge-tenant-por
 [platform-owned enrollment #1](https://github.com/perkforge/perkforge-platform-tenants/pull/1),
 and [this platform proposal #47](https://github.com/perkforge/perkforge-platform/pull/47).
 The authored source here pins exact enrollment feature commit
-`3ab79b3d2b700c64392f8d61ef6152a6f6d9aab6` for cross-repository review. It is
+`05daf3e4d150e572ffbff17a8d4e39ab712c2ec3` for cross-repository review. It is
 not a production/adopted revision, and none of these references track a moving
 feature branch automatically.
 
