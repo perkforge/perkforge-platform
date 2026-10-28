@@ -130,3 +130,8 @@ Inspect the cluster from this repository with:
 The inactive [OpenBao secrets stage](local-lab/openbao/README.md) records pinned
 official charts, human and ESO identity boundaries, offline isolation tests and
 the remaining approved-live-activation gates for issue #12.
+
+## Configuration versions
+
+See [RELEASING.md](RELEASING.md) for reviewed release PRs, immutable-tag
+expectations, first-release ordering and the staged switch to tag-based refs.

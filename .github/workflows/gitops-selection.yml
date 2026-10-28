@@ -1,5 +1,6 @@
 name: gitops-selection-offline
 on:
+  workflow_call:
   pull_request:
     paths: ['local-lab-big-bang/**', '.github/workflows/gitops-selection.yml']
   push:
