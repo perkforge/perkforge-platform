@@ -39,7 +39,7 @@ def inventory(objects):
             hook = obj['metadata'].get('annotations', {}).get('helm.sh/hook')
             replicas = spec.get('replicas', spec.get('parallelism', 1))
             item = {'kind': kind, 'name': obj['metadata']['name'], 'replicas': replicas,
-                    'hook': hook, 'requests': {}, 'limits': {}, 'unsized': []}
+                    'hook': hook, 'nodeSelector': pod.get('nodeSelector', {}), 'requests': {}, 'limits': {}, 'unsized': []}
             for resource in ('cpu', 'memory'):
                 for mode in ('requests', 'limits'):
                     item[mode][resource] = pod_resource(pod, resource, mode)

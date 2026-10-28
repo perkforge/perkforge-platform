@@ -7,7 +7,8 @@ import unittest
 import yaml
 
 from render_helpers import build, child_values, helm, ordered_values, release_name
-from resource_inventory import inventory
+from resource_inventory import inventory, quantity
+from flux_render import render_flux
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -19,6 +20,7 @@ class MinimalRenderTests(unittest.TestCase):
         cls.app = Path(os.environ['TENANT_APP_CHECKOUT'])
         cls.objects, cls.reports = {}, {}
         cls.flux = build(cls.sources / 'bigbang/base/flux')
+        cls.local_flux = render_flux(cls.sources, ROOT / 'examples', 'local-tiny')
         for target in ('local', 'dev'):
             root = build(ROOT / 'examples/clusters' / target)
             release = next(obj for obj in root if obj['kind'] == 'HelmRelease')
@@ -29,7 +31,7 @@ class MinimalRenderTests(unittest.TestCase):
             outer = helm(cls.sources / 'bigbang/chart', 'bigbang', 'bigbang',
                          values + [(ROOT / 'preflight/values.yaml').read_text()])
             cls.objects[target]['outer'] = outer
-            cls.reports[target] = {'flux': inventory(cls.flux)}
+            cls.reports[target] = {'flux': inventory(cls.local_flux if target == 'local' else cls.flux)}
             for name in ('headlamp', 'keycloak', 'openbao'):
                 child = next(obj for obj in outer if obj['kind'] == 'HelmRelease' and obj['metadata']['name'] == name)
                 chart = cls.sources / name / ('.' if name == 'openbao' else 'chart')
@@ -100,11 +102,68 @@ class MinimalRenderTests(unittest.TestCase):
             binding = next(obj for obj in objects['openbao'] if obj['kind'] == 'ClusterRoleBinding')
             self.assertEqual(binding['roleRef']['name'], 'system:auth-delegator')
 
+    def test_staged_flags_render_database_before_keycloak_and_other_apps(self):
+        root = self.objects['local']['root']
+        release = next(obj for obj in root if obj['kind'] == 'HelmRelease')
+        values = ordered_values(root, release) + [(ROOT / 'preflight/values.yaml').read_text()]
+        stages = [('flux-only', False, 0, False, False),
+                  ('database', True, 0, False, False),
+                  ('identity', True, 1, False, False),
+                  ('secrets', True, 1, True, False),
+                  ('ui', True, 1, True, True)]
+        for name, identity, replicas, secrets, ui in stages:
+            with self.subTest(stage=name):
+                flags = ('--set', 'addons.keycloak.enabled=' + str(identity).lower(),
+                         '--set', 'addons.keycloak.values.upstream.replicas=' + str(replicas),
+                         '--set', 'packages.openbao.enabled=' + str(secrets).lower(),
+                         '--set', 'addons.headlamp.enabled=' + str(ui).lower())
+                outer = helm(self.sources / 'bigbang/chart', 'bigbang', 'bigbang', values, flags)
+                names = {o['metadata']['name'] for o in outer if o['kind'] == 'HelmRelease'}
+                expected = ({'keycloak'} if identity else set()) | ({'openbao'} if secrets else set()) | ({'headlamp'} if ui else set())
+                self.assertEqual(names, expected)
+                if name == 'database':
+                    child = next(o for o in outer if o['kind'] == 'HelmRelease')
+                    objects = helm(self.sources / 'keycloak/chart', release_name(child), 'keycloak', child_values(outer, 'keycloak'))
+                    sets = {o['metadata']['name']: o['spec']['replicas'] for o in objects if o['kind'] == 'StatefulSet'}
+                    self.assertEqual(sets, {'keycloak-keycloak': 0, 'keycloak-postgresql': 1})
+
+    def test_local_request_reserve_and_explicit_worker_limit_overcommit(self):
+        plan = yaml.safe_load((ROOT / 'preflight/local-budget.yaml').read_text())
+        report = self.reports['local']
+        self.assertAlmostEqual(sum(x['steadyRequestsCPU'] for x in report.values()), 1.075)
+        self.assertEqual(sum(x['steadyRequestsMi'] for x in report.values()), 1984)
+        for node, baseline in plan['nodes'].items():
+            totals = {'requests': {'cpu': 0, 'memory': 0}, 'limits': {'cpu': 0, 'memory': 0}}
+            for part in report.values():
+                for workload in part['workloads']:
+                    if workload['hook']:
+                        continue
+                    selected = workload['nodeSelector'].get('kubernetes.io/hostname')
+                    # Portal has no placement input: budget its one Pod on either node.
+                    if selected is None:
+                        self.assertEqual(workload['name'], 'portal')
+                    if selected in (None, node):
+                        for mode in totals:
+                            for resource in totals[mode]:
+                                totals[mode][resource] += workload[mode][resource] * workload['replicas']
+            allowance = plan['storageAllowance']
+            if allowance['node'] == node:
+                for mode in totals:
+                    for resource in totals[mode]:
+                        totals[mode][resource] += quantity(allowance[mode][resource])
+            for resource in ('cpu', 'memory'):
+                left = quantity(baseline['allocatable'][resource]) - quantity(baseline['systemRequests'][resource]) - totals['requests'][resource]
+                self.assertGreaterEqual(left + .000001, quantity(plan['reservePerNode'][resource]))
+            memory_limit_left = quantity(baseline['allocatable']['memory']) - quantity(baseline['systemRequests']['memory']) - totals['limits']['memory']
+            if node == 'cks-worker':
+                self.assertLess(memory_limit_left, quantity(plan['reservePerNode']['memory']))
+                self.assertGreater(memory_limit_left, -1024**3)  # Disclose, do not hide, this bounded trial risk.
+
     def test_full_flux_and_storage_cost_are_accounted(self):
         report = self.reports['local']
         self.assertEqual(len(report['flux']['workloads']), 4)
-        self.assertEqual(report['flux']['steadyRequestsMi'], 2208)
-        self.assertAlmostEqual(report['flux']['steadyRequestsCPU'], 1.6)
+        self.assertEqual(report['flux']['steadyRequestsMi'], 512)
+        self.assertAlmostEqual(report['flux']['steadyRequestsCPU'], .35)
         self.assertEqual(sum(c['bytes'] for name in report for c in report[name]['claims']), 14 * 1024**3)
         print('Local complete render: requests %.3f CPU / %.0f MiB; limits %.0f MiB; 14 GiB PVC' % (
             sum(x['steadyRequestsCPU'] for x in report.values()),

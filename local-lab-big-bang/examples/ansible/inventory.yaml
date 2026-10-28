@@ -4,6 +4,7 @@ all:
       vars:
         ansible_connection: local
         bootstrap_apply: false
+        flux_resource_profile: pinned
         config_repository: https://github.com/perkforge/perkforge-platform.git
         config_tag: UNCONFIGURED
         config_release_evidence: /UNCONFIGURED/platform-release.json
@@ -14,6 +15,7 @@ all:
         flux_checkout: /UNCONFIGURED/pinned-bigbang
       hosts:
         local:
+          flux_resource_profile: local-tiny
           gitops_path: ./local-lab-big-bang/examples/clusters/local
           deployment_environment: local
           impact_profile: il2

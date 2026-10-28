@@ -220,3 +220,14 @@ The complete disabled four-app render, measured local capacity comparison and
 specific live approval gates are in [preflight/README.md](preflight/README.md).
 That preflight requires its pinned test artifacts; it does not enable Keycloak
 in either cluster root or include the render-only opt-in values in reconciliation.
+
+## Local-only resource trial
+
+Local inventory now selects `flux_resource_profile: local-tiny`; dev retains
+`pinned`. The local patches in `examples/ansible/flux-local/` change only resources
+and hostname placement over the verified Big Bang base. `prepare-flux.yaml` uses
+standard Ansible copy/template and temporary native Kustomize assembly, only inside
+the disabled live block. No pinned source files or security settings are replaced.
+See [LOCAL-TINY.md](preflight/LOCAL-TINY.md) for before/after, per-node reserve,
+remaining limit overcommit, clean-target prerequisites and strict staged stops.
+This is a review proposal; `bootstrap_apply` remains false and apps remain paused.
