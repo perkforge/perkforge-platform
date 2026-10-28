@@ -88,9 +88,9 @@
     method: PUT
     headers: "{{ kc_headers }}"
     body_format: json
-    body: "{{ current_client.json[0] | combine(client_settings) }}"
+    body: "{{ current_client.json[0] | combine(client_settings, recursive=True) }}"
     status_code: 204
-  when: current_client.json[0] | combine(client_settings) != current_client.json[0]
+  when: current_client.json[0] | combine(client_settings, recursive=True) != current_client.json[0]
   changed_when: true
   no_log: true
 - name: Update only the existing direct groups mapper when it differs

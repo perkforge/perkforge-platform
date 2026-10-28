@@ -83,6 +83,8 @@ class PolicyIntegration(unittest.TestCase):
         self.denied('LIST', 'tenants/metadata/', 'home')
 
     def test_eso_exact_path_read_only_and_rotation(self):
+        self.api('GET', 'auth/token/lookup-self', token=self.tokens['eso'])
+        self.denied('POST', 'auth/token/lookup', 'eso', {'token':'synthetic-foreign-token'})
         path='tenants/data/home/tenant-home-portal/registry/ghcr'
         self.api('POST', path, {'data':{'dockerconfigjson':'synthetic-rotated'}}, self.tokens['home'])
         self.assertEqual(self.api('GET', path, token=self.tokens['eso'])['data']['data']['dockerconfigjson'], 'synthetic-rotated')
