@@ -57,6 +57,8 @@ jobs:
         run: |
           ansible-playbook -i localhost, platform-config/configure.yaml --syntax-check
           ansible-playbook -i localhost, platform-config/configure.yaml --check
+          ansible-playbook -i localhost, platform-config/enroll-platform-admin.yaml --syntax-check
+          ansible-playbook -i localhost, platform-config/enroll-platform-admin.yaml --check
           python -m unittest discover -s local-lab/tests -p test_platform_config.py -v
       - name: Test synthetic OpenBao isolation and native rendering
         run: python -m unittest discover -s local-lab/tests -p test_openbao_secrets.py -v
