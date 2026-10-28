@@ -151,8 +151,8 @@ This walkthrough is source-verified against the pinned Big Bang
 and bootstrap manifests, with Flux's
 [bootstrap](https://fluxcd.io/flux/installation/bootstrap/generic-git-server/) and
 [Kustomization dependencies](https://fluxcd.io/flux/components/kustomize/kustomizations/#dependencies)
-as references. Exact root manifests, secret bootstrap and recovery behavior need
-future implementation review and live validation. Flux's `bootstrap git` is a
+as references. The disabled example demonstrates root manifest wiring; secret bootstrap,
+recovery and a usable implementation still need review and live validation. Flux's `bootstrap git` is a
 separate alternative that can also push repository files; it is not an extra
 step to run on top of this seed or authorization to write repository credentials.
 The supported Flux CLI offers a cohesive install-and-self-management workflow
@@ -185,7 +185,7 @@ patches; prefer documented package values, and upstream values only when needed.
 Proposed evaluation layout is a separate `local-lab-big-bang/` folder in this
 repository. Existing `local-lab/` stays intact. Bring forward reviewed concepts
 from identity, tenancy, secrets and portal work; do not copy the old lab wholesale.
-The folder currently contains documentation and render specimens only. It is
+The folder contains documentation and a disabled authored bootstrap example. It is
 not runtime isolation: target cluster, namespaces, CRD/controller ownership and
 resource capacity must be selected explicitly before a live evaluation.
 
@@ -197,8 +197,7 @@ local-lab-big-bang/              # new evaluation boundary
   providers/{rke2,eks,...}/     # provider prerequisites; no impact-level meaning
   profiles/{il2,il4,...}/        # reusable reviewed profiles, no inheritance chain
   clusters/<cluster-name>/       # explicit profile selection + shallow overrides
-  rendered/<cluster-name>/       # inspected output for the complete ordered input
-  examples/                     # this PR only: non-deployable specimens
+  examples/                     # this PR: disabled Ansible + native Flux/Kustomize inputs
 ```
 
 Prefer `profiles/<name>` selected by `clusters/<cluster-name>` over duplicating
@@ -252,12 +251,16 @@ cluster manifests; Ansible must not continually overwrite GitOps-owned objects.
 ### Concrete two-cluster specimen
 
 The [new evaluation README](../local-lab-big-bang/README.md) links shared,
-profile and named-cluster values, explicit file selections, and inspected
-per-cluster outer/child render artifacts. The two clusters select the same
+provider/profile and named-cluster values, consumed Ansible inventory selection,
+root source/Kustomization, local cluster builds and outer Big Bang release wiring.
+Charts and authored values are the source of truth. Generated manifests are not
+checked in; temporary local rendering is validation evidence only. The two
+clusters select the same
 illustrative `il2` profile. Cluster overrides retain the one/two-replica UI
 precedence example. These are **not deployment profiles**: target, four-app
 integration, identity, admission/network policy, TLS, resource sizing and secret
-delivery are incomplete. No root enrollment or installer is supplied.
+delivery are incomplete. The seed and outer release are suspended, bootstrap
+writes default off, and no real cluster inputs or credentials are supplied.
 
 The specimen now renders Headlamp plus a platform-owned OpenBao extra package;
 Keycloak and portal remain candidate scope, not claimed rendered integrations.
@@ -272,7 +275,7 @@ Big Bang 3.35.1. Pinned Headlamp `0.45.0-bb.1` and official OpenBao `0.30.6`
 child charts were rendered using their generated values Secrets. Headlamp
 replicas are 1/2 with zero ClusterRoleBindings. OpenBao has a 10 GiB PVC template
 and unbudgeted server resources in the specimen; these are findings, not
-approved sizing. See the README for exact commands, artifact inventory and
+approved sizing. See the README for the file trace, local validation commands and
 remaining gates. No full four-app resource budget or live validation exists.
 
 For a future approved implementation, local checks should render the bootstrap,

@@ -1,42 +1,88 @@
 # Big Bang evaluation proposal
 
-Documentation and local render specimens only; see the
+Documentation and a disabled bootstrap example; see the
 [architecture proposal](../docs/BIGBANG-FLUX-PROPOSAL.md). This new effort leaves
 `local-lab/` intact. It reuses reviewed concepts, not a wholesale copy or migration.
-No installer, inventory, root Flux enrollment or deployable profile is provided.
+A disabled bootstrap example is supplied, not an approved installer or deployable profile.
 Do not apply these files to the current tiny VMs. A separate folder does not
 separate runtime resources: the target cluster and every controller/CRD/release
 owner remain undecided. A later approved test needs an explicit target and budget.
 
-## Inputs and inspectable outputs
+## The entrypoint, file by file
 
-The exact Big Bang research pin remains 3.35.1, commit
-`02efc8b0d259ee0cd2c31ea857d50a4021cf6d8e`. Examples select one shared profile:
+These are **authored inputs**, not generated child manifests. Ansible and Flux
+consume the actual files below; the former descriptive `selection.yaml.example`
+files and all committed `rendered/` YAML have been removed. Charts and authored
+values are the source of truth. Build/render output belongs under `/tmp` for
+validation and diff review, never in the deployment source tree.
 
-| Input | Purpose |
+```text
+ansible-playbook -i examples/ansible/inventory.yaml examples/ansible/bootstrap.yaml --limit lab
+  inventory host lab: gitops_path = ./local-lab-big-bang/examples/clusters/lab
+  → template seed.yaml.j2 into GitRepository/cluster-config + Kustomization/cluster-root
+  → cluster-root.spec.path selects examples/clusters/lab
+  → clusters/lab/kustomization.yaml composes shared/provider/profile/cluster inputs
+  → HelmRelease/bigbang references GitRepository/bigbang-chart and valuesFrom
+  → pinned Big Bang chart creates component sources and HelmReleases
+```
+
+The command above is a **local no-write walkthrough**, run from
+`local-lab-big-bang/`. With the checked-in inventory, it prints the selected path
+and skips every Kubernetes/Git task. It does not install or deploy anything.
+
+| Authored file | Role and consumed fields |
 | --- | --- |
-| [shared values](examples/shared/values.yaml.example) | Explicit package switches and platform-owned OpenBao source |
-| [RKE2 provider placeholder](examples/providers/rke2/values.yaml.example) | Empty provider values; prerequisites unimplemented |
-| [il2 profile](examples/profiles/il2/values.yaml.example) | Illustrative UI guardrails only; not DoD requirements |
-| [lab selection](examples/clusters/lab/selection.yaml.example), [values](examples/clusters/lab/values.yaml.example) | Profile/file order and one replica |
-| [physical selection](examples/clusters/physical/selection.yaml.example), [values](examples/clusters/physical/values.yaml.example) | Same profile, different domain and two replicas |
-| [lab rendered directory](examples/rendered/lab), [physical rendered directory](examples/rendered/physical) | Full outer Big Bang plus Headlamp/OpenBao child outputs; synthetic inputs only |
+| [inventory.yaml](examples/ansible/inventory.yaml) | `lab` and `physical` are Ansible inventory aliases. `gitops_path` selects configuration; kubeconfig/context/expected UID select the target API, independently. Target and configuration commit remain unconfigured |
+| [bootstrap.yaml](examples/ansible/bootstrap.yaml) | Standard Ansible tasks: report selection; when separately enabled, validate target UID, obtain exact Big Bang commit, apply its `base/flux`, wait for required CRDs/controllers, then apply only the paused seed |
+| [seed.yaml.j2](examples/ansible/seed.yaml.j2) | Standard Ansible template: config repository + exact `ref.commit` in GitRepository; `spec.sourceRef` and `spec.path` in root Flux Kustomization |
+| [lab kustomization.yaml](examples/clusters/lab/kustomization.yaml), [physical](examples/clusters/physical/kustomization.yaml) | Local Kustomize build inputs; choose reusable directories and generate that cluster's values ConfigMap |
+| [bigbang/source.yaml](examples/bigbang/source.yaml) | Pinned chart source, Big Bang 3.35.1 commit `02efc8b0d259ee0cd2c31ea857d50a4021cf6d8e`; no vendored chart or generated child YAML |
+| [bigbang/release.yaml](examples/bigbang/release.yaml) | Outer HelmRelease: `chart.spec.chart: ./chart`, sourceRef, and explicit ordered valuesFrom |
+| [shared](examples/shared/values.yaml), [provider](examples/providers/rke2/values.yaml), [impact](examples/profiles/il2/values.yaml), [lab](examples/clusters/lab/values.yaml), [physical](examples/clusters/physical/values.yaml) | Non-secret authored values. Native configMapGenerator packages each values.yaml; fixed ConfigMap names match the release references |
 
-Order: **chart defaults → shared → provider → selected profile → named-cluster values**.
-The `selection.yaml.example` is descriptive, not a Kubernetes manifest and not
-consumed by a custom generator. Future Ansible/bootstrap and native Flux wiring
-must enumerate the same inputs explicitly. `il2` labels selection intent only;
-neither these values nor their output establish an impact-level authorization.
-Reusable profiles avoid duplicating `cluster-name/il2` trees. Cluster-specific
-endpoints, capacities, credentials and deployment identities stay with clusters.
+Inventory selection chooses **where Ansible connects** and **which Git path it
+seeds**. The root GitRepository URL/revision chooses the protected configuration
+snapshot. The root Flux Kustomization path chooses a directory within that
+snapshot. Local `kustomization.yaml` is a build recipe, not a controller CR.
+The separate Big Bang GitRepository selects the chart source, not cluster config.
 
-After merging, validate constraints independently of precedence. For these
-illustrative inputs, reject a true upstream clusterRoleBinding.create or
-unsafeUseServiceAccountToken, then check actual rendered bindings/backend args.
-A negative check with a late weakening override must fail. Real profiles need
-approved requirements and reviewed exceptions (cluster, rule, justification,
-owner, expiry and test evidence), never silent bypass by a later values file.
-Protect profile and platform-package changes from tenant repository writers.
+Later values win: **chart defaults → values-shared → values-provider →
+values-impact → values-cluster**. The four references are explicit in
+`bigbang/release.yaml`; each ConfigMap has a `values.yaml` key. Secrets are not
+included. Future secret inputs need disjoint key paths and separately reviewed
+provisioning. No inline `spec.values` silently adds another override layer.
+
+To add a cluster, copy only the small named-cluster directory, edit its
+`values.yaml` and the reusable provider/profile directories selected in its local
+`kustomization.yaml`, then add an inventory alias with the matching `gitops_path`.
+Shared chart pins/release wiring stay in one place. `il2` labels an illustrative
+profile, not DoD requirements or authorization. Provider and impact are independent
+axes. There is no inheritance chain or custom generator.
+
+After final merge, validate profile invariants independently of precedence.
+The illustrative guardrails reject default Headlamp cluster-admin binding and
+shared-SA authentication; a negative late-override check must fail. Real profiles
+need approved requirements and explicit reviewed exceptions (cluster, rule,
+justification, owner, expiry and evidence). Tenant writers must not control
+platform-package/profile input. These two checks are not a complete IL policy.
+
+## Why this example cannot deploy the platform
+
+`bootstrap_apply: false` skips every remote/Git action. The inventory has no real
+kubeconfig, context, cluster UID or configuration commit. Both seed CRs and the
+outer chart source/HelmRelease have `suspend: true`; no automatic unpause or
+approval bypass is supplied. `prune: false` gives the root no deletion authority.
+No secrets are created: `cluster-config-read`, registry pull access and the
+`platform-reconciler` identities are future reviewed prerequisites, not fabricated
+credentials or RBAC. The preflight checks reject placeholders and multiple hosts.
+
+Even if a future operator explicitly enabled the bootstrap block, it would seed
+pinned Flux prerequisites and paused root objects only. It would not install
+Keycloak/OpenBao/Headlamp/portal or wait for their readiness. The example does not
+supply hardened controller settings, application-ready policies, PKI or budgets;
+those remain review gates. Do not enable it on the current tiny VMs. No live
+portion was run. Flux self-management/ownership handoff is a later reviewed step;
+ordinary Ansible reruns must not compete with that future owner.
 
 ## Portability without provider or impact-level coupling
 
@@ -129,48 +175,44 @@ the release uses Helm templating (`tpl`) on custom package values and controls
 privileged resources. Tenant application sources and configuration retain scoped
 deployer identities and admission boundaries outside this platform-owned input.
 
-## Local evidence and remaining gates
+## Local assembly and validation evidence
 
-Already available Helm 3.19.0 and cached exact chart inputs were used. No tools,
-dependencies, credentials or cluster resources were installed. From repo root:
+From repository root, using already available tools; no cluster contact:
 
 ```sh
+ANSIBLE_LOCAL_TEMP=/tmp/perkforge-ansible ANSIBLE_REMOTE_TEMP=/tmp/perkforge-remote \
+  ansible-playbook -i local-lab-big-bang/examples/ansible/inventory.yaml \
+  local-lab-big-bang/examples/ansible/bootstrap.yaml --syntax-check
+kubectl kustomize local-lab-big-bang/examples/clusters/lab > /tmp/bigbang-lab-seed.yaml
+kubectl kustomize local-lab-big-bang/examples/clusters/physical > /tmp/bigbang-physical-seed.yaml
 helm lint /tmp/perkforge-bigbang-3.35.1/chart --kube-version 1.36.5 \
-  -f local-lab-big-bang/examples/shared/values.yaml.example \
-  -f local-lab-big-bang/examples/providers/rke2/values.yaml.example \
-  -f local-lab-big-bang/examples/profiles/il2/values.yaml.example \
-  -f local-lab-big-bang/examples/clusters/lab/values.yaml.example
-helm template bigbang /tmp/perkforge-bigbang-3.35.1/chart \
-  --namespace bigbang --kube-version 1.36.5 \
-  -f local-lab-big-bang/examples/shared/values.yaml.example \
-  -f local-lab-big-bang/examples/providers/rke2/values.yaml.example \
-  -f local-lab-big-bang/examples/profiles/il2/values.yaml.example \
-  -f local-lab-big-bang/examples/clusters/lab/values.yaml.example > /tmp/lab.yaml
-# Repeat with physical inputs; compare with examples/rendered/<cluster>/bigbang.yaml.example.
+  -f local-lab-big-bang/examples/shared/values.yaml \
+  -f local-lab-big-bang/examples/providers/rke2/values.yaml \
+  -f local-lab-big-bang/examples/profiles/il2/values.yaml \
+  -f local-lab-big-bang/examples/clusters/lab/values.yaml
+# helm template with the same ordered -f inputs writes only /tmp output.
+# Repeat for physical; review per-cluster before/after diffs locally.
 ```
 
-Child output uses the outer chart's generated Secret values: Headlamp's
-`common`, `defaults`, `overlays` in that order, and OpenBao's `values.yaml`.
-Render those with the exact Headlamp 0.45.0-bb.1 and OpenBao 0.30.6 charts.
-Artifact trailing whitespace is normalized for review; these are render evidence,
-not byte-for-byte chart archives or deployable manifests. These rendered Secrets
-contain only synthetic non-sensitive configuration.
-Do not reuse this artifact publishing pattern with real secret values.
+Both local Kustomize assemblies and Ansible syntax passed. The default playbook
+walkthrough selected lab with `changed=0`, skipping all live tasks. Standard
+Ansible templating was checked locally with synthetic inputs. Local checks traced
+seed path → cluster build → chart source and all four ConfigMap references, then
+used their actual valuesFrom order for Helm lint/render. Pinned Flux CRD field
+contracts were inspected locally; this is not full server schema/CEL/admission
+validation. All generated output stayed in temporary files.
 
-Local findings: outer lint/renders passed for both selections; Headlamp child
-replicas are 1/2 with no ClusterRoleBindings. The wait Job and OpenBao injector
-are explicitly disabled. OpenBao still renders a server StatefulSet, 10 GiB
-PVC template and Kubernetes auth-delegator binding. Headlamp and OpenBao server
-resources lack explicit budgets in these outputs. OpenBao's default TLS/backend
-configuration is not an approved secured service; do not deploy it. Keycloak,
-portal, their dependencies and full bootstrap are not rendered integrations in
-this specimen. The two UI guardrails passed effective-values checks, including
-a negative weakening case; that is not a complete security-policy validator.
+Pinned Headlamp 0.45.0-bb.1 and official OpenBao 0.30.6 child charts were rendered
+for validation only, using the outer chart's generated values. Headlamp replicas
+were 1/2 with no ClusterRoleBindings; wait Job and OpenBao injector were disabled.
+OpenBao still rendered a 10 GiB PVC template and unbudgeted server resources.
+Its default TLS/backend is not an approved secured service. No full Keycloak,
+portal or four-app dependency/resource budget has been assembled or validated.
+Do not publish temporary output containing real credentials.
 
-Before any live action: decide target and ownership; complete four-app/dependency
-pins and full renders; explicit per-workload budget and capacity review; approved
-network/admission, TLS, OIDC/RBAC, bootstrap secrets and recovery designs; then
-obtain action-specific approval. Preserve the small Ansible bootstrap preference,
-pinned Flux prerequisites and one-owner Git handoff from the proposal. Runtime
-reconciliation, tenant API denials, revocation, resource usage and recovery all
-need future live validation. The illustrations cannot yet be deployed safely.
+Before any live action: choose target and owners; complete pins/full renders,
+per-workload capacity budgets, controller hardening and source/API identity;
+review network/admission, TLS, OIDC/RBAC, bootstrap secrets and recovery; obtain
+explicit action-specific approval. Live source/release readiness, tenant denials,
+revocation, storage, resource use and recovery remain untested. Existing
+`local-lab/`, Nextcloud data and the stable portal are untouched.
