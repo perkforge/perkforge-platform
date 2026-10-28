@@ -9,7 +9,11 @@ Keep the working Fleet/Rancher path while completing the layout decisions in
 [#14](https://github.com/perkforge/perkforge-platform/issues/14) and
 [#20](https://github.com/perkforge/perkforge-platform/issues/20). Reuse Big Bang's
 package integration knowledge, pinned release discipline, values conventions,
-and upgrade guidance selectively. Do not install the default Big Bang stack.
+and upgrade guidance as design inputs. This means retaining the current system
+while investigating, not starting a partial migration. A separately reviewed
+standalone package chart could later be reused through Fleet, but this proposal
+does not select or install one. Do not install the Big Bang umbrella, Flux, or
+any default packages into the current Fleet environment.
 
 If deeper Big Bang adoption proves useful, prefer **one Flux GitOps system per
 cluster** over permanent Big Bang plus Fleet layering. Evaluate it first in a
