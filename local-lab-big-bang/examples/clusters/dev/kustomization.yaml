@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
 - ../../shared
 - ../../apps/openbao
+- ../../apps/keycloak
 - ../../enrollments/dev
 - ../../providers/rke2
 - ../../profiles/il2

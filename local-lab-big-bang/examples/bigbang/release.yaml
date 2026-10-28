@@ -23,6 +23,14 @@ spec:
       valuesKey: values.yaml
       optional: true
     - kind: ConfigMap
+      name: values-keycloak
+      valuesKey: values.yaml
+      optional: true
+    - kind: ConfigMap
+      name: values-keycloak
+      valuesKey: database.yaml
+      optional: true
+    - kind: ConfigMap
       name: values-provider
       valuesKey: values.yaml
     - kind: ConfigMap

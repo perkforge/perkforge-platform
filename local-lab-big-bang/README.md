@@ -45,7 +45,7 @@ compete with later Flux lifecycle ownership. No live block has been tested.
 Open `examples/clusters/<target>/kustomization.yaml` first. Its resource list is
 the table of contents. Edit its `values.yaml` for per-cluster hosts and settings.
 Helm precedence is chart defaults → `values-shared` → optional `values-openbao`
-→ `values-provider` → `values-impact` → `values-cluster`. Later values win;
+→ optional `values-keycloak` (application, then database key) → `values-provider` → `values-impact` → `values-cluster`. Later values win;
 maps merge, lists replace. No inline values add a hidden override.
 `helmRepositories` is a list: do not split it across competing app inputs.
 Shared app definitions are included explicitly, not installed on every cluster.
@@ -190,7 +190,7 @@ kubectl kustomize local-lab-big-bang/examples/clusters/local > /tmp/bigbang-loca
 kubectl kustomize local-lab-big-bang/examples/clusters/dev > /tmp/bigbang-dev.yaml
 ENROLLMENT_CHECKOUT=/path/to/perkforge-platform-tenants \
 TENANT_APP_CHECKOUT=/path/to/perkforge-tenant-portal \
-  python3 -m unittest discover -s local-lab-big-bang/tests -v
+  python3 -m unittest discover -s local-lab-big-bang/tests -p test_selection_contract.py -v
 ```
 
 Checkouts must match source pins. Tests follow real paths and reject wrong context,
@@ -203,16 +203,20 @@ Python is testing only. No generated deployment YAML is committed.
 
 **Offline-ready is not live-ready.** Sources/releases remain suspended, root
 prune is false, credentials/identities unprovisioned. Choose target and owners;
-complete full four-app renders/dependency inventory and capacity budgets (including
+review the full candidate render and choose a feasible measured capacity budget (including
 CRDs, databases, PVCs and upgrade reserve), controller hardening, OIDC/RBAC,
 network/admission, TLS, secrets and recovery before separate live approval.
 Do not install the default Big Bang stack on current VMs. Existing Fleet/Flux
 release ownership must not overlap. No full integration, live tenant-denial,
 revocation, storage or recovery validation is claimed.
 
-Latest offline evidence: both target builds and pinned Big Bang 3.35.1 lint/render
-passed; Headlamp 0.45.0-bb.1 child renders had no ClusterRoleBinding, and a late
-unsafe binding override was detected. A synthetic Keycloak-enabled outer render
-verified route/KC_HOSTNAME agreement; this is not a full Keycloak deployment or
-budget. Both default Ansible walkthroughs had `changed=0`. Cross-repo tests and
-portal chart tests passed; all generated output stayed temporary.
+Latest offline evidence includes both target builds, the pinned four-app/Flux
+candidate render, external Secret/reference and UI binding checks, and unchanged
+Ansible no-write walkthroughs. These are capacity/static checks; application
+startup, actual resource use and authorization still need separately approved
+live tests. Generated manifests and numeric inventories stay temporary.
+
+The complete disabled four-app render, measured local capacity comparison and
+specific live approval gates are in [preflight/README.md](preflight/README.md).
+That preflight requires its pinned test artifacts; it does not enable Keycloak
+in either cluster root or include the render-only opt-in values in reconciliation.

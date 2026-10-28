@@ -1,0 +1,17 @@
+# Public, pinned test artifacts; no chart vendoring or image pulls.
+bigbang:
+  url: https://repo1.dso.mil/big-bang/bigbang/-/archive/3.35.1/bigbang-3.35.1.tar.gz
+  sha256: 77d6b856e0761de200c565ff960d490f61de650ca4bedbd6e009021b4be48209
+  chart: chart
+headlamp:
+  url: https://repo1.dso.mil/big-bang/product/packages/headlamp/-/archive/0.45.0-bb.1/headlamp-0.45.0-bb.1.tar.gz
+  sha256: db0937460b36feea493de9673b0084e00cd361eb01ce88dfab50ebc1dedb9a4e
+  chart: chart
+keycloak:
+  url: https://repo1.dso.mil/big-bang/product/packages/keycloak/-/archive/7.3.2-bb.1/keycloak-7.3.2-bb.1.tar.gz
+  sha256: 86ec7901a2e1d1dcc7298c1476060746ab75135e780b7b9400097fc152f444e8
+  chart: chart
+openbao:
+  url: https://github.com/openbao/openbao-helm/releases/download/openbao-0.30.6/openbao-0.30.6.tgz
+  sha256: 76e90c2315a4922b4b0c6c63fd8a00b9f4bdf0cffda160664f8ea5762d59911c
+  chart: .

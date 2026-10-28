@@ -323,13 +323,14 @@ disabled. Network policy disabled in this render specimen does not propose
 weakening any platform policy. A deployable profile must supply its reviewed
 replacement and all required flows.
 
-**Locally rendered:** Helm 3.19.0 lint and all selected outer chart renders passed for
-Big Bang 3.35.1. Pinned Headlamp `0.45.0-bb.1` and official OpenBao `0.30.6`
-child charts were rendered using their generated values Secrets. Headlamp
-replicas are 1/2 with zero ClusterRoleBindings. OpenBao has a 10 GiB PVC template
-and unbudgeted server resources in the specimen; these are findings, not
-approved sizing. See the README for the file trace, local validation commands and
-remaining gates. No full four-app resource budget or live validation exists.
+**Locally rendered:** Big Bang 3.35.1 and all four selected app charts now have
+an explicit render-only capacity candidate, including Keycloak's pinned database,
+the actual Flux bootstrap and all child hooks. See the concise
+[local preflight](../local-lab-big-bang/preflight/README.md) for pins, requests,
+limits, PVCs, missing inputs and the measured local comparison. The unchanged
+base specimen still leaves Keycloak disabled; only the preflight opt-in enables
+its offline render. The candidate does not fit the current VM CPU request budget,
+and is not an approved sizing/security profile or a live deployment validation.
 
 For a future approved implementation, local checks should render the bootstrap,
 outer chart and every enabled pinned child chart; validate schema and policies,
