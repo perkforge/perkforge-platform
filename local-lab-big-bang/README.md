@@ -38,6 +38,7 @@ and skips every Kubernetes/Git task. It does not install or deploy anything.
 | [local kustomization.yaml](examples/clusters/local/kustomization.yaml), [dev](examples/clusters/dev/kustomization.yaml) | Local Kustomize build inputs; choose reusable directories and generate that cluster's values ConfigMap |
 | [bigbang/source.yaml](examples/bigbang/source.yaml) | Pinned chart source, Big Bang release tag `3.35.1`; no vendored chart or generated child YAML |
 | [bigbang/release.yaml](examples/bigbang/release.yaml) | Outer HelmRelease: `chart.spec.chart: ./chart`, sourceRef, and explicit ordered valuesFrom |
+| [Portal tenant enrollment](examples/tenants/portal/README.md) | Separate paused source/reconciler for the tenant-owned repository; scoped identity contracts, no privileged Big Bang package |
 | [OpenBao app folder](examples/apps/openbao/values.yaml) | Focused repository/package/chart values, consumed through its ConfigMap and outer valuesFrom; no standalone competing release |
 | [shared](examples/shared/values.yaml), [provider](examples/providers/rke2/values.yaml), [impact](examples/profiles/il2/values.yaml), [local](examples/clusters/local/values.yaml), [dev](examples/clusters/dev/values.yaml) | Non-secret authored values. Native configMapGenerator packages each values.yaml; fixed ConfigMap names match the release references |
 
@@ -76,7 +77,10 @@ snapshot of PerkForge inputs, not the Big Bang release selection.
 
 Later values win: **chart defaults → values-shared → values-openbao →
 values-provider → values-impact → values-cluster**. The five references are explicit in
-`bigbang/release.yaml`; each ConfigMap has a `values.yaml` key. Secrets are not
+`bigbang/release.yaml`; each ConfigMap has a `values.yaml` key. The OpenBao
+reference is optional, so omitting its folder omits the package rather than
+leaving a missing required ConfigMap. Portal enrollment is separate from these
+Big Bang values. Secrets are not
 included. Future secret inputs need disjoint key paths and separately reviewed
 provisioning. No inline `spec.values` silently adds another override layer.
 
@@ -123,6 +127,27 @@ shared-SA authentication; a negative late-override check must fail. Real profile
 need approved requirements and explicit reviewed exceptions (cluster, rule,
 justification, owner, expiry and evidence). Tenant writers must not control
 platform-package/profile input. These two checks are not a complete IL policy.
+
+## Explicit app selection and separate tenant enrollment
+
+Reusable definitions are not automatically installed on every cluster. Both
+`local` and `dev` currently select `../../apps/openbao` and
+`../../tenants/portal` explicitly. Omit either line to omit that app's enrollment;
+OpenBao's optional valuesFrom allows absence. Namespace transformations are scoped
+to components: Big Bang stays in `bigbang`, and portal enrollment stays in its
+proposed tenant namespace. A future c2-only OpenBao service is possible by
+selecting its folder only on that cluster, but remote consumer configuration,
+scoped credentials, TLS/network/recovery boundaries are not implemented here.
+
+Portal is a **household tenant app**, not a privileged Big Bang package. See the
+[small tenant-enrollment example](examples/tenants/portal/README.md) for the
+platform → tenant-repo → scoped app reconciliation contract. The pinned tenant
+feature branch supplies a real paused Flux app entrypoint and chart reference;
+platform foundation and identities remain missing, so this is not a live tenant
+bootstrap. Do not compensate with broad
+RBAC, a second release owner or platform switches inside tenant app values.
+The user-created platform-owned enrollment repo (awaiting initialization) uses explicit lists
+and native Flux parents/children, not a custom discovery generator.
 
 ## Why this example cannot deploy the platform
 
@@ -285,8 +310,10 @@ Pinned Headlamp 0.45.0-bb.1 and official OpenBao 0.30.6 child charts were render
 for validation only, using the outer chart's generated values. Headlamp replicas
 were 1/2 with no ClusterRoleBindings; wait Job and OpenBao injector were disabled.
 OpenBao still rendered a 10 GiB PVC template and unbudgeted server resources.
-Its default TLS/backend is not an approved secured service. No full Keycloak,
-portal or four-app dependency/resource budget has been assembled or validated.
+Its default TLS/backend is not an approved secured service. Portal
+chart default/enabled synthetic renders were checked separately; the tenant Flux
+entrypoint now exists on the separately reviewed feature branch. No full
+Keycloak or four-app integration/resource budget has been assembled or validated.
 Do not publish temporary output containing real credentials.
 
 Before any live action: choose target and owners; complete pins/full renders,

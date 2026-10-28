@@ -1,0 +1,17 @@
+# Platform-owned enrollment, not a privileged Big Bang package.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: tenant-portal
+spec:
+  suspend: true
+  interval: 5m
+  timeout: 5m
+  path: ./gitops/portal # Tenant-owned entrypoint on the reviewed feature branch.
+  sourceRef:
+    kind: GitRepository
+    name: tenant-portal
+  targetNamespace: tenant-example-portal
+  serviceAccountName: portal-reconciler # Scoped contract only; not provisioned.
+  prune: false
+  wait: true

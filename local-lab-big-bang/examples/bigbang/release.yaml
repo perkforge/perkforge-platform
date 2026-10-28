@@ -21,6 +21,7 @@ spec:
     - kind: ConfigMap
       name: values-openbao
       valuesKey: values.yaml
+      optional: true
     - kind: ConfigMap
       name: values-provider
       valuesKey: values.yaml

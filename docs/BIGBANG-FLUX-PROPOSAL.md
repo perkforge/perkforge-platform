@@ -294,8 +294,17 @@ HelmRepository and HelmRelease and remains their single owner. No chart,
 generated workload YAML or competing standalone release is copied into the repo.
 The seed template is unchanged.
 
-The specimen now renders Headlamp plus a platform-owned OpenBao extra package;
-Keycloak and portal remain candidate scope, not claimed rendered integrations.
+The specimen renders Headlamp plus a platform-owned OpenBao extra package.
+Portal is explicitly selected through a **separate paused tenant enrollment**,
+not Big Bang package values: platform owns the namespace/security/identity and
+source/reconciler enrollment; the external tenant repo owns its app chart and
+app Flux resources under scoped deployment identities. The portal feature pin
+adds a real paused Flux entrypoint referencing the existing chart; its namespace,
+identity and policy foundations remain explicit prerequisites. Keycloak and
+complete tenant/bootstrap integration remain future work.
+Neither app definitions nor enrollment definitions automatically install on every
+cluster. The README describes omission and a possible c2-only OpenBao boundary;
+remote consumers are not implemented.
 Unneeded Big Bang packages (including mesh, monitoring, Vault, and metrics-server
 `auto`) are explicitly disabled. OpenBao injector and Headlamp wait Job are also
 disabled. Network policy disabled in this render specimen does not propose
@@ -318,6 +327,16 @@ artifacts. Never upload rendered real credentials. Run synthetic policy tests
 locally; reserve API admission dry-runs and reconciliation for separately
 authorized live validation. `helm template` cannot prove CRD admission, hooks,
 storage provisioning, OIDC, networking or recovery.
+
+The user-created `perkforge-platform-tenants` is the intended platform-owned
+tenant-enrollment boundary (base initialization pending), consistent with the [official Flux multi-tenancy example](https://github.com/fluxcd/flux2-multi-tenancy).
+Its platform parent can create reviewed child sources/reconcilers, while each
+child acts as a scoped tenant identity. The parent source and impersonation/ref
+fields must remain outside tenant control. Prefer explicit per-cluster enrollment
+lists to automatic repository discovery. No repository or generator is created by this proposal; no direct main write
+initializes the empty enrollment repository. The existing pinned Flux lifecycle
+is retained. See the small portal
+enrollment README for current gaps and identity contracts.
 
 ## Tenant UI and authorization
 
