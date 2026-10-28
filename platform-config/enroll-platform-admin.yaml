@@ -1,0 +1,86 @@
+- name: Enroll only the explicitly approved platform test administrator
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [vars.yaml]
+  vars:
+    enrollment_username: platform-admin-test-user
+    enrollment_password_file: "{{ platform_checkout }}/.secrets/platform-admin-test-user-password"
+    enrollment_record_file: "{{ platform_checkout }}/.secrets/openbao/recovery/platform-admin-test-user.record.json"
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: "{{ public_ca_file }}"
+      follow_redirects: none
+      use_netrc: false
+      use_proxy: false
+      timeout: 20
+  tasks:
+    - name: Require the exact approved username and realm
+      ansible.builtin.assert:
+        that:
+          - enrollment_username == 'platform-admin-test-user'
+          - keycloak_realm == 'perkforge'
+          - keycloak_url is match('^https://')
+    - name: Explain check mode boundary
+      ansible.builtin.debug:
+        msg: Static validation only; no password generation, authentication or account/group changes.
+      when: ansible_check_mode
+    - name: Perform only the approved enrollment
+      when: not ansible_check_mode
+      block:
+        - name: Inspect protected input and destination metadata without following links
+          ansible.builtin.stat:
+            path: "{{ item }}"
+            follow: false
+          loop:
+            - "{{ keycloak_admin_password_file }}"
+            - "{{ enrollment_password_file }}"
+            - "{{ enrollment_record_file }}"
+            - "{{ enrollment_password_file | dirname }}"
+            - "{{ enrollment_record_file | dirname }}"
+          register: enrollment_paths
+        - name: Require private owned files and directories
+          ansible.builtin.assert:
+            that:
+              - enrollment_paths.results[0].stat.isreg
+              - enrollment_paths.results[0].stat.mode == '0600'
+              - enrollment_paths.results[0].stat.pw_name == lookup('ansible.builtin.env', 'USER')
+              - not enrollment_paths.results[0].stat.islnk
+              - item.stat.isdir
+              - not item.stat.islnk
+              - item.stat.mode == '0700'
+              - item.stat.pw_name == lookup('ansible.builtin.env', 'USER')
+          loop: "{{ enrollment_paths.results[3:] }}"
+          no_log: true
+        - name: Refuse unsafe existing password or record files
+          ansible.builtin.assert:
+            that:
+              - not item.stat.exists or (item.stat.isreg and not item.stat.islnk and item.stat.mode == '0600' and item.stat.pw_name == lookup('ansible.builtin.env', 'USER'))
+          loop: "{{ enrollment_paths.results[1:3] }}"
+          no_log: true
+        - name: Authenticate the existing Keycloak administrator privately
+          ansible.builtin.uri:
+            url: "{{ keycloak_url }}/realms/master/protocol/openid-connect/token"
+            method: POST
+            body_format: form-urlencoded
+            body:
+              grant_type: password
+              client_id: admin-cli
+              username: "{{ keycloak_admin_username }}"
+              password: "{{ lookup('ansible.builtin.file', keycloak_admin_password_file) | trim }}"
+          register: enrollment_login
+          no_log: true
+        - name: Keep the API session and optional ownership record in memory
+          ansible.builtin.set_fact:
+            enrollment_headers:
+              Authorization: "Bearer {{ enrollment_login.json.access_token }}"
+            enrollment_api: "{{ keycloak_url }}/admin/realms/{{ keycloak_realm }}"
+            enrollment_record: "{{ (lookup('ansible.builtin.file', enrollment_record_file) | from_json) if enrollment_paths.results[2].stat.exists else {} }}"
+          no_log: true
+        - name: Run all ownership and inherited privilege checks before creating an account
+          ansible.builtin.include_tasks: tasks/enrollment-preflight.yaml
+        - name: Reconcile only the canonical empty-role platform hierarchy
+          ansible.builtin.include_tasks: tasks/enrollment-groups.yaml
+        - name: Create or verify only the named locally recorded account
+          ansible.builtin.include_tasks: tasks/enrollment-user.yaml

@@ -1,0 +1,75 @@
+- name: Read the existing managed realm
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}"
+    headers: "{{ enrollment_headers }}"
+  register: enrollment_realm
+  no_log: true
+- name: Require existing realm ownership
+  ansible.builtin.assert:
+    that: enrollment_realm.json.attributes['perkforge-managed'] == 'true'
+  no_log: true
+- name: Collision-check only the exact requested username
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/users?username=platform-admin-test-user&exact=true"
+    headers: "{{ enrollment_headers }}"
+  register: enrollment_users
+  no_log: true
+- name: Refuse adopting an existing account or orphaned local password
+  ansible.builtin.assert:
+    that:
+      - enrollment_users.json | length <= 1
+      - enrollment_users.json | length == 0 or (enrollment_record.username | default('') == enrollment_username and enrollment_record.id | default('') == enrollment_users.json[0].id and enrollment_paths.results[1].stat.exists)
+      - enrollment_users.json | length != 0 or (not enrollment_paths.results[1].stat.exists and not enrollment_paths.results[2].stat.exists)
+  no_log: true
+- name: Read default group inheritance
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/default-groups"
+    headers: "{{ enrollment_headers }}"
+  register: enrollment_default_groups
+  no_log: true
+- name: Refuse automatic enrollment into other groups
+  ansible.builtin.assert:
+    that: enrollment_default_groups.json | length == 0
+  no_log: true
+- name: Read the built-in account client identity
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/clients?clientId=account"
+    headers: "{{ enrollment_headers }}"
+  register: enrollment_account_client
+  no_log: true
+- name: Require one built-in account client
+  ansible.builtin.assert:
+    that: enrollment_account_client.json | length == 1
+  no_log: true
+- name: Read inherited default realm roles
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/roles/default-roles-perkforge/composites"
+    headers: "{{ enrollment_headers }}"
+  register: enrollment_defaults
+  no_log: true
+- name: Permit only the inspected standard self-service defaults
+  ansible.builtin.assert:
+    that:
+      - >-
+        (not item.clientRole and item.name in ['offline_access', 'uma_authorization'] and not item.composite)
+        or (item.clientRole and item.containerId == enrollment_account_client.json[0].id
+        and item.name in ['view-profile', 'manage-account', 'manage-account-links']
+        and (not item.composite or item.name == 'manage-account'))
+  loop: "{{ enrollment_defaults.json }}"
+  no_log: true
+- name: Inspect the only permitted built-in composite role
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/roles-by-id/{{ item.id }}/composites"
+    headers: "{{ enrollment_headers }}"
+  loop: "{{ enrollment_defaults.json | selectattr('composite') | list }}"
+  register: enrollment_default_children
+  no_log: true
+- name: Refuse privileged or nested unexpected composite children
+  ansible.builtin.assert:
+    that:
+      - item.clientRole
+      - item.containerId == enrollment_account_client.json[0].id
+      - item.name == 'manage-account-links'
+      - not item.composite
+  loop: "{{ enrollment_default_children.results | map(attribute='json') | flatten }}"
+  no_log: true

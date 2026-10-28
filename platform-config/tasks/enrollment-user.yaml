@@ -1,0 +1,98 @@
+- name: Generate the initial password only for a new non-colliding account
+  ansible.builtin.set_fact:
+    enrollment_initial_password: "{{ lookup('ansible.builtin.password', enrollment_password_file, length=48, chars=['ascii_letters', 'digits']) }}"
+  when: enrollment_users.json | length == 0
+  no_log: true
+- name: Create only the approved test account with standard profile fields
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/users"
+    method: POST
+    headers: "{{ enrollment_headers }}"
+    body_format: json
+    body:
+      username: "{{ enrollment_username }}"
+      enabled: true
+      firstName: Platform
+      lastName: Admin Test
+      email: platform-admin-test-user@example.invalid
+      emailVerified: true
+      requiredActions: []
+      credentials:
+        - type: password
+          temporary: false
+          value: "{{ enrollment_initial_password }}"
+    status_code: 201
+  when: enrollment_users.json | length == 0
+  changed_when: true
+  no_log: true
+- name: Read the exact saved account
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/users?username=platform-admin-test-user&exact=true"
+    headers: "{{ enrollment_headers }}"
+  register: enrollment_saved_users
+  no_log: true
+- name: Require the unchanged enabled approved identity
+  ansible.builtin.assert:
+    that:
+      - enrollment_saved_users.json | length == 1
+      - enrollment_saved_users.json[0].username == enrollment_username
+      - enrollment_saved_users.json[0].enabled
+      - enrollment_saved_users.json[0].email == 'platform-admin-test-user@example.invalid'
+  no_log: true
+- name: Record only the created user ID for safe idempotent ownership checks
+  ansible.builtin.copy:
+    dest: "{{ enrollment_record_file }}"
+    content: "{{ {'username': enrollment_username, 'id': enrollment_saved_users.json[0].id} | to_nice_json }}\n"
+    mode: '0600'
+  when: enrollment_users.json | length == 0
+  no_log: true
+- name: Read current memberships and direct role mappings before enrollment
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/users/{{ enrollment_saved_users.json[0].id }}/{{ item }}"
+    headers: "{{ enrollment_headers }}"
+  loop: [groups, role-mappings]
+  register: enrollment_user_access
+  no_log: true
+- name: Refuse unexpected groups or direct administrative mappings
+  ansible.builtin.assert:
+    that:
+      - enrollment_user_access.results[0].json | map(attribute='id') | difference([enrollment_admin_id]) | length == 0
+      - enrollment_user_access.results[1].json.clientMappings | default({}) | length == 0
+      - enrollment_user_access.results[1].json.realmMappings | default([]) | map(attribute='name') | difference(['default-roles-perkforge']) | length == 0
+  no_log: true
+- name: Join only the approved platform admins group
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/users/{{ enrollment_saved_users.json[0].id }}/groups/{{ enrollment_admin_id }}"
+    method: PUT
+    headers: "{{ enrollment_headers }}"
+    status_code: 204
+  when: enrollment_admin_id not in (enrollment_user_access.results[0].json | map(attribute='id') | list)
+  changed_when: true
+  no_log: true
+- name: Verify the exact final group membership
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/users/{{ enrollment_saved_users.json[0].id }}/groups"
+    headers: "{{ enrollment_headers }}"
+  register: enrollment_final_groups
+  no_log: true
+- name: Require only the intended full-path authorization group
+  ansible.builtin.assert:
+    that:
+      - enrollment_final_groups.json | length == 1
+      - enrollment_final_groups.json[0].path == '/platform/admins'
+      - enrollment_final_groups.json[0].id == enrollment_admin_id
+  no_log: true
+- name: Verify the password file remains private without exposing it
+  ansible.builtin.stat:
+    path: "{{ enrollment_password_file }}"
+    follow: false
+  register: enrollment_saved_password
+  no_log: true
+- name: Require owner-only credential storage
+  ansible.builtin.assert:
+    that:
+      - enrollment_saved_password.stat.isreg
+      - not enrollment_saved_password.stat.islnk
+      - enrollment_saved_password.stat.mode == '0600'
+      - enrollment_saved_password.stat.pw_name == lookup('ansible.builtin.env', 'USER')
+  no_log: true

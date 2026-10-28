@@ -1,0 +1,98 @@
+- name: Find the exact canonical platform parent
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/groups?search=platform&exact=true&max=100&briefRepresentation=false"
+    headers: "{{ enrollment_headers }}"
+  register: enrollment_parent_search
+  no_log: true
+- name: Select only the root platform path
+  ansible.builtin.set_fact:
+    enrollment_parent: "{{ enrollment_parent_search.json | selectattr('path', 'equalto', '/platform') | list }}"
+  no_log: true
+- name: Refuse duplicate or unowned platform parents
+  ansible.builtin.assert:
+    that:
+      - enrollment_parent | length <= 1
+      - enrollment_parent | length == 0 or enrollment_parent[0].attributes['perkforge-managed'] | default([]) == ['true']
+  no_log: true
+- name: Create only the missing organizational parent
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/groups"
+    method: POST
+    headers: "{{ enrollment_headers }}"
+    body_format: json
+    body: {name: platform, attributes: {perkforge-managed: ['true']}}
+    status_code: 201
+  when: enrollment_parent | length == 0
+  changed_when: true
+  no_log: true
+- name: Read the canonical parent identity
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/groups?search=platform&exact=true&max=100&briefRepresentation=false"
+    headers: "{{ enrollment_headers }}"
+  register: enrollment_parent_saved
+  no_log: true
+- name: Retain the canonical parent identity
+  ansible.builtin.set_fact:
+    enrollment_parent_id: "{{ (enrollment_parent_saved.json | selectattr('path', 'equalto', '/platform') | list | first).id }}"
+  no_log: true
+- name: Read parent mappings before child creation
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/groups/{{ enrollment_parent_id }}/role-mappings"
+    headers: "{{ enrollment_headers }}"
+  register: enrollment_parent_roles
+  no_log: true
+- name: Require the organizational parent to grant no roles
+  ansible.builtin.assert:
+    that:
+      - enrollment_parent_roles.json.realmMappings | default([]) | length == 0
+      - enrollment_parent_roles.json.clientMappings | default({}) | length == 0
+  no_log: true
+- name: Find the exact admins child
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/groups/{{ enrollment_parent_id }}/children?search=admins&exact=true&max=100&briefRepresentation=false"
+    headers: "{{ enrollment_headers }}"
+  register: enrollment_admin_search
+  no_log: true
+- name: Select the canonical admin path
+  ansible.builtin.set_fact:
+    enrollment_admin_group: "{{ enrollment_admin_search.json | selectattr('path', 'equalto', '/platform/admins') | list }}"
+  no_log: true
+- name: Refuse duplicate or unowned admins groups
+  ansible.builtin.assert:
+    that:
+      - enrollment_admin_group | length <= 1
+      - enrollment_admin_group | length == 0 or enrollment_admin_group[0].attributes['perkforge-managed'] | default([]) == ['true']
+  no_log: true
+- name: Create only the missing admin group without role grants
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/groups/{{ enrollment_parent_id }}/children"
+    method: POST
+    headers: "{{ enrollment_headers }}"
+    body_format: json
+    body: {name: admins, attributes: {perkforge-managed: ['true']}}
+    status_code: 201
+  when: enrollment_admin_group | length == 0
+  changed_when: true
+  no_log: true
+- name: Read the canonical admin identity
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/groups/{{ enrollment_parent_id }}/children?search=admins&exact=true&max=100&briefRepresentation=false"
+    headers: "{{ enrollment_headers }}"
+  register: enrollment_admin_saved
+  no_log: true
+- name: Retain the exact admin group identity
+  ansible.builtin.set_fact:
+    enrollment_admin_id: "{{ (enrollment_admin_saved.json | selectattr('path', 'equalto', '/platform/admins') | list | first).id }}"
+  no_log: true
+- name: Inspect the admin group's direct mappings
+  ansible.builtin.uri:
+    url: "{{ enrollment_api }}/groups/{{ enrollment_admin_id }}/role-mappings"
+    headers: "{{ enrollment_headers }}"
+  register: enrollment_admin_roles
+  no_log: true
+- name: Refuse any additional Keycloak or app role grants
+  ansible.builtin.assert:
+    that:
+      - enrollment_admin_roles.json.realmMappings | default([]) | length == 0
+      - enrollment_admin_roles.json.clientMappings | default({}) | length == 0
+  no_log: true
