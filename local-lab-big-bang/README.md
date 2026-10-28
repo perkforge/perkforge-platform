@@ -107,6 +107,10 @@ and `values`. The specimen uses the official public Helm repository and chart
 `wrapper.enabled: false` is supported; wrapper is optional. Also set
 `bbCommonValues: false` and `passBigBangValues: false` for the unmodified official
 chart, rather than feeding Big Bang-specific integration values into it.
+Big Bang’s existing NetworkPolicy and optional mesh/security integrations are
+valuable starting points: inspect and reuse suitable generated controls before
+writing duplicates. Their defaults still need target-specific flow review, as
+the proposal’s separate policy-enabled Headlamp render demonstrates.
 No wrapper means no automatic mesh/SSO/network/monitoring integration: platform
 owners must supply reviewed policies and identity/secrets configuration.
 

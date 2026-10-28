@@ -356,6 +356,26 @@ revocation. Re-run pod network, admission, quota and secret-delivery tests.
 Shared namespaces/control planes/kernels remain shared-risk boundaries; a UI
 or curated package cannot establish compliance or strong tenant isolation.
 
+Big Bang’s security integrations are a substantive reuse benefit, beyond its
+application catalog. Its [pinned NetworkPolicy guide](https://repo1.dso.mil/big-bang/bigbang/-/blob/3.35.1/docs/configuration/network-policies.md)
+and bb-common/package values provide policy, SSO and optional mesh wiring.
+Inspect and adapt their generated output before duplicating those controls.
+A separate local Headlamp render with network policies enabled produced eight
+policies: default ingress/egress denial, namespace-local and DNS allowances, plus
+API/mesh/monitoring allowances. The API-labelled egress rule in this specimen
+actually allowed `0.0.0.0/0` except metadata IP, without a port restriction; mesh
+allowances also remained despite this specimen’s disabled mesh. These are
+rendered findings, not live enforcement evidence or an approved network policy.
+Review actual destinations, selectors, ports and provider API topology rather
+than inferring narrow coverage from a policy name.
+
+Reuse suitable package controls, then address gaps explicitly: the unwrapped
+OpenBao chart and tenant portal do not inherit those bb-common integrations.
+Their secrets/database/identity/API flows, cross-tenant denial, policy ownership
+and admission boundaries still need platform-owned review and tests. Mesh or
+security-package enablement alone neither proves tenant separation nor replaces
+RBAC/admission. These requirements do not authorize installing the default stack.
+
 ## Capacity, secrets, and maintenance
 
 Three M920q nodes at 16 GB each provide 48 GB nominal aggregate memory, not
