@@ -6,8 +6,7 @@
   tasks:
   - name: Report selected entrypoint without contacting Kubernetes
     ansible.builtin.debug:
-      msg: '{{ inventory_hostname }} -> {{ gitops_path }}; apply={{ bootstrap_apply | bool
-        }}'
+      msg: "{{ inventory_hostname }} -> {{ gitops_path }}; apply={{ bootstrap_apply | bool }}"
   - name: Bootstrap requires separate live approval and complete target inputs
     when: bootstrap_apply | bool
     block:
@@ -56,7 +55,7 @@
         - -k
         - '{{ flux_checkout }}/base/flux'
       register: flux_apply
-      changed_when: '''created'' in flux_apply.stdout or ''configured'' in flux_apply.stdout'
+      changed_when: "'created' in flux_apply.stdout or 'configured' in flux_apply.stdout"
     - name: Wait for required Flux CRDs before creating their resources
       ansible.builtin.command:
         argv:
@@ -101,6 +100,6 @@
         - apply
         - -f
         - '-'
-        stdin: '{{ lookup(''ansible.builtin.template'', ''seed.yaml.j2'') }}'
+        stdin: "{{ lookup('ansible.builtin.template', 'seed.yaml.j2') }}"
       register: seed_apply
-      changed_when: '''created'' in seed_apply.stdout or ''configured'' in seed_apply.stdout'
+      changed_when: "'created' in seed_apply.stdout or 'configured' in seed_apply.stdout"
