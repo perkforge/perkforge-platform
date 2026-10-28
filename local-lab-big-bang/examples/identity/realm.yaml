@@ -1,0 +1,78 @@
+# Ansible body for a NEW owned realm only. Secret lookups run only in apply block.
+realm: '{{ identity_realm }}'
+enabled: true
+sslRequired: all
+registrationAllowed: false
+resetPasswordAllowed: false
+bruteForceProtected: true
+accessTokenLifespan: 300
+ssoSessionIdleTimeout: 900
+ssoSessionMaxLifespan: 3600
+defaultSignatureAlgorithm: RS256
+attributes: {perkforge-managed: 'true', perkforge-purpose: local-headlamp-trial}
+groups:
+- name: platform
+  attributes: {perkforge-managed: ['true']}
+  subGroups:
+  - name: admins
+    attributes: {perkforge-managed: ['true']}
+  - name: developers
+    attributes: {perkforge-managed: ['true']}
+clients:
+- clientId: '{{ identity_client_id }}'
+  name: Local Headlamp
+  enabled: true
+  protocol: openid-connect
+  clientAuthenticatorType: client-secret
+  publicClient: false
+  secret: "{{ lookup('ansible.builtin.file', identity_private_dir ~ '/headlamp-client-secret') | trim }}"
+  standardFlowEnabled: true
+  implicitFlowEnabled: false
+  directAccessGrantsEnabled: false
+  serviceAccountsEnabled: false
+  fullScopeAllowed: false
+  redirectUris: ['{{ identity_redirect }}']
+  webOrigins: ['{{ identity_origin }}']
+  defaultClientScopes: [profile, email]
+  optionalClientScopes: []
+  attributes:
+    perkforge-managed: 'true'
+    pkce.code.challenge.method: S256
+    id.token.signed.response.alg: RS256
+    id.token.lifespan: '300'
+  protocolMappers:
+  - name: groups
+    protocol: openid-connect
+    protocolMapper: oidc-group-membership-mapper
+    consentRequired: false
+    config:
+      claim.name: groups
+      full.path: 'true'
+      id.token.claim: 'true'
+      access.token.claim: 'false'
+      userinfo.token.claim: 'true'
+users:
+- username: local-platform-admin
+  enabled: true
+  attributes: {perkforge-managed: ['true']}
+  groups: [/platform/admins]
+  credentials:
+  - type: password
+    temporary: false
+    value: "{{ lookup('ansible.builtin.file', identity_private_dir ~ '/admin-test-password') | trim }}"
+- username: local-platform-developer
+  enabled: true
+  attributes: {perkforge-managed: ['true']}
+  groups: [/platform/developers]
+  credentials:
+  - type: password
+    temporary: false
+    value: "{{ lookup('ansible.builtin.file', identity_private_dir ~ '/developer-test-password') | trim }}"
+- username: local-no-grants
+  enabled: true
+  attributes: {perkforge-managed: ['true']}
+  groups: []
+  credentials:
+  - type: password
+    temporary: false
+    value: "{{ lookup('ansible.builtin.file', identity_private_dir ~ '/no-grants-test-password') | trim }}"

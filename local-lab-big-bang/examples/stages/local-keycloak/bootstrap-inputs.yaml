@@ -1,0 +1,3 @@
+# Existing bootstrap.yaml still creates a PAUSED root; activation is separate.
+gitops_path: ./local-lab-big-bang/examples/stages/local-keycloak
+config_source_secret: ''

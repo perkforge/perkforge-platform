@@ -1,0 +1,107 @@
+- name: Verify actual API authentication and authorization with external ID tokens
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars_files: [../identity/auth-checks.yaml]
+  vars:
+    identity_verify: false
+    identity_token_dir: /UNCONFIGURED/id-tokens
+    identity_api_ca: /UNCONFIGURED/kubernetes-ca.crt
+    identity_api: https://192.168.122.201:6443
+    # Caller supplies actual server-assigned Keycloak sub UUIDs, not usernames.
+    identity_subjects: {}
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ identity_api_ca }}'
+      follow_redirects: none
+      use_netrc: false
+      use_proxy: false
+      timeout: 20
+  tasks:
+  - name: Refuse another target or API endpoint
+    ansible.builtin.assert:
+      that:
+      - ansible_play_hosts_all == ['local']
+      - deployment_environment == 'local'
+      - impact_profile == 'il2'
+      - identity_api == 'https://192.168.122.201:6443'
+  - name: Default and check mode use no tokens and make no API requests
+    ansible.builtin.debug:
+      msg: 'Live identity verification={{ identity_verify | bool }}; check={{ ansible_check_mode }}'
+  - name: Run approved read-only verification with private signed tokens
+    when: identity_verify | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - name: Inspect exact required token files without following symlinks
+      ansible.builtin.stat:
+        path: '{{ identity_token_dir }}/{{ item }}.token'
+        follow: false
+      loop: '{{ identity_checks | map(attribute="token") | unique | list }}'
+      register: identity_token_files
+    - name: Require private caller-owned nonempty token files
+      ansible.builtin.assert:
+        that:
+        - item.stat.isreg | default(false)
+        - not (item.stat.islnk | default(false))
+        - item.stat.mode == '0600'
+        - item.stat.pw_name == lookup('ansible.builtin.env', 'USER')
+        - item.stat.size > 0
+      loop: '{{ identity_token_files.results }}'
+    - name: Confirm the API sees each real subject and exact prefixed groups
+      ansible.builtin.uri:
+        url: '{{ identity_api }}/apis/authentication.k8s.io/v1/selfsubjectreviews'
+        method: POST
+        headers:
+          Authorization: "Bearer {{ lookup('ansible.builtin.file', identity_token_dir ~ '/' ~ item ~ '.token') | trim }}"
+        body_format: json
+        body: {apiVersion: authentication.k8s.io/v1, kind: SelfSubjectReview}
+        status_code: 201
+      loop: [admin, developer, no-grants]
+      register: identity_reviews
+    - name: Refuse anonymous, unexpected subject or unexpected privileged groups
+      ansible.builtin.assert:
+        that:
+        - item.json.status.userInfo.username == 'oidc:' ~ identity_subjects[item.item]
+        - (item.json.status.userInfo.groups | difference(['system:authenticated']) | sort) == identity_expected_groups[item.item]
+      vars:
+        identity_expected_groups:
+          admin: ['oidc:/platform/admins']
+          developer: ['oidc:/platform/developers']
+          no-grants: []
+      loop: '{{ identity_reviews.results }}'
+    - name: Assert direct API denials and positive reads
+      ansible.builtin.uri:
+        url: '{{ identity_api }}{{ item.path }}'
+        headers:
+          Authorization: "Bearer {{ lookup('ansible.builtin.file', identity_token_dir ~ '/' ~ item.token ~ '.token') | trim }}"
+        status_code: '{{ item.status }}'
+        return_content: false
+      loop: '{{ identity_checks }}'
+    - name: Check mutation and sensitive subresource decisions without changing workloads
+      ansible.builtin.uri:
+        url: '{{ identity_api }}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews'
+        method: POST
+        headers:
+          Authorization: "Bearer {{ lookup('ansible.builtin.file', identity_token_dir ~ '/' ~ item.token ~ '.token') | trim }}"
+        body_format: json
+        body:
+          apiVersion: authorization.k8s.io/v1
+          kind: SelfSubjectAccessReview
+          spec:
+            resourceAttributes:
+              namespace: '{{ item.namespace }}'
+              group: '{{ item.group }}'
+              resource: '{{ item.resource }}'
+              subresource: '{{ item.subresource | default(omit) }}'
+              verb: '{{ item.verb }}'
+        status_code: 201
+      loop: '{{ identity_access_checks }}'
+      register: identity_decisions
+    - name: Assert positive and negative authorization decisions
+      ansible.builtin.assert:
+        that: item.json.status.allowed == item.item.allowed
+      loop: '{{ identity_decisions.results }}'
+  - name: Report only sanitized overall result
+    ansible.builtin.debug:
+      msg: 'Identity API matrix passed; browser/deep-link/session and persistence trials remain separate.'
+    when: identity_verify | bool and not ansible_check_mode

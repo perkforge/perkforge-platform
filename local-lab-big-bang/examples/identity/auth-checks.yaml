@@ -1,0 +1,28 @@
+# Real signed ID-token files are supplied after browser code+PKCE logins.
+# Expected subjects must be Keycloak stable sub UUIDs, not display names.
+identity_checks:
+- {token: admin, path: /api/v1/nodes, status: 200}
+- {token: admin, path: /api/v1/namespaces/keycloak/pods, status: 200}
+- {token: admin, path: /api/v1/namespaces/keycloak/secrets, status: 403}
+- {token: admin, path: /apis/rbac.authorization.k8s.io/v1/clusterrolebindings, status: 403}
+- {token: developer, path: /api/v1/namespaces/headlamp/pods, status: 200}
+- {token: developer, path: /api/v1/namespaces/keycloak/pods, status: 403}
+- {token: developer, path: /api/v1/namespaces/kube-system/pods, status: 403}
+- {token: developer, path: /api/v1/namespaces/headlamp/secrets, status: 403}
+- {token: developer, path: /api/v1/namespaces/headlamp/configmaps, status: 403}
+- {token: developer, path: /api/v1/namespaces, status: 403}
+- {token: no-grants, path: /api/v1/namespaces/headlamp/pods, status: 403}
+- {token: expired, path: /api/v1/namespaces/headlamp/pods, status: 401}
+- {token: wrong-audience, path: /api/v1/namespaces/headlamp/pods, status: 401}
+- {token: wrong-issuer, path: /api/v1/namespaces/headlamp/pods, status: 401}
+- {token: invalid-signature, path: /api/v1/namespaces/headlamp/pods, status: 401}
+identity_access_checks:
+- {token: admin, group: apps, resource: deployments, subresource: scale, namespace: headlamp, verb: patch, allowed: true}
+- {token: admin, group: apps, resource: statefulsets, subresource: scale, namespace: keycloak, verb: patch, allowed: true}
+- {token: admin, group: apps, resource: deployments, namespace: headlamp, verb: patch, allowed: false}
+- {token: developer, group: apps, resource: deployments, namespace: headlamp, verb: patch, allowed: false}
+- {token: developer, group: '', resource: pods, subresource: log, namespace: headlamp, verb: get, allowed: false}
+- {token: developer, group: '', resource: pods, subresource: exec, namespace: headlamp, verb: create, allowed: false}
+- {token: developer, group: '', resource: pods, subresource: portforward, namespace: headlamp, verb: create, allowed: false}
+- {token: developer, group: rbac.authorization.k8s.io, resource: rolebindings, namespace: headlamp, verb: create, allowed: false}
+- {token: no-grants, group: '', resource: pods, namespace: headlamp, verb: list, allowed: false}

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: keycloak-postgres-init, namespace: keycloak}
+data:
+  01-keycloak.sql: |
+    \set ON_ERROR_STOP on
+    \getenv app_password KEYCLOAK_DB_PASSWORD
+    CREATE ROLE keycloak LOGIN PASSWORD :'app_password'
+      NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+    ALTER DATABASE keycloak OWNER TO keycloak;
+# Native PostgreSQL entrypoint runs this only on EMPTY PGDATA. No migrations.

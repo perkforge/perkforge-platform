@@ -1,0 +1,17 @@
+# REVIEWED INPUT, not installed automatically. Append; never replace base RKE2 config.
+# /etc/rancher/rke2/config.yaml.d/90-local-oidc.yaml on cks-control only.
+kube-apiserver-arg+:
+- oidc-issuer-url=https://keycloak-local-il2.local-lab.test/auth/realms/perkforge
+- oidc-client-id=headlamp-local
+- oidc-username-claim=sub
+- 'oidc-username-prefix=oidc:'
+- oidc-groups-claim=groups
+- 'oidc-groups-prefix=oidc:'
+- oidc-signing-algs=RS256
+- oidc-required-claim=azp=headlamp-local
+- oidc-ca-file=/etc/rancher/rke2/identity/ca.crt
+kube-apiserver-extra-mount+:
+- /etc/rancher/rke2/identity/ca.crt:/etc/rancher/rke2/identity/ca.crt:ro
+# API static Pod must resolve issuer BEFORE API auth starts; host /etc/hosts alone
+# is not inherited by hostNetwork Pods. Mount the reviewed host file read-only.
+- /etc/hosts:/etc/hosts:ro
