@@ -1,5 +1,5 @@
 # Two replicas illustrate precedence, not a sizing recommendation.
-domain: dev-secondary.example.invalid
+domain: dev-il5.example.invalid
 addons:
   headlamp:
     values:

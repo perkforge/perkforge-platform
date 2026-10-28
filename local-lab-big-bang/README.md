@@ -32,15 +32,15 @@ and skips every Kubernetes/Git task. It does not install or deploy anything.
 
 | Authored file | Role and consumed fields |
 | --- | --- |
-| [inventory.yaml](examples/ansible/inventory.yaml) | `local`, `dev`, and `dev-secondary` are Ansible inventory aliases. `deployment_environment` and `impact_profile` record context. `gitops_path` selects configuration; kubeconfig/context/expected UID select the target API, independently. Target and configuration commit remain unconfigured |
+| [inventory.yaml](examples/ansible/inventory.yaml) | `local`, `dev-il2`, and `dev-il5` are Ansible inventory aliases. `deployment_environment` and `impact_profile` record context. `gitops_path` selects configuration; kubeconfig/context/expected UID select the target API, independently. Target and configuration commit remain unconfigured |
 | [bootstrap.yaml](examples/ansible/bootstrap.yaml) | Standard Ansible tasks: report selection; when separately enabled, validate target UID, obtain Big Bang release tag and verify its observed commit, apply its `base/flux`, wait for required CRDs/controllers, then apply only the paused seed |
 | [seed.yaml.j2](examples/ansible/seed.yaml.j2) | Standard Ansible template: config repository + exact `ref.commit` in GitRepository; `spec.sourceRef` and `spec.path` in root Flux Kustomization |
-| [local kustomization.yaml](examples/clusters/local/kustomization.yaml), [dev](examples/clusters/dev/kustomization.yaml), [dev-secondary](examples/clusters/dev-secondary/kustomization.yaml) | Local Kustomize build inputs; choose reusable directories and generate that cluster's values ConfigMap |
+| [local kustomization.yaml](examples/clusters/local/kustomization.yaml), [dev-il2](examples/clusters/dev-il2/kustomization.yaml), [dev-il5](examples/clusters/dev-il5/kustomization.yaml) | Local Kustomize build inputs; choose reusable directories and generate that cluster's values ConfigMap |
 | [bigbang/source.yaml](examples/bigbang/source.yaml) | Pinned chart source, Big Bang release tag `3.35.1`; no vendored chart or generated child YAML |
 | [bigbang/release.yaml](examples/bigbang/release.yaml) | Outer HelmRelease: `chart.spec.chart: ./chart`, sourceRef, and explicit ordered valuesFrom |
-| [Generic enrollment source](examples/enrollments/base/source.yaml), [local parent](examples/enrollments/local/reconcile.yaml), [dev parent](examples/enrollments/dev/reconcile.yaml) | Only the platform-owned enrollment repository URL/revision, selected cluster path and declared environment/profile context; no individual tenant definitions |
+| [Generic enrollment source](examples/enrollments/base/source.yaml), [local parent](examples/enrollments/local/reconcile.yaml), [dev-il2 parent](examples/enrollments/dev-il2/reconcile.yaml) | Only the platform-owned enrollment repository URL/revision, selected cluster path and declared environment/profile context; no individual tenant definitions |
 | [OpenBao app folder](examples/apps/openbao/values.yaml) | Focused repository/package/chart values, consumed through its ConfigMap and outer valuesFrom; no standalone competing release |
-| [shared](examples/shared/values.yaml), [provider](examples/providers/rke2/values.yaml), [impact](examples/profiles/il2/values.yaml), [local](examples/clusters/local/values.yaml), [dev](examples/clusters/dev/values.yaml) | Non-secret authored values. Native configMapGenerator packages each values.yaml; fixed ConfigMap names match the release references |
+| [shared](examples/shared/values.yaml), [provider](examples/providers/rke2/values.yaml), [impact](examples/profiles/il2/values.yaml), [local](examples/clusters/local/values.yaml), [dev-il2](examples/clusters/dev-il2/values.yaml) | Non-secret authored values. Native configMapGenerator packages each values.yaml; fixed ConfigMap names match the release references |
 
 Inventory selection chooses **where Ansible connects** and **which Git path it
 seeds**. The root GitRepository URL/revision chooses the protected configuration
@@ -53,12 +53,12 @@ The selected context is explicit and checked across repositories:
 | Cluster identity | Environment | Profile | App profile example |
 | --- | --- | --- | --- |
 | local | local | il2 | shared + local + il2 + local overrides |
-| dev | dev | il2 | shared + dev + il2 + dev overrides |
-| dev-secondary | dev | il5 | shared + dev + il5 + dev-secondary overrides |
+| dev-il2 | dev | il2 | shared + dev + il2 + dev-il2 overrides |
+| dev-il5 | dev | il5 | shared + dev + il5 + dev-il5 overrides |
 
 `profiles/il2` remains reusable; `profiles/il5` is an **unassessed illustrative
 target**, retaining only the same local UI guardrails. Neither file is a DoD
-control baseline or authorization. The user's dev hardware target remains the
+control baseline or authorization. The user's dev-il2 hardware target remains the
 physical homelab; no hardware or live API target is assigned to the il5 example.
 Cluster identity, environment, profile, distribution and hosting remain separate.
 RKE2 on AWS is possible; AWS does not imply EKS.
@@ -183,7 +183,7 @@ Companion PRs: [tenant app #5](https://github.com/perkforge/perkforge-tenant-por
 [platform-owned enrollment #1](https://github.com/perkforge/perkforge-platform-tenants/pull/1),
 and [this platform proposal #47](https://github.com/perkforge/perkforge-platform/pull/47).
 The authored source here pins exact enrollment feature commit
-`c9a3e51ca0fb713457c4b435a9aae41cf2b511c2` for cross-repository review. It is
+`36800b96bee7bb20be0270ac4cdfa0f24b28683d` for cross-repository review. It is
 not a production/adopted revision, and none of these references track a moving
 feature branch automatically.
 
@@ -330,7 +330,7 @@ ANSIBLE_LOCAL_TEMP=/tmp/perkforge-ansible ANSIBLE_REMOTE_TEMP=/tmp/perkforge-rem
   ansible-playbook -i local-lab-big-bang/examples/ansible/inventory.yaml \
   local-lab-big-bang/examples/ansible/bootstrap.yaml --syntax-check
 kubectl kustomize local-lab-big-bang/examples/clusters/local > /tmp/bigbang-local-seed.yaml
-kubectl kustomize local-lab-big-bang/examples/clusters/dev > /tmp/bigbang-dev-seed.yaml
+kubectl kustomize local-lab-big-bang/examples/clusters/dev-il2 > /tmp/bigbang-dev-il2-seed.yaml
 helm lint /tmp/perkforge-bigbang-3.35.1/chart --kube-version 1.36.5 \
   -f local-lab-big-bang/examples/shared/values.yaml \
   -f local-lab-big-bang/examples/apps/openbao/values.yaml \
@@ -338,7 +338,7 @@ helm lint /tmp/perkforge-bigbang-3.35.1/chart --kube-version 1.36.5 \
   -f local-lab-big-bang/examples/profiles/il2/values.yaml \
   -f local-lab-big-bang/examples/clusters/local/values.yaml
 # helm template with the same ordered -f inputs writes only /tmp output.
-# Repeat for dev; review per-cluster before/after diffs locally.
+# Repeat for dev-il2 and dev-il5; review per-cluster before/after diffs locally.
 ```
 
 All three local Kustomize assemblies and Ansible syntax passed. The separate

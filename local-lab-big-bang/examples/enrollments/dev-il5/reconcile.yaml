@@ -6,7 +6,7 @@ spec:
   suspend: true
   interval: 5m
   timeout: 5m
-  path: ./clusters/dev-secondary
+  path: ./clusters/dev-il5
   sourceRef:
     kind: GitRepository
     name: tenant-enrollments

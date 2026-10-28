@@ -92,7 +92,7 @@ class SelectionContractTests(unittest.TestCase):
                 self.assertIn("../../profiles/" + selected["profile"], resources)
 
     def test_cross_repository_environment_profile_and_target_mismatches_fail(self):
-        parent, source = self.platform_selection("dev")
+        parent, source = self.platform_selection("dev-il2")
         for key, wrong in (("environment", "local"), ("profile", "il5")):
             with self.subTest(key=key):
                 bad = copy.deepcopy(parent)
@@ -100,12 +100,12 @@ class SelectionContractTests(unittest.TestCase):
                 with self.assertRaises(AssertionError):
                     self.follow(bad, source, self.enrollment)
         bad = copy.deepcopy(parent)
-        bad["spec"]["path"] = "./clusters/dev-secondary"
+        bad["spec"]["path"] = "./clusters/dev-il5"
         with self.assertRaises(AssertionError):
             self.follow(bad, source, self.enrollment)
 
     def test_unmatched_review_revision_fails(self):
-        parent, source = self.platform_selection("dev")
+        parent, source = self.platform_selection("dev-il2")
         bad = copy.deepcopy(source)
         bad["spec"]["ref"]["commit"] = "0" * 40
         with self.assertRaises(AssertionError):

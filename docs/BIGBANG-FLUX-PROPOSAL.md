@@ -208,14 +208,14 @@ Prefer `profiles/<name>` selected by `clusters/<cluster-name>` over duplicating
 `cluster-name/il2` trees. Cluster name and impact profile are independent axes;
 cluster-specific secrets, addresses and capacity never belong in an IL profile.
 `profiles/il2` is retained. The examples now show local/local/il2,
-dev/dev/il2, and dev-secondary/dev/il5 (cluster/environment/profile). The two dev
+dev-il2/dev/il2, and dev-il5/dev/il5 (cluster/environment/profile). The two dev
 clusters share an environment but select different reusable profiles. The il5
 case is an unassessed illustrative target, not a claim that the homelab supports
 IL5 or that any supplied values implement an IL5 baseline. Both platform profile
 files retain only the same illustrative UI guardrails. Establish real system
 requirements with the applicable owner before defining or adopting control sets.
 Cluster identity, environment, profile, Kubernetes distribution and hosting are
-independent; no hardware or live target is assigned to dev-secondary.
+independent; no hardware or live target is assigned to dev-il5.
 
 The inventory, platform Flux parent, enrollment and app roots explicitly record
 `example.perkforge.io/{cluster,environment,profile}` context. Tests follow exact
