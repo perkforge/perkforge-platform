@@ -199,7 +199,7 @@ local-lab-big-bang/              # new evaluation boundary
   ansible/                      # future small bootstrap, distinct inventory
   shared/{releases,values}/      # future pinned platform-owned definitions
   providers/{rke2,eks,...}/     # provider prerequisites; no impact-level meaning
-  profiles/{il2,il5,...}/        # reusable reviewed profiles, no inheritance chain
+  profiles/{il2,...}/        # reusable reviewed profiles, no inheritance chain
   clusters/<cluster-name>/       # explicit profile selection + shallow overrides
   examples/                     # this PR: disabled Ansible + native Flux/Kustomize inputs
 ```
@@ -207,15 +207,12 @@ local-lab-big-bang/              # new evaluation boundary
 Prefer `profiles/<name>` selected by `clusters/<cluster-name>` over duplicating
 `cluster-name/il2` trees. Cluster name and impact profile are independent axes;
 cluster-specific secrets, addresses and capacity never belong in an IL profile.
-`profiles/il2` is retained. The examples now show local/local/il2,
-dev-il2/dev/il2, and dev-il5/dev/il5 (cluster/environment/profile). The two dev
-clusters share an environment but select different reusable profiles. The il5
-case is an unassessed illustrative target, not a claim that the homelab supports
-IL5 or that any supplied values implement an IL5 baseline. Both platform profile
-files retain only the same illustrative UI guardrails. Establish real system
-requirements with the applicable owner before defining or adopting control sets.
-Cluster identity, environment, profile, Kubernetes distribution and hosting are
-independent; no hardware or live target is assigned to dev-il5.
+`profiles/il2` is retained. The only examples are local/local/il2 (local VMs)
+and dev/dev/il2 (future physical cluster), written as cluster/environment/profile.
+Future profiles such as il5 require reviewed requirements and explicit selections
+in each repository; no executable il5 profile or target is supplied. Neither the
+il2 label nor these UI guardrails constitutes an IL baseline or authorization.
+Cluster identity, environment, profile, distribution and hosting stay independent.
 
 The inventory, platform Flux parent, enrollment and app roots explicitly record
 `example.perkforge.io/{cluster,environment,profile}` context. Tests follow exact
@@ -292,7 +289,7 @@ provider/profile and named-cluster values, consumed Ansible inventory selection,
 root source/Kustomization, local cluster builds and outer Big Bang release wiring.
 Charts and authored values are the source of truth. Generated manifests are not
 checked in; temporary local rendering is validation evidence only. The named
-cluster roots explicitly select their illustrative il2/il5 profiles. Cluster
+cluster roots explicitly select the illustrative il2 profile. Cluster
 overrides retain the one/two-replica UI
 precedence example. These are **not deployment profiles**: target, four-app
 integration, identity, admission/network policy, TLS, resource sizing and secret

@@ -92,24 +92,42 @@ class SelectionContractTests(unittest.TestCase):
                 self.assertIn("../../profiles/" + selected["profile"], resources)
 
     def test_cross_repository_environment_profile_and_target_mismatches_fail(self):
-        parent, source = self.platform_selection("dev-il2")
-        for key, wrong in (("environment", "local"), ("profile", "il5")):
+        parent, source = self.platform_selection("dev")
+        for key, wrong in (("environment", "local"), ("profile", "unselected-profile")):
             with self.subTest(key=key):
                 bad = copy.deepcopy(parent)
                 bad["metadata"]["annotations"][PREFIX + key] = wrong
                 with self.assertRaises(AssertionError):
                     self.follow(bad, source, self.enrollment)
         bad = copy.deepcopy(parent)
-        bad["spec"]["path"] = "./clusters/dev-il5"
+        bad["spec"]["path"] = "./clusters/local"
         with self.assertRaises(AssertionError):
             self.follow(bad, source, self.enrollment)
 
     def test_unmatched_review_revision_fails(self):
-        parent, source = self.platform_selection("dev-il2")
+        parent, source = self.platform_selection("dev")
         bad = copy.deepcopy(source)
         bad["spec"]["ref"]["commit"] = "0" * 40
         with self.assertRaises(AssertionError):
             self.follow(parent, bad, self.enrollment)
+
+    def test_only_local_and_dev_targets_with_consistent_browser_contracts(self):
+        self.assertEqual({p.name for p in (EXAMPLES / "clusters").iterdir()}, {"local", "dev"})
+        self.assertEqual({p.name for p in (EXAMPLES / "profiles").iterdir()}, {"il2"})
+        for cluster in ("local", "dev"):
+            values = yaml.safe_load((EXAMPLES / "clusters" / cluster / "values.yaml").read_text())
+            app = yaml.safe_load((self.app / "gitops/clusters" / cluster / "values.yaml").read_text())
+            host = lambda name: f"{name}-{cluster}-il2.local-lab.test"
+            for name in ("headlamp", "keycloak"):
+                self.assertEqual(values["addons"][name]["values"]["routes"]["inbound"][name]["hosts"],
+                                 [host(name)])
+            hostname = yaml.safe_load(values["addons"]["keycloak"]["values"]["upstream"]["extraEnv"])[0]["value"]
+            self.assertEqual(hostname, host("keycloak"))
+            ingress = values["packages"]["openbao"]["values"]["server"]["ingress"]
+            self.assertFalse(ingress["enabled"])
+            self.assertEqual(ingress["hosts"][0]["host"], host("openbao"))
+            self.assertEqual(app["portalOrigin"], "https://" + host("portal"))
+            self.assertEqual(app["identity"]["issuer"], "https://" + host("keycloak") + "/realms/household")
 
     def test_real_ansible_seed_preserves_selected_context(self):
         inventory = EXAMPLES / "ansible/inventory.yaml"

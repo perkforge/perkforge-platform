@@ -15,11 +15,7 @@ all:
           gitops_path: ./local-lab-big-bang/examples/clusters/local
           deployment_environment: local
           impact_profile: il2
-        dev-il2:
-          gitops_path: ./local-lab-big-bang/examples/clusters/dev-il2
+        dev:
+          gitops_path: ./local-lab-big-bang/examples/clusters/dev
           deployment_environment: dev
           impact_profile: il2
-        dev-il5:
-          gitops_path: ./local-lab-big-bang/examples/clusters/dev-il5
-          deployment_environment: dev
-          impact_profile: il5

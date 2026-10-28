@@ -3,7 +3,7 @@ kind: Kustomization
 resources:
 - ../../shared
 - ../../apps/openbao
-- ../../enrollments/dev-il2
+- ../../enrollments/dev
 - ../../providers/rke2
 - ../../profiles/il2
 - ../../bigbang
@@ -15,6 +15,6 @@ configMapGenerator:
 generatorOptions:
   disableNameSuffixHash: true
 commonAnnotations:
-  example.perkforge.io/cluster: dev-il2
+  example.perkforge.io/cluster: dev
   example.perkforge.io/environment: dev
   example.perkforge.io/profile: il2
