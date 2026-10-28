@@ -182,18 +182,58 @@ application chart. A top-level Helm render verifies the Flux resources and
 values payload, not the resulting child deployments. Avoid deep post-render
 patches; prefer documented package values, and upstream values only when needed.
 
-Proposed shallow layout, coordinated with #14/#20, not created by this PR:
+Proposed evaluation layout is a separate `local-lab-big-bang/` folder in this
+repository. Existing `local-lab/` stays intact. Bring forward reviewed concepts
+from identity, tenancy, secrets and portal work; do not copy the old lab wholesale.
+The folder currently contains documentation and render specimens only. It is
+not runtime isolation: target cluster, namespaces, CRD/controller ownership and
+resource capacity must be selected explicitly before a live evaluation.
 
 ```text
-perkforge-platform/             # Ansible hosts/RKE2, bootstrap and enrollment
-  ansible/{local-lab,physical}/ # distinct inventories; no shared addresses
-  platform-config/             # Ansible API configuration, shared + scoped vars
-perkforge-platform-apps/        # platform-owned deployment definitions
-  shared/{releases,values}/    # pinned charts and common non-secret settings
-  clusters/lab/               # own root source/path and short cluster values
-  clusters/physical/          # own root source/path and short cluster values
-perkforge-tenant-*/             # application charts, tenant-maintained inputs
+local-lab/                       # existing effort, unchanged
+local-lab-big-bang/              # new evaluation boundary
+  ansible/                      # future small bootstrap, distinct inventory
+  shared/{releases,values}/      # future pinned platform-owned definitions
+  providers/{rke2,eks,...}/     # provider prerequisites; no impact-level meaning
+  profiles/{il2,il4,...}/        # reusable reviewed profiles, no inheritance chain
+  clusters/<cluster-name>/       # explicit profile selection + shallow overrides
+  rendered/<cluster-name>/       # inspected output for the complete ordered input
+  examples/                     # this PR only: non-deployable specimens
 ```
+
+Prefer `profiles/<name>` selected by `clusters/<cluster-name>` over duplicating
+`cluster-name/il2` trees. Cluster name and impact profile are independent axes;
+cluster-specific secrets, addresses and capacity never belong in an IL profile.
+Only `il2` is illustrated here; the label expresses a possible future selection,
+not actual DoD requirements, suitability or authorization. Establish real
+requirements with the applicable system owner before creating real profiles.
+The values order is chart defaults → shared defaults → provider values → selected profile → named
+cluster overrides. Match that order in local Helm commands and live valuesFrom;
+keep secrets on separate, disjoint key paths.
+
+RKE2 is the current target, not an application dependency. A future EKS provider
+must supply its own API identity/OIDC trust, IAM/workload identity, CSI/storage
+classes, CNI/network policy, load balancers/DNS/TLS and credentials. Keep Fleet
+CRs, Rancher project IDs, RKE2 ingress/storage names, node paths and provider
+annotations outside the portable application layer. Provider selection and
+impact-profile selection are independent; EKS does not imply an IL profile, and
+a profile cannot supply AWS prerequisites or authorization. The neutral values
+contract and pinned native Flux/Helm application definitions are a portability
+strategy, not proof that an untested target works. See the new effort README
+for provider-specific validation gates. Big Bang can contribute useful control
+implementation patterns and upgrade evidence to RMF/cATO work; neither its
+adoption nor any cluster/provider/profile inherits an authorization.
+
+A profile cannot enforce itself by merge order. After the final merge, validation
+must reject weakened invariants and unexpected enabled packages. The specimen
+uses illustrative UI constraints (no default cluster-admin binding and no shared
+service-account authentication), not alleged IL2 controls. Check both effective
+values and rendered resources. A deliberate exception needs a separate reviewed
+record naming cluster, rule, reason, owner, expiry and verification; never make
+a late override a silent exception. Test that an intentionally weakening cluster
+file is rejected. Production validators must also inspect admission, networks,
+identity, secrets and cluster ownership, rather than treating these two checks
+as a complete impact-level policy.
 
 Each cluster root enumerates resources explicitly and contains only simple
 composition plus its values files. No environment inheritance chain or remote
@@ -211,43 +251,29 @@ cluster manifests; Ansible must not continually overwrite GitOps-owned objects.
 
 ### Concrete two-cluster specimen
 
-[common.yaml.example](examples/bigbang-flux/common.yaml.example),
-[lab.yaml.example](examples/bigbang-flux/lab.yaml.example), and
-[physical.yaml.example](examples/bigbang-flux/physical.yaml.example) illustrate
-one common file plus one cluster file. They are deliberately outside all live
-enrollment paths and use `.invalid` DNS. They are **not a deployment profile**:
-identity, ingress, policy, resource sizing and secret delivery are incomplete.
-Only Headlamp is enabled for rendering; metrics-server `auto` is explicitly
-disabled to avoid an additional RKE2 component owner. Network policy disabled
-in this render specimen does not propose weakening platform policy.
+The [new evaluation README](../local-lab-big-bang/README.md) links shared,
+profile and named-cluster values, explicit file selections, and inspected
+per-cluster outer/child render artifacts. The two clusters select the same
+illustrative `il2` profile. Cluster overrides retain the one/two-replica UI
+precedence example. These are **not deployment profiles**: target, four-app
+integration, identity, admission/network policy, TLS, resource sizing and secret
+delivery are incomplete. No root enrollment or installer is supplied.
 
-Common values set `addons.headlamp.values.upstream.replicaCount: 1`, disable
-upstream cluster-admin binding, and leave unsafe shared-SA authentication false.
-Lab overrides only domain and one replica; physical overrides domain and two
-replicas. Two is an illustration, not an HA or sizing recommendation.
+The specimen now renders Headlamp plus a platform-owned OpenBao extra package;
+Keycloak and portal remain candidate scope, not claimed rendered integrations.
+Unneeded Big Bang packages (including mesh, monitoring, Vault, and metrics-server
+`auto`) are explicitly disabled. OpenBao injector and Headlamp wait Job are also
+disabled. Network policy disabled in this render specimen does not propose
+weakening any platform policy. A deployable profile must supply its reviewed
+replacement and all required flows.
 
-Equivalent ordered local commands with an already installed Helm 3.19.0 and
-the exact research checkout (no cluster access):
-
-```sh
-helm lint /tmp/perkforge-bigbang-3.35.1/chart --kube-version 1.36.5 \
-  -f docs/examples/bigbang-flux/common.yaml.example \
-  -f docs/examples/bigbang-flux/lab.yaml.example
-helm template bigbang /tmp/perkforge-bigbang-3.35.1/chart \
-  --namespace bigbang --kube-version 1.36.5 \
-  -f docs/examples/bigbang-flux/common.yaml.example \
-  -f docs/examples/bigbang-flux/lab.yaml.example > /tmp/lab.yaml
-# Repeat with physical.yaml.example; compare each cluster before/after a change.
-```
-
-**Locally rendered:** Helm lint and both outer chart renders passed. The pinned
-Headlamp package `0.45.0-bb.1` (commit
-`f8a2b6c9b47edd9c86307ed40c3e9dd959d9bd8f`) includes vendored dependencies.
-Its child chart was also rendered using the outer Secret's ordered effective
-values. Deployment replicas were respectively 1 and 2; both rendered zero
-ClusterRoleBindings. These observations verify values flow, not tenant access.
-Hook resources still need review; package defaults include a wait Job and its
-egress policy. No bootstrap, installer, admission call or cluster check ran.
+**Locally rendered:** Helm 3.19.0 lint and both outer chart renders passed for
+Big Bang 3.35.1. Pinned Headlamp `0.45.0-bb.1` and official OpenBao `0.30.6`
+child charts were rendered using their generated values Secrets. Headlamp
+replicas are 1/2 with zero ClusterRoleBindings. OpenBao has a 10 GiB PVC template
+and unbudgeted server resources in the specimen; these are findings, not
+approved sizing. See the README for exact commands, artifact inventory and
+remaining gates. No full four-app resource budget or live validation exists.
 
 For a future approved implementation, local checks should render the bootstrap,
 outer chart and every enabled pinned child chart; validate schema and policies,

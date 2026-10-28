@@ -1,0 +1,501 @@
+---
+# Source: bigbang/templates/headlamp/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: headlamp
+  labels:
+    app.kubernetes.io/component: core
+    app.kubernetes.io/instance: bigbang
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/part-of: bigbang
+    app.kubernetes.io/version: 3.35.1
+    helm.sh/chart: bigbang-3.35.1
+    istio-injection: disabled
+    meta.helm.sh/release-name: bigbang
+    meta.helm.sh/release-namespace: bigbang
+---
+# Source: bigbang/templates/package/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openbao
+  labels:
+    app.kubernetes.io/instance: bigbang
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: openbao
+    app.kubernetes.io/part-of: bigbang
+    app.kubernetes.io/version: 3.35.1
+    helm.sh/chart: bigbang-3.35.1
+---
+# Source: bigbang/templates/headlamp/values.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bigbang-headlamp-values
+  namespace: bigbang
+type: generic
+stringData:
+  common: |
+    istio:
+      ambient:
+        enabled: false
+      authorizationPolicies:
+        enabled: false
+        generateFromNetpol: false
+      enabled: false
+      injection: enabled
+      sidecar:
+        enabled: false
+    networkPolicies:
+      egress:
+        definitions:
+          database-subnets:
+            ports:
+            - port: 5432
+              protocol: TCP
+            to:
+            - ipBlock:
+                cidr: 192.168.0.0/16
+            - ipBlock:
+                cidr: 172.16.0.0/12
+            - ipBlock:
+                cidr: 10.0.0.0/8
+          kafka-subnets:
+            ports:
+            - port: 9092
+              protocol: TCP
+            - port: 9093
+              protocol: TCP
+            to:
+            - ipBlock:
+                cidr: 0.0.0.0/0
+          kubeAPI:
+            to:
+            - ipBlock:
+                cidr: 0.0.0.0/0
+                except:
+                - 169.254.169.254/32
+          redis-subnets:
+            ports:
+            - port: 6379
+              protocol: TCP
+            to:
+            - ipBlock:
+                cidr: 192.168.0.0/16
+            - ipBlock:
+                cidr: 172.16.0.0/12
+            - ipBlock:
+                cidr: 10.0.0.0/8
+          sso:
+            to:
+            - ipBlock:
+                cidr: 0.0.0.0/0
+          storage-subnets:
+            ports:
+            - port: 443
+              protocol: TCP
+            to:
+            - ipBlock:
+                cidr: 0.0.0.0/0
+        from:
+          headlamp:
+            to:
+              definition:
+                kubeAPI: true
+                sso: false
+              k8s:
+                tempo/tempo:9411: false
+      enabled: false
+      hbonePortInjection:
+        enabled: false
+      ingress:
+        definitions:
+          kubeAPI:
+            from:
+            - ipBlock:
+                cidr: 192.168.0.0/16
+            - ipBlock:
+                cidr: 172.16.0.0/12
+            - ipBlock:
+                cidr: 10.0.0.0/8
+          load-balancer-subnets:
+            from:
+            - ipBlock:
+                cidr: 192.168.0.0/16
+            - ipBlock:
+                cidr: 172.16.0.0/12
+            - ipBlock:
+                cidr: 10.0.0.0/8
+        to:
+          headlamp:4466:
+            from:
+              k8s:
+                monitoring-monitoring-prometheus-blackbox-exporter@monitoring/prometheus-blackbox-exporter: false
+  defaults:
+    |-
+      bbtests:
+        cypress:
+          envs:
+            cypress_keycloak_test_enable: "false"
+            cypress_keycloak_url: https://keycloak.lab.example.invalid/
+            cypress_tnr_password: tnr_w!G33ZyAt@C8
+            cypress_tnr_username: cypress
+            cypress_url: https://headlamp.lab.example.invalid
+      domain: lab.example.invalid
+      istio:
+        ambient:
+          enabled: false
+        authorizationPolicies:
+          enabled: false
+          generateFromNetpol: false
+        enabled: false
+        injection: enabled
+        sidecar:
+          enabled: false
+      networkPolicies:
+        egress:
+          definitions:
+            database-subnets:
+              ports:
+              - port: 5432
+                protocol: TCP
+              to:
+              - ipBlock:
+                  cidr: 192.168.0.0/16
+              - ipBlock:
+                  cidr: 172.16.0.0/12
+              - ipBlock:
+                  cidr: 10.0.0.0/8
+            kafka-subnets:
+              ports:
+              - port: 9092
+                protocol: TCP
+              - port: 9093
+                protocol: TCP
+              to:
+              - ipBlock:
+                  cidr: 0.0.0.0/0
+            kubeAPI:
+              to:
+              - ipBlock:
+                  cidr: 0.0.0.0/0
+                  except:
+                  - 169.254.169.254/32
+            redis-subnets:
+              ports:
+              - port: 6379
+                protocol: TCP
+              to:
+              - ipBlock:
+                  cidr: 192.168.0.0/16
+              - ipBlock:
+                  cidr: 172.16.0.0/12
+              - ipBlock:
+                  cidr: 10.0.0.0/8
+            sso:
+              to:
+              - ipBlock:
+                  cidr: 0.0.0.0/0
+            storage-subnets:
+              ports:
+              - port: 443
+                protocol: TCP
+              to:
+              - ipBlock:
+                  cidr: 0.0.0.0/0
+          from:
+            headlamp:
+              to:
+                definition:
+                  kubeAPI: true
+                  sso: false
+                k8s:
+                  tempo/tempo:9411: false
+        enabled: false
+        hbonePortInjection:
+          enabled: false
+        ingress:
+          definitions:
+            kubeAPI:
+              from:
+              - ipBlock:
+                  cidr: 192.168.0.0/16
+              - ipBlock:
+                  cidr: 172.16.0.0/12
+              - ipBlock:
+                  cidr: 10.0.0.0/8
+            load-balancer-subnets:
+              from:
+              - ipBlock:
+                  cidr: 192.168.0.0/16
+              - ipBlock:
+                  cidr: 172.16.0.0/12
+              - ipBlock:
+                  cidr: 10.0.0.0/8
+          to:
+            headlamp:4466:
+              from:
+                k8s:
+                  monitoring-monitoring-prometheus-blackbox-exporter@monitoring/prometheus-blackbox-exporter: false
+      openshift: false
+      routes:
+        inbound:
+          headlamp:
+            enabled: true
+            gateways:
+            - istio-gateway/public-ingressgateway
+            hosts:
+            - headlamp.lab.example.invalid
+            port: 4466
+            service: headlamp-headlamp
+        outbound:
+          headlamp-bb-tests:
+            enabled: false
+            hosts:
+            - repo1.dso.mil
+          sso:
+            enabled: false
+      upstream:
+        config:
+          oidc:
+            secret:
+              create: false
+        image:
+          pullPolicy: IfNotPresent
+        imagePullSecrets: []
+  overlays: |
+    bigbang:
+      rbac:
+        enabled: false
+    upstream:
+      clusterRoleBinding:
+        create: false
+      config:
+        unsafeUseServiceAccountToken: false
+      replicaCount: 1
+    waitJob:
+      enabled: false
+---
+# Source: bigbang/templates/package/values.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openbao-values
+  namespace:
+               bigbang
+
+  labels:
+    app.kubernetes.io/instance: bigbang
+    app.kubernetes.io/version: 3.35.1
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: "bigbang"
+    helm.sh/chart: bigbang-3.35.1
+type: Opaque
+stringData:
+  values.yaml: |-
+
+    injector:
+      enabled: false
+    server:
+      dev:
+        enabled: false
+---
+# Source: bigbang/templates/prometheus-operator-crds/values.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bigbang-prometheus-operator-crds-values
+  namespace: bigbang
+type: generic
+stringData:
+  common: |
+    {}
+  defaults:
+    '{}'
+  overlays: |
+    {}
+---
+# Source: bigbang/templates/headlamp/gitrepository.yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: headlamp
+  namespace: bigbang
+  labels:
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/component: "core"
+    app.kubernetes.io/instance: bigbang
+    app.kubernetes.io/version: 3.35.1
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: "bigbang"
+    helm.sh/chart: bigbang-3.35.1
+spec:
+  interval: 2m
+  url: https://repo1.dso.mil/big-bang/product/packages/headlamp.git
+  ref:
+    tag: 0.45.0-bb.1
+  ignore: |
+    # exclude file extensions
+    /**/*.md
+    /**/*.txt
+    /**/*.sh
+    !/chart/tests/scripts/*.sh
+    !/chart/wait/*.sh
+---
+# Source: bigbang/templates/wrapper/gitrepository.yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: bigbang-wrapper
+  namespace: bigbang
+  labels:
+    app.kubernetes.io/name: bigbang-wrapper
+    app.kubernetes.io/instance: bigbang
+    app.kubernetes.io/version: 3.35.1
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: "bigbang"
+    helm.sh/chart: bigbang-3.35.1
+spec:
+  interval: 2m
+  url: https://repo1.dso.mil/big-bang/product/packages/wrapper.git
+  ref:
+    tag: 0.4.15
+---
+# Source: bigbang/templates/headlamp/helmrelease.yaml
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: headlamp
+  namespace: bigbang
+  labels:
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/component: "core"
+    app.kubernetes.io/instance: bigbang
+    app.kubernetes.io/version: 3.35.1
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: "bigbang"
+    helm.sh/chart: bigbang-3.35.1
+  annotations:
+    checksum/bigbang-values: b4fbb59469c9d585d0cf67a4b063068ed3aeae9099e3e227eb72025c29457e76
+spec:
+  targetNamespace: headlamp
+
+  chart:
+    spec:
+      chart: ./chart
+      sourceRef:
+        kind: GitRepository
+        name: headlamp
+        namespace: bigbang
+      interval: 5m
+  driftDetection:
+    ignore:
+    - paths:
+      - ""
+      target:
+        kind: Job
+    - paths:
+      - ""
+      target:
+        kind: StatefulSet
+    mode: enabled
+  install:
+    remediation:
+      retries: -1
+  interval: 2m
+  rollback:
+    cleanupOnFail: true
+    timeout: 10m
+  test:
+    enable: false
+  timeout: 10m
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      remediateLastFailure: true
+      retries: 3
+  valuesFrom:
+    - name: bigbang-headlamp-values
+      kind: Secret
+      valuesKey: "common"
+    - name: bigbang-headlamp-values
+      kind: Secret
+      valuesKey: "defaults"
+    - name: bigbang-headlamp-values
+      kind: Secret
+      valuesKey: "overlays"
+---
+# Source: bigbang/templates/package/helmrelease.yaml
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: openbao
+  namespace:
+               bigbang
+
+  labels:
+    app.kubernetes.io/name: openbao
+    app.kubernetes.io/instance: bigbang
+    app.kubernetes.io/version: 3.35.1
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: "bigbang"
+    helm.sh/chart: bigbang-3.35.1
+  annotations:
+    checksum/bigbang-values: 0d9263416a5da95bdac6c74b2b85b693a43847bc880d65da0403ed0af6163b6b
+spec:
+  releaseName: openbao
+  targetNamespace: openbao
+  chart:
+    spec:
+      chart: openbao
+      version: 0.30.6
+      sourceRef:
+        kind: HelmRepository
+        name: openbao-official
+        namespace: bigbang
+      interval: 2m
+      reconcileStrategy: Revision
+  driftDetection:
+    ignore:
+    - paths:
+      - ""
+      target:
+        kind: Job
+    - paths:
+      - ""
+      target:
+        kind: StatefulSet
+    mode: enabled
+  install:
+    remediation:
+      retries: -1
+  interval: 2m
+  rollback:
+    cleanupOnFail: true
+    timeout: 10m
+  test:
+    enable: false
+  timeout: 10m
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      remediateLastFailure: true
+      retries: 3
+  valuesFrom:
+    - name: openbao-values
+      kind: Secret
+      valuesKey: values.yaml
+---
+# Source: bigbang/templates/helm-repository/helmrepo.yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: openbao-official
+  namespace: bigbang
+spec:
+  provider: generic
+  interval: 2m
+  type: default
+  url: https://openbao.github.io/openbao-helm

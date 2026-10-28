@@ -1,0 +1,10 @@
+# IL2 is a selection label only: these are illustrative local UI guardrails,
+# not DoD requirements and not an authorization/compliance claim.
+addons:
+  headlamp:
+    values:
+      upstream:
+        clusterRoleBinding:
+          create: false
+        config:
+          unsafeUseServiceAccountToken: false

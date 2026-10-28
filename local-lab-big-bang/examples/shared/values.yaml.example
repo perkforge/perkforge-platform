@@ -1,5 +1,4 @@
-# Illustration only. All packages disabled except the UI render specimen.
-# This is not a safe deployment profile: identity, ingress, policy and resources are absent.
+# RENDER SPECIMEN ONLY: not a deployable profile or four-app integration.
 domain: shared.invalid
 networkPolicies:
   enabled: false
@@ -55,7 +54,7 @@ certManager:
   enabled: false
 addons:
   metricsServer:
-    enabled: false # Avoid auto-detection conflicting with RKE2 packaged metrics-server.
+    enabled: false
   argocd:
     enabled: false
   authservice:
@@ -104,3 +103,32 @@ addons:
           create: false
         config:
           unsafeUseServiceAccountToken: false
+      waitJob:
+        enabled: false
+helmRepositories:
+- name: openbao-official
+  existingSecret: ''
+  repository: https://openbao.github.io/openbao-helm
+  type: default
+packages:
+  openbao:
+    enabled: true
+    sourceType: helmRepo
+    namespace:
+      name: openbao
+    helmRelease:
+      namespace: bigbang
+    helmRepo:
+      repoName: openbao-official
+      chartName: openbao
+      tag: 0.30.6
+    wrapper:
+      enabled: false
+    bbCommonValues: false
+    passBigBangValues: false
+    values:
+      server:
+        dev:
+          enabled: false
+      injector:
+        enabled: false

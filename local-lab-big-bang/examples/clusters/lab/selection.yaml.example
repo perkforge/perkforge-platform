@@ -1,0 +1,10 @@
+# Descriptive selection, not a Kubernetes or Helm manifest.
+cluster: lab
+impactProfile: il2
+provider: rke2
+target: UNDECIDED
+orderedValues:
+  - ../../shared/values.yaml.example
+  - ../../providers/rke2/values.yaml.example
+  - ../../profiles/il2/values.yaml.example
+  - values.yaml.example

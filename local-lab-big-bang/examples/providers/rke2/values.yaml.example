@@ -1,0 +1,3 @@
+# Provider selection specimen only. No application defaults depend on RKE2.
+# CNI, CSI, API identity and ingress prerequisites are not implemented here.
+{}
