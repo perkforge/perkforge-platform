@@ -5,7 +5,8 @@ injector:
   enabled: false
 server:
   image:
-    repository: quay.io/openbao/openbao
+    registry: quay.io
+    repository: openbao/openbao
     tag: 2.7.2
   nodeSelector:
     kubernetes.io/hostname: cks-worker
