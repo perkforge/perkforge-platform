@@ -1,0 +1,27 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata: {name: bigbang, namespace: bigbang}
+spec:
+  valuesFrom:
+  - {kind: ConfigMap, name: values-shared, valuesKey: values.yaml}
+  - {kind: ConfigMap, name: values-keycloak, valuesKey: values.yaml}
+  - {kind: ConfigMap, name: values-keycloak, valuesKey: database.yaml}
+  - {kind: ConfigMap, name: values-provider, valuesKey: values.yaml}
+  - {kind: ConfigMap, name: values-impact, valuesKey: values.yaml}
+  - {kind: ConfigMap, name: values-cluster, valuesKey: values.yaml}
+  - {kind: ConfigMap, name: values-identity, valuesKey: values.yaml}
+  postRenderers:
+  - kustomize:
+      patches:
+      - target: {kind: Namespace, name: headlamp}
+        patch: |-
+          $patch: delete
+          apiVersion: v1
+          kind: Namespace
+          metadata: {name: headlamp}
+      - target: {kind: Namespace, name: keycloak}
+        patch: |-
+          $patch: delete
+          apiVersion: v1
+          kind: Namespace
+          metadata: {name: keycloak}

@@ -13,6 +13,9 @@ resource budget. Flux owns GitOps for the new stack, without Fleet reconciliatio
 
 For the first private Big Bang application test, see the separately gated
 [local Headlamp stage](examples/stages/local-headlamp/README.md).
+The next separately gated [local identity trial](examples/stages/local-identity/README.md)
+adds retained PostgreSQL, Keycloak HTTPS and scoped Headlamp login; publishing it
+does not change the running stage or the dev profile.
 
 ## Find the entrypoint
 

@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: keycloak-installer, namespace: bigbang}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: keycloak-workload-installer, namespace: keycloak}
+rules:
+- apiGroups: ['']
+  resources: [services, serviceaccounts]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [apps]
+  resources: [statefulsets]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [policy]
+  resources: [poddisruptionbudgets]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: ['']
+  resources: [pods, persistentvolumeclaims]
+  verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: keycloak-workload-installer, namespace: keycloak}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: keycloak-workload-installer}
+subjects:
+- {kind: ServiceAccount, name: keycloak-installer, namespace: bigbang}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: keycloak-release-storage, namespace: bigbang}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: headlamp-release-storage}
+subjects:
+- {kind: ServiceAccount, name: keycloak-installer, namespace: bigbang}
