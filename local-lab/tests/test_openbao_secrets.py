@@ -113,6 +113,7 @@ class Rendering(unittest.TestCase):
         objects=self.chart('openbao','OPENBAO_CHART','openbao','secrets-openbao')
         sts=next(x for x in objects if x and x['kind']=='StatefulSet')
         self.assertEqual(sts['spec']['replicas'],1)
+        self.assertEqual(sts['spec']['template']['spec']['containers'][0]['image'],'quay.io/openbao/openbao:2.7.2')
         self.assertEqual({x['metadata']['name'] for x in sts['spec']['volumeClaimTemplates']},{'data','audit'})
         config=next(x for x in objects if x and x['kind']=='ConfigMap')['data']['extraconfig-from-values.hcl']
         self.assertIn('storage "raft"',config)
@@ -179,6 +180,8 @@ class StaticContract(unittest.TestCase):
         self.assertEqual(route['spec']['routes'][0]['services'],[{'name':'openbao','port':8200}])
         policies=[x for x in objects if x['kind']=='NetworkPolicy']
         self.assertEqual(len(policies),2)
+        support=yaml.safe_load((ROOT/'local-lab/fleet/bundles/openbao-support/fleet.yaml').read_text())
+        self.assertTrue(support['helm']['takeOwnership'])
         for policy in policies:
             self.assertEqual(policy['spec']['policyTypes'],['Ingress','Egress'])
             for rule in policy['spec']['egress']:
