@@ -60,3 +60,26 @@ run live read-after-write and a second idempotence pass during approved setup.
 References: [Ansible URI](https://docs.ansible.com/projects/ansible/latest/collections/ansible/builtin/uri_module.html),
 [no_log limitations](https://docs.ansible.com/projects/ansible/latest/reference_appendices/logging.html),
 [maintained Keycloak module considered](https://docs.ansible.com/projects/ansible/latest/collections/community/general/keycloak_client_module.html).
+
+## Platform group contract
+
+The accepted desired hierarchy is in `group-definitions.yaml`: `/platform` with
+children `/platform/admins` and `/platform/developers`. Definitions are not
+consumed by the live configuration playbook yet: no groups, memberships or new
+privilege mappings are created implicitly. A named enrollment decision and
+reviewed group lifecycle action are required before creation/grants.
+
+The dedicated OpenBao client maps Keycloak membership into a `groups` claim with
+full paths, in ID tokens and userinfo. Each app authorizes exact child paths:
+
+| Group | Current/proposed app authorization |
+|---|---|
+| `/platform` | Organizational parent only; no broad privileges |
+| `/platform/admins` | Existing reviewed OpenBao `platform` role, with platform and initially tenant-secret policies; effective only after explicitly approved membership |
+| `/platform/developers` | No OpenBao secret privilege or other app role assigned |
+
+Rancher, Harbor, Trivy-related interfaces and future apps require separate
+explicit mappings. These groups do not imply Kubernetes cluster-admin,
+Keycloak realm-admin or Fleet deployment authority. Do not introduce a blanket
+realm role or map all descendants of `/platform` to admin. Existing tenant paths
+such as `/tenants/home/admins` remain separate from platform groups.

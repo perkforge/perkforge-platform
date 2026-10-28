@@ -1,0 +1,10 @@
+# Desired hierarchy accepted by the user; no members or effective grants.
+# This file is intentionally not consumed by configure.yaml's live API tasks.
+platform_group_definitions:
+- name: platform
+  path: /platform
+  children:
+  - name: admins
+    path: /platform/admins
+  - name: developers
+    path: /platform/developers

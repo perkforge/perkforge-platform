@@ -54,6 +54,7 @@ class PlatformConfigAPI(unittest.TestCase):
                 state['writes'].append((self.command,path))
                 if path=='/kc/admin/realms/perkforge/clients':
                     state['client']={**value,'id':'owned-client'}
+                    state['client']['attributes']['keycloak-default']='preserved'
                     state['mappers']=[{**m,'id':'groups-id'} for m in value['protocolMappers']]
                     return self.respond(201)
                 if '/protocol-mappers/models/' in path:
@@ -100,6 +101,7 @@ class PlatformConfigAPI(unittest.TestCase):
         self.assertEqual(second.returncode,0,second.stdout+second.stderr)
         self.assertEqual(self.state['writes'],before)
         self.assertIn('changed=0',second.stdout)
+        self.assertEqual(self.state['client']['attributes']['keycloak-default'],'preserved')
         self.assertFalse(any('/users' in path or '/groups' in path or 'role-mappings' in path for _,path in before))
         self.state['client']['attributes']={}
         denied=self.run_play()
