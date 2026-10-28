@@ -134,6 +134,20 @@ class Rendering(unittest.TestCase):
         args=deployment['spec']['template']['spec']['containers'][0]['args']
         self.assertIn('--namespace=tenant-home-portal',args)
 
+    def test_rendered_tcp_route_matches_installed_provider_and_schema(self):
+        import jsonschema
+        objects=[x for x in yaml.safe_load_all(subprocess.check_output(['fleet','test','-N','local',
+            str(ROOT/'local-lab/fleet/bundles/openbao-support')],text=True,env={**os.environ,'KUBECONFIG':'/dev/null'})) if x]
+        route=next(x for x in objects if x['kind']=='IngressRouteTCP')
+        fixture=ROOT/'local-lab/tests/fixtures/openbao'
+        provider=json.loads((fixture/'traefik-provider.json').read_text())
+        ingress_class=next(arg.split('=',1)[1] for arg in provider['providerArgs'] if arg.startswith('--providers.kubernetescrd.ingressClass='))
+        self.assertEqual(route['metadata']['annotations']['kubernetes.io/ingress.class'],ingress_class)
+        self.assertEqual(route['spec']['entryPoints'],['websecure'])
+        self.assertEqual(route['spec']['routes'][0]['match'],'HostSNI(`openbao.local-lab.test`)')
+        self.assertTrue(route['spec']['tls']['passthrough'])
+        jsonschema.validate(route,json.loads((fixture/'ingressroutetcp-v1alpha1.schema.json').read_text()))
+
     def test_explicit_synthetic_enrollment_never_targets_real_pull_secret(self):
         objects=[x for x in yaml.safe_load_all(subprocess.check_output(['fleet','test','-f','enrollments/synthetic.yaml','-N','local',
             str(ROOT/'local-lab/secrets-config')],text=True,env={**os.environ,'KUBECONFIG':'/dev/null'})) if x]
