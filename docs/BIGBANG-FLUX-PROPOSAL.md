@@ -61,6 +61,98 @@ controllers. Avoid choosing a different lifecycle owner solely to obtain a UI.
 
 ## Small values files, explicit precedence
 
+### Bootstrap: how the first reconciliation starts
+
+The user's previous `run.sh` pattern fits the native design: apply a small seed,
+then let controllers follow Git. There are two different objects called
+Kustomization. Local `kustomization.yaml`
+(`kustomize.config.k8s.io/v1beta1`) tells Kustomize how to build YAML; it has no
+reconciliation loop. A Flux `Kustomization`
+(`kustomize.toolkit.fluxcd.io/v1`) is a cluster custom resource instructing a
+controller to fetch a source artifact, build a path and reconcile it repeatedly.
+`GitRepository` is another CR, watched by source-controller. Neither works until
+its CRD and controller exist.
+
+Proposed sequence for a future approved clean-cluster evaluation:
+
+1. **Ansible prepares the substrate.** Provision RHEL/RKE2, networking, DNS,
+   storage prerequisites and the reviewed Kubernetes API authentication. Establish
+   an attended bootstrap administrator path independent of in-cluster Keycloak,
+   OpenBao or Headlamp. Their own installation must not depend on their already
+   being available. Confirm the intended cluster identity before any write.
+2. **Seed only the prerequisites for pulling desired state.** Create the reviewed
+   namespaces, registry pull access and source authentication/decryption material
+   through the separately approved secret procedure. A GitRepository's
+   `secretRef` resolves in its own namespace. Separate registry image-pull access
+   from Git read access. Use per-cluster, least-privilege credentials; do not make
+   steady-state Git read access depend on a write-capable bootstrap token. ESO
+   cannot deliver the credentials required to install/authenticate ESO itself.
+3. **Install pinned Flux CRDs and controllers.** Use the exact selected
+   release's `base/flux`, with the reviewed tenancy settings and platform
+   identities, and wait for CRDs Established and controllers Available. This is
+   the chicken-and-egg seed; a Flux CR cannot install the controller needed to
+   interpret that same CR on an empty cluster. The research pin is 3.35.1 as
+   recorded above. Do not substitute moving upstream manifests.
+4. **Apply the root source and Flux Kustomization.** The source points to the
+   protected environment repository and the root selects only
+   `clusters/lab` or `clusters/physical`. It references the source and an explicit
+   platform deployer identity. Source Ready must precede successful path
+   reconciliation. Local Kustomize composition produces the root objects; the
+   Flux Kustomization then performs recurring reconciliation. The two clusters
+   receive separate roots and secrets, not a root that writes both clusters.
+5. **Reconcile Big Bang and then its children.** The cluster root applies the
+   `bigbang` namespace, ordered values ConfigMaps/Secrets, pinned Big Bang
+   GitRepository and Big Bang HelmRelease. Helm-controller installs that chart;
+   its rendered child GitRepositories/HelmReleases fetch the pinned packages and
+   install their charts. Model prerequisite stages with Flux `dependsOn` plus
+   explicit health checks/`wait`, and child release dependencies where needed.
+   YAML order alone is not a readiness barrier; an outer chart installing CRs
+   does not mean the child applications are healthy. Required milestones are
+   source artifact → root apply → outer release → child releases → workloads →
+   functional/security checks. Headlamp comes after API identity/RBAC, ingress
+   and TLS; it is not required to bootstrap the cluster.
+6. **Hand controller ownership to Git explicitly.** The pinned Big Bang
+   [self-management workflow](https://repo1.dso.mil/big-bang/bigbang/-/blob/3.35.1/docs/concepts/git-ops-workflow.md)
+   allows a `flux-components` Flux Kustomization to reconcile the same controller
+   manifests after seeding. Align its source pin with Big Bang. Review field
+   ownership, existing apply managers and pruning before handoff; the bootstrap
+   tool then stops applying controller manifests during ordinary runs. Keep
+   either this Flux self-management path or another deliberately chosen lifecycle
+   owner, never both. The small Ansible run is not an additional reconciler.
+
+Prefer a **small Ansible bootstrap playbook** because it matches the existing
+host workflow: validate inputs, use native manifest application, check bounded
+readiness and report the first failed stage. A thin `run.sh` can remain a
+convenient entrypoint invoking that playbook with a named inventory. A shell-only
+seed is also viable if it does little more than build/apply the reviewed seed
+and wait. Avoid duplicate bootstrap implementations, custom value generation,
+background retry loops or an imperative script deploying every child chart.
+These are proposed responsibilities, not a supplied runnable installer.
+
+For recovery/re-runs, stable names and identical reviewed inputs allow declarative
+apply and Flux reconciliation to resume after partial failure. Idempotence is
+not permission to overwrite drift or ignore failed hooks. Check the failed
+layer's conditions first; preserve existing secrets and release/data ownership,
+reject a different cluster/pin/owner and do not delete/reinstall or rotate secrets
+automatically. A broken controller may require the documented break-glass
+administrator to reapply its last reviewed pinned seed; a working controller
+normally recovers through a reviewed Git correction. Pruning, CRD removal,
+namespace deletion and stateful Helm rollback need explicit recovery decisions.
+Protect Nextcloud volumes and test restores separately. No bootstrap or recovery
+step described here has been run against a cluster.
+
+This walkthrough is source-verified against the pinned Big Bang
+[first deployment guide](https://repo1.dso.mil/big-bang/bigbang/-/blob/3.35.1/docs/getting-started/first-deployment.md)
+and bootstrap manifests, with Flux's
+[bootstrap](https://fluxcd.io/flux/installation/bootstrap/generic-git-server/) and
+[Kustomization dependencies](https://fluxcd.io/flux/components/kustomize/kustomizations/#dependencies)
+as references. Exact root manifests, secret bootstrap and recovery behavior need
+future implementation review and live validation. Flux's `bootstrap git` is a
+separate alternative that can also push repository files; it is not an extra
+step to run on top of this seed or authorization to write repository credentials.
+
+### Values contract
+
 The pinned [configuration guide](https://repo1.dso.mil/big-bang/bigbang/-/blob/3.35.1/docs/configuration/index.md)
 and [base HelmRelease](https://repo1.dso.mil/big-bang/bigbang/-/blob/3.35.1/base/helmrelease.yaml)
 show the outer sequence: chart defaults → optional Terraform Secret → common
