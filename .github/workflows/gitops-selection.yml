@@ -82,8 +82,15 @@ jobs:
       env:
         ANSIBLE_LOCAL_TEMP: ${{ runner.temp }}/selection-ansible
       run: ansible-playbook -i local-lab-big-bang/examples/ansible/inventory.yaml local-lab-big-bang/examples/ansible/bootstrap.yaml --syntax-check
+    - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+      with:
+        version: v3.19.0
+    - name: Fetch checksummed public render fixtures only
+      run: python3 local-lab-big-bang/tests/fetch_preflight_sources.py "$RUNNER_TEMP/minimal-sources"
     - name: Validate declarative context across the pinned review chain
       env:
+        PREFLIGHT_SOURCES_DIR: ${{ runner.temp }}/minimal-sources
+        CAPACITY_REPORT_DIR: ${{ runner.temp }}/minimal-inventory
         ENROLLMENT_CHECKOUT: ${{ github.workspace }}/.inputs/enrollment
         TENANT_APP_CHECKOUT: ${{ github.workspace }}/.inputs/app
       run: python3 -m unittest discover -s local-lab-big-bang/tests -v

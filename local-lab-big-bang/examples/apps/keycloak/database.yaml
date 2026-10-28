@@ -1,0 +1,33 @@
+# The exact chart/image are locked by Keycloak 7.3.2-bb.1's vendored dependency.
+addons:
+  keycloak:
+    values:
+      postgresql:
+        enabled: true
+        global:
+          postgresql:
+            auth:
+              password: ''
+              postgresPassword: ''
+              existingSecret: keycloak-database-existing
+              secretKeys:
+                adminPasswordKey: postgres-password
+                userPasswordKey: password
+        primary:
+          resourcesPreset: none
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          # Do not assume Bitnami initialization marker files for the native image.
+          customReadinessProbe:
+            exec:
+              command: [/bin/sh, -ec, 'exec pg_isready -U keycloak -d keycloak -h 127.0.0.1 -p 5432']
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          persistence:
+            size: 4Gi
