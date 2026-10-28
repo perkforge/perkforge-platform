@@ -2,6 +2,7 @@
 import copy
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -22,6 +23,14 @@ def build(path):
     return [obj for obj in yaml.safe_load_all(output) if obj]
 
 
+def release_for(source, evidence):
+    assert source['spec']['ref'] == {'tag': evidence['tag']}
+    assert re.fullmatch(r'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', evidence['tag'])
+    assert re.fullmatch(r'[0-9a-f]{40}', evidence['resolvedCommit'])
+    assert source['spec']['url'] == f"https://github.com/{evidence['repository']}.git"
+    return evidence
+
+
 def context(obj):
     annotations = obj["metadata"]["annotations"]
     return {key: annotations[PREFIX + key] for key in KEYS}
@@ -40,7 +49,14 @@ class SelectionContractTests(unittest.TestCase):
         self.assertTrue(parent["spec"].get("serviceAccountName"))
         head = subprocess.check_output(
             ["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True).strip()
-        self.assertEqual(source["spec"]["ref"]["commit"], head)
+        evidence_root = EXAMPLES.parents[1] if checkout == self.enrollment else self.enrollment
+        name = "enrollment" if checkout == self.enrollment else "portal"
+        evidence = json.loads((evidence_root / "release-evidence.json").read_text())["dependencies"][name]
+        release_for(source, evidence)
+        self.assertEqual(head, evidence["resolvedCommit"])
+        resolved = subprocess.check_output(
+            ["git", "-C", str(checkout), "rev-parse", evidence["tag"] + "^{commit}"], text=True).strip()
+        self.assertEqual(resolved, head)
         origin = subprocess.check_output(
             ["git", "-C", str(checkout), "remote", "get-url", "origin"], text=True).strip()
         self.assertEqual(source["spec"]["url"].removesuffix(".git"), origin.removesuffix(".git"))
@@ -104,12 +120,29 @@ class SelectionContractTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self.follow(bad, source, self.enrollment)
 
-    def test_unmatched_review_revision_fails(self):
+    def test_unmatched_release_tag_or_commit_ref_fails(self):
         parent, source = self.platform_selection("dev")
-        bad = copy.deepcopy(source)
-        bad["spec"]["ref"]["commit"] = "0" * 40
-        with self.assertRaises(AssertionError):
-            self.follow(parent, bad, self.enrollment)
+        for ref in ({"tag": "v99.0.0"}, {"branch": "main"},
+                    {"tag": "v0.1.1", "commit": "0" * 40}):
+            bad = copy.deepcopy(source)
+            bad["spec"]["ref"] = ref
+            with self.assertRaises(AssertionError):
+                self.follow(parent, bad, self.enrollment)
+
+    def test_bootstrap_rejects_bad_tags_or_evidence_before_api_work(self):
+        for tag in ("main", "v99.0.0"):
+            with self.subTest(tag=tag), tempfile.TemporaryDirectory() as directory:
+                args = {"bootstrap_verify_release": True, "config_tag": tag,
+                        "config_release_evidence": str(EXAMPLES.parent / "tests/fixtures/platform-v0.1.0.json")}
+                result = subprocess.run(
+                    ["ansible-playbook", "-i", str(EXAMPLES / "ansible/inventory.yaml"),
+                     str(EXAMPLES / "ansible/bootstrap.yaml"), "--limit", "local", "-e", json.dumps(args)],
+                    text=True, capture_output=True,
+                    env={**os.environ, "ANSIBLE_LOCAL_TEMP": directory, "ANSIBLE_NOCOLOR": "1"})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Assertion failed", result.stdout)
+                self.assertNotIn("Reject missing unpublished", result.stdout)
+                self.assertNotIn("Check target cluster identity", result.stdout)
 
     def test_only_local_and_dev_targets_with_consistent_browser_contracts(self):
         self.assertEqual({p.name for p in (EXAMPLES / "clusters").iterdir()}, {"local", "dev"})
@@ -132,12 +165,13 @@ class SelectionContractTests(unittest.TestCase):
     def test_real_ansible_seed_preserves_selected_context(self):
         inventory = EXAMPLES / "ansible/inventory.yaml"
         hosts = yaml.safe_load(inventory.read_text())["all"]["children"]["bootstrap_clusters"]["hosts"]
+        self.assertEqual(yaml.safe_load(inventory.read_text())["all"]["children"]["bootstrap_clusters"]["vars"]["config_tag"], "UNCONFIGURED")
         template = EXAMPLES / "ansible/seed.yaml.j2"
         for cluster, selected in hosts.items():
             with self.subTest(cluster=cluster), tempfile.TemporaryDirectory() as directory:
                 argument = json.dumps({"msg": "{{ lookup('ansible.builtin.template', '" + str(template) + "') }}"})
                 output = subprocess.check_output(
-                    ["ansible", cluster, "-i", str(inventory), "-m", "ansible.builtin.debug", "-a", argument],
+                    ["ansible", cluster, "-i", str(inventory), "-m", "ansible.builtin.debug", "-a", argument, "-e", "config_tag=v0.1.0"],
                     text=True, env={**os.environ, "ANSIBLE_LOCAL_TEMP": directory, "ANSIBLE_NOCOLOR": "1"},
                 )
                 response, _ = json.JSONDecoder().raw_decode(output[output.index("{"):])
@@ -147,4 +181,6 @@ class SelectionContractTests(unittest.TestCase):
                                                 "environment": selected["deployment_environment"],
                                                 "profile": selected["impact_profile"]})
                 self.assertEqual(root["spec"]["path"], selected["gitops_path"])
+                source = next(obj for obj in documents if obj["kind"] == "GitRepository")
+                self.assertEqual(source["spec"]["ref"], {"tag": "v0.1.0"})
                 self.assertTrue(root["spec"]["suspend"])

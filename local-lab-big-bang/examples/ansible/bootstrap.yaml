@@ -7,7 +7,10 @@
   tasks:
   - name: Report selected entrypoint without contacting Kubernetes
     ansible.builtin.debug:
-      msg: "{{ inventory_hostname }} -> {{ gitops_path }}; environment={{ deployment_environment }}, profile={{ impact_profile }}, apply={{ bootstrap_apply | bool }}"
+      msg: "{{ inventory_hostname }} -> {{ gitops_path }}; environment={{ deployment_environment }}, profile={{ impact_profile }}, tag={{ config_tag }}, apply={{ bootstrap_apply | bool }}"
+  - name: Verify a published configuration release before any gated API work
+    ansible.builtin.include_tasks: verify-release.yaml
+    when: (bootstrap_apply | bool) or (bootstrap_verify_release | bool)
   - name: Bootstrap requires separate live approval and complete target inputs
     when: bootstrap_apply | bool
     block:
@@ -15,7 +18,6 @@
       ansible.builtin.assert:
         that:
         - ansible_play_hosts_all | length == 1
-        - config_commit is match('^[0-9a-f]{40}$')
         - target_kubeconfig != '/UNCONFIGURED/kubeconfig'
         - target_context != 'UNCONFIGURED'
         - expected_cluster_uid != 'UNCONFIGURED'
