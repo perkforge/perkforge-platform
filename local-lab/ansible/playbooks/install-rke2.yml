@@ -61,7 +61,7 @@
 
     - name: Create the local secrets directory
       ansible.builtin.file:
-        path: "{{ inventory_dir }}/../../../.secrets"
+        path: "{{ local_rke2_output_dir | default(inventory_dir + '/../../../.secrets') }}"
         state: directory
         mode: "0700"
       delegate_to: localhost
@@ -71,13 +71,13 @@
     - name: Fetch the RKE2 kubeconfig to the ignored local secrets directory
       ansible.builtin.fetch:
         src: /etc/rancher/rke2/rke2.yaml
-        dest: "{{ inventory_dir }}/../../../.secrets/rke2.yaml"
+        dest: "{{ local_rke2_output_dir | default(inventory_dir + '/../../../.secrets') }}/rke2.yaml"
         flat: true
       no_log: true
 
     - name: Point the local kubeconfig at the control node
       ansible.builtin.replace:
-        path: "{{ inventory_dir }}/../../../.secrets/rke2.yaml"
+        path: "{{ local_rke2_output_dir | default(inventory_dir + '/../../../.secrets') }}/rke2.yaml"
         regexp: https://127\.0\.0\.1:6443
         replace: "https://{{ rke2_node_ip }}:6443"
       delegate_to: localhost
@@ -87,7 +87,7 @@
 
     - name: Restrict local kubeconfig permissions
       ansible.builtin.file:
-        path: "{{ inventory_dir }}/../../../.secrets/rke2.yaml"
+        path: "{{ local_rke2_output_dir | default(inventory_dir + '/../../../.secrets') }}/rke2.yaml"
         mode: "0600"
       delegate_to: localhost
       become: false
@@ -96,12 +96,12 @@
     - name: Fetch the bundled kubectl client
       ansible.builtin.fetch:
         src: /var/lib/rancher/rke2/bin/kubectl
-        dest: "{{ inventory_dir }}/../../../.secrets/kubectl"
+        dest: "{{ local_rke2_output_dir | default(inventory_dir + '/../../../.secrets') }}/kubectl"
         flat: true
 
     - name: Make the local kubectl client executable
       ansible.builtin.file:
-        path: "{{ inventory_dir }}/../../../.secrets/kubectl"
+        path: "{{ local_rke2_output_dir | default(inventory_dir + '/../../../.secrets') }}/kubectl"
         mode: "0755"
       delegate_to: localhost
       become: false

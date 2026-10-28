@@ -2,9 +2,9 @@
 set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-secrets_dir="$repo_root/.secrets"
-iso="$repo_root/images/rhel-10.2-x86_64-dvd.iso"
-image_dir="$repo_root/images"
+secrets_dir="${LOCAL_LAB_STATE_DIR:-$repo_root/.secrets}"
+image_dir="${LOCAL_LAB_IMAGE_DIR:-$repo_root/images}"
+iso="$image_dir/rhel-10.2-x86_64-dvd.iso"
 iso_sha256="e15cb333529c332e76e4b1b946efe3515c99f996546675aec18e8effdf2540a5"
 libvirt_iso="$image_dir/rhel-10.2-x86_64-dvd.iso"
 volume_label="RHEL-10-2-BaseOS-x86_64"
@@ -34,16 +34,18 @@ actual_label="$(blkid -p -s LABEL -o value "$iso" 2>/dev/null || true)"
 mkdir -p "$secrets_dir"
 chmod 0700 "$secrets_dir"
 
-ssh_private_key="$secrets_dir/rke2-lab-ed25519"
+ssh_private_key="${LOCAL_LAB_SSH_KEY:-$secrets_dir/rke2-lab-ed25519}"
 ssh_public_key_file="$ssh_private_key.pub"
 if [[ ! -f "$ssh_private_key" ]]; then
+  [[ "${LOCAL_LAB_REQUIRE_EXISTING_CREDENTIALS:-false}" != true ]] || die "Existing SSH key required."
   ssh-keygen -q -t ed25519 -N '' -C homelab-local-rke2 -f "$ssh_private_key"
 fi
 [[ -f "$ssh_public_key_file" ]] || die "SSH public key missing: $ssh_public_key_file"
 ssh_public_key="$(<"$ssh_public_key_file")"
 
-console_password_file="$secrets_dir/rhel-lab-console-password"
+console_password_file="${LOCAL_LAB_CONSOLE_PASSWORD_FILE:-$secrets_dir/rhel-lab-console-password}"
 if [[ ! -s "$console_password_file" ]]; then
+  [[ "${LOCAL_LAB_REQUIRE_EXISTING_CREDENTIALS:-false}" != true ]] || die "Existing console password file required."
   openssl rand -hex 24 > "$console_password_file"
   chmod 0600 "$console_password_file"
 fi
@@ -238,7 +240,7 @@ for index in 0 1; do
   wait_status=0
   wait_for_ssh "$name" "$ip" "$created_this_run" || wait_status=$?
   if (( wait_status != 0 )); then
-    if [[ "$created_this_run" == true && "$wait_status" == 42 ]]; then
+    if [[ "$created_this_run" == true && "$wait_status" == 42 && "${LOCAL_LAB_RETRY_NEW_INSTALL:-true}" == true ]]; then
       printf 'Discarding only the incomplete new %s install and retrying it once.\n' "$name" >&2
       run_virsh destroy "$name" >/dev/null || die "Could not stop stalled new VM '$name'."
       run_virsh undefine "$name" --nvram --managed-save || die "Could not remove stalled new VM definition '$name'."
