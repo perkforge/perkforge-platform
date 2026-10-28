@@ -10,8 +10,10 @@ spec:
   url: {{ config_repository | to_json }}
   ref:
     tag: {{ config_tag | to_json }}
+{% if config_source_secret | default('cluster-config-read') | length > 0 %}
   secretRef:
-    name: cluster-config-read # Must be provisioned separately, never by this example.
+    name: {{ config_source_secret | default('cluster-config-read') | to_json }}
+{% endif %}
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -30,6 +32,6 @@ spec:
   sourceRef:
     kind: GitRepository
     name: cluster-config
-  serviceAccountName: platform-reconciler # Future reviewed identity, not created here.
+  serviceAccountName: platform-reconciler # Stage foundation provisions the scoped identity separately.
   prune: false # No deletion authority is introduced by this seed.
   wait: true

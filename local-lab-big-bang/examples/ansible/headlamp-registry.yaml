@@ -1,0 +1,35 @@
+# Included only after foundation approval, release and cluster-identity checks.
+- name: Require explicit local credential inputs
+  ansible.builtin.assert:
+    that:
+    - registry_credential_file != '/UNCONFIGURED/registry-credential'
+    - registry_credential_file is match('^/')
+    - registry_username != 'UNCONFIGURED'
+  no_log: true
+- name: Check only the designated credential metadata
+  ansible.builtin.stat:
+    path: '{{ registry_credential_file }}'
+    get_checksum: false
+    get_mime: false
+  register: registry_file
+  no_log: true
+- name: Require an owner-only regular credential file
+  ansible.builtin.assert:
+    that:
+    - registry_file.stat.isreg | default(false)
+    - not (registry_file.stat.islnk | default(false))
+    - registry_file.stat.mode == '0600'
+  no_log: true
+- name: Deliver only the Registry1 pull Secret through private stdin
+  ansible.builtin.command:
+    argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', apply, -f, '-']
+    stdin: '{{ headlamp_pull_secret | to_json }}'
+  vars:
+    headlamp_pull_secret:
+      apiVersion: v1
+      kind: Secret
+      metadata: {name: private-registry, namespace: headlamp}
+      type: kubernetes.io/dockerconfigjson
+      stringData:
+        .dockerconfigjson: "{{ {'auths': {'registry1.dso.mil': {'auth': (registry_username ~ ':' ~ (lookup('ansible.builtin.file', registry_credential_file) | trim)) | b64encode}}} | to_json }}"
+  no_log: true

@@ -1,0 +1,23 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: headlamp-workload-installer, namespace: headlamp}
+rules:
+- apiGroups: ['']
+  resources: [services, serviceaccounts]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [apps]
+  resources: [deployments]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: ['']
+  resources: [pods] # Helm readiness observations, no pod mutation or exec.
+  verbs: [get, list, watch]
+- apiGroups: [apps]
+  resources: [replicasets] # Helm's Deployment readiness checks inspect the new RS.
+  verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: headlamp-workload-installer, namespace: headlamp}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: headlamp-workload-installer}
+subjects:
+- {kind: ServiceAccount, name: headlamp-installer, namespace: bigbang}
