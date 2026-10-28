@@ -1,0 +1,7 @@
+# Two replicas illustrate precedence, not a sizing recommendation.
+domain: physical.example.invalid
+addons:
+  headlamp:
+    values:
+      upstream:
+        replicaCount: 2

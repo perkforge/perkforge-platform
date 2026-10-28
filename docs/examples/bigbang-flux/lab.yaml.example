@@ -1,0 +1,6 @@
+domain: lab.example.invalid
+addons:
+  headlamp:
+    values:
+      upstream:
+        replicaCount: 1

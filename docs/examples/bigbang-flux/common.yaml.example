@@ -1,0 +1,106 @@
+# Illustration only. All packages disabled except the UI render specimen.
+# This is not a safe deployment profile: identity, ingress, policy and resources are absent.
+domain: shared.invalid
+networkPolicies:
+  enabled: false
+istioCNI:
+  enabled: false
+istioCRDs:
+  enabled: false
+gatewayAPI:
+  enabled: false
+istiod:
+  enabled: false
+istioGateway:
+  enabled: false
+istioEgressGateway:
+  enabled: false
+ztunnel:
+  enabled: false
+kiali:
+  enabled: false
+gatekeeper:
+  enabled: false
+kyverno:
+  enabled: false
+kyvernoPolicies:
+  enabled: false
+kyvernoReporter:
+  enabled: false
+elasticsearchKibana:
+  enabled: false
+eckOperator:
+  enabled: false
+fluentbit:
+  enabled: false
+alloy:
+  enabled: false
+loki:
+  enabled: false
+neuvector:
+  enabled: false
+tempo:
+  enabled: false
+prometheusOperatorCRDs:
+  enabled: false
+monitoring:
+  enabled: false
+grafana:
+  enabled: false
+twistlock:
+  enabled: false
+renovate:
+  enabled: false
+certManager:
+  enabled: false
+addons:
+  metricsServer:
+    enabled: false # Avoid auto-detection conflicting with RKE2 packaged metrics-server.
+  argocd:
+    enabled: false
+  authservice:
+    enabled: false
+  minioOperator:
+    enabled: false
+  minio:
+    enabled: false
+  gitlab:
+    enabled: false
+  gitlabRunner:
+    enabled: false
+  sonarqube:
+    enabled: false
+  fortify:
+    enabled: false
+  anchoreEnterprise:
+    enabled: false
+  mattermostOperator:
+    enabled: false
+  mattermost:
+    enabled: false
+  velero:
+    enabled: false
+  keycloak:
+    enabled: false
+  vault:
+    enabled: false
+  harbor:
+    enabled: false
+  thanos:
+    enabled: false
+  externalSecrets:
+    enabled: false
+  mimir:
+    enabled: false
+  headlamp:
+    enabled: true
+    values:
+      bigbang:
+        rbac:
+          enabled: false
+      upstream:
+        replicaCount: 1
+        clusterRoleBinding:
+          create: false
+        config:
+          unsafeUseServiceAccountToken: false
