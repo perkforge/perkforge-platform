@@ -124,7 +124,8 @@ Proposed sequence for a future approved clean-cluster evaluation:
    either this Flux self-management path or another deliberately chosen lifecycle
    owner, never both. The small Ansible run is not an additional reconciler.
 
-Prefer a **small Ansible bootstrap playbook** because it matches the existing
+Prefer a **small, readable Ansible bootstrap playbook**, as requested, rather
+than translating the old shell script line for line. It matches the existing
 host workflow: validate inputs, use native manifest application, check bounded
 readiness and report the first failed stage. A thin `run.sh` can remain a
 convenient entrypoint invoking that playbook with a named inventory. A shell-only
@@ -154,6 +155,13 @@ as references. Exact root manifests, secret bootstrap and recovery behavior need
 future implementation review and live validation. Flux's `bootstrap git` is a
 separate alternative that can also push repository files; it is not an extra
 step to run on top of this seed or authorization to write repository credentials.
+The supported Flux CLI offers a cohesive install-and-self-management workflow
+and reduces hand-maintained seed wiring, but its selected controller version,
+rendered manifests and repository-write behavior must be reviewed. Big Bang’s
+pinned path gives exact alignment with the researched release and Iron Bank
+images. For this investigation, favor Ansible coordinating that pinned path;
+choose CLI bootstrap instead only if its generated result and single lifecycle
+owner meet the same compatibility and security requirements.
 
 ### Values contract
 
