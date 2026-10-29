@@ -70,13 +70,20 @@ Existing `/platform/admins` and `/platform/developers` concepts are retained:
 
 | Identity | Trial grants |
 | --- | --- |
-| admins | Read nodes/namespaces; read workload status and scale workloads in headlamp/keycloak |
+| admins | Built-in Kubernetes `cluster-admin` across the cluster, including all tenant namespaces |
 | developers | Read Pods/Services/Deployment/ReplicaSet/StatefulSet in headlamp only |
 | no-grants test user | Authenticate, but no workload access |
 
-Admins are limited trial operators, **not cluster-admin or Keycloak realm-admin**.
-No user gets Secrets, ConfigMaps, logs, exec, port-forward, RBAC writes, Pod-template
-writes or impersonation. Scaling can disrupt these apps and is a deliberate grant.
+Only the exact authenticated group `oidc:/platform/admins` receives this binding. Platform
+admins are trusted full cluster administrators: Secrets, workload mutation, RBAC
+and impersonation are included. This does not assign a Keycloak realm-admin role;
+Kubernetes cluster-admin can nevertheless obtain service credentials from Secrets.
+The parent `/platform`, developers, tenant groups and Headlamp service account do
+not inherit this grant. Developer/no-grants restrictions above remain unchanged.
+Like the Fleet tenant RoleTemplates, tenant grants remain scoped; this explicit
+platform-admin mapping is separate from those tenant roles. No tenant enrollment
+or membership changes are included.
+
 The paused live trial confirmed a PostgreSQL server-side Secret lookup. The new
 loopback regression additionally finds a second lookup of `keycloak-postgresql`,
 even though an external Secret is selected. A single-name GET rule is therefore
@@ -89,7 +96,15 @@ No UI service-account binding or unsafe-token fallback is enabled. The trusted
 installer can indirectly mount namespace Secrets through workloads; it is never a
 login/tenant identity. No admission or broader tenant-isolation claim is made.
 Restricted namespace discovery may reveal a Headlamp usability gap: test direct
-namespace/deep links; do not grant cluster reads just to remove UI errors.
+namespace/deep links for restricted users; do not broaden their roles for UI errors.
+
+The revised access files are not live until separately approved and applied.
+`kubectl apply` does not prune the former `local-platform-health` binding/role,
+`local-identity-scaler` role or the four `identity-admin-*` namespace bindings.
+They become redundant after the new binding; remove only those named old objects
+in a separately reviewed activation step after verifying the intended group.
+Tests model built-in RBAC offline; live authorization and Firefox checks must be
+repeated after activation. Privileged mutation tests use access reviews only.
 
 ## TLS and API prerequisites
 

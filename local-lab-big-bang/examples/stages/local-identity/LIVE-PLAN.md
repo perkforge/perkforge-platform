@@ -25,6 +25,12 @@ Approve the following **after this PR is merged/released; image gates must pass 
    mounts, config backup and one control-plane restart. Verify API/admin access.
    Apply exact login RBAC, deploy `local-identity`, then add the Headlamp HTTPS
    route. Verify admin/developer/no-grants API matrix and browser behavior.
+   The revised `local-platform-admin` ClusterRoleBinding grants built-in
+   `cluster-admin` only to `oidc:/platform/admins`, including Secret reads and
+   RBAC/impersonation authority. Developer/no-grants and tenant boundaries remain
+   separate. Applying this expansion requires explicit live approval; publication
+   does not grant it. Verify privileged mutation decisions with access reviews,
+   without making test mutations. See README for named redundant RBAC cleanup.
 5. Observe each startup for ten minutes. Capture timestamps, events and sanitized
    failure/cause/fix/verification notes in ignored local evidence, keeping failed
    attempts. Verify app DB role is non-superuser, then a separately planned safe

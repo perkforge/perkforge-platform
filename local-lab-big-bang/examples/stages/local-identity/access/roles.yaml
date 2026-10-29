@@ -1,13 +1,5 @@
-# Trial platform admins observe cluster health and scale identity apps only.
-# Explicitly NOT Kubernetes cluster-admin or Keycloak realm-admin.
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata: {name: local-platform-health}
-rules:
-- apiGroups: ['']
-  resources: [nodes, namespaces]
-  verbs: [get, list, watch]
----
+# Developer reads are granted only by the headlamp namespace RoleBinding.
+# Platform admins use the built-in cluster-admin role, not a custom subset.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata: {name: local-identity-observer}
@@ -18,12 +10,3 @@ rules:
 - apiGroups: [apps]
   resources: [deployments, replicasets, statefulsets]
   verbs: [get, list, watch]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata: {name: local-identity-scaler}
-rules:
-- apiGroups: [apps]
-  resources: [deployments/scale, statefulsets/scale]
-  verbs: [get, patch, update]
-# Scaling cannot rewrite a Pod template to mount a Secret or privileged identity.

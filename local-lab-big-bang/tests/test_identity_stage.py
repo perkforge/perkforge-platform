@@ -218,24 +218,48 @@ class IdentityStageTests(unittest.TestCase):
         self.assertFalse(any(o['kind'] == 'Deployment' for o in self.foundation))
 
     def permitted(self, group, ns, resource, verb, api=''):
+        # Offline contract model, not a Kubernetes authorizer. cluster-admin is
+        # the built-in wildcard role; it is referenced, never redefined here.
         roles = {o['metadata']['name']: o for o in self.access if o['kind'] == 'ClusterRole'}
+        roles['cluster-admin'] = {'rules': [{'apiGroups': ['*'], 'resources': ['*'], 'verbs': ['*']}]}
         for b in self.access:
             if b['kind'] not in ['RoleBinding', 'ClusterRoleBinding']:
                 continue
             if b['kind'] == 'RoleBinding' and b['metadata']['namespace'] != ns:
                 continue
-            if not any(s['name'] == group for s in b['subjects']):
+            if not any(s['kind'] == 'Group' and s['name'] == group for s in b['subjects']):
                 continue
             for rule in roles[b['roleRef']['name']]['rules']:
-                if api in rule['apiGroups'] and resource in rule['resources'] and verb in rule['verbs']:
+                if all(value in rule[key] or '*' in rule[key] for key, value in
+                       [('apiGroups', api), ('resources', resource), ('verbs', verb)]):
                     return True
         return False
 
-    def test_authorization_matrix_and_no_indirect_secret_escalation(self):
+    def test_only_exact_platform_admin_group_gets_builtin_cluster_admin(self):
+        bindings = [o for o in self.access if o['kind'] == 'ClusterRoleBinding']
+        self.assertEqual(len(bindings), 1)
+        self.assertEqual(bindings[0]['roleRef'], {
+            'apiGroup': 'rbac.authorization.k8s.io', 'kind': 'ClusterRole', 'name': 'cluster-admin'})
+        self.assertEqual(bindings[0]['subjects'], [{
+            'kind': 'Group', 'name': 'oidc:/platform/admins', 'apiGroup': 'rbac.authorization.k8s.io'}])
+        self.assertEqual({o['metadata']['name'] for o in self.access if o['kind'] == 'ClusterRole'},
+                         {'local-identity-observer'})
+        self.assertEqual([o['metadata']['name'] for o in self.access if o['kind'] == 'RoleBinding'],
+                         ['identity-developer-observer'])
         self.assertTrue(self.permitted('oidc:/platform/admins', '', 'nodes', 'list'))
-        self.assertTrue(self.permitted('oidc:/platform/admins', 'keycloak', 'statefulsets/scale', 'patch', 'apps'))
+        self.assertTrue(self.permitted('oidc:/platform/admins', '', 'pods', 'list'))
+        for namespace in ['', 'headlamp', 'keycloak', 'kube-system', 'tenant-home']:
+            self.assertTrue(self.permitted('oidc:/platform/admins', namespace, 'secrets', 'get'))
+            self.assertTrue(self.permitted('oidc:/platform/admins', namespace, 'deployments', 'patch', 'apps'))
+            self.assertTrue(self.permitted('oidc:/platform/admins', namespace, 'rolebindings', 'create', 'rbac.authorization.k8s.io'))
+        self.assertTrue(self.permitted('oidc:/platform/admins', '', 'users', 'impersonate'))
+
+    def test_developer_tenant_and_ungranted_boundaries_do_not_inherit_admin(self):
         self.assertTrue(self.permitted('oidc:/platform/developers', 'headlamp', 'pods', 'list'))
-        for group in ['oidc:/platform/admins', 'oidc:/platform/developers', 'oidc:/platform', 'oidc:/tenants/home/admins', 'no-grants']:
+        for group in ['oidc:/platform/developers', 'oidc:/platform', 'oidc:/platform/admins-extra',
+                      '/platform/admins', 'oidc:/tenants/home/admins', 'no-grants']:
+            self.assertFalse(self.permitted(group, '', 'pods', 'list'))
+            self.assertFalse(self.permitted(group, '', 'users', 'impersonate'))
             for ns in ['headlamp', 'keycloak', 'kube-system']:
                 for resource in ['secrets', 'configmaps', 'pods/exec', 'pods/log', 'pods/portforward', 'serviceaccounts/token']:
                     for verb in ['get', 'list', 'create', 'patch']:
@@ -250,6 +274,18 @@ class IdentityStageTests(unittest.TestCase):
                 for rule in o['rules']:
                     self.assertFalse(set(rule['resources']) & {'roles', 'rolebindings', 'namespaces', 'persistentvolumes'})
                     self.assertNotIn('*', rule['resources'] + rule['verbs'])
+
+    def test_live_matrix_matches_full_admin_and_restricted_user_contracts(self):
+        checks = yaml.safe_load((EX / 'identity/auth-checks.yaml').read_text())
+        self.assertTrue(any(c['token'] == 'admin' and c['path'] == '/api/v1/pods' for c in checks['identity_checks']))
+        for check in checks['identity_checks']:
+            if check['token'] == 'admin':
+                self.assertEqual(check['status'], 200)
+        groups = {'admin': 'oidc:/platform/admins', 'developer': 'oidc:/platform/developers', 'no-grants': 'no-grants'}
+        for check in checks['identity_access_checks']:
+            resource = check['resource'] + ('/' + check['subresource'] if 'subresource' in check else '')
+            self.assertEqual(self.permitted(groups[check['token']], check['namespace'], resource,
+                                            check['verb'], check['group']), check['allowed'])
 
     def test_https_routes_exact_selectors_and_no_additional_controller(self):
         routes = [o for o in self.routing if o['kind'] == 'Ingress']

@@ -1,35 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
-metadata: {name: local-platform-health}
-roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: local-platform-health}
-subjects:
-- {kind: Group, name: 'oidc:/platform/admins', apiGroup: rbac.authorization.k8s.io}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata: {name: identity-admin-observer, namespace: headlamp}
-roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: local-identity-observer}
-subjects:
-- {kind: Group, name: 'oidc:/platform/admins', apiGroup: rbac.authorization.k8s.io}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata: {name: identity-admin-observer, namespace: keycloak}
-roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: local-identity-observer}
-subjects:
-- {kind: Group, name: 'oidc:/platform/admins', apiGroup: rbac.authorization.k8s.io}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata: {name: identity-admin-scaler, namespace: headlamp}
-roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: local-identity-scaler}
-subjects:
-- {kind: Group, name: 'oidc:/platform/admins', apiGroup: rbac.authorization.k8s.io}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata: {name: identity-admin-scaler, namespace: keycloak}
-roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: local-identity-scaler}
+metadata: {name: local-platform-admin}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: cluster-admin}
 subjects:
 - {kind: Group, name: 'oidc:/platform/admins', apiGroup: rbac.authorization.k8s.io}
 ---
