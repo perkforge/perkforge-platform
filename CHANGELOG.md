@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/perkforge/perkforge-platform/compare/v0.5.3...v0.6.0) (2026-10-29)
+
+
+### Features
+
+* **gitops:** prepare paused local tenant enrollment stage ([#69](https://github.com/perkforge/perkforge-platform/issues/69)) ([71c3d3b](https://github.com/perkforge/perkforge-platform/commit/71c3d3bff5b698be1a30ccee0b238f1f07e6726f))
+
 ## [0.5.3](https://github.com/perkforge/perkforge-platform/compare/v0.5.2...v0.5.3) (2026-10-29)
 
 
