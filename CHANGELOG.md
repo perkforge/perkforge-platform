@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/perkforge/perkforge-platform/compare/v0.5.0...v0.5.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* allow scoped Keycloak chart Secret lookups ([#61](https://github.com/perkforge/perkforge-platform/issues/61)) ([8250337](https://github.com/perkforge/perkforge-platform/commit/825033708d126bf2220689c913694d0dfe37c77a))
+
 ## [0.5.0](https://github.com/perkforge/perkforge-platform/compare/v0.4.0...v0.5.0) (2026-10-28)
 
 
