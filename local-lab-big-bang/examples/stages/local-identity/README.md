@@ -106,7 +106,10 @@ Provision a dedicated trial CA and leaf certificates externally after approval.
 Keep its private key on the workstation; only leaf keys enter Kubernetes. Browser
 trust is explicit; never click through an unverified issuer certificate. Headlamp
 mounts a public `identity-ca` ConfigMap and uses both its OIDC CA flag and
-`SSL_CERT_FILE` for discovery/refresh. The API mounts the same public CA.
+`SSL_CERT_FILE` for discovery/refresh. The API uses the same public CA through
+`oidc-ca-file`. RKE2 automatically mounts that existing flag-referenced file
+read-only; do not also declare it in `kube-apiserver-extra-mount+`. The explicit
+read-only `/etc/hosts` mount remains necessary for the issuer name mapping.
 
 `../../identity/rke2-oidc.yaml` is a reviewed **input**, not auto-applied by any
 playbook. It appends API arguments/mounts through an RKE2 config drop-in. Before
@@ -120,6 +123,15 @@ explicit hostAlias. Host/browser DNS mappings and public CA trust need approval;
 Restart **only cks-control's rke2-server** after issuer discovery/JWKS work from
 its network context. Expect brief API downtime; worker RKE2 need not restart.
 Verify the generated API static-Pod flags, CA and issuer reachability after restart.
+Also check every container's mount destinations are unique before accepting
+readiness. A prior trial's duplicate explicit CA mount invalidated the API Pod;
+the new drop-in was disabled and the prior configuration recovered. Flux restarted
+during that outage; retained identity data and the existing Headlamp were preserved.
+The regression models the pinned RKE2 auto-file/extra-mount contract and rejects
+the prior input. It does not prove a corrected live restart has succeeded.
+
+Pinned source: [automatic file discovery](https://github.com/rancher/rke2/blob/e1d699d2c3a3d3c1f3247c4f9eb140f20d369776/pkg/podtemplate/podtemplate.go#L280)
+and [static-Pod file injection](https://github.com/rancher/rke2/blob/e1d699d2c3a3d3c1f3247c4f9eb140f20d369776/pkg/executor/staticpod/staticpod.go#L596).
 No API serving certificate or existing admin credential needs replacement.
 
 ## Offline and future live tests

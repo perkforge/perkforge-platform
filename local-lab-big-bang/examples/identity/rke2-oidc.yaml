@@ -11,7 +11,8 @@ kube-apiserver-arg+:
 - oidc-required-claim=azp=headlamp-local
 - oidc-ca-file=/etc/rancher/rke2/identity/ca.crt
 kube-apiserver-extra-mount+:
-- /etc/rancher/rke2/identity/ca.crt:/etc/rancher/rke2/identity/ca.crt:ro
+# RKE2 automatically mounts the existing oidc-ca-file read-only. An explicit
+# mount of the same target produces an invalid duplicate volumeMount.
 # API static Pod must resolve issuer BEFORE API auth starts; host /etc/hosts alone
 # is not inherited by hostNetwork Pods. Mount the reviewed host file read-only.
 - /etc/hosts:/etc/hosts:ro

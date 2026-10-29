@@ -175,6 +175,32 @@ class IdentityStageTests(unittest.TestCase):
         self.assertEqual(flags['oidc-signing-algs'], 'RS256')
         self.assertIn('/etc/hosts:/etc/hosts:ro', api['kube-apiserver-extra-mount+'])
 
+    def test_rke2_automatic_ca_mount_cannot_overlap_explicit_mounts(self):
+        # Source-grounded contract model, not execution of the RKE2 Pod renderer.
+        # v1.36.5+rke2r1 / e1d699d2c3a3d3c1f3247c4f9eb140f20d369776:
+        # pkg/executor/staticpod/staticpod.go writeTemplate calls ReadFiles(args);
+        # pkg/podtemplate/podtemplate.go mounts existing argument files read-only,
+        # then appends ExtraMounts without deduplicating destination paths.
+        provision = yaml.safe_load((ROOT.parent / 'local-lab/ansible/group_vars/all.yml').read_text())
+        self.assertEqual(provision['rke2_version'], 'v1.36.5+rke2r1')
+        config = yaml.safe_load((EX / 'identity/rke2-oidc.yaml').read_text())
+        flags = dict(a.split('=', 1) for a in config['kube-apiserver-arg+'])
+        ca = '/etc/rancher/rke2/identity/ca.crt'
+        self.assertEqual(flags['oidc-ca-file'], ca)
+        extras = config['kube-apiserver-extra-mount+']
+        self.assertEqual(extras, ['/etc/hosts:/etc/hosts:ro'])
+
+        def modeled_targets(explicit):
+            # Precondition: the reviewed CA file exists on the control node.
+            targets = [ca] + [mount.split(':')[1] for mount in explicit]
+            if len(targets) != len(set(targets)):
+                raise ValueError('duplicate API-server mount destination')
+            return targets
+
+        self.assertEqual(modeled_targets(extras), [ca, '/etc/hosts'])
+        with self.assertRaisesRegex(ValueError, 'duplicate'):
+            modeled_targets([ca + ':' + ca + ':ro'] + extras)
+
     def test_worker_budget_and_external_storage(self):
         report = inventory(self.children['headlamp'] + self.children['keycloak'])
         self.assertEqual(report['steadyRequestsMi'], 1152)
