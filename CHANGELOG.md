@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/perkforge/perkforge-platform/compare/v0.6.0...v0.7.0) (2026-10-29)
+
+
+### Features
+
+* **gitops:** select local enrollment activation release ([#71](https://github.com/perkforge/perkforge-platform/issues/71)) ([a025980](https://github.com/perkforge/perkforge-platform/commit/a025980b1f5bef3756e1949d8ef4c764b18195d2))
+
 ## [0.6.0](https://github.com/perkforge/perkforge-platform/compare/v0.5.3...v0.6.0) (2026-10-29)
 
 
