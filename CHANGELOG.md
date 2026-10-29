@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.3](https://github.com/perkforge/perkforge-platform/compare/v0.5.2...v0.5.3) (2026-10-29)
+
+
+### Bug Fixes
+
+* **platform:** grant platform admins full cluster authority ([#65](https://github.com/perkforge/perkforge-platform/issues/65)) ([ba50bcf](https://github.com/perkforge/perkforge-platform/commit/ba50bcf11e6e04b1a1aeaf63f8e95537773e57bb))
+
 ## [0.5.2](https://github.com/perkforge/perkforge-platform/compare/v0.5.1...v0.5.2) (2026-10-29)
 
 
