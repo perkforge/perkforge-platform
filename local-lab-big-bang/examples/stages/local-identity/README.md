@@ -77,6 +77,14 @@ Existing `/platform/admins` and `/platform/developers` concepts are retained:
 Admins are limited trial operators, **not cluster-admin or Keycloak realm-admin**.
 No user gets Secrets, ConfigMaps, logs, exec, port-forward, RBAC writes, Pod-template
 writes or impersonation. Scaling can disrupt these apps and is a deliberate grant.
+The paused live trial confirmed a PostgreSQL server-side Secret lookup. The new
+loopback regression additionally finds a second lookup of `keycloak-postgresql`,
+even though an external Secret is selected. A single-name GET rule is therefore
+insufficient. The installer rule grants `get` on exactly those two names in
+`keycloak`, with no Secret list/watch or other Secret access in that namespace.
+Existing Helm-history permissions in `bigbang` are unchanged. These are trusted
+installer permissions, not UI/user grants. Live application/retry is separate.
+
 No UI service-account binding or unsafe-token fallback is enabled. The trusted
 installer can indirectly mount namespace Secrets through workloads; it is never a
 login/tenant identity. No admission or broader tenant-isolation claim is made.
@@ -107,7 +115,8 @@ credentials; refuse conflicting OIDC/authentication configuration or later overr
 Preserve the admin certificate kubeconfig and take private config backups. Map the
 issuer to 192.168.122.201 in the control host's managed `/etc/hosts` block; the
 read-only static-Pod mount makes that mapping visible to the API. Headlamp has an
-explicit hostAlias. Host/browser DNS mappings and public CA trust need approval.
+explicit hostAlias. Host/browser DNS mappings and public CA trust need approval; see the small
+[workstation instructions](WORKSTATION.md).
 Restart **only cks-control's rke2-server** after issuer discovery/JWKS work from
 its network context. Expect brief API downtime; worker RKE2 need not restart.
 Verify the generated API static-Pod flags, CA and issuer reachability after restart.
@@ -119,7 +128,12 @@ Run the existing full suite with the checksummed sources and dependency checkout
 as documented in [the preflight instructions](../../../preflight/README.md). The new tests render
 both children through real umbrella values, inspect storage/Secret/env/probe wiring,
 verify resource totals and RBAC allow/deny rules, and run all new Ansible plays in
-no-write check mode. They do **not** prove image entrypoint behavior or authentication.
+no-write check mode. A regression runs the actual pinned chart with `--dry-run=server` against a
+loopback synthetic API. It reproduces the first denied lookup, then exposes the
+second chart-name lookup after granting only the external Secret GET. Both
+insufficient policies fail; the two-name rule renders successfully while the absent
+chart-name Secret returns 404. This validates the actual chart request paths
+against a permission model, not a live grant or proof of the Kubernetes authorizer. These tests do not prove image startup or login.
 
 Before live apply, inspect the exact authenticated Keycloak/PostgreSQL image
 manifests/config/digests and PostgreSQL UID/NSS-wrapper/entrypoint contract. No

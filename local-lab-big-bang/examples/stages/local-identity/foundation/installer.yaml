@@ -19,6 +19,10 @@ rules:
 - apiGroups: ['']
   resources: [pods, persistentvolumeclaims]
   verbs: [get, list, watch]
+- apiGroups: ['']
+  resources: [secrets]
+  resourceNames: [keycloak-database-existing, keycloak-postgresql] # Two pinned chart lookups.
+  verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
