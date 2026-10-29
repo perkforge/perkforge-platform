@@ -44,8 +44,8 @@ class SelectionContractTests(unittest.TestCase):
 
     def follow(self, parent, source, checkout):
         selected = context(parent)
-        self.assertTrue(parent["spec"]["suspend"])
-        self.assertTrue(source["spec"]["suspend"])
+        self.assertEqual(parent["spec"]["suspend"], selected["cluster"] != "local")
+        self.assertEqual(source["spec"]["suspend"], selected["cluster"] != "local")
         self.assertTrue(parent["spec"].get("serviceAccountName"))
         head = subprocess.check_output(
             ["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True).strip()
@@ -72,7 +72,7 @@ class SelectionContractTests(unittest.TestCase):
         self.assertTrue(reconcilers)
         for child in reconcilers:
             self.assertEqual(context(child), selected)
-            self.assertTrue(child["spec"]["suspend"])
+            self.assertEqual(child["spec"]["suspend"], selected["cluster"] != "local")
             self.assertTrue(child["spec"].get("serviceAccountName"))
         return objects
 
@@ -106,6 +106,16 @@ class SelectionContractTests(unittest.TestCase):
                 resources = yaml.safe_load(app_root.read_text())["resources"]
                 self.assertIn("../../environments/" + selected["environment"], resources)
                 self.assertIn("../../profiles/" + selected["profile"], resources)
+
+    def test_local_activation_and_dev_pause_cannot_be_silently_flipped(self):
+        for cluster in ('local', 'dev'):
+            parent, source = self.platform_selection(cluster)
+            for which in ('parent', 'source'):
+                bad_parent, bad_source = copy.deepcopy(parent), copy.deepcopy(source)
+                target = bad_parent if which == 'parent' else bad_source
+                target['spec']['suspend'] = not target['spec']['suspend']
+                with self.subTest(cluster=cluster, which=which), self.assertRaises(AssertionError):
+                    self.follow(bad_parent, bad_source, self.enrollment)
 
     def test_cross_repository_environment_profile_and_target_mismatches_fail(self):
         parent, source = self.platform_selection("dev")

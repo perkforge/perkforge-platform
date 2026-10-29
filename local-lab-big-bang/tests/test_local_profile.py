@@ -55,7 +55,7 @@ class LocalProfileTests(unittest.TestCase):
             old = build(Path(directory) / 'local-lab-big-bang/examples/clusters/dev')
             new = build(ROOT / 'examples/clusters/dev')
             # The common enrollment dependency advances; dev workloads/Flux stay identical.
-            for objects, expected in [(old, 'v0.1.1'), (new, 'v0.2.0')]:
+            for objects, expected in [(old, 'v0.1.1'), (new, 'v0.4.0')]:
                 source = next(o for o in objects if o['kind'] == 'GitRepository' and o['metadata']['name'] == 'tenant-enrollments')
                 self.assertEqual(source['spec']['ref'], {'tag': expected})
                 source['spec']['ref'] = {'tag': 'DEPENDENCY-COMPARED-SEPARATELY'}

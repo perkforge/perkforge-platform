@@ -20,13 +20,15 @@ class PortalTrialTests(unittest.TestCase):
         cls.app = Path(os.environ['PORTAL_APP_CHECKOUT'])
         cls.foundation = build(cls.enrollment / 'tenants/portal/foundation')
 
-    def test_generic_platform_stage_preserves_existing_identity_and_pauses_enrollment(self):
+    def test_generic_platform_stage_preserves_existing_identity_and_only_activates_local_enrollment(self):
         original = build(ROOT / 'examples/stages/local-identity')
         new = build(ROOT / 'examples/stages/local-enrollment')
         self.assertEqual([o for o in new if o['metadata']['name'] != 'tenant-enrollments'], original)
         parent = [o for o in new if o['metadata']['name'] == 'tenant-enrollments']
         self.assertEqual({o['kind'] for o in parent}, {'GitRepository', 'Kustomization'})
-        self.assertTrue(all(o['spec']['suspend'] for o in parent))
+        self.assertTrue(all(o['spec']['suspend'] is False for o in parent))
+        dev = build(ROOT / 'examples/enrollments/dev')
+        self.assertTrue(all(o['spec']['suspend'] is True for o in dev))
         self.assertNotIn('secretRef', next(o for o in parent if o['kind']=='GitRepository')['spec'])
         for path in (ROOT / 'examples/enrollments/foundation').glob('*.yaml'):
             self.assertNotIn('portal', path.read_text().lower())

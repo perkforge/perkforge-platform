@@ -2,10 +2,10 @@
   "dependencies": {
     "enrollment": {
       "repository": "perkforge/perkforge-platform-tenants",
-      "tag": "v0.2.0",
-      "resolvedCommit": "78aac34f36268e636b1c030250820fb68d620ce4",
-      "publishedAt": "2026-10-29T17:07:59Z",
-      "releaseUrl": "https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v0.2.0"
+      "tag": "v0.4.0",
+      "resolvedCommit": "51517ff3b773539df64279207e8050706dc41692",
+      "publishedAt": "2026-10-29T18:25:20Z",
+      "releaseUrl": "https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v0.4.0"
     }
   }
 }

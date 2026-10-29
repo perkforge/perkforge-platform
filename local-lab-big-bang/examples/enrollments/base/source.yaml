@@ -9,6 +9,6 @@ spec:
   url: https://github.com/perkforge/perkforge-platform-tenants.git
   ref:
     # Published enrollment release containing portal tag selection.
-    tag: v0.2.0
+    tag: v0.4.0
   secretRef:
     name: tenant-enrollments-read # Reference only; not provisioned.

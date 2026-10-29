@@ -9,3 +9,13 @@ patches:
   patch: |-
     - op: remove
       path: /spec/secretRef
+- target: {kind: GitRepository, name: tenant-enrollments}
+  patch: |-
+    - op: replace
+      path: /spec/suspend
+      value: false
+- target: {kind: Kustomization, name: tenant-enrollments}
+  patch: |-
+    - op: replace
+      path: /spec/suspend
+      value: false

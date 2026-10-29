@@ -53,7 +53,7 @@ class MinimalRenderTests(unittest.TestCase):
             for target, report in cls.reports.items():
                 (Path(output) / (target + '.json')).write_text(json.dumps(report, indent=2) + '\n')
 
-    def test_default_stays_paused_and_preflight_is_exact_allowlist(self):
+    def test_platform_defaults_stay_paused_except_explicit_local_enrollment(self):
         for target, objects in self.objects.items():
             default = {obj['metadata']['name'] for obj in objects['default'] if obj['kind'] == 'HelmRelease'}
             self.assertEqual(default, {'headlamp', 'openbao'})
@@ -61,7 +61,8 @@ class MinimalRenderTests(unittest.TestCase):
             self.assertEqual(selected, {'headlamp', 'keycloak', 'openbao'})
             for obj in objects['root']:
                 if obj['kind'] in ('GitRepository', 'Kustomization', 'HelmRelease'):
-                    self.assertTrue(obj['spec']['suspend'])
+                    enrollment_active = target == 'local' and obj['metadata']['name'] == 'tenant-enrollments'
+                    self.assertEqual(obj['spec']['suspend'], not enrollment_active)
             self.assertEqual(len(self.reports[target]['portal']['workloads']), 1)
 
     def test_real_keycloak_database_pin_connection_and_external_credentials(self):
