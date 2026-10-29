@@ -95,6 +95,9 @@ jobs:
         CAPACITY_REPORT_DIR: ${{ runner.temp }}/minimal-inventory
         ENROLLMENT_CHECKOUT: ${{ github.workspace }}/.inputs/enrollment
         TENANT_APP_CHECKOUT: ${{ github.workspace }}/.inputs/app
+        PORTAL_ENROLLMENT_CHECKOUT: ${{ github.workspace }}/.inputs/enrollment
+        PORTAL_APP_CHECKOUT: ${{ github.workspace }}/.inputs/app
+        RUN_PORTAL_IDENTITY_TESTS: "1"
       run: python3 -m unittest discover -s local-lab-big-bang/tests -v
     - name: Verify tag-aware bootstrap without Kubernetes access
       env:

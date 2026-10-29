@@ -1,0 +1,2 @@
+gitops_path: ./local-lab-big-bang/examples/stages/local-enrollment
+config_source_secret: ''
