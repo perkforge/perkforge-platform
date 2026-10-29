@@ -1,0 +1,81 @@
+- name: Initialize only a new local physical cluster realm after separate approval
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars_files: [../identity/context.yaml]
+  vars:
+    identity_apply: false
+    identity_private_dir: /UNCONFIGURED/identity
+    identity_ca_file: /UNCONFIGURED/identity-ca.crt
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ identity_ca_file }}'
+      follow_redirects: none
+      use_netrc: false
+      use_proxy: false
+      timeout: 20
+  tasks:
+  - name: Refuse another environment or profile
+    ansible.builtin.assert:
+      that:
+      - ansible_play_hosts_all == ['local']
+      - deployment_environment == 'local'
+      - impact_profile == 'il2'
+      - identity_url is match('^https://[^/]+/auth$')
+      - identity_realm == 'perkforge'
+      - identity_client_id == 'headlamp-local'
+      - identity_issuer == identity_url ~ '/realms/' ~ identity_realm
+      - identity_redirect == identity_origin ~ '/oidc-callback'
+      - identity_origin is match('^https://[^/]+$')
+  - name: Safe default and check mode never read credentials or call Keycloak
+    ansible.builtin.debug:
+      msg: 'Realm initialization requested={{ identity_apply | bool }}; check={{ ansible_check_mode }}'
+  - name: Apply only the separately approved new realm
+    when: identity_apply | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - name: Check private inputs without following symlinks
+      ansible.builtin.stat:
+        path: '{{ identity_private_dir }}/{{ item }}'
+        follow: false
+      loop: [bootstrap-password, headlamp-client-secret, admin-test-password, developer-test-password, no-grants-test-password]
+      register: identity_inputs
+    - name: Reject exposed or empty credential files
+      ansible.builtin.assert:
+        that:
+        - item.stat.isreg | default(false)
+        - not (item.stat.islnk | default(false))
+        - item.stat.mode == '0600'
+        - item.stat.pw_name == lookup('ansible.builtin.env', 'USER')
+        - item.stat.size > 0
+      loop: '{{ identity_inputs.results }}'
+    - name: Authenticate existing bootstrap admin over verified HTTPS only
+      ansible.builtin.uri:
+        url: '{{ identity_url }}/realms/master/protocol/openid-connect/token'
+        method: POST
+        body_format: form-urlencoded
+        body:
+          client_id: admin-cli
+          grant_type: password
+          username: local-bootstrap-admin
+          password: "{{ lookup('ansible.builtin.file', identity_private_dir ~ '/bootstrap-password') | trim }}"
+      register: identity_session
+    - name: Inspect realm before any write
+      ansible.builtin.uri:
+        url: '{{ identity_url }}/admin/realms/{{ identity_realm }}'
+        headers: {Authorization: 'Bearer {{ identity_session.json.access_token }}'}
+        status_code: [200, 404]
+      register: identity_existing
+    - name: Refuse existing realm adoption or automatic password resets
+      ansible.builtin.assert:
+        that: identity_existing.status == 404
+        fail_msg: 'Realm exists: use reviewed Admin API changes; never delete/reimport to rerun bootstrap.'
+    - name: Create owned realm and exact client, groups and three trial identities
+      ansible.builtin.uri:
+        url: '{{ identity_url }}/admin/realms'
+        method: POST
+        headers: {Authorization: 'Bearer {{ identity_session.json.access_token }}'}
+        body_format: json
+        body: "{{ lookup('ansible.builtin.template', playbook_dir ~ '/../identity/realm.yaml') | from_yaml }}"
+        status_code: 201
+      changed_when: true

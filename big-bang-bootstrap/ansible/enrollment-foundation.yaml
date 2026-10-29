@@ -1,0 +1,46 @@
+- name: Prepare only generic local enrollment prerequisites after approval
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars:
+    enrollment_foundation_apply: false
+    gitops_path: ./big-bang-bootstrap/stages/local-enrollment
+  tasks:
+  - name: Refuse another environment
+    ansible.builtin.assert:
+      that:
+      - ansible_play_hosts_all == ['local']
+      - deployment_environment == 'local'
+      - impact_profile == 'il2'
+  - name: Default and check mode do not access the cluster
+    ansible.builtin.debug:
+      msg: 'Enrollment prerequisites={{ enrollment_foundation_apply | bool }}'
+  - name: Apply separately approved prerequisites from a clean published checkout
+    when: enrollment_foundation_apply | bool and not ansible_check_mode
+    block:
+    - name: Verify released stage
+      ansible.builtin.include_tasks: verify-release.yaml
+    - name: Read checkout revision
+      ansible.builtin.command: {argv: [git, -C, '{{ playbook_dir }}/../..', rev-parse, HEAD]}
+      register: enrollment_head
+      changed_when: false
+    - name: Inspect checkout cleanliness
+      ansible.builtin.command: {argv: [git, -C, '{{ playbook_dir }}/../..', status, --porcelain]}
+      register: enrollment_dirty
+      changed_when: false
+    - name: Read target UID
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: enrollment_uid
+      changed_when: false
+    - name: Refuse unreviewed source or wrong cluster
+      ansible.builtin.assert:
+        that:
+        - enrollment_head.stdout == config_release.resolvedCommit
+        - enrollment_dirty.stdout | length == 0
+        - expected_cluster_uid != 'UNCONFIGURED'
+        - enrollment_uid.stdout == expected_cluster_uid
+    - name: Apply only generic enrollment identities and root authority
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', apply, -k, '{{ playbook_dir }}/../enrollments/foundation']
+      register: enrollment_result
+      changed_when: "'created' in enrollment_result.stdout or 'configured' in enrollment_result.stdout"

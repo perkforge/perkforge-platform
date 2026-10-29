@@ -1,0 +1,35 @@
+# Ansible-owned; NOT a Flux resource. Retain data on release or PVC deletion.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata: {name: local-identity}
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+allowVolumeExpansion: false
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata: {name: local-keycloak-postgres}
+spec:
+  capacity: {storage: 4Gi} # Advertised capacity; not a directory filesystem quota.
+  volumeMode: Filesystem
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-identity
+  claimRef: {namespace: keycloak, name: keycloak-postgres}
+  local: {path: /UNCONFIGURED/keycloak-data}
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - {key: kubernetes.io/hostname, operator: In, values: [REPLACE_WITH_WORKER_NODE]}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: keycloak-postgres, namespace: keycloak}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-identity
+  volumeName: local-keycloak-postgres
+  resources:
+    requests: {storage: 4Gi}

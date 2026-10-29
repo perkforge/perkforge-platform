@@ -1,0 +1,2 @@
+gitops_path: ./big-bang-bootstrap/stages/local-identity
+config_source_secret: ''

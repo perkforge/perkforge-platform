@@ -7,3 +7,8 @@ images/*.qcow2
 /kubectl.sha256
 ansible/.vault-pass
 ansible/vault-password.txt
+
+/big-bang-bootstrap/evidence/runs/
+**/__pycache__/
+infrastructure/ansible/.vault-pass
+infrastructure/ansible/vault-password.txt

@@ -1,0 +1,4 @@
+# Use the release's supported pinned prerequisite manifests unchanged.
+- name: Select the pinned Flux prerequisite build
+  ansible.builtin.set_fact:
+    flux_manifest_path: '{{ flux_checkout }}/base/flux'

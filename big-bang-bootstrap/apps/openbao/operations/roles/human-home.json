@@ -1,0 +1,26 @@
+{
+  "role_type": "oidc",
+  "user_claim": "sub",
+  "bound_audiences": [
+    "openbao"
+  ],
+  "oidc_scopes": [
+    "openid",
+    "profile"
+  ],
+  "allowed_redirect_uris": [
+    "https://openbao.example.test/ui/vault/auth/oidc/oidc/callback",
+    "http://localhost:8250/oidc/callback"
+  ],
+  "token_ttl": 900,
+  "token_max_ttl": 3600,
+  "token_no_default_policy": false,
+  "bound_claims": {
+    "groups": [
+      "/tenants/home/admins"
+    ]
+  },
+  "token_policies": [
+    "human-home"
+  ]
+}

@@ -1,0 +1,2 @@
+gitops_path: ./big-bang-bootstrap/stages/local-enrollment
+config_source_secret: ''

@@ -1,0 +1,55 @@
+# Disabled local-only trial; dev and shared budgets remain unchanged.
+domain: example.test
+addons:
+  headlamp:
+    values:
+      upstream:
+        replicaCount: 1
+        nodeSelector:
+          kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE
+      routes:
+        inbound:
+          headlamp:
+            hosts:
+            - headlamp-local-il2.example.test
+      bbtests:
+        cypress:
+          envs:
+            cypress_url: https://headlamp-local-il2.example.test
+  keycloak:
+    values:
+      routes:
+        inbound:
+          keycloak:
+            hosts:
+            - keycloak-local-il2.example.test
+      bbtests:
+        cypress:
+          envs:
+            cypress_url: https://keycloak-local-il2.example.test
+      upstream:
+        extraEnv: "- name: KC_HOSTNAME\n  value: keycloak-local-il2.example.test\n"
+        nodeSelector:
+          kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE
+        resources:
+          requests:
+            cpu: 250m
+            memory: 768Mi
+          limits:
+            cpu: '1'
+            memory: 1536Mi
+      postgresql:
+        primary:
+          nodeSelector:
+            kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE
+packages:
+  openbao:
+    values:
+      server:
+        ingress:
+          enabled: false
+          hosts:
+          - host: openbao-local-il2.example.test
+            paths: []
+        nodeSelector:
+          kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE

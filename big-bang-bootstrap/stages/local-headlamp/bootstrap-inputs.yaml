@@ -1,0 +1,3 @@
+# Consumed by existing ansible/bootstrap.yaml with -e @this-file.
+gitops_path: ./big-bang-bootstrap/stages/local-headlamp
+config_source_secret: '' # Public Git read: omit secretRef; never create a PAT.

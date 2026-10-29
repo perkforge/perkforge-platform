@@ -1,0 +1,29 @@
+# Private workload smoke test: no browser exposure or tenant authorization claim.
+domain: example.test
+addons:
+  headlamp:
+    enabled: true
+    flux:
+      serviceAccountName: headlamp-installer
+      storageNamespace: bigbang
+      install:
+        createNamespace: false
+        remediation: {retries: 0, remediateLastFailure: false}
+      upgrade:
+        remediation: {retries: 0, remediateLastFailure: false}
+    values:
+      bigbang:
+        rbac:
+          enabled: false
+          clusterRoleBindings: [] # The pinned template otherwise creates dev-sa.
+      upstream:
+        imagePullSecrets: [{name: private-registry}]
+        replicaCount: 1
+        nodeSelector:
+          kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE
+        resources:
+          requests: {cpu: 100m, memory: 128Mi}
+          limits: {cpu: 500m, memory: 256Mi}
+  keycloak:
+    enabled: false
+# No custom-package or enrollment input is composed into this stage.

@@ -1,0 +1,60 @@
+- name: Configure only OpenBao application APIs
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [vars.yaml]
+  vars:
+    desired_root: "{{ playbook_dir }}/../../apps/openbao/operations"
+    desired_client: "{{ lookup('ansible.builtin.file', desired_root + '/config/keycloak-client.json') | from_json }}"
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: "{{ public_ca_file }}"
+      follow_redirects: none
+      use_netrc: false
+      use_proxy: false
+      timeout: 20
+  tasks:
+    - name: Validate explicit endpoints and dedicated client
+      ansible.builtin.assert:
+        that:
+          - keycloak_url is match('^https://')
+          - openbao_url is match('^https://')
+          - desired_client.clientId == 'openbao'
+          - not desired_client.serviceAccountsEnabled
+          - not desired_client.fullScopeAllowed
+    - name: Explain check mode boundary
+      ansible.builtin.debug:
+        msg: Check mode validates static inputs only; no authentication or API request runs.
+      when: ansible_check_mode
+    - name: Configure the approved APIs
+      when: not ansible_check_mode
+      block:
+        - name: Check private input metadata before reading values
+          ansible.builtin.stat:
+            path: "{{ item }}"
+            follow: false
+          loop:
+            - "{{ keycloak_admin_password_file }}"
+            - "{{ openbao_operator_token_file }}"
+          register: private_inputs
+        - name: Require owned regular mode-600 inputs
+          ansible.builtin.assert:
+            that:
+              - item.stat.exists
+              - item.stat.isreg
+              - not item.stat.islnk
+              - item.stat.mode == '0600'
+              - item.stat.pw_name == lookup('ansible.builtin.env', 'USER')
+          loop: "{{ private_inputs.results }}"
+          no_log: true
+        - name: Read credentials only into protected task memory
+          ansible.builtin.set_fact:
+            keycloak_password: "{{ lookup('ansible.builtin.file', keycloak_admin_password_file) | trim }}"
+            bao_headers:
+              X-Vault-Token: "{{ lookup('ansible.builtin.file', openbao_operator_token_file) | trim }}"
+          no_log: true
+        - name: Reconcile only the dedicated Keycloak client and mapper
+          ansible.builtin.include_tasks: tasks/keycloak.yaml
+        - name: Reconcile only reviewed OpenBao mounts policies and auth
+          ansible.builtin.include_tasks: tasks/openbao.yaml

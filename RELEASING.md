@@ -17,25 +17,13 @@ portal chart/image versions are independent; this does not bump either of those.
 
 ## Published chain and rollout
 
-Portal config `v0.1.0` and enrollment `v0.1.1` are published; the latter selects
-the portal tag. This platform change selects enrollment `v0.1.1` and adds a
-validated `config_tag` bootstrap input. Dependency resolution evidence lives in
-`release-evidence.json`; deployment source YAML contains the version tags.
+Dependency tags and reviewed resolved commits are recorded in `release-evidence.json`. The preceding trial chain is platform v0.7.0 → enrollment v0.4.0 → tenant-app v0.3.0 → portal image v0.3.0; operator-only enrollment fixes are separately released. Do not infer compatibility from version numbers alone.
 
-Merge this feature PR, then review/check/merge the generated platform release PR.
-Verify the actual resulting tag and its source before choosing it as the
-bootstrap input. Existing platform `v0.1.0` is a pre-conversion baseline, used only
-as a read-only preflight fixture; it is not the new chain. No future/nonexistent
-self-tag is committed. Bootstrap defaults remain UNCONFIGURED and apply=false;
-its operator-supplied release metadata is separate from inventory/seed inputs.
-See [the short bootstrap guide](local-lab-big-bang/README.md#select-a-bootstrap-configuration-tag).
+Publish source/image changes first when required, then app configuration → enrollment → platform. Each dependency advance is a reviewed PR using an actually published compatible tag. Verify source contents, paths, cluster/environment/profile context and rendering before adopting it.
 
-For later updates: publish app release → PR/update enrollment tag and evidence →
-publish enrollment release → PR/update platform tag and evidence → publish
-platform release. Consumers must verify published compatible content, not merely
-tag existence. CI verifies both live resolution and exact checked-out contents.
-Keep resolved SHAs in release evidence; do not remove security-pinned Action SHAs
-or Big Bang 3.35.1's separate tag/commit verification. Deployment remains paused.
+The restructuring moves bootstrap paths to `big-bang-bootstrap`. Existing published tags retain old paths and cannot satisfy the new root path. After the feature PR merges, review its generated release PR and verify publication before selecting the new layout. No future tag is committed in inventory. Bootstrap defaults remain UNCONFIGURED and apply=false; actual release evidence is an explicit operator input. See [physical local onboarding](big-bang-bootstrap/README.md#point-local-at-your-physical-cluster). CI's v0.1.0 fixture explicitly uses its historical path; it does not activate the old workflow.
+
+Keep resolved commits in evidence and preserve third-party Action SHA pins and Big Bang's separate tag/commit verification. Never move an existing tag. A source merge/release does not change the running cluster or authorize activation.
 
 ## Verify and preserve a published ref
 
