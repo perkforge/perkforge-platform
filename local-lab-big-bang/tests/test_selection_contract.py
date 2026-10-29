@@ -160,7 +160,7 @@ class SelectionContractTests(unittest.TestCase):
             self.assertFalse(ingress["enabled"])
             self.assertEqual(ingress["hosts"][0]["host"], host("openbao"))
             self.assertEqual(app["portalOrigin"], "https://" + host("portal"))
-            self.assertEqual(app["identity"]["issuer"], "https://" + host("keycloak") + "/realms/household")
+            self.assertEqual(app["identity"]["issuer"], "https://" + host("keycloak") + ("/auth/realms/perkforge" if cluster == "local" else "/realms/household"))
 
     def test_real_ansible_seed_preserves_selected_context(self):
         inventory = EXAMPLES / "ansible/inventory.yaml"

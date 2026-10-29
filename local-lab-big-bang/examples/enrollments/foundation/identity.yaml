@@ -1,0 +1,4 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: tenant-enrollment-admin, namespace: flux-system}
+automountServiceAccountToken: false

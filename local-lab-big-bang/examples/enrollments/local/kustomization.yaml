@@ -4,3 +4,8 @@ namespace: flux-system
 resources:
 - ../base
 - reconcile.yaml
+patches:
+- target: {kind: GitRepository, name: tenant-enrollments}
+  patch: |-
+    - op: remove
+      path: /spec/secretRef

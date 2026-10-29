@@ -54,6 +54,11 @@ class LocalProfileTests(unittest.TestCase):
             subprocess.run(['tar', '-xf', '-', '-C', directory], input=archive, check=True)
             old = build(Path(directory) / 'local-lab-big-bang/examples/clusters/dev')
             new = build(ROOT / 'examples/clusters/dev')
+            # The common enrollment dependency advances; dev workloads/Flux stay identical.
+            for objects, expected in [(old, 'v0.1.1'), (new, 'v0.2.0')]:
+                source = next(o for o in objects if o['kind'] == 'GitRepository' and o['metadata']['name'] == 'tenant-enrollments')
+                self.assertEqual(source['spec']['ref'], {'tag': expected})
+                source['spec']['ref'] = {'tag': 'DEPENDENCY-COMPARED-SEPARATELY'}
             self.assertEqual(old, new)
         self.assertEqual(render_flux(self.sources, ROOT / 'examples', 'pinned'), self.pinned)
 
