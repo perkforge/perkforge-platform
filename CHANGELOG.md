@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/perkforge/perkforge-platform/compare/v0.5.1...v0.5.2) (2026-10-29)
+
+
+### Bug Fixes
+
+* avoid duplicate RKE2 OIDC CA mount ([#63](https://github.com/perkforge/perkforge-platform/issues/63)) ([c6543f1](https://github.com/perkforge/perkforge-platform/commit/c6543f18b7981653d28c6fea4655dbeae1f2a6ee))
+
 ## [0.5.1](https://github.com/perkforge/perkforge-platform/compare/v0.5.0...v0.5.1) (2026-10-29)
 
 
