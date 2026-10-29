@@ -59,6 +59,14 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertEqual(inventory['all']['children']['bootstrap_clusters']['hosts']['local']['gitops_path'],
                          './big-bang-bootstrap/clusters/local')
 
+    def test_cel_step_receives_the_same_pinned_source_fixture_directory(self):
+        check = yaml.load(Path('.github/workflows/gitops-selection.yml').read_text(), Loader=yaml.BaseLoader)
+        step = next(s for s in check['jobs']['selection']['steps']
+                    if s.get('name') == 'Check preserved native Flux admission evidence')
+        self.assertEqual(step['env']['PREFLIGHT_SOURCES_DIR'], '${{ runner.temp }}/minimal-sources')
+        self.assertEqual(step['env']['PORTAL_ENROLLMENT_CHECKOUT'], '${{ github.workspace }}/.inputs/enrollment')
+        self.assertEqual(step['env']['PORTAL_APP_CHECKOUT'], '${{ github.workspace }}/.inputs/app')
+
     def test_version_manifest_and_first_release_inputs(self):
         config = json.loads(Path('release-please-config.json').read_text())
         package = config['packages']['.']

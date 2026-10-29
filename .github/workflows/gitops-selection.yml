@@ -119,6 +119,7 @@ jobs:
     - name: Check preserved native Flux admission evidence
       working-directory: big-bang-bootstrap/tests/portal-cel
       env:
+        PREFLIGHT_SOURCES_DIR: ${{ runner.temp }}/minimal-sources
         FLUX_PORTAL_CASE_SCRIPT: ${{ github.workspace }}/big-bang-bootstrap/tests/portal_admission_cases.py
         FLUX_PORTAL_OPENAPI: ${{ github.workspace }}/big-bang-bootstrap/tests/fixtures/kubernetes-1.36.5.json
         PORTAL_ENROLLMENT_CHECKOUT: ${{ github.workspace }}/.inputs/enrollment
