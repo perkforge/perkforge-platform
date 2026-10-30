@@ -43,12 +43,13 @@ Examples (names only):
   `perkforge-physical-rancher-breakglass-corey-2026-10`.
 
 Private SSH file uses that base name; public half adds `.pub`; encrypted backup
-keeps the base name inside its manifest. Do not name every key `id_rsa`. Record
-public fingerprint, owner/custodian, purpose, permitted targets/role, durable item
-reference, local path, backup generation/date, expiry/review date and last dummy
-restore result in an ignored **nonsecret** catalog. A public template is
-[`credential-catalog.example.yaml`](credential-catalog.example.yaml); never put
-passwords, private keys, recovery shares or private addresses in it.
+keeps the base name inside its manifest. Do not name every key `id_rsa`. Use the
+[real-cluster register contract and coverage checklist](CREDENTIAL-REGISTER.md) for
+storage, backups, expiry, last verification, renewal/replacement, automation
+support/configuration/testing, dependencies and alert ownership. The public
+[`credential-catalog.example.yaml`](credential-catalog.example.yaml) is metadata
+only; keep actual populated registers private and ignored. Never put secret bytes
+or private addresses in the register.
 
 Choose key scope explicitly: one key per operator/physical cluster is easier to
 manage but compromise reaches every authorized node; per-node keys reduce that
@@ -72,17 +73,22 @@ Platform owner is accountable; name a backup custodian before live use. Maintain
 a second independent emergency access method so the same laptop/phone/SSO is not
 the only route to keys, manager, MFA, backup storage and decryption.
 
-| Credential | Durable custody / least privilege | Delivery and rotation/revocation |
-|---|---|---|
-| Node SSH/become | Named operator key; distinct automation identity; approved sudo scope | Agent or protected key file, host-key pin verified by console; remove old authorized keys after replacement is tested; no password fallback invented |
-| RKE2 server token | Platform recovery secret enabling server joins/bootstrap-data recovery; back up paired with each etcd snapshot generation | Root-only server storage; do not distribute to workers; rotate through supported maintenance and retain matching old recovery generations |
-| Agent join credential | Dedicated static agent-only token for this installer; expiring bootstrap tokens are a later option | Root-only config/no-log transfer; revoke bootstrap token after join and test supported rejoin/restart behavior before deletion |
-| Admin kubeconfig | Break-glass platform admin, not routine tests/users | Private explicit path/context; replace/renew via supported RKE2 certificate procedure; deleting a local copy alone does not revoke its certificate |
-| Rancher local admin / OIDC client secret | Separate break-glass login and scoped confidential client; platform admin owner | Protected file/stdin to installer; rotate bootstrap/admin and client values deliberately, verify login and preserve local emergency access |
-| Registry/automation tokens | Repository-scoped read-only pulls; separate publish token | Short expiry where supported, protected file/runtime injection; revoke at issuer and replace affected workloads |
-| CA private material | Offline root if custom PKI is selected; separately scoped issuing material | Encrypted backup with trust-chain metadata; emergency CA replacement is a planned trust rollout, not delete-and-recreate |
-| Test user/passwords | Dedicated test realm/users and least-privilege viewer/deployer/negative-test roles | Fetch only for the approved test; expire/disable afterward; no production admin reused for convenience |
-| OpenBao root/recovery/seal | Separate custodians and recovery package | Revoke initial root token after scoped auth works; protect quorum shares or independent auto-unseal dependency; never store sole recovery in itself |
+Locations below are the proposed target design, not a claim that storage or
+backups exist. The manager, backup destinations and custodians remain undecided.
+Existing `.secrets` staging remains temporary; no credential contents or storage
+locations were inspected for this table, and nothing has been migrated.
+
+| Credential | Durable custody / least privilege | Storage locations (proposed) | Delivery and rotation/revocation |
+|---|---|---|---|
+| Node SSH/become | Named operator key; distinct automation identity; approved sudo scope | Durable: workstation key store; proposed manager for passphrase/reference. Runtime: SSH agent. Recovery: encrypted offline/offsite key backup; separate recovery kit. | Agent or protected key file, host-key pin verified by console; remove old authorized keys after replacement is tested; no password fallback invented |
+| RKE2 server token | Platform recovery secret enabling server joins/bootstrap-data recovery; back up paired with each etcd snapshot generation | Durable: root-only server state; proposed manager escrow. Runtime: controller memory for comparison. Recovery: encrypted snapshot bundle with its matching original token. | Root-only server storage; do not distribute to workers; rotate through supported maintenance and retain matching old recovery generations |
+| Agent join credential | Dedicated static agent-only token for this installer; expiring bootstrap tokens are a later option | Durable: manager item proposed. Runtime: protected controller input file and root-only server/agent configuration. Recovery: encrypted offline/offsite credential bundle. | Root-only config/no-log transfer; revoke bootstrap token after join and test supported rejoin/restart behavior before deletion |
+| Admin kubeconfig | Break-glass platform admin, not routine tests/users | Durable: server-generated credential; protected workstation emergency copy. Runtime: explicit kubeconfig file. Recovery: encrypted emergency bundle; renew/reissue after restore. | Private explicit path/context; replace/renew via supported RKE2 certificate procedure; deleting a local copy alone does not revoke its certificate |
+| Rancher local admin / OIDC client secret | Separate break-glass login and scoped confidential client; platform admin owner | Durable: proposed manager items plus configured service state. Runtime: protected delivery files/service memory. Recovery: encrypted credential and service-backup bundles. | Protected file/stdin to installer; rotate bootstrap/admin and client values deliberately, verify login and preserve local emergency access |
+| Registry/automation tokens | Repository-scoped read-only pulls; separate publish token | Durable: proposed manager items; later OpenBao where supported. Runtime: runner files/workload secret store. Recovery: encrypted credential bundle or issuer reissuance. | Short expiry where supported, protected file/runtime injection; revoke at issuer and replace affected workloads |
+| CA private material | Offline root if custom PKI is selected; separately scoped issuing material | Durable: encrypted offline root archive if selected; issuing keys in approved signing service. Runtime: signing service. Recovery: separate encrypted PKI backup/trust metadata. | Encrypted backup with trust-chain metadata; emergency CA replacement is a planned trust rollout, not delete-and-recreate |
+| Test user/passwords | Dedicated test realm/users and least-privilege viewer/deployer/negative-test roles | Durable: proposed manager items; later OpenBao where supported. Runtime: approved runner memory/private temporary files. Recovery: encrypted credential bundle or approved identity recreation. | Fetch only for the approved test; expire/disable afterward; no production admin reused for convenience |
+| OpenBao root/recovery/seal | Separate custodians and recovery package | Durable: separate share custodians or independent seal provider; undecided. Runtime: bounded operator sessions. Recovery: encrypted snapshots/configuration plus separately held shares or seal-provider recovery. | Revoke initial root token after scoped auth works; protect quorum shares or independent auto-unseal dependency; never store sole recovery in itself |
 
 The installer now requires an explicit protected agent-token input, configures it
 on the server and compares the resulting secure token against the server token
