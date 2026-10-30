@@ -102,7 +102,8 @@ tests require separate live authorization and never borrow platform-admin access
 unless that exact admin action is under test. Keep test-user lifecycle independent
 of human emergency credentials; use purpose-named positive and denial identities.
 
-Kubeconfig identities are distinct: humans use their individual OIDC identity;
+Tenants use Headlamp and should not need kubeconfigs. Kubeconfig/CLI access is
+for platform engineers using individual OIDC identities;
 automation gets a dedicated identity with only declared test permissions; bootstrap
 and break-glass keep separate admin access. A test must state its needed role and
 API operations. Cluster-wide evidence collection may require explicitly approved
