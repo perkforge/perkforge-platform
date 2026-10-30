@@ -1,0 +1,45 @@
+# Reviewed external identity inputs; use trusted DNS, never a personal hosts alias.
+addons:
+  headlamp:
+    values:
+      upstream:
+        config:
+          oidc:
+            secret:
+              create: false
+            externalSecret:
+              enabled: true
+              name: headlamp-oidc
+              hasScopes: true
+            callbackURL: https://headlamp-local-il2.example.test/oidc-callback
+            validatorClientID: headlamp-local
+            validatorIssuerURL: https://keycloak-local-il2.example.test/auth/realms/perkforge
+            useAccessToken: false
+            usePKCE: true
+          extraArgs:
+          - -oidc-ca-file=/identity-ca/ca.crt
+        env:
+        - name: SSL_CERT_FILE
+          value: /identity-ca/ca.crt
+        - name: OIDC_CLIENT_ID
+          value: headlamp-local
+        - name: OIDC_ISSUER_URL
+          value: https://keycloak-local-il2.example.test/auth/realms/perkforge
+        - name: OIDC_SCOPES
+          value: openid,profile,email
+        - name: OIDC_CALLBACK_URL
+          value: https://headlamp-local-il2.example.test/oidc-callback
+        - name: OIDC_VALIDATOR_CLIENT_ID
+          value: headlamp-local
+        - name: OIDC_VALIDATOR_ISSUER_URL
+          value: https://keycloak-local-il2.example.test/auth/realms/perkforge
+        - name: OIDC_USE_PKCE
+          value: 'true'
+        volumes:
+        - name: identity-ca
+          configMap:
+            name: identity-ca
+        volumeMounts:
+        - name: identity-ca
+          mountPath: /identity-ca
+          readOnly: true

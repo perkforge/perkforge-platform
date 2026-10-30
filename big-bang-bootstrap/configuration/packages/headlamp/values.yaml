@@ -1,0 +1,37 @@
+addons:
+  headlamp:
+    enabled: true
+    flux:
+      serviceAccountName: headlamp-installer
+      storageNamespace: bigbang
+      install:
+        createNamespace: false
+        remediation:
+          retries: 0
+          remediateLastFailure: false
+      upgrade:
+        remediation:
+          retries: 0
+          remediateLastFailure: false
+    values:
+      bigbang:
+        rbac:
+          enabled: false
+          clusterRoleBindings: []
+      upstream:
+        imagePullSecrets:
+        - name: private-registry
+        replicaCount: 1
+        nodeSelector:
+          kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+      routes:
+        inbound:
+          headlamp:
+            enabled: false

@@ -1,0 +1,7 @@
+node-name: {{ inventory_hostname | to_json }}
+node-ip: {{ rke2_node_ip | to_json }}
+advertise-address: {{ rke2_node_ip | to_json }}
+tls-san: {{ ([rke2_node_ip] + rke2_tls_sans) | unique | list | to_json }}
+cluster-cidr: {{ rke2_cluster_cidr | to_json }}
+service-cidr: {{ rke2_service_cidr | to_json }}
+selinux: true

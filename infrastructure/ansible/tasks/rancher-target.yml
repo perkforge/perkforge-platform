@@ -1,0 +1,17 @@
+- name: Require an explicit controller target before any cluster access
+  ansible.builtin.assert:
+    that:
+    - rancher_kubeconfig is match('^/')
+    - not rancher_kubeconfig.startswith('/UNCONFIGURED/')
+    - rancher_context != 'UNCONFIGURED'
+    - rancher_cluster_uid != 'UNCONFIGURED'
+    - rancher_hostname != 'UNCONFIGURED'
+    - rancher_hostname is match('^[a-zA-Z0-9][a-zA-Z0-9.-]+$')
+- name: Inspect only the selected cluster identity
+  ansible.builtin.command:
+    argv: ['{{ rancher_kubectl }}', --kubeconfig, '{{ rancher_kubeconfig }}', --context, '{{ rancher_context }}', --request-timeout=20s, get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+  register: rancher_identity
+  changed_when: false
+- name: Refuse another cluster
+  ansible.builtin.assert:
+    that: rancher_identity.stdout == rancher_cluster_uid

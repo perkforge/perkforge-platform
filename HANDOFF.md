@@ -16,7 +16,7 @@ Paths in already published tags remain historical. This refactor does not update
 - Enrollment owns tenant namespaces, registration, deployment identities and security foundations. App repositories own applications.
 - Platform-admin means full cluster-admin for the explicit platform admin group; that does not grant tenant deployers or workloads cluster-admin.
 - Keep existing release pins, scoped installers, external credential inputs and live-approval gates. No auth redesign is part of this move.
-- Rancher management integration needs its own capacity budget and approval; it is omitted from the tiny local trial.
+- Rancher installation/platform-only OIDC configuration is active infrastructure Ansible, default off. It needs its own capacity budget and live approval; it remains absent from the historical tiny trial.
 
 Private trial evidence is retained under the existing ignored operational checkout and `/tmp/portal-live-20261029/`; it must not be copied into Git. Memory headroom and runtime stability remain unresolved.
 

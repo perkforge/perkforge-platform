@@ -1,10 +1,168 @@
 ---
-- name: Install RKE2 on physical homelab server nodes
-  hosts: rke2_servers
-  become: true
-  tasks: []
+- name: Select explicitly approved physical RKE2 nodes without contacting them by default
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [../group_vars/rke2.yml]
+  tasks:
+  - name: Report default-off physical installation
+    ansible.builtin.debug:
+      msg: 'Apply={{ rke2_install_apply | bool }}; check={{ ansible_check_mode }}'
+  - name: Validate approval and operator inputs before any remote facts or connection
+    when: rke2_install_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - physical_operator_inputs_complete | bool
+        - rke2_network_prerequisites_reviewed | bool
+        - groups.get('rke2_servers', []) | length == 1
+        - groups.get('rke2_agents', []) | length > 0
+        - rke2_cluster_id != 'UNCONFIGURED'
+        - rke2_cluster_id is match('^[a-zA-Z0-9][a-zA-Z0-9_-]+$')
+        - rke2_private_output_dir is match('^/')
+        - not rke2_private_output_dir.startswith('/UNCONFIGURED/')
+        - rke2_private_output_dir | realpath == rke2_private_output_dir
+        - rke2_version == 'v1.36.5+rke2r1'
+        - rke2_install_script_checksum is match('^sha256:[0-9a-f]{64}$')
+    - name: Refuse unset host or SSH user without guessing authentication
+      ansible.builtin.assert:
+        that:
+        - hostvars[item].ansible_host | default('UNCONFIGURED') != 'UNCONFIGURED'
+        - hostvars[item].ansible_user | default('UNCONFIGURED') != 'UNCONFIGURED'
+      loop: "{{ groups['rke2_servers'] + groups['rke2_agents'] }}"
+    - name: Inspect existing private controller output directory
+      ansible.builtin.stat:
+        path: '{{ rke2_private_output_dir }}'
+        follow: false
+      register: rke2_output
+    - name: Refuse symlinked or nonprivate existing output
+      ansible.builtin.assert:
+        that:
+        - not rke2_output.stat.exists or (rke2_output.stat.isdir | default(false) and not (rke2_output.stat.islnk | default(false)) and rke2_output.stat.mode == '0700' and rke2_output.stat.pw_name == lookup('ansible.builtin.env', 'USER'))
+    - name: Inspect the private output ownership marker and any existing kubeconfig
+      ansible.builtin.stat:
+        path: '{{ rke2_private_output_dir }}/{{ item }}'
+        follow: false
+      loop: [perkforge-cluster-id, rke2.yaml]
+      register: rke2_output_files
+    - name: Refuse unknown or symlinked existing kubeconfig output
+      ansible.builtin.assert:
+        that:
+        - not rke2_output_files.results[1].stat.exists or (rke2_output_files.results[0].stat.isreg | default(false) and rke2_output_files.results[1].stat.isreg | default(false) and not (rke2_output_files.results[1].stat.islnk | default(false)) and rke2_output_files.results[1].stat.mode == '0600')
+    - name: Verify existing controller output belongs to this installation
+      when: rke2_output_files.results[0].stat.exists
+      ansible.builtin.assert:
+        that: lookup('ansible.builtin.file', rke2_private_output_dir + '/perkforge-cluster-id') | trim == rke2_cluster_id
+    - name: Add only explicitly approved servers to this run
+      ansible.builtin.add_host:
+        name: '{{ item }}'
+        groups: rke2_approved_servers
+      loop: "{{ groups['rke2_servers'] }}"
+    - name: Add only explicitly approved agents to this run
+      ansible.builtin.add_host:
+        name: '{{ item }}'
+        groups: rke2_approved_agents
+      loop: "{{ groups['rke2_agents'] }}"
 
-- name: Install RKE2 on physical homelab agent nodes
-  hosts: rke2_agents
+- name: Install the reviewed single physical RKE2 server
+  hosts: rke2_approved_servers
   become: true
-  tasks: []
+  gather_facts: false
+  vars_files: [../group_vars/rke2.yml]
+  vars:
+    rke2_role: server
+    rke2_node_ip: '{{ ansible_host }}'
+  tasks:
+  - name: Run server primitives only in the approved install stage
+    when: rke2_install_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.include_tasks: ../tasks/rke2-node.yml
+    - name: Wait for registration and API endpoints from the installed server
+      ansible.builtin.wait_for:
+        host: '{{ rke2_node_ip }}'
+        port: '{{ item }}'
+        timeout: 300
+      loop: [9345, 6443]
+    - name: Prepare private controller output directory
+      ansible.builtin.file:
+        path: '{{ rke2_private_output_dir }}'
+        state: directory
+        mode: '0700'
+      delegate_to: localhost
+      become: false
+    - name: Record nonsecret controller output ownership
+      ansible.builtin.copy:
+        content: '{{ rke2_cluster_id }}'
+        dest: '{{ rke2_private_output_dir }}/perkforge-cluster-id'
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+    - name: Fetch only the selected server kubeconfig to private controller state
+      ansible.builtin.fetch:
+        src: '{{ rke2_config_dir }}/rke2.yaml'
+        dest: '{{ rke2_private_output_dir }}/rke2.yaml'
+        flat: true
+      no_log: true
+    - name: Set the selected server API address and secure the kubeconfig
+      delegate_to: localhost
+      become: false
+      no_log: true
+      block:
+      - ansible.builtin.replace:
+          path: '{{ rke2_private_output_dir }}/rke2.yaml'
+          regexp: https://127\.0\.0\.1:6443
+          replace: 'https://{{ rke2_node_ip }}:6443'
+      - ansible.builtin.file:
+          path: '{{ rke2_private_output_dir }}/rke2.yaml'
+          mode: '0600'
+    - name: Fetch the release-bundled kubectl without overwriting a system client
+      ansible.builtin.fetch:
+        src: /var/lib/rancher/rke2/bin/kubectl
+        dest: '{{ rke2_private_output_dir }}/kubectl'
+        flat: true
+    - ansible.builtin.file:
+        path: '{{ rke2_private_output_dir }}/kubectl'
+        mode: '0700'
+      delegate_to: localhost
+      become: false
+    - name: Read the join token only for this run, never a cache or log
+      ansible.builtin.slurp:
+        src: /var/lib/rancher/rke2/server/node-token
+      register: rke2_server_token
+      no_log: true
+
+- name: Install and join reviewed physical agents after server readiness
+  hosts: rke2_approved_agents
+  become: true
+  serial: 1
+  gather_facts: false
+  vars_files: [../group_vars/rke2.yml]
+  vars:
+    rke2_role: agent
+    rke2_node_ip: '{{ ansible_host }}'
+    rke2_server_host: "{{ groups['rke2_approved_servers'][0] }}"
+    rke2_server_ip: '{{ hostvars[rke2_server_host].ansible_host }}'
+    rke2_join_token: '{{ hostvars[rke2_server_host].rke2_server_token.content | b64decode | trim }}'
+  tasks:
+  - name: Run agents only in the approved install stage
+    when: rke2_install_apply | bool and not ansible_check_mode
+    block:
+    - name: Wait for reviewed server registration before joining
+      ansible.builtin.wait_for:
+        host: '{{ rke2_server_ip }}'
+        port: 9345
+        timeout: 300
+    - ansible.builtin.include_tasks: ../tasks/rke2-node.yml
+
+- name: Verify all selected nodes Ready without installing applications
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [../group_vars/rke2.yml]
+  tasks:
+  - name: Wait only for the exact approved node names
+    when: rke2_install_apply | bool and not ansible_check_mode
+    ansible.builtin.command:
+      argv: ['{{ rke2_private_output_dir }}/kubectl', --kubeconfig, '{{ rke2_private_output_dir }}/rke2.yaml', wait, --for=condition=Ready, 'node/{{ item }}', --timeout=10m]
+    loop: "{{ groups.get('rke2_servers', []) + groups.get('rke2_agents', []) }}"
+    changed_when: false

@@ -1,5 +1,14 @@
 # Physical infrastructure Ansible
 
-This inventory and the starter host/RKE2 playbooks are reserved for physical clusters. Inventory hosts and site-specific variables must be supplied by the operator. There are no personal addresses, VM inventories or AWS lab resources.
+PXE/Kickstart installs RHEL. Infrastructure Ansible owns OS prerequisites, RKE2 and Rancher cluster management. Big Bang bootstrap Ansible installs pinned Flux prerequisites and seeds Git configuration; Flux then reconciles Big Bang packages.
 
-The inventory is empty and playbooks are scaffolding, not a complete runnable installer. Keep private keys, passwords, join tokens and kubeconfigs outside version control. Platform bootstrap and application API configuration live in `big-bang-bootstrap/ansible`, separate from infrastructure.
+| Entrypoint | Purpose | Default |
+|---|---|---|
+| `playbooks/configure-hosts.yml` | physical OS preparation starter | still scaffolding |
+| `playbooks/install-rke2.yml` | recovered single-server RKE2 installation/join/readiness | no connections |
+| `playbooks/install-rancher.yml` | pinned management server installation | no cluster access |
+| `playbooks/configure-rancher-oidc.yml` | explicit platform-group login and global-role bindings | no credential reads or cluster access |
+
+See [RKE2 inputs and safety](RKE2.md) and [Rancher management](rancher/README.md). The committed inventory is deliberately generic; concrete addresses and SSH identity belong in an ignored private inventory. No username, key or password is guessed.
+
+All apply flags default false; check mode never contacts nodes/clusters. Source restoration is not physical-readiness or live-execution approval. RHEL, repositories, SSH/become, network/CNI/firewall, storage, TLS and capacity must be reviewed first. No VM or AWS provisioning workflow is reintroduced.

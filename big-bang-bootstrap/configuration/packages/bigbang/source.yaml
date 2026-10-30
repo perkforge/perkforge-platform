@@ -1,0 +1,10 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: bigbang-chart
+spec:
+  suspend: false
+  interval: 10m
+  url: https://repo1.dso.mil/big-bang/bigbang.git
+  ref:
+    tag: 3.35.1

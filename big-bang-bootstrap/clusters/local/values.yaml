@@ -1,4 +1,4 @@
-# Disabled local-only trial; dev and shared budgets remain unchanged.
+# Sole physical local root; optional packages are absent until explicitly selected.
 domain: example.test
 addons:
   headlamp:
@@ -28,7 +28,13 @@ addons:
           envs:
             cypress_url: https://keycloak-local-il2.example.test
       upstream:
-        extraEnv: "- name: KC_HOSTNAME\n  value: keycloak-local-il2.example.test\n"
+        extraEnv: '- {name: KC_HOSTNAME, value: ''https://keycloak-local-il2.example.test/auth''}
+
+          - {name: KC_CACHE, value: local}
+
+          - {name: JAVA_OPTS_KC_HEAP, value: ''-Xms128m -Xmx768m''}
+
+          '
         nodeSelector:
           kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE
         resources:
@@ -42,14 +48,3 @@ addons:
         primary:
           nodeSelector:
             kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE
-packages:
-  openbao:
-    values:
-      server:
-        ingress:
-          enabled: false
-          hosts:
-          - host: openbao-local-il2.example.test
-            paths: []
-        nodeSelector:
-          kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE

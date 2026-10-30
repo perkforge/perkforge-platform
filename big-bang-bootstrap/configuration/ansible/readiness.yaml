@@ -1,0 +1,59 @@
+- name: Readiness checks for the authoritative named cluster, never activation
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars_files: [../identity/context.yaml]
+  vars:
+    platform_readiness_verify: false
+    platform_readiness_phase: UNCONFIGURED
+    identity_ca_file: /UNCONFIGURED/identity-ca.crt
+  tasks:
+  - name: Default and check mode use no API or credential inputs
+    ansible.builtin.debug:
+      msg: 'Verify={{ platform_readiness_verify | bool }}; phase={{ platform_readiness_phase }}; check={{ ansible_check_mode }}'
+  - name: Run only the separately approved read-only checks
+    when: platform_readiness_verify | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - platform_readiness_phase in ['packages', 'identity', 'enrollment']
+        - target_kubeconfig != '/UNCONFIGURED/kubeconfig'
+        - target_context != 'UNCONFIGURED'
+        - expected_cluster_uid != 'UNCONFIGURED'
+    - name: Inspect the selected API identity
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: readiness_uid
+      changed_when: false
+    - ansible.builtin.assert:
+        that: readiness_uid.stdout == expected_cluster_uid
+    - name: Wait database then identity application then Headlamp, without changing replicas
+      when: platform_readiness_phase == 'packages'
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', -n, '{{ item.namespace }}', rollout, status, '{{ item.resource }}', --timeout=5m]
+      loop:
+      - {namespace: keycloak, resource: statefulset/keycloak-postgresql}
+      - {namespace: keycloak, resource: statefulset/keycloak-keycloak}
+      - {namespace: headlamp, resource: deployment/headlamp-headlamp}
+      changed_when: false
+    - name: Check verified public discovery before any enrollment enablement
+      when: platform_readiness_phase == 'identity'
+      block:
+      - ansible.builtin.assert:
+          that: identity_ca_file != '/UNCONFIGURED/identity-ca.crt'
+      - ansible.builtin.uri:
+          url: '{{ identity_issuer }}/.well-known/openid-configuration'
+          ca_path: '{{ identity_ca_file }}'
+          validate_certs: true
+          follow_redirects: none
+          use_netrc: false
+          use_proxy: false
+          timeout: 15
+          return_content: true
+        register: discovery
+      - ansible.builtin.assert:
+          that: discovery.json.issuer == identity_issuer
+    - name: Confirm the generic enrollment parent only after its reviewed source enablement
+      when: platform_readiness_phase == 'enrollment'
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', -n, flux-system, wait, --for=condition=Ready, kustomization/tenant-enrollments, --timeout=5m]
+      changed_when: false

@@ -55,7 +55,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn('config_tag=v0.1.0', step['run'])
         self.assertIn('gitops_path=./local-lab-big-bang/examples/clusters/local', step['run'])
         # Only this historical verification uses the old path; onboarding selects the new layout.
-        inventory = yaml.safe_load(Path('big-bang-bootstrap/ansible/inventory.yaml').read_text())
+        inventory = yaml.safe_load(Path('big-bang-bootstrap/configuration/ansible/inventory.yaml').read_text())
         self.assertEqual(inventory['all']['children']['bootstrap_clusters']['hosts']['local']['gitops_path'],
                          './big-bang-bootstrap/clusters/local')
 

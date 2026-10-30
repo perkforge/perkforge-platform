@@ -1,0 +1,56 @@
+- name: Prepare only reviewed local identity Kubernetes foundations
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars:
+    identity_foundation_apply: false
+    identity_routing_apply: false
+    identity_access_apply: false
+    gitops_path: ./big-bang-bootstrap/clusters/local
+  tasks:
+  - name: Refuse other environments or ungated security writes
+    ansible.builtin.assert:
+      that:
+      - ansible_play_hosts_all == ['local']
+      - deployment_environment == 'local'
+      - impact_profile == 'il2'
+      - not (identity_routing_apply | bool or identity_access_apply | bool) or identity_foundation_apply | bool
+  - name: Default and check mode do not access Kubernetes
+    ansible.builtin.debug:
+      msg: 'foundation={{ identity_foundation_apply | bool }} routing={{ identity_routing_apply | bool }} access={{ identity_access_apply | bool }}'
+  - name: Apply separately approved foundation from a published clean checkout
+    when: identity_foundation_apply | bool and not ansible_check_mode
+    block:
+    - name: Verify released path and cluster context
+      ansible.builtin.include_tasks: verify-release.yaml
+    - name: Inspect checkout revision
+      ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', rev-parse, HEAD]
+      register: identity_head
+      changed_when: false
+    - name: Inspect checkout cleanliness
+      ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', status, --porcelain]
+      register: identity_dirty
+      changed_when: false
+    - name: Verify target UID
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: identity_uid
+      changed_when: false
+    - name: Reject wrong checkout or cluster
+      ansible.builtin.assert:
+        that:
+        - identity_head.stdout == config_release.resolvedCommit
+        - identity_dirty.stdout | length == 0
+        - expected_cluster_uid != 'UNCONFIGURED'
+        - identity_uid.stdout == expected_cluster_uid
+    - name: Apply only selected standard Kustomize foundation groups
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', apply, -k, '{{ playbook_dir }}/../identity/{{ item.path }}']
+      loop:
+      - {path: foundation, enabled: true}
+      - {path: routing, enabled: '{{ identity_routing_apply | bool }}'}
+      - {path: access, enabled: '{{ identity_access_apply | bool }}'}
+      when: item.enabled | bool
+      register: identity_result
+      changed_when: "'created' in identity_result.stdout or 'configured' in identity_result.stdout"
