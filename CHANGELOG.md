@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/perkforge/perkforge-platform/compare/v0.7.0...v0.8.0) (2026-10-30)
+
+
+### Features
+
+* organize Big Bang bootstrap for physical clusters ([#73](https://github.com/perkforge/perkforge-platform/issues/73)) ([fb365ba](https://github.com/perkforge/perkforge-platform/commit/fb365bac8a7023e9cf0c8025ed7db93c0df2a4d1))
+
 ## [0.7.0](https://github.com/perkforge/perkforge-platform/compare/v0.6.0...v0.7.0) (2026-10-29)
 
 
