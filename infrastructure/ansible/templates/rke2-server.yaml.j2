@@ -5,3 +5,4 @@ tls-san: {{ ([rke2_node_ip] + rke2_tls_sans) | unique | list | to_json }}
 cluster-cidr: {{ rke2_cluster_cidr | to_json }}
 service-cidr: {{ rke2_service_cidr | to_json }}
 selinux: true
+agent-token: {{ hostvars['localhost'].rke2_agent_token_value | to_json }}

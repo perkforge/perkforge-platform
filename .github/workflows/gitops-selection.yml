@@ -2,9 +2,9 @@ name: gitops-selection-offline
 on:
   workflow_call:
   pull_request:
-    paths: ['big-bang-bootstrap/**', 'infrastructure/**', 'evidence/**', '.github/workflows/gitops-selection.yml', 'release-evidence.json', 'scripts/verify-release-ref.sh']
+    paths: ['pxe/**', 'big-bang-bootstrap/**', 'infrastructure/**', 'evidence/**', '.github/workflows/gitops-selection.yml', 'release-evidence.json', 'scripts/verify-release-ref.sh']
   push:
-    paths: ['big-bang-bootstrap/**', 'infrastructure/**', 'evidence/**', '.github/workflows/gitops-selection.yml', 'release-evidence.json', 'scripts/verify-release-ref.sh']
+    paths: ['pxe/**', 'big-bang-bootstrap/**', 'infrastructure/**', 'evidence/**', '.github/workflows/gitops-selection.yml', 'release-evidence.json', 'scripts/verify-release-ref.sh']
 permissions:
   contents: read
 jobs:

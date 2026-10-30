@@ -19,8 +19,9 @@ class PhysicalRKE2Tests(unittest.TestCase):
             p.chmod(448)
 
     def run_play(self, check=False, **values):
-        p = subprocess.run(['ansible-playbook', '-i', str(self.inventory), str(ROOT / 'playbooks/install-rke2.yml'), '-e', json.dumps(values), *(['--check'] if check else [])], text=True, capture_output=True, timeout=20, env={**os.environ, 'PATH': str(self.work) + ':' + os.environ['PATH'], 'ANSIBLE_LOCAL_TEMP': str(self.work / 'ansible'), 'ANSIBLE_NOCOLOR': '1'})
+        p = subprocess.run(['ansible-playbook', '-i', str(self.inventory), str(ROOT / 'playbooks/install-rke2.yml'), '-e', json.dumps(values), *(['--check'] if check else [])], text=True, capture_output=True, timeout=20, env={**os.environ, 'PATH': str(self.work) + ':' + os.environ['PATH'], 'ANSIBLE_LOCAL_TEMP': str(self.work / 'ansible'), 'ANSIBLE_REMOTE_TEMP': str(self.work / 'remote'), 'ANSIBLE_NOCOLOR': '1'})
         self.assertFalse(self.marker.exists(), 'No test may contact a host or run installation tooling')
+        self.assertNotIn('UNREACHABLE!', p.stdout + p.stderr)
         return p
 
     def test_default_and_check_mode_never_select_remote_hosts(self):
@@ -35,9 +36,107 @@ class PhysicalRKE2Tests(unittest.TestCase):
         self.assertIn('physical_operator_inputs_complete', p.stdout)
 
     def test_missing_ssh_identity_fails_even_with_deliberate_install_flag(self):
-        p = self.run_play(rke2_install_apply=True, physical_operator_inputs_complete=True, rke2_network_prerequisites_reviewed=True, rke2_cluster_id='fixture-cluster', rke2_private_output_dir=str(self.work / 'private'))
+        p = self.run_play(rke2_install_apply=True, physical_operator_inputs_complete=True, rke2_network_prerequisites_reviewed=True, rke2_credential_lifecycle_reviewed=True, rke2_cluster_id='fixture-cluster', rke2_private_output_dir=str(self.work / 'private'))
         self.assertNotEqual(p.returncode, 0)
         self.assertIn('Refuse unset host or SSH user', p.stdout)
+
+    def test_credential_review_blocks_apply_before_any_remote_connection(self):
+        p = self.run_play(rke2_install_apply=True, physical_operator_inputs_complete=True,
+                          rke2_network_prerequisites_reviewed=True)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn('rke2_credential_lifecycle_reviewed', p.stdout)
+
+    def test_host_preparation_scaffold_never_connects_even_with_nonempty_inventory(self):
+        for check in [False, True]:
+            p = subprocess.run(['ansible-playbook', '-i', str(self.inventory),
+                                str(ROOT / 'playbooks/configure-hosts.yml'),
+                                *(['--check'] if check else [])], text=True,
+                               capture_output=True, timeout=20,
+                               env={**os.environ, 'PATH': str(self.work) + ':' + os.environ['PATH'],
+                                    'ANSIBLE_LOCAL_TEMP': str(self.work / 'host-ansible')})
+            self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+            self.assertFalse(self.marker.exists())
+            self.assertIn('scaffolding only', p.stdout)
+
+    def test_kubeconfig_rewrite_changes_only_the_loopback_address(self):
+        plays = yaml.safe_load((ROOT / 'playbooks/install-rke2.yml').read_text())
+        server = plays[1]['tasks'][0]['block']
+        task = next(x for x in server if x.get('name', '').startswith('Set the selected'))['block'][0]
+        replace = task['ansible.builtin.replace']
+        import re
+        self.assertEqual(re.sub(replace['regexp'], 'https://192.0.2.10:6443',
+                               'server: https://127.0.0.1:6443'),
+                         'server: https://192.0.2.10:6443')
+        self.assertEqual(re.sub(replace['regexp'], 'changed', 'https://127x0x0x1:6443'),
+                         'https://127x0x0x1:6443')
+        create = next(x for x in server if x.get('name', '').startswith('Precreate private'))
+        fetch = next(x for x in server if x.get('name', '').startswith('Fetch only'))
+        self.assertLess(server.index(create), server.index(fetch))
+        self.assertEqual(create['ansible.builtin.copy']['mode'], '0600')
+
+    def test_invalid_agent_credential_fails_before_connections(self):
+        secret = self.work / 'agent-input'
+        for content, mode in [('synthetic-short', 0o600), ('synthetic_' * 5, 0o644),
+                              ('synthetic_' * 5 + '\n', 0o600)]:
+            secret.write_text(content)
+            secret.chmod(mode)
+            p = self.run_play(rke2_install_apply=True, physical_operator_inputs_complete=True,
+                              rke2_network_prerequisites_reviewed=True,
+                              rke2_credential_lifecycle_reviewed=True, ansible_user='fixture',
+                              rke2_cluster_id='fixture-cluster', rke2_private_output_dir=str(self.work / 'private'),
+                              rke2_agent_token_file=str(secret))
+            self.assertNotEqual(p.returncode, 0)
+            self.assertNotIn(content, p.stdout + p.stderr)
+
+    def test_server_only_controller_preflight_accepts_valid_dummy_credential(self):
+        # Execute only the controller play; never execute the added remote group.
+        play = yaml.safe_load((ROOT / 'playbooks/install-rke2.yml').read_text())[0]
+        play['vars_files'] = [str(ROOT / 'group_vars/rke2.yml')]
+        controller = self.work / 'controller.yml'
+        controller.write_text(yaml.safe_dump([play], sort_keys=False))
+        inventory = yaml.safe_load(self.inventory.read_text())
+        del inventory['all']['children']['rke2_agents']
+        self.inventory.write_text(yaml.safe_dump(inventory))
+        secret = self.work / 'agent-input'
+        secret.write_text('synthetic_agent_only_' * 3)
+        secret.chmod(0o600)
+        values = dict(rke2_install_apply=True, physical_operator_inputs_complete=True,
+            rke2_network_prerequisites_reviewed=True, rke2_credential_lifecycle_reviewed=True,
+            ansible_user='fixture', rke2_cluster_id='fixture-cluster',
+            rke2_private_output_dir=str(self.work / 'private'), rke2_agent_token_file=str(secret))
+        result = subprocess.run(['ansible-playbook', '-i', str(self.inventory), str(controller),
+            '-e', json.dumps(values)], capture_output=True, text=True, timeout=20,
+            env={**os.environ, 'ANSIBLE_LOCAL_TEMP': str(self.work / 'controller-local'),
+                 'ANSIBLE_REMOTE_TEMP': str(self.work / 'controller-remote')})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn('synthetic_agent_only_', result.stdout + result.stderr)
+        self.assertFalse(self.marker.exists())
+
+    def test_agent_token_separation_with_synthetic_server_state(self):
+        import base64
+        plays = yaml.safe_load((ROOT / 'playbooks/install-rke2.yml').read_text())
+        task = next(x for x in plays[1]['tasks'][0]['block']
+                    if x.get('name', '').startswith('Refuse worker enrollment'))
+        agent = 'K10' + 'a' * 64 + '::server:synthetic-agent-only'
+        server = 'K10' + 'a' * 64 + '::server:synthetic-server-only'
+        for server_value, valid in [(agent, False), (server, True)]:
+            def encoded(value):
+                return {'content': base64.b64encode(value.encode()).decode()}
+            play = self.work / 'separation.yml'
+            play.write_text(yaml.safe_dump([{'hosts': 'localhost', 'gather_facts': False,
+                'connection': 'local', 'vars': {'rke2_agent_join_token': encoded(agent),
+                    'rke2_admin_token_check': encoded(server_value)}, 'tasks': [task]}]))
+            result = subprocess.run(['ansible-playbook', '-i', 'localhost,', str(play)],
+                capture_output=True, text=True, timeout=20,
+                env={**os.environ, 'ANSIBLE_LOCAL_TEMP': str(self.work / 'separation')})
+            self.assertEqual(result.returncode == 0, valid, result.stdout + result.stderr)
+            self.assertNotIn('synthetic-agent-only', result.stdout + result.stderr)
+            self.assertNotIn('synthetic-server-only', result.stdout + result.stderr)
+        agent_play = plays[2]
+        self.assertIn('rke2_agent_join_token.content', agent_play['vars']['rke2_join_token'])
+        self.assertNotIn('rke2_admin_token_check', str(agent_play))
+        server_template = (ROOT / 'templates/rke2-server.yaml.j2').read_text()
+        self.assertIn('agent-token:', server_template)
 
     def test_recovered_ordering_and_secret_handling_contracts(self):
         plays = yaml.safe_load((ROOT / 'playbooks/install-rke2.yml').read_text())
