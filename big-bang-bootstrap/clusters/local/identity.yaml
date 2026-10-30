@@ -1,4 +1,4 @@
-# Local-only identity contract; consumed by identity-realm.yaml.
+# Local-only identity contract; consumed by keycloak-realm.yaml.
 identity_url: https://keycloak-local-il2.example.test/auth
 identity_realm: perkforge
 identity_client_id: headlamp-local

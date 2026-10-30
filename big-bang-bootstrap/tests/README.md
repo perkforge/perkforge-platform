@@ -8,6 +8,8 @@
 | integration/ | real Ansible/Helm behavior against disposable loopback HTTPS/API fixtures | offline integration; loopback sockets, never a real cluster |
 | fixtures/ | genuinely shared chart pins, schemas, released metadata, rendering/API fixture helpers | test data/construction only |
 
+Configuration/test_optional_enrollment checks a tenant-free root preserves platform objects; bootstrap/test_prerequisites checks package ownership, unique definitions and explicit common-first ordering.
+
 The former Headlamp/identity mixed modules were split case-by-case. Shared rendered package setup has no test cases. Release/seed checks are separate from cross-repo configuration tests; generic findings tests live at repository-root evidence/tests, and infrastructure RKE2/Rancher tests stay with infrastructure/ansible/tests. No test is labelled live integration when it only exercises a fixture.
 
 ## Offline commands

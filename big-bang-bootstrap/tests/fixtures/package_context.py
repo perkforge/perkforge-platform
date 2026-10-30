@@ -18,7 +18,7 @@ class HeadlampFixture(unittest.TestCase):
     def setUpClass(cls):
         cls.sources = Path(os.environ['PREFLIGHT_SOURCES_DIR'])
         cls.root = build(CLUSTER)
-        cls.foundation = build(ROOT / 'configuration/packages/bigbang/foundation')
+        cls.foundation = build(ROOT / 'configuration/packages/bigbang/prerequisites') + build(ROOT / 'configuration/packages/headlamp/prerequisites')
         cls.parent = next(o for o in cls.root if o['kind'] == 'HelmRelease')
         cls.outer_raw = helm(cls.sources / 'bigbang/chart', 'bigbang', 'bigbang',
                              ordered_values(cls.root, cls.parent))
@@ -68,9 +68,9 @@ class IdentityFixture(unittest.TestCase):
         for name in ['headlamp', 'keycloak']:
             hr = next(o for o in cls.outer if o['kind'] == 'HelmRelease' and o['metadata']['name'] == name)
             cls.children[name] = helm(cls.source / name / 'chart', release_name(hr), name, child_values(cls.outer, name))
-        cls.foundation = build(STAGE / 'foundation')
+        cls.foundation = sum((build(ROOT / 'configuration/packages' / name / 'prerequisites') for name in ('bigbang', 'headlamp', 'keycloak')), [])
         cls.routing = build(STAGE / 'routing')
-        cls.access = build(STAGE / 'access')
+        cls.access = build(STAGE / 'kubernetes')
 
     def permitted(self, group, ns, resource, verb, api=''):
         # Offline contract model, not a Kubernetes authorizer. cluster-admin is

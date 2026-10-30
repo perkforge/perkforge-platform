@@ -1,4 +1,4 @@
-- name: Prepare only reviewed local identity Kubernetes foundations
+- name: Prepare only reviewed local Keycloak prerequisites and optional identity configuration
   hosts: bootstrap_clusters
   gather_facts: false
   vars:
@@ -44,13 +44,14 @@
         - identity_dirty.stdout | length == 0
         - expected_cluster_uid != 'UNCONFIGURED'
         - identity_uid.stdout == expected_cluster_uid
-    - name: Apply only selected standard Kustomize foundation groups
+    - name: Apply common Big Bang then Keycloak prerequisites and selected identity configuration
       ansible.builtin.command:
-        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', apply, -k, '{{ playbook_dir }}/../identity/{{ item.path }}']
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', apply, -k, '{{ playbook_dir }}/../{{ item.path }}']
       loop:
-      - {path: foundation, enabled: true}
-      - {path: routing, enabled: '{{ identity_routing_apply | bool }}'}
-      - {path: access, enabled: '{{ identity_access_apply | bool }}'}
+      - {path: packages/bigbang/prerequisites, enabled: true}
+      - {path: packages/keycloak/prerequisites, enabled: true}
+      - {path: identity/routing, enabled: '{{ identity_routing_apply | bool }}'}
+      - {path: identity/kubernetes, enabled: '{{ identity_access_apply | bool }}'}
       when: item.enabled | bool
       register: identity_result
       changed_when: "'created' in identity_result.stdout or 'configured' in identity_result.stdout"

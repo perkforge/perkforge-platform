@@ -16,6 +16,8 @@ The first draft wrongly archived Rancher as a capability and retained an empty p
 
 Enrollment bootstrap identities/RBAC live in enrollments/prerequisites and are applied by configuration/ansible/enrollment-prerequisites.yaml; tenant foundations remain in the enrollment repository. The existing enrollment_foundation_apply gate is retained unchanged for compatibility.
 
+The remaining mixed foundation directories were split into configuration/packages/{bigbang,headlamp,keycloak}/prerequisites. Shared namespace/reconciler/Helm-storage authority belongs to Big Bang; package namespaces/installers/storage belong to their package. Ansible explicitly applies common then selected prerequisites without Keycloak including Headlamp. Combined resources are unchanged and uniquely defined. Keycloak realm/client/group configuration is beside its package, consumed by keycloak-realm.yaml; cross-system OIDC/trust/access remains under identity. Local identity inputs moved to clusters/local/identity.yaml, API OIDC/user access to configuration/identity/kubernetes and acceptance expectations to tests/security/fixtures. Existing apply gate names and resource identities remain stable.
+
 ## Preserved assurance
 
 - Configuration: test_package_inventory, test_headlamp, test_identity_packages, test_selection_contract now cover full renders, optional packages, resource/PVC inventory, target/profile/context/pins and managed defaults.
@@ -32,6 +34,8 @@ VM provisioning/rebuild/teardown, VM Ansible, VM-specific Flux placement/budget 
 Only physical local + illustrative il2 ships. No concrete dev/il5 target exists; documented copy/edit steps and temporary test fixtures exercise extension. Personal IP/domain/node/storage assumptions become visible operator placeholders; the old personal Headlamp hosts alias is removed in favor of reviewed DNS. Generic enrollment now remains paused until identity acceptance. The outer release and bootstrap seed remain paused too. Namespaced RBAC object IDs are preserved even where historical names contain stage, avoiding an unreviewed permission-object migration.
 
 Rancher2.15.2 requires core Fleet internally for provisioning; continuous-delivery=false disables application GitOps/gitjob/UI, not that dependency. No Fleet application GitRepo or tenant Project workflow is restored. Platform-only Generic OIDC uses accessMode required (restricted would admit implicit project/cluster members), preserves local break-glass auth and maps only explicit platform/admins to existing admin by default. Separate engineer-group grants require review.
+
+Operator maintenance tasks live in docs/platform/{applications,targets,profiles}.md with a short index; bootstrap README links there rather than duplicating instructions. Optional-enrollment composition now has an isolated omission regression; cross-repository CI/operational guards for additional targets still need review.
 
 ## Release/testing boundaries and follow-ups
 

@@ -1,9 +1,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-- namespaces.yaml
+- namespace.yaml
 - identities.yaml
 - root-role.yaml
 - umbrella-role.yaml
-- child-workload-role.yaml
-- child-storage-role.yaml
+- helm-storage-role.yaml

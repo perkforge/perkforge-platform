@@ -31,7 +31,7 @@ class MinimalRenderTests(unittest.TestCase):
             outer = helm(cls.sources / 'bigbang/chart', 'bigbang', 'bigbang',
                          values + [(ROOT / 'tests/fixtures/full-selection-values.yaml').read_text()])
             cls.objects[target]['outer'] = outer
-            cls.reports[target] = {'flux': inventory(cls.flux), 'identity_foundation': inventory(build(ROOT / 'configuration/identity/foundation'))}
+            cls.reports[target] = {'flux': inventory(cls.flux), 'identity_foundation': inventory(build(ROOT / 'configuration/packages/keycloak/prerequisites'))}
             for name in ('headlamp', 'keycloak', 'openbao'):
                 child = next(obj for obj in outer if obj['kind'] == 'HelmRelease' and obj['metadata']['name'] == name)
                 chart = cls.sources / name / ('.' if name == 'openbao' else 'chart')

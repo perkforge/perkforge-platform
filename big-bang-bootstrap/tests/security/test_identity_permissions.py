@@ -16,7 +16,7 @@ from fixtures.package_context import IdentityFixture
 
 class IdentityPermissionTests(IdentityFixture):
     def test_oidc_issuer_audience_pkce_ca_and_no_fallback(self):
-        contract = yaml.safe_load((EX / 'configuration/identity/context.yaml').read_text())
+        contract = yaml.safe_load((EX / 'clusters/local/identity.yaml').read_text())
         dep = next(o for o in self.children['headlamp'] if o['kind'] == 'Deployment')
         pod = dep['spec']['template']['spec']; c = pod['containers'][0]
         env = {e['name']: e.get('value') for e in c['env']}
@@ -32,7 +32,7 @@ class IdentityPermissionTests(IdentityFixture):
         self.assertIn('-oidc-ca-file=/identity-ca/ca.crt', c['args'])
         self.assertEqual(env['SSL_CERT_FILE'], '/identity-ca/ca.crt')
         self.assertFalse(any('unsafe' in a or 'use-access-token' in a for a in c['args']))
-        api = yaml.safe_load((EX / 'configuration/identity/rke2-oidc.yaml').read_text())
+        api = yaml.safe_load((EX / 'configuration/identity/kubernetes/rke2-oidc.yaml').read_text())
         flags = dict(v.split('=', 1) for v in api['kube-apiserver-arg+'])
         self.assertEqual(flags['oidc-issuer-url'], contract['identity_issuer'])
         self.assertEqual(flags['oidc-client-id'], contract['identity_client_id'])
@@ -48,7 +48,7 @@ class IdentityPermissionTests(IdentityFixture):
         # pkg/executor/staticpod/staticpod.go writeTemplate calls ReadFiles(args);
         # pkg/podtemplate/podtemplate.go mounts existing argument files read-only,
         # then appends ExtraMounts without deduplicating destination paths.
-        config = yaml.safe_load((EX / 'configuration/identity/rke2-oidc.yaml').read_text())
+        config = yaml.safe_load((EX / 'configuration/identity/kubernetes/rke2-oidc.yaml').read_text())
         flags = dict(a.split('=', 1) for a in config['kube-apiserver-arg+'])
         ca = '/etc/rancher/rke2/identity/ca.crt'
         self.assertEqual(flags['oidc-ca-file'], ca)
@@ -107,7 +107,7 @@ class IdentityPermissionTests(IdentityFixture):
                     self.assertNotIn('*', rule['resources'] + rule['verbs'])
 
     def test_live_matrix_matches_full_admin_and_restricted_user_contracts(self):
-        checks = yaml.safe_load((EX / 'configuration/identity/auth-checks.yaml').read_text())
+        checks = yaml.safe_load((EX / 'tests/security/fixtures/auth-checks.yaml').read_text())
         self.assertTrue(any(c['token'] == 'admin' and c['path'] == '/api/v1/pods' for c in checks['identity_checks']))
         for check in checks['identity_checks']:
             if check['token'] == 'admin':

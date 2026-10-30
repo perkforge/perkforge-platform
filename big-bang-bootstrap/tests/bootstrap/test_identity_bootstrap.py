@@ -17,7 +17,7 @@ from fixtures.package_context import IdentityFixture
 class IdentityBootstrapTests(IdentityFixture):
     def test_one_shot_realm_claims_and_gated_ansible(self):
         # Parse without rendering secret lookups; never read private files offline.
-        realm = yaml.safe_load((EX / 'configuration/identity/realm.yaml').read_text())
+        realm = yaml.safe_load((EX / 'configuration/packages/keycloak/realm.yaml').read_text())
         client = realm['clients'][0]
         self.assertTrue(client['standardFlowEnabled'])
         for key in ['publicClient', 'implicitFlowEnabled', 'directAccessGrantsEnabled', 'serviceAccountsEnabled', 'fullScopeAllowed']:
@@ -25,7 +25,7 @@ class IdentityBootstrapTests(IdentityFixture):
         self.assertEqual(client['attributes']['pkce.code.challenge.method'], 'S256')
         self.assertEqual(client['protocolMappers'][0]['config']['full.path'], 'true')
         self.assertEqual([u['groups'] for u in realm['users']], [['/platform/admins'], ['/platform/developers'], []])
-        for name in ['identity-foundation', 'identity-realm', 'identity-verify']:
+        for name in ['keycloak-prerequisites', 'keycloak-realm', 'identity-verify']:
             play = yaml.safe_load((EX / 'configuration/ansible' / (name + '.yaml')).read_text())[0]
             self.assertFalse(next(v for k, v in play['vars'].items() if k.endswith('_apply') or k == 'identity_verify'))
             with tempfile.TemporaryDirectory() as temp:

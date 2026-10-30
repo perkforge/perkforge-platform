@@ -1,7 +1,7 @@
 - name: Verify actual API authentication and authorization with external ID tokens
   hosts: bootstrap_clusters
   gather_facts: false
-  vars_files: [../identity/auth-checks.yaml]
+  vars_files: [../../tests/security/fixtures/auth-checks.yaml]
   vars:
     identity_verify: false
     identity_token_dir: /UNCONFIGURED/id-tokens

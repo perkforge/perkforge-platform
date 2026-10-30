@@ -1,7 +1,7 @@
 - name: Initialize only a new local physical cluster realm after separate approval
   hosts: bootstrap_clusters
   gather_facts: false
-  vars_files: [../identity/context.yaml]
+  vars_files: [../../clusters/local/identity.yaml]
   vars:
     identity_apply: false
     identity_private_dir: /UNCONFIGURED/identity
@@ -76,6 +76,6 @@
         method: POST
         headers: {Authorization: 'Bearer {{ identity_session.json.access_token }}'}
         body_format: json
-        body: "{{ lookup('ansible.builtin.template', playbook_dir ~ '/../identity/realm.yaml') | from_yaml }}"
+        body: "{{ lookup('ansible.builtin.template', playbook_dir ~ '/../packages/keycloak/realm.yaml') | from_yaml }}"
         status_code: 201
       changed_when: true

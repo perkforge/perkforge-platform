@@ -1,4 +1,4 @@
-- name: Prepare only the separately approved local Headlamp foundation
+- name: Prepare only the separately approved local Headlamp prerequisites
   hosts: bootstrap_clusters
   gather_facts: false
   vars:
@@ -18,7 +18,7 @@
       - not (headlamp_registry_apply | bool) or (foundation_apply | bool)
   - name: Report safe default without credentials or Kubernetes access
     ansible.builtin.debug:
-      msg: "local Headlamp foundation apply={{ foundation_apply | bool }}; registry={{ headlamp_registry_apply | bool }}"
+      msg: "local Headlamp prerequisites apply={{ foundation_apply | bool }}; registry={{ headlamp_registry_apply | bool }}"
   - name: Apply requires separate approval and a published reviewed checkout
     when: foundation_apply | bool and not ansible_check_mode
     block:
@@ -52,9 +52,10 @@
     - name: Refuse a different cluster
       ansible.builtin.assert:
         that: foundation_cluster.stdout == expected_cluster_uid
-    - name: Apply only namespaces and namespaced installer identities
+    - name: Apply common Big Bang then selected Headlamp prerequisites
       ansible.builtin.command:
-        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', apply, -k, '{{ playbook_dir }}/../packages/bigbang/foundation']
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', apply, -k, '{{ playbook_dir }}/../packages/{{ item }}/prerequisites']
+      loop: [bigbang, headlamp]
       register: foundation_result
       changed_when: "'created' in foundation_result.stdout or 'configured' in foundation_result.stdout"
     - name: Registry delivery is separately explicit and never logged

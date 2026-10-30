@@ -5,6 +5,7 @@ Platform-owned tenant enrollment is kept in the separate
 [enrollment repository](https://github.com/perkforge/perkforge-platform-tenants);
 application repositories own application configuration.
 
+- [Platform maintenance](docs/platform/README.md): add/configure apps, targets/environments and impact profiles.
 - [Big Bang bootstrap](big-bang-bootstrap/README.md): cluster/environment/impact-profile selection, Flux bootstrap, platform application configuration and staged operations.
 - [Infrastructure](infrastructure/README.md): physical-host inventory and RHEL/RKE2 starter provisioning.
 - [Current handoff](HANDOFF.md): operational boundaries and known trial limits.

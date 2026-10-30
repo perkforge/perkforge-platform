@@ -28,7 +28,7 @@ class PackageBootstrapTests(HeadlampFixture):
                     stub.write_text('#!/bin/sh\ntouch "' + str(marker) + '"\nexit 99\n')
                     stub.chmod(0o700)
                 result = subprocess.run(['ansible-playbook', '-i', str(EXAMPLES / 'configuration/ansible/inventory.yaml'),
-                    str(EXAMPLES / 'configuration/ansible/headlamp-foundation.yaml'), '--limit', target,
+                    str(EXAMPLES / 'configuration/ansible/headlamp-prerequisites.yaml'), '--limit', target,
                     '-e', json.dumps(extra)], text=True, capture_output=True,
                     env={**os.environ, 'PATH': directory + ':' + os.environ['PATH'],
                          'KUBECONFIG': '/dev/null', 'ANSIBLE_LOCAL_TEMP': directory + '/ansible',

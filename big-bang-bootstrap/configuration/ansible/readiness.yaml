@@ -1,7 +1,7 @@
 - name: Readiness checks for the authoritative named cluster, never activation
   hosts: bootstrap_clusters
   gather_facts: false
-  vars_files: [../identity/context.yaml]
+  vars_files: [../../clusters/local/identity.yaml]
   vars:
     platform_readiness_verify: false
     platform_readiness_phase: UNCONFIGURED
