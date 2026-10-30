@@ -1,6 +1,6 @@
 #version=RHEL9
 
-text
+graphical
 url --url="{{ rhel_install_tree_url }}"
 network --bootproto=dhcp --device=link --activate --hostname={{ inventory_hostname }}
 lang en_US.UTF-8
@@ -11,7 +11,10 @@ rootpw --lock
 # Storage is intentionally left to the installer UI until the target disks and
 # desired layout are known. Add explicit reviewed storage commands here later.
 
-reboot
+# Deliberately no user/password/key or unattended license acceptance. Create the
+# reviewed administrator at the console; root stays locked. Do not serve secrets.
+# Halt so a completed install cannot automatically enter PXE again.
+halt
 
 %packages
 @^minimal-environment

@@ -15,8 +15,8 @@
         that:
         - physical_operator_inputs_complete | bool
         - rke2_network_prerequisites_reviewed | bool
+        - rke2_credential_lifecycle_reviewed | bool
         - groups.get('rke2_servers', []) | length == 1
-        - groups.get('rke2_agents', []) | length > 0
         - rke2_cluster_id != 'UNCONFIGURED'
         - rke2_cluster_id is match('^[a-zA-Z0-9][a-zA-Z0-9_-]+$')
         - rke2_private_output_dir is match('^/')
@@ -29,7 +29,32 @@
         that:
         - hostvars[item].ansible_host | default('UNCONFIGURED') != 'UNCONFIGURED'
         - hostvars[item].ansible_user | default('UNCONFIGURED') != 'UNCONFIGURED'
-      loop: "{{ groups['rke2_servers'] + groups['rke2_agents'] }}"
+      loop: "{{ groups['rke2_servers'] + groups.get('rke2_agents', []) }}"
+    - name: Validate the dedicated agent credential before any node connection
+      no_log: true
+      block:
+      - ansible.builtin.assert:
+          that:
+          - rke2_agent_token_file is match('^/')
+          - not rke2_agent_token_file.startswith('/UNCONFIGURED/')
+          - rke2_agent_token_file | realpath == rke2_agent_token_file
+      - ansible.builtin.stat:
+          path: '{{ rke2_agent_token_file }}'
+          follow: false
+        register: rke2_agent_credential
+      - ansible.builtin.assert:
+          that:
+          - rke2_agent_credential.stat.isreg | default(false)
+          - not (rke2_agent_credential.stat.islnk | default(false))
+          - rke2_agent_credential.stat.mode == '0600'
+          - rke2_agent_credential.stat.pw_name == lookup('ansible.builtin.env', 'USER')
+      - ansible.builtin.set_fact:
+          rke2_agent_token_value: "{{ lookup('ansible.builtin.file', rke2_agent_token_file, rstrip=false) }}"
+          cacheable: false
+      - ansible.builtin.assert:
+          that:
+          - rke2_agent_token_value is match('^[A-Za-z0-9_-]{32,}$')
+          - rke2_agent_token_value == (rke2_agent_token_value | trim)
     - name: Inspect existing private controller output directory
       ansible.builtin.stat:
         path: '{{ rke2_private_output_dir }}'
@@ -62,7 +87,7 @@
       ansible.builtin.add_host:
         name: '{{ item }}'
         groups: rke2_approved_agents
-      loop: "{{ groups['rke2_agents'] }}"
+      loop: "{{ groups.get('rke2_agents', []) }}"
 
 - name: Install the reviewed single physical RKE2 server
   hosts: rke2_approved_servers
@@ -97,6 +122,15 @@
         mode: '0600'
       delegate_to: localhost
       become: false
+    - name: Precreate private kubeconfig before fetch writes credential bytes
+      ansible.builtin.copy:
+        content: ''
+        dest: '{{ rke2_private_output_dir }}/rke2.yaml'
+        force: false
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+      no_log: true
     - name: Fetch only the selected server kubeconfig to private controller state
       ansible.builtin.fetch:
         src: '{{ rke2_config_dir }}/rke2.yaml'
@@ -125,10 +159,25 @@
         mode: '0700'
       delegate_to: localhost
       become: false
-    - name: Read the join token only for this run, never a cache or log
+    - name: Read the dedicated agent token only for this run, never a cache or log
       ansible.builtin.slurp:
-        src: /var/lib/rancher/rke2/server/node-token
-      register: rke2_server_token
+        src: /var/lib/rancher/rke2/server/agent-token
+      register: rke2_agent_join_token
+      no_log: true
+    - name: Read the server token only to verify privilege separation
+      ansible.builtin.slurp:
+        src: /var/lib/rancher/rke2/server/token
+      register: rke2_admin_token_check
+      no_log: true
+    - name: Refuse worker enrollment unless the dedicated secure token differs
+      ansible.builtin.assert:
+        that:
+        - agent_token is match('^K10[0-9a-f]{64}::')
+        - agent_token != server_token
+        - agent_token.split(':')[-1] != server_token.split(':')[-1]
+      vars:
+        agent_token: '{{ rke2_agent_join_token.content | b64decode | trim }}'
+        server_token: '{{ rke2_admin_token_check.content | b64decode | trim }}'
       no_log: true
 
 - name: Install and join reviewed physical agents after server readiness
@@ -142,7 +191,7 @@
     rke2_node_ip: '{{ ansible_host }}'
     rke2_server_host: "{{ groups['rke2_approved_servers'][0] }}"
     rke2_server_ip: '{{ hostvars[rke2_server_host].ansible_host }}'
-    rke2_join_token: '{{ hostvars[rke2_server_host].rke2_server_token.content | b64decode | trim }}'
+    rke2_join_token: '{{ hostvars[rke2_server_host].rke2_agent_join_token.content | b64decode | trim }}'
   tasks:
   - name: Run agents only in the approved install stage
     when: rke2_install_apply | bool and not ansible_check_mode

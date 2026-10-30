@@ -15,11 +15,12 @@
   - /var/lib/rancher/rke2
   - '{{ rke2_config_dir }}/perkforge-owner.json'
   - /usr/local/bin/rke2
+  - '{{ rke2_config_dir }}/config.yaml'
   register: rke2_existing
 - name: Never adopt an unowned existing RKE2 installation
   ansible.builtin.assert:
     that:
-    - not (rke2_existing.results[0].stat.exists or rke2_existing.results[2].stat.exists) or rke2_existing.results[1].stat.isreg | default(false)
+    - not (rke2_existing.results[0].stat.exists or rke2_existing.results[2].stat.exists or rke2_existing.results[3].stat.exists) or rke2_existing.results[1].stat.isreg | default(false)
 - name: Read the nonsecret installation owner marker
   when: rke2_existing.results[1].stat.exists
   ansible.builtin.slurp:

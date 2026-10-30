@@ -1,5 +1,9 @@
 ---
-- name: Configure physical RHEL homelab hosts
-  hosts: all
-  become: true
-  tasks: []
+- name: Report physical host preparation status without contacting nodes
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+  - name: Stop at the unimplemented OS preparation stage
+    ansible.builtin.debug:
+      msg: 'Host preparation is scaffolding only. Review RHEL repositories, SSH/become, SELinux, NetworkManager, firewall/CNI and storage before separately approved RKE2 installation.'

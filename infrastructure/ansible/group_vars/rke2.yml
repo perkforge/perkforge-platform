@@ -13,3 +13,7 @@ rke2_service_cidr: 10.43.0.0/16
 rke2_tls_sans: []
 # Review physical firewall/CNI/NetworkManager configuration separately.
 rke2_network_prerequisites_reviewed: false
+
+# Accept the custody/backup plan before live use; no secret default is supplied.
+rke2_credential_lifecycle_reviewed: false
+rke2_agent_token_file: /UNCONFIGURED/agent-token
