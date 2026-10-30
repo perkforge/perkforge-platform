@@ -14,6 +14,8 @@
 
 The first draft wrongly archived Rancher as a capability and retained an empty physical RKE2 installer. Local review corrections recover RKE2 install/configure/join/readiness and platform-only Rancher installation/OIDC in infrastructure Ansible. PXE/Kickstart installs RHEL; OS preparation remains a starter. Big Bang Ansible seeds Flux/configuration, then Flux reconciles packages. No private inventory/address or credential is committed.
 
+Enrollment bootstrap identities/RBAC live in enrollments/prerequisites and are applied by configuration/ansible/enrollment-prerequisites.yaml; tenant foundations remain in the enrollment repository. The existing enrollment_foundation_apply gate is retained unchanged for compatibility.
+
 ## Preserved assurance
 
 - Configuration: test_package_inventory, test_headlamp, test_identity_packages, test_selection_contract now cover full renders, optional packages, resource/PVC inventory, target/profile/context/pins and managed defaults.

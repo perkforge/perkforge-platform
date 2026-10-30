@@ -41,6 +41,6 @@
         - enrollment_uid.stdout == expected_cluster_uid
     - name: Apply only generic enrollment identities and root authority
       ansible.builtin.command:
-        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', apply, -k, '{{ playbook_dir }}/../../enrollments/foundation']
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', apply, -k, '{{ playbook_dir }}/../../enrollments/prerequisites']
       register: enrollment_result
       changed_when: "'created' in enrollment_result.stdout or 'configured' in enrollment_result.stdout"

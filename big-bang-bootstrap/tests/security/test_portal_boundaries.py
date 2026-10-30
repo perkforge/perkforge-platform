@@ -28,7 +28,7 @@ class PortalTrialTests(unittest.TestCase):
         self.assertNotIn('secretRef', next(o for o in parent if o['kind'] == 'GitRepository')['spec'])
         self.assertFalse((ROOT / 'stages').exists())
         self.assertEqual(sum(o['kind'] == 'HelmRelease' for o in objects), 1)
-        for path in (ROOT / 'enrollments/foundation').glob('*.yaml'):
+        for path in (ROOT / 'enrollments/prerequisites').glob('*.yaml'):
             self.assertNotIn('portal',path.read_text().lower())
 
     def test_three_repository_reconciler_namespaces_and_runtime_are_separate(self):
