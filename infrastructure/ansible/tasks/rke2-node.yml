@@ -1,0 +1,107 @@
+- name: Gather physical OS facts only after controller approval
+  ansible.builtin.setup:
+    gather_subset: [min]
+- name: Require prepared RHEL and enforcing SELinux
+  ansible.builtin.assert:
+    that:
+    - ansible_facts.distribution == 'RedHat'
+    - ansible_facts.distribution_major_version | int >= 8
+    - ansible_facts.selinux.status == 'enabled'
+    - ansible_facts.selinux.mode == 'enforcing'
+- name: Inspect existing RKE2 state before installation or configuration
+  ansible.builtin.stat:
+    path: '{{ item }}'
+  loop:
+  - /var/lib/rancher/rke2
+  - '{{ rke2_config_dir }}/perkforge-owner.json'
+  - /usr/local/bin/rke2
+  register: rke2_existing
+- name: Never adopt an unowned existing RKE2 installation
+  ansible.builtin.assert:
+    that:
+    - not (rke2_existing.results[0].stat.exists or rke2_existing.results[2].stat.exists) or rke2_existing.results[1].stat.isreg | default(false)
+- name: Read the nonsecret installation owner marker
+  when: rke2_existing.results[1].stat.exists
+  ansible.builtin.slurp:
+    src: '{{ rke2_config_dir }}/perkforge-owner.json'
+  register: rke2_owner_read
+- name: Refuse an existing installation belonging to another cluster or node role
+  when: rke2_existing.results[1].stat.exists
+  ansible.builtin.assert:
+    that:
+    - owner == {'owner':'perkforge-infrastructure','cluster':rke2_cluster_id,'role':rke2_role}
+  vars:
+    owner: '{{ rke2_owner_read.content | b64decode | from_json }}'
+- name: Inspect the installed version without performing an upgrade
+  when: rke2_existing.results[2].stat.exists
+  ansible.builtin.command:
+    argv: [/usr/local/bin/rke2, --version]
+  register: rke2_installed_version
+  changed_when: false
+- name: Refuse implicit upgrades of an existing installation
+  when: rke2_existing.results[2].stat.exists
+  ansible.builtin.assert:
+    that: rke2_installed_version.stdout.splitlines()[0].split()[2] == rke2_version
+- name: Preview existing managed configuration before any package or configuration writes
+  when: rke2_existing.results[1].stat.exists
+  ansible.builtin.template:
+    src: '../templates/rke2-{{ rke2_role }}.yaml.j2'
+    dest: '{{ rke2_config_dir }}/config.yaml'
+    owner: root
+    group: root
+    mode: '0600'
+  check_mode: true
+  register: rke2_config_preview
+  no_log: true
+- name: Existing managed configuration changes require separate maintenance review
+  when: rke2_existing.results[1].stat.exists
+  ansible.builtin.assert:
+    that: not rke2_config_preview.changed
+- name: Install only the RKE2 installer prerequisites
+  ansible.builtin.dnf:
+    name: [curl, tar, gzip]
+    state: present
+- name: Download the exact reviewed release installer with a content checksum
+  ansible.builtin.get_url:
+    url: '{{ rke2_install_script_url }}'
+    checksum: '{{ rke2_install_script_checksum }}'
+    dest: /usr/local/sbin/rke2-install.sh
+    owner: root
+    group: root
+    mode: '0755'
+- name: Install the pinned RPMs and their RKE2 SELinux policy only when absent
+  ansible.builtin.command:
+    argv: [/bin/sh, /usr/local/sbin/rke2-install.sh]
+    creates: /usr/local/bin/rke2
+  environment:
+    INSTALL_RKE2_TYPE: '{{ rke2_role }}'
+    INSTALL_RKE2_METHOD: rpm
+    INSTALL_RKE2_CHANNEL: '{{ rke2_channel }}'
+    INSTALL_RKE2_VERSION: '{{ rke2_version }}'
+- name: Create the root-owned RKE2 configuration directory
+  ansible.builtin.file:
+    path: '{{ rke2_config_dir }}'
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+- name: Write only the selected server or agent configuration
+  ansible.builtin.template:
+    src: '../templates/rke2-{{ rke2_role }}.yaml.j2'
+    dest: '{{ rke2_config_dir }}/config.yaml'
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+- name: Record nonsecret ownership before starting this new installation
+  ansible.builtin.copy:
+    content: "{{ {'owner':'perkforge-infrastructure','cluster':rke2_cluster_id,'role':rke2_role} | to_json }}"
+    dest: '{{ rke2_config_dir }}/perkforge-owner.json'
+    owner: root
+    group: root
+    mode: '0600'
+- name: Enable and start only the selected RKE2 service, without a restart
+  ansible.builtin.service:
+    name: 'rke2-{{ rke2_role }}'
+    state: started
+    enabled: true

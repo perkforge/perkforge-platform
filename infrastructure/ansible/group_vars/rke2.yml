@@ -1,0 +1,15 @@
+# Explicit physical-cluster inputs; no host, SSH or credential defaults are supplied.
+rke2_install_apply: false
+physical_operator_inputs_complete: false
+rke2_cluster_id: UNCONFIGURED
+rke2_private_output_dir: /UNCONFIGURED/rke2-output
+rke2_version: v1.36.5+rke2r1
+rke2_channel: stable
+rke2_install_script_url: https://raw.githubusercontent.com/rancher/rke2/v1.36.5%2Brke2r1/install.sh
+rke2_install_script_checksum: sha256:42983c86d1da64a92061d83afb57630cedd69241989f1b0673f3db6c3d92ee6b
+rke2_config_dir: /etc/rancher/rke2
+rke2_cluster_cidr: 10.42.0.0/16
+rke2_service_cidr: 10.43.0.0/16
+rke2_tls_sans: []
+# Review physical firewall/CNI/NetworkManager configuration separately.
+rke2_network_prerequisites_reviewed: false

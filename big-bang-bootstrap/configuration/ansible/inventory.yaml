@@ -1,0 +1,20 @@
+all:
+  children:
+    bootstrap_clusters:
+      vars:
+        ansible_connection: local
+        bootstrap_apply: false
+        config_repository: https://github.com/perkforge/perkforge-platform.git
+        config_tag: UNCONFIGURED
+        config_release_evidence: /UNCONFIGURED/platform-release.json
+        bootstrap_verify_release: false
+        target_kubeconfig: /UNCONFIGURED/kubeconfig
+        target_context: UNCONFIGURED
+        expected_cluster_uid: UNCONFIGURED
+        flux_checkout: /UNCONFIGURED/pinned-bigbang
+        config_source_secret: ''
+      hosts:
+        local:
+          gitops_path: ./big-bang-bootstrap/clusters/local
+          deployment_environment: local
+          impact_profile: il2

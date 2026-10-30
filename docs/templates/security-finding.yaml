@@ -7,8 +7,8 @@ title: "Example title from a verifier candidate"
 sourceKey: "sha256-assigned-by-importer"
 sourceCandidate:
   candidateId: PF-RBAC-EXAMPLE
-  artifact: local-lab/evidence/tenant-suite/<run>/candidate-findings.json
-  evidenceArtifact: local-lab/evidence/tenant-suite/<run>/rbac/report.json
+  artifact: evidence/runs/<run>/candidate-findings.json
+  evidenceArtifact: evidence/runs/<run>/rbac/report.json
   testSuite: rbac
   testId: example-check
   observedAt: "2026-01-01T00:00:00Z"

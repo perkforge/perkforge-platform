@@ -48,6 +48,25 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertNotRegex(record['run'], r'git (push|tag)')
         self.assertFalse(any('workflow_run' in str(value) for value in self.workflow['on']))
 
+    def test_historical_bootstrap_fixture_keeps_released_path(self):
+        check = yaml.load(Path('.github/workflows/gitops-selection.yml').read_text(), Loader=yaml.BaseLoader)
+        step = next(s for s in check['jobs']['selection']['steps']
+                    if s.get('name') == 'Verify tag-aware bootstrap without Kubernetes access')
+        self.assertIn('config_tag=v0.1.0', step['run'])
+        self.assertIn('gitops_path=./local-lab-big-bang/examples/clusters/local', step['run'])
+        # Only this historical verification uses the old path; onboarding selects the new layout.
+        inventory = yaml.safe_load(Path('big-bang-bootstrap/configuration/ansible/inventory.yaml').read_text())
+        self.assertEqual(inventory['all']['children']['bootstrap_clusters']['hosts']['local']['gitops_path'],
+                         './big-bang-bootstrap/clusters/local')
+
+    def test_cel_step_receives_the_same_pinned_source_fixture_directory(self):
+        check = yaml.load(Path('.github/workflows/gitops-selection.yml').read_text(), Loader=yaml.BaseLoader)
+        step = next(s for s in check['jobs']['selection']['steps']
+                    if s.get('name') == 'Check preserved native Flux admission evidence')
+        self.assertEqual(step['env']['PREFLIGHT_SOURCES_DIR'], '${{ runner.temp }}/minimal-sources')
+        self.assertEqual(step['env']['PORTAL_ENROLLMENT_CHECKOUT'], '${{ github.workspace }}/.inputs/enrollment')
+        self.assertEqual(step['env']['PORTAL_APP_CHECKOUT'], '${{ github.workspace }}/.inputs/app')
+
     def test_version_manifest_and_first_release_inputs(self):
         config = json.loads(Path('release-please-config.json').read_text())
         package = config['packages']['.']

@@ -1,0 +1,50 @@
+# Sole physical local root; optional packages are absent until explicitly selected.
+domain: example.test
+addons:
+  headlamp:
+    values:
+      upstream:
+        replicaCount: 1
+        nodeSelector:
+          kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE
+      routes:
+        inbound:
+          headlamp:
+            hosts:
+            - headlamp-local-il2.example.test
+      bbtests:
+        cypress:
+          envs:
+            cypress_url: https://headlamp-local-il2.example.test
+  keycloak:
+    values:
+      routes:
+        inbound:
+          keycloak:
+            hosts:
+            - keycloak-local-il2.example.test
+      bbtests:
+        cypress:
+          envs:
+            cypress_url: https://keycloak-local-il2.example.test
+      upstream:
+        extraEnv: '- {name: KC_HOSTNAME, value: ''https://keycloak-local-il2.example.test/auth''}
+
+          - {name: KC_CACHE, value: local}
+
+          - {name: JAVA_OPTS_KC_HEAP, value: ''-Xms128m -Xmx768m''}
+
+          '
+        nodeSelector:
+          kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE
+        resources:
+          requests:
+            cpu: 250m
+            memory: 768Mi
+          limits:
+            cpu: '1'
+            memory: 1536Mi
+      postgresql:
+        primary:
+          nodeSelector:
+            kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE

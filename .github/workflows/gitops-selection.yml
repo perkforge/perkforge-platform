@@ -2,9 +2,9 @@ name: gitops-selection-offline
 on:
   workflow_call:
   pull_request:
-    paths: ['local-lab-big-bang/**', '.github/workflows/gitops-selection.yml', 'release-evidence.json', 'scripts/verify-release-ref.sh']
+    paths: ['big-bang-bootstrap/**', 'infrastructure/**', 'evidence/**', '.github/workflows/gitops-selection.yml', 'release-evidence.json', 'scripts/verify-release-ref.sh']
   push:
-    paths: ['local-lab-big-bang/**', '.github/workflows/gitops-selection.yml', 'release-evidence.json', 'scripts/verify-release-ref.sh']
+    paths: ['big-bang-bootstrap/**', 'infrastructure/**', 'evidence/**', '.github/workflows/gitops-selection.yml', 'release-evidence.json', 'scripts/verify-release-ref.sh']
 permissions:
   contents: read
 jobs:
@@ -24,9 +24,9 @@ jobs:
       run: |
         python3 - <<'PYTHON'
         import json, os, sys, yaml
-        sys.path.insert(0, 'local-lab-big-bang/tests')
-        from test_selection_contract import release_for
-        source = yaml.safe_load(open('local-lab-big-bang/examples/enrollments/base/source.yaml'))
+        sys.path.insert(0, 'big-bang-bootstrap/tests')
+        from fixtures.selection import release_for
+        source = yaml.safe_load(open('big-bang-bootstrap/enrollments/base/source.yaml'))
         evidence = json.load(open('release-evidence.json'))['dependencies']['enrollment']
         release = release_for(source, evidence)
         with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
@@ -55,8 +55,8 @@ jobs:
       run: |
         python3 - <<'PYTHON'
         import json, os, sys, yaml
-        sys.path.insert(0, 'local-lab-big-bang/tests')
-        from test_selection_contract import release_for
+        sys.path.insert(0, 'big-bang-bootstrap/tests')
+        from fixtures.selection import release_for
         source = yaml.safe_load(open('.inputs/enrollment/tenants/portal/source.yaml'))
         evidence = json.load(open('.inputs/enrollment/release-evidence.json'))['dependencies']['portal']
         release = release_for(source, evidence)
@@ -83,12 +83,12 @@ jobs:
     - name: Check disabled Ansible bootstrap syntax
       env:
         ANSIBLE_LOCAL_TEMP: ${{ runner.temp }}/selection-ansible
-      run: ansible-playbook -i local-lab-big-bang/examples/ansible/inventory.yaml local-lab-big-bang/examples/ansible/bootstrap.yaml --syntax-check
+      run: ansible-playbook -i big-bang-bootstrap/configuration/ansible/inventory.yaml big-bang-bootstrap/configuration/ansible/bootstrap.yaml --syntax-check
     - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
       with:
         version: v3.19.0
     - name: Fetch checksummed public render fixtures only
-      run: python3 local-lab-big-bang/tests/fetch_preflight_sources.py "$RUNNER_TEMP/minimal-sources"
+      run: python3 big-bang-bootstrap/tests/fixtures/fetch_sources.py "$RUNNER_TEMP/minimal-sources"
     - name: Validate declarative context across the pinned review chain
       env:
         PREFLIGHT_SOURCES_DIR: ${{ runner.temp }}/minimal-sources
@@ -98,13 +98,36 @@ jobs:
         PORTAL_ENROLLMENT_CHECKOUT: ${{ github.workspace }}/.inputs/enrollment
         PORTAL_APP_CHECKOUT: ${{ github.workspace }}/.inputs/app
         RUN_PORTAL_IDENTITY_TESTS: "1"
-      run: python3 -m unittest discover -s local-lab-big-bang/tests -v
+        RUN_PLATFORM_CONFIG_TESTS: "1"
+      run: |
+        python3 -m unittest discover -s big-bang-bootstrap/tests -v
+        python3 -m unittest discover -s infrastructure/ansible/tests -v
+        python3 -m unittest discover -s evidence/tests -v
+    # Historical released fixture keeps its original path; new layout needs a new release.
     - name: Verify tag-aware bootstrap without Kubernetes access
       env:
         GH_TOKEN: ${{ github.token }}
         ANSIBLE_LOCAL_TEMP: ${{ runner.temp }}/bootstrap-tag-ansible
       run: |
-        ansible-playbook -i local-lab-big-bang/examples/ansible/inventory.yaml \
-          local-lab-big-bang/examples/ansible/bootstrap.yaml --limit local \
+        ansible-playbook -i big-bang-bootstrap/configuration/ansible/inventory.yaml \
+          big-bang-bootstrap/configuration/ansible/bootstrap.yaml --limit local \
           -e bootstrap_verify_release=true -e config_tag=v0.1.0 \
-          -e config_release_evidence="$GITHUB_WORKSPACE/local-lab-big-bang/tests/fixtures/platform-v0.1.0.json"
+          -e gitops_path=./local-lab-big-bang/examples/clusters/local \
+          -e config_release_evidence="$GITHUB_WORKSPACE/big-bang-bootstrap/tests/fixtures/platform-v0.1.0.json"
+
+    - uses: actions/setup-go@v7.0.0
+      with:
+        go-version: '1.27.3'
+        cache-dependency-path: big-bang-bootstrap/tests/security/cel/go.sum
+    - name: Check preserved native Flux admission evidence
+      working-directory: big-bang-bootstrap/tests/security/cel
+      env:
+        PREFLIGHT_SOURCES_DIR: ${{ runner.temp }}/minimal-sources
+        FLUX_PORTAL_CASE_SCRIPT: ${{ github.workspace }}/big-bang-bootstrap/tests/security/portal_admission_cases.py
+        FLUX_PORTAL_OPENAPI: ${{ github.workspace }}/big-bang-bootstrap/tests/fixtures/kubernetes-1.36.5.json
+        PORTAL_ENROLLMENT_CHECKOUT: ${{ github.workspace }}/.inputs/enrollment
+        PORTAL_APP_CHECKOUT: ${{ github.workspace }}/.inputs/app
+        GOMAXPROCS: '2'
+        GOMEMLIMIT: 512MiB
+        GOFLAGS: -p=2
+      run: go test -run TestFluxPortalAdmission -count=1 -v

@@ -1,0 +1,46 @@
+{
+  "clientId": "openbao",
+  "name": "PerkForge OpenBao",
+  "description": "Platform secrets human OIDC login",
+  "protocol": "openid-connect",
+  "enabled": true,
+  "publicClient": false,
+  "clientAuthenticatorType": "client-secret",
+  "standardFlowEnabled": true,
+  "implicitFlowEnabled": false,
+  "directAccessGrantsEnabled": false,
+  "serviceAccountsEnabled": false,
+  "redirectUris": [
+    "https://openbao.example.test/ui/vault/auth/oidc/oidc/callback",
+    "http://localhost:8250/oidc/callback"
+  ],
+  "webOrigins": [
+    "https://openbao.example.test"
+  ],
+  "fullScopeAllowed": false,
+  "defaultClientScopes": [
+    "profile"
+  ],
+  "optionalClientScopes": [],
+  "attributes": {
+    "perkforge-managed": "true",
+    "pkce.code.challenge.method": "S256"
+  },
+  "protocolMappers": [
+    {
+      "name": "groups",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-group-membership-mapper",
+      "consentRequired": false,
+      "config": {
+        "claim.name": "groups",
+        "full.path": "true",
+        "id.token.claim": "true",
+        "access.token.claim": "false",
+        "userinfo.token.claim": "true",
+        "introspection.token.claim": "false",
+        "jsonType.label": "String"
+      }
+    }
+  ]
+}
