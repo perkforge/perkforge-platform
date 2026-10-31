@@ -1,58 +1,106 @@
 # Platform handoff
 
-## Codex CLI: resume here, provisioning paused
+## Codex CLI: worker OS/access verified, workstation PXE stopped
 
 Use the **existing feature worktree** on `docs/physical-execution-journal`; do not
 start a second checkout or discard its uncommitted work. Codex CLI can work in
 this directory. Read AGENTS.md, this file and [the PXE entry](pxe/README.md) first.
 The configured publication destination is `origin`:
 `https://github.com/perkforge/perkforge-platform.git`. A separate legacy `source`
-remote exists; it is not this task's publication destination. No commit/push is
-part of the current handoff/audit. Never push main or merge.
+remote exists; it is not this task's publication destination. The operator has
+authorized a conventional commit and push of the reviewed changes to this feature
+branch on origin. Never push main or merge.
 
-**Current worker checkpoint:** worker-1 is user-reported in BIOS. Photo/user
-observations identify a WDC PC SN520 SDAPNU-256G-1006, nominal256GB; disk serial,
-exact bytes and Linux `/dev/disk/by-id` remain unknown. Primary Boot Sequence
-reportedly puts disk first; Automatic Boot Sequence puts network first. Leave
-both unchanged; which sequence governs next boot is not established. Control-1's
-installed RHEL/key-only SSH/password-sudo checkpoint must be preserved. No RKE2
-or Rancher work belongs in this session.
+**Current worker checkpoint:** operator reports installation finished and
+worker-1 reached installed RHEL login after Ethernet was disconnected for reboot.
+Primary Boot Sequence had already been changed to disk above network, but a
+connected restart still attempted PXE. Automatic Boot Sequence was not changed;
+its effect and UEFI entry ordering remain unresolved. Operator subsequently
+confirmed the expected LAN address and password-sudo.
+A native approved SSH handoff completed at2026-10-31 16:21:56UTC, exit0: full
+Ed25519 fingerprint compared against physical console, same existing public key
+as control-1 enrolled, fresh key-only login succeeded, reviewed policy syntax/
+effective settings validated before reload, then separate fresh key-only login
+and password-required sudo succeeded. Username is corey; no credential values
+collected. Private step logs/summary and storage inspection are under
+`pxe/local/worker-1/access/handoff-t_qjuics/`. Do not rerun its one-time wrapper:
+the managed policy now exists and is intentionally protected from overwrite.
+Do not claim persistent connected disk-first boot behavior is fixed.
 
-**Latest native evidence, available directly in ignored local files:**
-`pxe/local/worker-1/discovery/activation-output-npUzGQKr.summary.txt` reports exit2,
-3ok/0changed/1failed: both dedicated pilot units remained failed with MainPID0.
-The preceding `activation-output-oVWLs4nh.log` records an immediate timeout caused
-by incorrect `RuntimeMaxSec=0`, then successful bounded rollback assertions:
-pilot processes/listeners gone and dedicated guard absent. These are captured
-results, not a new live probe. The failed run's protected transaction/config path
-and two prior invocation IDs are in that log; inspect them before any reset.
+Operator identified one internal WDC PC SN520 SDAPNUW-256G-1006 at nvme0n1,
+238.47GiB, and explicitly approved its data disposal for RHEL. The reviewed
+interactive layout was600MiB standard EFI,2GiB standard XFS /boot and remaining
+XFS root on ordinary LVM, without separate home/swap or encryption. Native
+read-only SSH inspection confirmed the EFI, /boot and XFS LVM root mounts and
+expected sizes; exact disk bytes are retained privately. Root was left disabled;
+named user/
+password entered locally, with administrator/password requirement, Minimal Install,
+worker-1 hostname and wired networking acknowledged. No credential values were
+collected. Persistent disk ID/serial remain unknown; automated
+Kickstart guards stay unchanged and blocked. Control-1 and other nodes preserved.
 
-The source now maps the approved unlimited choice to explicit
-`RuntimeMaxSec=infinity`, checks the reported runtime property, and retains the
-30-minute default and approval gate. Eight offline activation tests pass. The
-current local retry wrapper still rejects failed units; **do not run it blindly**.
-Complete one consolidated, tested recovery: verify exact protected transaction,
-unit invocation identities and PID0; clear only those matching failed unit states;
-verify unloaded/stopped state; preserve the failed run in non-overwriting held
-paths; then activate worker-only discovery. Never broad-reset services, weaken
-read-only media checks or delete retained evidence. No recovery has run since the
-latest failed preflight.
+Keep Secure Boot unchanged. The operator explicitly requested workstation PXE
+shutdown; the native identity-checked playbook completed2026-10-31 16:24:13UTC,
+exit0, ok33/changed2/failed0. It verified dedicated units/processes/listeners gone,
+matching guard absent and original system/libvirt/default nginx preserved. No node
+action was performed. Private log/summary:
+`pxe/local/worker-1/discovery/shutdown-output-iWauEFig.log` and `.summary.txt`.
+Runtime/log/media and held failed-run evidence remain. Worker OS/access is verified
+as described above; persistent connected-boot ordering and RKE2 readiness remain
+unresolved. Worker-2 is not configured or authorized by this session. Worker-1
+poweroff was advised afterward; actual poweroff has not been confirmed.
 
-**Authority and boundaries:** the operator approved worker-only discovery service
-activation/retry, unlimited until explicit shutdown, and only the known public
-console directory0755→0555 correction (completed). This is not worker installer
-selection, installation, disk wipe, new credential creation or general security
-change authority. Provisioning is now paused for this handoff; confirm resumption
-with the operator before native recovery. Worker disk identity and explicit
-installation/data-loss approval remain necessary. Proposed workflow is standard
-RHEL Kickstart plus proven PXE and a short Ansible access handoff; the generic
-physical candidate remains BLOCKED. Full custom VM rehearsal is deferred, not a
-gate. No node-command transcription is the intended normal workflow.
+**Earlier activation evidence (subsequently shut down):** approved recovery/
+activation completed at 2026-10-31 15:41:44 UTC, exit0; recap107ok/14changed/
+0failed/0rescued.
+Private evidence is `pxe/local/worker-1/discovery/activation-output-mw1VaHuM.log`
+and its `.summary.txt`. The protected prior transaction and both exact failed
+invocation IDs were checked before resetting only those two PID0 failed states.
+Both transient units then verified unloaded/stopped. Prior runtime/log roots were
+preserved in non-overwriting `held-worker1-discovery-20261031-attempt2` paths;
+earlier held evidence remains. The fresh activation passed read-only media,
+reviewed hash, ingress guard, listener and original-service preservation checks.
+A separate native systemctl query confirmed both dedicated units active with
+RuntimeMaxUSec=infinity. This session was subsequently explicitly shut down as
+recorded above;
+do not rerun the one-time start wrapper. The one-time local recovery intentionally
+requires the prior failed transaction and will reject the new active session.
 
-**Execution capability:** this delegated environment cannot access native netlink,
-system bus or protected root transaction files. Do not bypass denials or mistake
-projected ownership for native ownership. A locally launched Codex CLI may have
-different permissions; inspect its actual capabilities and approval policy.
+The source maps the approved unlimited choice to explicit RuntimeMaxSec=infinity,
+checks the reported runtime property, and retains the30-minute default and approval
+gate. Eight offline activation tests and five local recovery scenarios passed;
+Ansible/shell syntax checks passed. These fixtures are separate from native results.
+No worker boot, installer selection or disk write was performed by this recovery.
+
+Architecture upkeep is an ongoing operator requirement: keep high-level C4
+context with workstation/node/platform drill-down and a repeatable operating
+procedure. The operator requested removal of planning and session clutter from
+that viewer. `docs/architecture/` now contains architecture, reusable interactive
+steps, protocol/access/lifecycle details and concise capability limits. Session
+status, approvals, troubleshooting and implementation backlogs remain outside it
+in the existing handoff/journal/history. Do not add per-worker checkpoint views
+or planning proposals back into C4. Preserve evidence-producing source/tests and
+private evidence. The source-link allowlist contains14 implementation files;
+obsolete generated copies were held in ignored shared local custody, not deleted.
+
+**Authority and boundaries:** operator separately approved worker discovery,
+network boot, installer inspection, selected sole-disk data loss/interactive RHEL
+installation, root-disabled named administrator and worker-only SSH handoff for
+corey. Those steps reached the OS/access checkpoint above. No general security,
+other-node, RKE2/Rancher/Flux or cloud changes are authorized. Operator explicitly
+approved workstation
+PXE shutdown and the reviewed local `discovery/stop.sh approved` completed with
+private logs and the existing transaction/unit/guard checks. No worker-2 service
+retarget/start or installation is approved by that shutdown. The automated Kickstart
+candidate remains BLOCKED; do not reinterpret interactive evidence as unattended
+validation or weaken its persistent-disk guards. Repeat architecture/procedure
+lives in `docs/architecture/`; implementation planning remains separate.
+
+**Execution capability:** sandbox system-bus access remains denied; explicitly
+approved native commands can inspect units. Native sudo requires operator input;
+the successful run used a visible local terminal with direct password entry,
+Ansible no_log and private automatic logging. Do not bypass denials or mistake
+projected ownership for native ownership.
 Future approved runs must automatically save private operational logs and bounded
 exit-status summaries under `pxe/local/worker-1/discovery/`, honor Ansible no_log,
 and never record terminal/password input. No more pasted output is expected.
@@ -79,7 +127,7 @@ is read-only in this environment; caches remain. Do not substitute permanent
 delete or empty Trash. Dependencies, generated viewer output, private tools,
 inputs and unique evidence were intentionally retained.
 
-## Physical preparation checkpoint
+## Earlier physical preparation checkpoint (historical)
 
 Current agreed path: [one controlled worker-1 pilot](infrastructure/TOMORROW-READINESS.md)
 using standard Kickstart, proven PXE and short access handoff. Full VM rehearsal
@@ -92,7 +140,9 @@ SSH plus password-authenticated sudo at2026-10-31 02:13:22UTC. Operator reports 
 shutdown successful at02:14:52; no exact recap/independent probes supplied. Read the
 [physical handoff](pxe/pilot/HANDOFF.md) and
 [chronological journal](infrastructure/EXECUTION-JOURNAL.md) before any action.
-Worker OS disks and RKE2/platform provisioning remain untouched; worker-1 firmware inspection and failed workstation discovery starts are described above. Working SSH does not
+At that earlier checkpoint worker OS disks and platform provisioning were untouched.
+The current worker OS/access result is above; RKE2/platform work remains
+untouched. Working SSH does not
 establish host readiness. Before workers, review the [provisioning redesign](infrastructure/PROVISIONING-REDESIGN.md)
 and [retrospective](infrastructure/PROVISIONING-RETRO-2026-10-31.md), then
 [tomorrow readiness](infrastructure/TOMORROW-READINESS.md). No deployable replacement is implemented. Preserve retained runtime/log/media evidence.

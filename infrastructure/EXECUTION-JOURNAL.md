@@ -2156,6 +2156,142 @@ logs are not overwritten. Native protected transaction inspection was denied to
 the assistant; verification is performed by the approved native Ansible launcher,
 not bypassed. No native retry occurred during preparation.
 
+## 2026-10-31 15:41:44 UTC completion — worker discovery recovery and activation
+
+Operator confirmed resumption after relaunch. Scope: exact failed workstation
+PXE discovery recovery and worker-only discovery activation, unlimited until
+explicit shutdown; no worker boot, installation, disk or credential change.
+
+The native launcher ran the local discovery start wrapper with `approved` in a
+visible terminal; the operator supplied sudo input directly. Protected transaction
+path/unit/hash/lifetime checks and both exact failed invocation identities with
+PID0 passed before resetting only those two failed unit states. Both transient
+units verified unloaded/stopped. Prior runtime/log roots were preserved under
+fresh attempt2 held names without overwriting earlier evidence. Read-only media,
+reviewed configuration, guard, listener and existing-service checks passed.
+
+Native Ansible result: exit0, ok107 changed14 unreachable0 failed0 skipped7
+rescued0 ignored0. Automatic private log and bounded summary remain in the ignored
+worker discovery workspace. A separate approved native systemctl query confirmed
+both dedicated services active with RuntimeMaxUSec=infinity. This is workstation
+discovery availability, not evidence of worker PXE acceptance or installation.
+Explicit reviewed shutdown remains required before leaving the discovery session.
+
+Offline validation: eight existing activation tests and five local recovery
+scenarios passed (success, invocation mismatch, running PID, transaction mismatch,
+and unload failure); Ansible/shell syntax and diff whitespace checks passed.
+The local recovery is deliberately specific to the retained failed transaction;
+do not rerun the wrapper against the active session. Worker disk identity and
+installation/data-loss approval remain outstanding. Control-1 and platform
+provisioning were untouched.
+
+## 2026-10-31 — worker-1 PXE menu acceptance (operator report)
+
+Operator approved network boot to the menu only. The prior one-time interrupt
+route had been unreliable; the approved alternative used Startup / Primary Boot
+Sequence temporarily network-first, with disk-first restoration required when
+discovery ends. Operator then reported media-presence checking followed by GRUB
+with the RHEL10.2 interactive installer entry available. This establishes reported
+worker PXE menu acceptance, not installer execution, disk identity or installation.
+No installer selection is approved. Exact worker disk identity and installation/
+data-loss approval remain outstanding. C4/runbook now reflect this boot route,
+observed checkpoint and restoration obligation. Event time was not captured.
+
+## 2026-10-31 — worker interactive inspection and specific data-loss approval
+
+After separate approval to start the interactive installer for inspection,
+operator reached the welcome/summary/storage screens and reported one internal
+WDC SN520 of238.47GiB at nvme0n1. Serial/persistent ID/exact bytes were not
+obtained; console shortcut attempts were unsuccessful. Operator then explicitly
+confirmed this sole worker drive's existing data is disposable for RHEL. This is
+worker-specific approval; the historical control-1 approval was not reused.
+No disk changes, Begin Installation or completed worker install are reported.
+Next review the proposed interactive layout; do not weaken automated persistent-
+disk guards or claim unattended validation. Preserve control-1. Temporary BIOS
+network-first selection must be restored to disk-first before normal local boot.
+Event time was not captured. Evidence is operator report, not a native disk probe.
+
+## 2026-10-31 — worker-1 interactive layout/account review ready
+
+Operator reports deleting prior Windows partitions in the pending custom layout,
+adding600MiB standard EFI,2GiB standard XFS /boot and remaining XFS LVM root, then
+confirms the change summary affects only nvme0n1. No separate home/swap or disk
+encryption was proposed. Operator accepted the same account approach as control-1,
+left root disabled, and entered their user/password locally. The subsequent check
+of administrator/password requirement, Minimal Install and hostname worker-1 with
+wired networking was acknowledged done. No passwords were requested or collected.
+Begin Installation is the next authorized worker-only step; start/completion and
+actual resulting disk layout remain unobserved. Preserve PXE/source availability
+while installation is active; restore disk-first before normal local boot.
+
+## 2026-10-31 — worker-1 installation underway (operator report)
+
+After the scoped Begin Installation instruction, operator reports installation
+underway. This is reported installation start, not observed completion or verified
+resulting storage/access. Keep workstation source/PXE available throughout install.
+Pause before reboot to restore disk-first boot; no service shutdown is implied.
+Event time was not captured.
+
+## 2026-10-31 — worker-1 local login and hostname (operator report)
+
+Operator reported installation ready to reboot, restored disk above network in
+Primary Boot Sequence and restarted, but PXE was attempted again. Automatic Boot
+Sequence was left unchanged. After disconnecting Ethernet and rebooting, operator
+reached installed RHEL login, then logged in and reported `hostname` = `worker-1`.
+Ethernet reconnection was instructed but actual link/address is not yet verified.
+This establishes reported local OS boot/login, not persistent connected disk-first
+behavior, resulting layout, sudo, SSH/key-only access or cluster readiness. Boot
+selection remains unresolved; do not silently disable or change another sequence.
+Workstation services remain active pending explicit shutdown. Event time uncaptured.
+
+## 2026-10-31 16:21:56 UTC completion — worker-1 SSH/key-only/sudo handoff
+
+Operator confirmed the expected LAN address and password-sudo from console, then
+explicitly approved worker-only host-trust/public-key/key-only/sudo handoff for
+corey. Native scan was not trusted until operator confirmed the complete Ed25519
+fingerprint against the physical console. The same existing public key used for
+control-1 was enrolled through standard ssh-copy-id in a visible local terminal.
+A separate fresh public-key-only connection confirmed hostname/user and captured
+private read-only storage/mount evidence: expected600MiB EFI,2GiB XFS /boot and
+remaining XFS LVM root. No serial/private key/password value was collected.
+
+The retained tested policy helper was transferred and SHA256 checked before
+sudo execution. It validated SSH syntax/effective policy then reloaded SSH.
+Final separate key-only login succeeded; invalidated sudo credentials rejected
+noninteractive privilege before local password authentication succeeded and the
+privileged hostname matched worker-1. Root/password/keyboard-interactive SSH are
+disabled by the checked policy; PAM/password-authenticated sudo retained.
+
+Native local wrapper summary: exit0, final stage complete. Private step-result
+logs and inspection files are retained in the ignored worker access workspace;
+terminal/password input was not recorded. Repeated existing-key passphrase prompts
+came from distinct non-multiplexed connections. Four existing policy fixtures and
+five local handoff orchestration scenarios passed; fixtures are not native proof.
+Operator separately reported successful completion. Persistent connected disk-first
+boot remains unresolved. Workstation PXE services remain running; exact logged
+shutdown wrapper prepared/syntax-checked, awaiting explicit shutdown authorization.
+No cluster/other-node changes or commit/push occurred.
+
+## 2026-10-31 16:24:13 UTC — workstation PXE shutdown verified
+
+Operator explicitly requested stopping the worker-1 workstation PXE session.
+The prepared local stop wrapper invoked existing shutdown.yml in a visible local
+terminal with direct workstation sudo input and automatic private Ansible logging.
+Native result: exit0, ok33 changed2 unreachable0 failed0 skipped0 rescued0 ignored0.
+Transaction/config and recorded unit invocation identities were checked before
+stopping dedicated units; dedicated processes/listeners were verified gone,
+original system/libvirt/default nginx preserved, and the unchanged recorded guard
+removed and verified absent. Runtime/log records, staged media, indefinite menu
+and held failed-run evidence were retained. No node shutdown or unrelated-service
+change was performed. Private log/summary remain in the ignored worker discovery
+workspace. Worker-2 requires its own reviewed client identity/configuration and
+activation approval; this shutdown does not retarget services.
+
+Timestamp note: this shutdown's native Ansible log11:24:13 is America/Chicago
+(CDT, UTC−05), hence16:24:13UTC. The earlier activation log10:41:44 was likewise
+local time, converted to15:41:44UTC in the activation entry. Shell access logs
+used explicit UTC timestamps and are unaffected.
+
 ## Reusable entry template — not an execution record
 
 Copy this structure for the next approved step; replace placeholders only with

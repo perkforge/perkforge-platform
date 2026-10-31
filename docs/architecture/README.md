@@ -1,87 +1,75 @@
-# Interactive provisioning architecture
+# Physical RHEL architecture and repeat procedure
+
+Start at the C4 context, narrow into workstation/node/platform, then follow the
+ordered operating procedure. This viewer contains architecture, responsibilities,
+repeat settings and completion checks. Session state and execution history belong
+in [HANDOFF.md](../../HANDOFF.md) and the
+[execution journal](../../infrastructure/EXECUTION-JOURNAL.md).
 
 ## Step index
 
-1. [Prepare offline draft](../../pxe/ansible/README.md) — Render the private plan and blocked Kickstart draft.
-2. [Review exact plan; STOP before approval](../../infrastructure/TOMORROW-READINESS.md#pilot-approval) — Confirm the exact target, disk, access and exposure.
-3. [Power / BIOS / select network boot](../../pxe/README.md#red-hat-solution-and-nginx) — Select the approved node and boot path.
-4. [Kickstart installation](../../pxe/kickstart/README.md) — Install only after validation and approval gates pass.
-5. [Reboot to local disk](../../infrastructure/TOMORROW-READINESS.md#installation-and-access) — Start the installed OS without repeating installation.
-6. [Verify identity, key login, sudo, readiness](../../infrastructure/TOMORROW-READINESS.md#installation-and-access) — Confirm trusted access and OS readiness.
-7. [Disarm / stop / report](../../infrastructure/TOMORROW-READINESS.md#finish) — Stop owned temporary resources and retain the result.
+1. [Prepare reviewed PXE configuration](public/runbook.html#prepare) — Review target, network, media and fresh private configuration.
+2. [Review target, disk and action scope](public/runbook.html#approve) — Confirm selected node, disk, data loss and access scope.
+3. [Activate PXE and select network boot](public/runbook.html#boot) — Start reviewed services and reach the indefinite GRUB menu.
+4. [Install RHEL with reviewed settings](public/runbook.html#install) — Review layout and accounts before committing the installation.
+5. [Restore disk-first and boot installed OS](public/runbook.html#firstboot) — Restore firmware order and verify the installed disk boots.
+6. [Verify identity, key login and sudo](public/runbook.html#verify) — Establish trusted access and verify fresh login and sudo.
+7. [Stop owned services and retain evidence](public/runbook.html#cleanup) — Verify scoped shutdown and preserve original services and evidence.
 
-Active strategy: controlled physical worker pilot. Full VM rehearsal/custom
-session runner is deferred, not a gate. Step1 produces the blocked draft; final
-worker inputs, actual target-file validation and explicit live approval remain.
-Keep one workstation host-fingerprint/private-password checkpoint.
+## Navigate the architecture
 
-LikeC41.60.0 is pinned locally in this documentation project; the lockfile pins its
-dependencies. No global tool or system package is required. It is documentation,
-not a deployment controller or the parked portal project.
+| View | Purpose |
+|---|---|
+| index | System context: operator, workstation, router, node, custody and platform |
+| workstation_detail | Configuration, dedicated PXE/HTTP services, ingress, SSH and evidence |
+| node_detail | Firmware, menu, installer, disk and installed OS |
+| operations | Ordered repeat process with operator, automation and completion checks |
+| boot_protocol | DHCP/proxy/TFTP/HTTP sequence and menu/installer boundary |
+| installation | Interactive disk, layout, account and installation review |
+| security_handoff | Host trust, public-key enrollment, policy validation and fresh access |
+| service_lifecycle | Preflight, identity, exposure, recovery, shutdown and retained evidence |
+| platform_detail | Separate readiness and RKE2/Rancher/Flux/Big Bang/repository ownership |
 
-## Open the walkthrough
+Click workstation, node or platform from context to drill down; use the view
+selector for focused flows. Numbered notes link to the matching
+[runbook sections](public/runbook.html); return to context with back navigation.
+Diagrams are an operating contract, not a live health/approval dashboard.
 
-Prerequisite: Node **22.22.3 or newer** and npm on PATH. Tested with Node24.22.2.
-Dependencies are already present in this working directory; for a fresh checkout:
+The active repeat procedure is interactive Anaconda over the existing PXE
+transport. The separate offline Kickstart candidate is intentionally blocked;
+fixture-tested access components are not an unattended deployment path. Keep this
+capability boundary without expanding the viewer into implementation proposals.
+The runbook states what still requires manual action or separate approval.
+
+## Open locally
+
+Node22.22.3 or newer and npm are required; validated with Node24.22.2.
+LikeC41.60.0 and dependencies are pinned in the project lockfile. On a fresh checkout:
 
 ```sh
 npm --prefix docs/architecture ci --ignore-scripts --no-audit --no-fund
 ```
 
-From repository root, the one viewing command is:
+Start the documentation viewer:
 
 ```sh
 npm --prefix docs/architecture start
 ```
 
-Then open <http://127.0.0.1:5173>. This starts only a loopback documentation server;
-it never invokes PXE/Ansible, contacts a node or changes provisioning state. Stop
-it with Ctrl-C. The server has **not** been started during preparation. Syntax,
-layout and static build have been tested; browser interaction has not been
-manually exercised. No deployment or publishing is configured.
+Open <http://127.0.0.1:5173>; stop with Ctrl-C. The viewer binds loopback only and
+never invokes provisioning, contacts a physical node or changes cluster state.
+No hosting/publishing is configured. Static layout/build is checked; browser
+interaction has not been manually verified.
 
-Start at context (`index`), click workstation/node to drill into their scoped
-views, pan/zoom, and use the view selector to choose a flow. Click numbered step
-notes/links for the matching local runbook section. Each stage explicitly states
-**Operator**, **Automation** and **Evidence / stop** in both the step notes and
-the linked runbook. Back navigation returns to
-context. Links are local to this viewer or official public documentation; no
-unpublished GitHub branch URL is required.
+## Source and validation
 
-## Views
-
-| View | Meaning |
-|---|---|
-| index | Small context: engineer, workstation, router, physical node, custody |
-| workstation_detail | Implemented preparation, observed transport, proposed controller |
-| node_detail | Firmware, installer, disk and installed OS |
-| operations | **Ordered1–7 proposed journey**: prepare → review/approve → network boot → Kickstart install → first disk boot → verify → disarm/cleanup |
-| boot_protocol | Client-initiated DHCP/proxy/TFTP/HTTP **sequence**, reference flow rather than a packet capture |
-| installation | Proposed install gates; candidate currently always aborts |
-| security_handoff | Actual Ansible bootstrap task order, controller/target execution, evidence and revocation; integration blocked |
-| observed_pilot | Actual operator-reported interactive pilot checkpoint and limits |
-
-Green elements are implemented preparation/bootstrap component code; blue are observed pilot roles (not
-proof services are currently running); amber are proposed; red are unresolved
-stop gates. Titles/descriptions preserve status even without color.
-
-The human handles power/BIOS/network boot and a trusted identity/fingerprint check
-when needed. Normal provisioning otherwise belongs on the workstation, without
-node command transcription or interactive installer. Considering control-1 again
-does not approve its wipe. The exact worker install remains **blocked pending inputs/review/approval**; native
-Kickstart/PAM/package behavior will be learned in the controlled physical pilot.
-
-## Sources and validation
-
-- [model.c4](model.c4) and [views.c4](views.c4) are the editable model.
-- [Runbook HTML](public/runbook.html) is the actual linked source with anchors for
-  steps1–7, operator boundary, credential gate and observed evidence.
-- `scripts/prepare-sources.mjs` copies only eighteen explicit nonsecret source files
-  into ignored `public/sources/`, so links open the actual current runbook/code
-  without depending on GitHub publication. It never recursively copies the repo,
-  private inventory, raw journal, credentials or evidence.
-- `node_modules/`, generated source copies and `dist/` are ignored; keep model,
-  runbook, tool manifest/lockfile and checks in the feature branch.
+[model.c4](model.c4), [views.c4](views.c4) and
+[runbook.html](public/runbook.html) are the editable architecture and procedure.
+The source-copy script uses an explicit allowlist of implementation files;
+no recursive repository copy, inventories, session logs, credentials or planning
+papers are exposed. Generated source copies, dependencies and dist are ignored.
+The existing implementation and evidence-producing tests remain in their original
+locations; this cleanup changes documentation only.
 
 ```sh
 npm --prefix docs/architecture run validate
@@ -89,20 +77,7 @@ npm --prefix docs/architecture run build
 python3 -m unittest discover -s docs/architecture -p 'test_*.py'
 ```
 
-Validation uses bundled layout tooling; build produces an ignored static site.
-No PNG export/browser capture was run because those can start a server. Links use
-root-relative paths for the local viewer; deployment under a different base path
-would need its own link review and is outside this deliverable.
-
-Follow [vendor guidance](../../infrastructure/RHEL-PROVISIONING-GUIDANCE.md),
-[readiness](../../infrastructure/TOMORROW-READINESS.md) and
-[PXE preparation](../../pxe/README.md). [LikeC4 CLI](https://likec4.dev/tooling/cli/)
-and [dynamic-view syntax](https://likec4.dev/dsl/views/dynamic/) are upstream
-references, not provisioning instructions.
-
-## Final documentation direction
-
-During work, keep planned versus implemented versus observed explicit. After
-proven rehearsal/installation, consolidate to the tested operator runbook and
-matching current-state C4, retiring superseded planning while preserving useful
-execution evidence separately. No planning is deleted or marked completed now.
+Keep new architecture concerns at the appropriate level and link down to precise
+operating details. Keep chronological checkpoints, approval transcripts, failed
+experiments and implementation backlogs outside this viewer. Preserve those
+records in their existing handoff, journal or historical locations.

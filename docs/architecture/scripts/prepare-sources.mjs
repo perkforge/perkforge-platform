@@ -7,24 +7,20 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../../..')
 const output = path.resolve(here, '../public/sources')
 const files = {
-  'prepare.yml': 'pxe/ansible/prepare.yml',
-  'preparation.md': 'pxe/ansible/README.md',
-  'rhel10.ks.j2': 'pxe/kickstart/rhel10.ks.j2',
-  'redesign.md': 'infrastructure/PROVISIONING-REDESIGN.md',
-  'readiness.md': 'infrastructure/TOMORROW-READINESS.md',
-  'vendor-guidance.md': 'infrastructure/RHEL-PROVISIONING-GUIDANCE.md',
-  'handoff.md': 'pxe/pilot/HANDOFF.md',
-  'bootstrap.md': 'pxe/bootstrap/README.md',
-  'bootstrap-rehearsal.md': 'pxe/bootstrap/REHEARSAL.md',
-  'bootstrap-main.yml': 'pxe/bootstrap/tasks/main.yml',
-  'bootstrap-setup.yml': 'pxe/bootstrap/tasks/setup.yml',
-  'bootstrap-handoff.yml': 'pxe/bootstrap/tasks/handoff.yml',
-  'bootstrap-verify.yml': 'pxe/bootstrap/tasks/verify-human.yml',
-  'bootstrap-revoke.yml': 'pxe/bootstrap/tasks/revoke.yml',
-  'bootstrap-post.ks.j2': 'pxe/kickstart/bootstrap-post.ks.j2',
-  'storage.ks.j2': 'pxe/kickstart/storage.ks.j2',
-  'bootstrap-controller.yml': 'pxe/bootstrap/handoff.yml',
-  'bootstrap-access.example.yml': 'pxe/bootstrap/access.example.yml'
+  'prepare.yml': 'pxe/pilot/prepare.yml',
+  'inputs.example.yml': 'pxe/pilot/inputs.example.yml',
+  'activate.yml': 'pxe/pilot/activate.yml',
+  'activation-placement.yml': 'pxe/pilot/activation-placement.yml',
+  'verify-activation-copies.yml': 'pxe/pilot/verify-activation-copies.yml',
+  'verify-pilot-identity.yml': 'pxe/pilot/verify-pilot-identity.yml',
+  'shutdown.yml': 'pxe/pilot/shutdown.yml',
+  'shutdown-tasks.yml': 'pxe/pilot/shutdown-tasks.yml',
+  'dnsmasq.conf.j2': 'pxe/pilot/templates/dnsmasq.conf.j2',
+  'grub.cfg.j2': 'pxe/pilot/templates/grub.cfg.j2',
+  'nginx.conf.j2': 'pxe/pilot/templates/nginx.conf.j2',
+  'ingress.nft.j2': 'pxe/pilot/templates/ingress.nft.j2',
+  'stage-media.sh': 'pxe/pilot/stage-media.sh',
+  'harden-ssh.sh': 'pxe/pilot/history/console/harden-ssh.sh'
 }
 await mkdir(output, { recursive: true })
 for (const [name, source] of Object.entries(files)) {

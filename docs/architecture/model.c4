@@ -2,140 +2,128 @@ specification {
   element actor { style { shape person } }
   element system
   element component
-  element implemented { style { color green } }
-  element observed { style { color blue } }
-  element planned { style { color amber } }
-  element gate { style { color red } }
+  element boundary { style { color red } }
 }
 
 model {
   engineer = actor 'Platform engineer' {
-    description 'Human power/BIOS/network-boot and trusted physical identity checks. No node command transcription in the proposed normal workflow.'
-    link /runbook.html#operator 'Operator boundary'
+    description 'Selects the physical target, approves disk/data loss and access scope, operates firmware/installer and verifies trusted host identity. Enters credentials locally.'
+    link /runbook.html#operator 'Operator responsibilities'
   }
   router = system 'Existing LAN router' {
-    description 'Sole DHCP address allocator; reservations stay here. No address pool on the workstation.'
-    link /runbook.html#boot 'Boot roles'
+    description 'Sole DHCP address allocator. Workstation proxy supplies boot information, never an address pool.'
+    link /runbook.html#boot 'Boot protocol'
   }
   workstation = system 'Engineer workstation' {
-    description 'Debian controller. Existing nginx/dnsmasq pilot; new offline Ansible preparation. Controlled physical pilot chosen; exact worker file/service batch still needs review and approval.'
-    link /runbook.html 'Ordered runbook'
-    prepare = implemented 'Offline Ansible preparation' {
-      description 'Implemented/tested: two private review files only. Kickstart always aborts; no native apply path.'
-      link /runbook.html#prepare '1. Prepare offline'
-      link /sources/prepare.yml 'Actual Ansible source'
+    description 'Runs reviewed Ansible PXE lifecycle, dedicated boot/source services and SSH client. Existing system/libvirt services remain separate.'
+    link /runbook.html#prepare 'Preparation and prerequisites'
+    review = component 'Private target inputs and reviewed configuration' {
+      description 'Target/network identity, verified media, boot paths, service identities and hashes. Ansible renders inert files into a fresh private review directory; review before activation.'
+      link /sources/prepare.yml 'Transport preparation source'
+      link /sources/inputs.example.yml 'Nonsecret input schema'
     }
-    controller = planned 'Install / verify / cleanup' {
-      description 'Use short reviewed workstation batches and manual host-trust/password checkpoint. Custom session/VM framework deferred; this model grants no live authority.'
-      link /runbook.html#verify '6. Verify first boot'
-      link /runbook.html#cleanup '7. Disarm and cleanup'
+    lifecycle = component 'Ansible activation / shutdown' {
+      description 'Preflight, root-controlled copies, guard before LAN listeners, dedicated transient units and identity-checked rollback/shutdown. Runtime/log roots retained; existing roots cause stop for reviewed recovery.'
+      link /runbook.html#lifecycle 'Lifecycle and recovery contract'
+      link /sources/activate.yml 'Activation source'
+      link /sources/shutdown.yml 'Shutdown source'
     }
-    proxy = observed 'PXE proxy dnsmasq' {
-      description 'Pilot configuration supplies boot metadata only; separate system/libvirt instances preserved. IPv4 PXE route observed.'
-      link /runbook.html#boot '3. Boot protocols'
+    guard = component 'Dedicated nft ingress table' {
+      description 'Restricts reviewed interface/client/ports before LAN binding. MAC/IP restrictions are spoofable, not authentication. Never edit unrelated tables.'
+      link /sources/ingress.nft.j2 'Ingress template'
     }
-    tftp = observed 'TFTP boot files' {
-      description 'Vendor shim/GRUB, GRUB configuration, kernel/initrd. Client initiates transfers; not an authenticated content channel.'
-      link /runbook.html#boot '3. Boot protocols'
+    proxy = component 'Proxy DHCP / dnsmasq' {
+      description 'Dedicated dnsmasq process supplies PXE boot metadata. Router keeps address allocation; system/libvirt dnsmasq identities are preserved.'
+      link /sources/dnsmasq.conf.j2 'Proxy and TFTP template'
     }
-    http = observed 'nginx installation tree' {
-      description 'Static full DVD tree. Future nonsecret Kickstart is not published. HTTP serving is distinct from UEFI HTTP boot support.'
-      link /runbook.html#install '4. Kickstart / source'
-      link https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html/automatically_installing_rhel/preparing-network-based-repositories 'Red Hat installation source'
+    tftp = component 'Read-only TFTP boot tree' {
+      description 'Vendor shim/GRUB, indefinite default-exit menu, kernel/initrd. Root-owned read-only media, reviewed hashes and a single GRUB lookup path.'
+      link /sources/grub.cfg.j2 'GRUB menu template'
     }
-    ssh = observed 'Workstation SSH client' {
-      description 'Pilot key-only login and password-authenticated sudo verified by operator; private key remains on workstation/approved encrypted backup.'
-      link /runbook.html#observed 'Observed access checkpoint'
+    http = component 'nginx / read-only RHEL DVD tree' {
+      description 'Full verified DVD tree including .treeinfo serves runtime/packages on reviewed TCP8080. Dedicated service identity/state. No passwords, hashes or private keys in served content.'
+      link /sources/nginx.conf.j2 'HTTP template'
     }
-    report = planned 'Compact result / retained logs' {
-      description 'Proposed single sanitized result; preserve evidence, no manual log transcription. Logs never contain credentials.'
-      link /runbook.html#cleanup '7. Completion result'
+    ssh = component 'SSH client / public-key enrollment' {
+      description 'Trust full host fingerprint through physical console before connection. Enroll an existing public key; prove fresh key login before approved key-only hardening. Keep recovery session until fresh login/sudo succeeds.'
+      link /runbook.html#access 'Access handoff'
+    }
+    evidence = component 'Protected transaction and operational logs' {
+      description 'Root-protected active record, config hashes, unit invocation identities and guard identity. Private automatic output/exit summary honors no_log and excludes terminal/password capture. Preserve failed attempts without overwriting.'
+      link /runbook.html#lifecycle 'Evidence and ownership'
     }
   }
   node = system 'Selected physical node' {
-    description 'Pilot OS/access observed. Current target is worker-1; no installation is approved. Preserve control-1. No private hardware identifiers in this model.'
-    link /runbook.html#observed 'Observed versus planned'
-    firmware = observed 'UEFI + vendor shim/GRUB' {
-      description 'Pilot reached GRUB/installer with Secure Boot previously reported enabled. Not full attestation; UEFI HTTP capability unproven.'
-      link /runbook.html#boot '3. Power / firmware / boot'
+    description 'Physical RHEL target. Repeat the process only for an explicitly selected node; preserve other installed nodes. Session status and approvals live in the handoff/journal, not this model.'
+    link /runbook.html#approve 'Target and erase review'
+    firmware = component 'UEFI / boot selection' {
+      description 'Retain Secure Boot. Prefer one-time wired IPv4 PXE; if interrupt is unreliable, temporarily put network first in Startup / Primary Boot Sequence. Record original order and restore disk-first before normal disk boot.'
+      link /runbook.html#boot 'Firmware and restoration'
     }
-    installer = observed 'Installer initramfs / Anaconda' {
-      description 'Initramfs loads installer runtime; interactive Anaconda installation worked. Complete unattended Kickstart and credential handoff remain untested.'
-      link /runbook.html#install '4. Standard Kickstart'
-      link /sources/rhel10.ks.j2 'Blocked Kickstart candidate'
+    menu = component 'Indefinite GRUB menu' {
+      description 'Default exit with timeout disabled. Reaching GRUB proves menu acceptance only, not a remote shell or disk inventory. Interactive installer selection is a separate approved action. Exit does not guarantee disk boot.'
+      link /runbook.html#boot 'Menu acceptance'
     }
-    disk = observed 'Explicitly selected system disk' {
-      description 'Only the pilot disk was approved and installed. Future erase requires a new exact persistent-disk/data-loss plan.'
-      link /runbook.html#approve '2. Exact disk approval'
+    installer = component 'RHEL Anaconda interactive installer' {
+      description 'Minimal Install, reviewed hostname/wired networking, custom storage and root-disabled named administrator. Review only selected-disk changes before committing. Source stays available until installation finishes.'
+      link /runbook.html#install 'Repeatable installation settings'
     }
-    os = observed 'Installed RHEL / OpenSSH / sudo' {
-      description 'Pilot first disk boot and key-only SSH/password-sudo passed. Access caller has offline fixtures; real first-boot verification/removal remains unproven.'
-      link /runbook.html#firstboot '5. First disk boot'
+    disk = component 'Reviewed system disk' {
+      description 'For interactive single-disk install, review model/capacity/device and sole internal-drive status. Approve all data loss for this node. Device names are not persistent identity for automated disk erasure.'
+      link /runbook.html#approve 'Disk identification and data loss'
     }
-  }
-  approval = gate 'STOP: target / disk / exposure approval' {
-    description 'New node or control-1 reinstall requires a reviewed exact-disk/data-loss plan. Network and credential privileges must be explicit.'
-    link /runbook.html#approve '2. Review and approve'
-  }
-  credential = gate 'STOP: exact worker scope / approval' {
-    description 'No password/hash/private key in HTTP/TFTP. Temporary root-equivalent design approved for preparation. Actual credentials/access/install need scoped approval; native behavior is untested and will be checked in the controlled pilot, not a mandatory VM rehearsal.'
-    link /runbook.html#credentials 'Credential decision'
-  }
-  custody = system 'Approved credential custody / recovery' {
-    description 'Private key and recovery material remain protected off cluster. No automatic secret delivery configured by this model.'
-    link /runbook.html#credentials 'Public key versus secret'
-  }
-  bootstrap = system 'Ansible bootstrap components — offline fixtures' {
-    description 'Actual Kickstart adapters and role task bodies have temporary fixtures. Physical draft stays blocked pending exact worker inputs/review. Custom runner deferred; native proof belongs to the controlled physical pilot.'
-    link /sources/bootstrap.md 'Component contract and limits'
-    access = implemented 'Controller handoff.yml — default off' {
-      description 'Workstation prompts for existing runtime password, validates references, uses bootstrap administration then distinct human SSH/become alias. No password/hash in inventory/HTTP/arguments. Native connections mocked; no installer/session runner.'
-      link /sources/bootstrap-controller.yml 'Actual access controller playbook'
-      link /sources/bootstrap-access.example.yml 'Nonsecret reference schema'
-    }
-    adapter = implemented 'Initial policy — Kickstart post script' {
-      description 'Ansible renders shared SSH/sudo templates into standard Anaconda installed-root post script. Checks account/key, writes ledger/policy, validates and enables SSH offline only after success. No Ansible/systemd manager inside installer; future host-key creation mocked.'
-      link /sources/bootstrap-post.ks.j2 'Actual initial policy adapter'
-    }
-    storage = implemented 'Storage — exact persistent disk draft' {
-      description 'Ansible-rendered standard single-disk storage plus read-only type/serial/capacity check. Unknown input emits abort. Candidate unconditional abort still precedes all mutation; real disk install untested.'
-      link /sources/storage.ks.j2 'Actual storage adapter'
-    }
-    setup = implemented '1. setup.yml — target-side' {
-      description 'On installed target: dedicated locked account/public key, key-only SSH and root-equivalent sudo, syntax/effective policy, protected ledger. Never starts SSH. Standalone target reference fixture; normal initial install uses Kickstart post adapter instead.'
-      link /sources/bootstrap-setup.yml 'Actual setup tasks'
-      link /sources/bootstrap-main.yml 'Role gating and failed-run ledger'
-    }
-    handoff = implemented '2. handoff.yml — target-side' {
-      description 'On target through bootstrap administration: human key/account and runtime password through encrypted SSH stdin to target PAM. No secrets in HTTP. No revocation yet.'
-      link /sources/bootstrap-handoff.yml 'Actual human handoff tasks'
-    }
-    verify = implemented '3. verify-human.yml — controller' {
-      description 'Fresh controller SSH, pinned known-host file, no multiplex reuse; require key login and password-sudo. Secret via stdin/no_log. Native SSH mocked in fixtures.'
-      link /sources/bootstrap-verify.yml 'Actual fresh-access verification'
-    }
-    revoke = implemented '4. revoke.yml — human-admin target channel' {
-      description 'Require fresh human access, remove matching bootstrap key/sudo only, expire account/terminate its processes; verify rejected bootstrap plus retained human access. Failure ledger stays outstanding/unknown.'
-      link /sources/bootstrap-revoke.yml 'Actual revocation tasks'
+    os = component 'Installed RHEL / OpenSSH / sudo' {
+      description 'Local-disk boot and trusted host identity precede public-key enrollment, key-only SSH verification and password-authenticated sudo. OS/access success does not establish RKE2 readiness.'
+      link /runbook.html#verify 'Verification requirements'
     }
   }
-  platform = planned 'Host readiness then RKE2 / platform' {
-    description 'Separate approved stage. Working OS/access does not establish kernel, repository, networking or RKE2 readiness.'
-    link /runbook.html#verify 'OS/access boundary'
+  approval = boundary 'Target, exposure, erase and access scope' {
+    description 'Review each new physical target. Approval for boot services, network boot, installer inspection, erase and access changes has distinct scope. Prior-node approval does not transfer.'
+    link /runbook.html#approve 'Approval boundaries'
+  }
+  custody = system 'Protected credential custody / recovery' {
+    description 'Private keys, passwords and recovery inputs remain protected outside served content and tracked files. Public key references only in nonsecret configuration.'
+    link /runbook.html#access 'Trust and custody'
+  }
+  platform = system 'Host readiness and platform ownership' {
+    description 'Separate from OS installation. Infrastructure Ansible owns host/RKE2/Rancher configuration. Flux owns GitOps and Big Bang supplies curated platform packages.'
+    link /runbook.html#platform 'Platform responsibilities'
+    readiness = boundary 'Host readiness / separate approval' {
+      description 'Review repositories, Python, time, kernel prerequisites, networking/CNI, firewall, SELinux and capacity before cluster changes. Installed OS and working SSH alone are insufficient.'
+    }
+    rke2 = component 'Physical RKE2 cluster'
+    rancher = component 'Rancher cluster lifecycle administration'
+    flux = component 'Flux GitOps reconciliation'
+    bigbang = component 'Big Bang platform packages'
+    enrollment = component 'Tenant enrollment repository' {
+      description 'Owns tenant foundations and registration.'
+    }
+    applications = component 'Application repositories' {
+      description 'Own application configuration and tenant deployments.'
+    }
   }
 
-  engineer -> workstation 'Operates from the workstation'
-  engineer -> node 'Power / BIOS / trusted identity only'
-  workstation -> node 'Scoped boot/source and managed access'
-  router -> node 'DHCP address lease'
-  custody -> workstation 'Protected operator credential use'
-  workstation.prepare -> workstation.controller 'Future reviewed install input; currently blocked'
-  workstation.controller -> workstation.proxy 'Proposed session lifecycle'
-  workstation.controller -> workstation.tftp 'Proposed session lifecycle'
-  workstation.controller -> workstation.http 'Proposed session lifecycle'
-  workstation.ssh -> node.os 'Observed verified key-only access'
-  node.firmware -> node.installer 'Boots kernel / installer initramfs'
-  node.installer -> node.disk 'Installs only approved disk/layout'
-  node.installer -> node.os 'Produces installed OS; automation still planned'
-  node.os -> platform 'Separate readiness/installation approval'
+  engineer -> workstation 'Reviews inputs; runs approved lifecycle and SSH'
+  engineer -> node 'Firmware, installer and trusted physical identity'
+  engineer -> approval 'Approves exact target and action scope'
+  router -> node 'DHCP lease'
+  workstation -> node 'PXE/TFTP, HTTP source and SSH'
+  custody -> workstation 'Protected local credential use'
+  workstation.review -> workstation.lifecycle 'Reviewed configuration and hashes'
+  workstation.lifecycle -> workstation.guard 'Exclusive table before LAN listeners'
+  workstation.lifecycle -> workstation.proxy 'Dedicated transient unit'
+  workstation.proxy -> workstation.tftp 'Serves requested boot assets'
+  workstation.lifecycle -> workstation.http 'Separate dedicated transient unit'
+  workstation.lifecycle -> workstation.evidence 'Record transaction, identities and result'
+  node.firmware -> node.menu 'Vendor boot chain and reviewed menu'
+  node.menu -> node.installer 'Explicit installer selection'
+  node.installer -> node.disk 'Commit reviewed layout only after erase approval'
+  node.installer -> node.os 'Install then boot local disk'
+  workstation.ssh -> node.os 'Host-verified key-only SSH and password-sudo'
+  node.os -> platform.readiness 'Separate readiness assessment'
+  platform.readiness -> platform.rke2 'Approved host/cluster preparation'
+  platform.rancher -> platform.rke2 'Platform-admin lifecycle'
+  platform.flux -> platform.bigbang 'Reconcile platform packages'
+  platform.flux -> platform.enrollment 'Reconcile tenant foundations'
+  platform.flux -> platform.applications 'Reconcile application configuration'
 }
