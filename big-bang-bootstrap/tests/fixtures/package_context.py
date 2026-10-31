@@ -4,7 +4,7 @@ from copy import deepcopy
 import os, subprocess, tempfile, unittest, base64, uuid
 from pathlib import Path
 import yaml
-from fixtures.render_helpers import build, child_values, helm, ordered_values, release_name
+from fixtures.render_helpers import build, child_values, helm, ordered_values, release_name, application_package_fixture
 from fixtures.resource_inventory import inventory
 from fixtures.lookup_server import lookup_server, secret_allowed
 ROOT = Path(__file__).resolve().parents[2]
@@ -17,7 +17,7 @@ class HeadlampFixture(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.sources = Path(os.environ['PREFLIGHT_SOURCES_DIR'])
-        cls.root = build(CLUSTER)
+        cls.root = application_package_fixture(ROOT)
         cls.foundation = build(ROOT / 'configuration/packages/bigbang/prerequisites') + build(ROOT / 'configuration/packages/headlamp/prerequisites')
         cls.parent = next(o for o in cls.root if o['kind'] == 'HelmRelease')
         cls.outer_raw = helm(cls.sources / 'bigbang/chart', 'bigbang', 'bigbang',
@@ -54,7 +54,7 @@ class IdentityFixture(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = Path(os.environ['PREFLIGHT_SOURCES_DIR'])
-        cls.root = build(CLUSTER)
+        cls.root = application_package_fixture(ROOT)
         cls.parent = next(o for o in cls.root if o['kind'] == 'HelmRelease')
         raw = helm(cls.source / 'bigbang/chart', 'bigbang', 'bigbang', ordered_values(cls.root, cls.parent))
         with tempfile.TemporaryDirectory() as d:

@@ -15,7 +15,7 @@ STAGE = ROOT / 'configuration/identity'
 from fixtures.package_context import HeadlampFixture
 
 class HeadlampConfigurationTests(HeadlampFixture):
-    def test_authoritative_root_selects_only_reviewed_packages(self):
+    def test_explicit_identity_fixture_selects_only_reviewed_packages(self):
         self.assertEqual(sum(o['kind'] == 'HelmRelease' for o in self.root), 1)
         self.assertTrue(self.parent['spec']['suspend'])
         self.assertEqual({o['metadata']['name'] for o in self.outer if o['kind'] == 'HelmRelease'}, {'headlamp', 'keycloak'})

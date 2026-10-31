@@ -54,3 +54,12 @@ def release_name(release):
     # Flux's default is [targetNamespace-]name, not Helm's arbitrary CLI name.
     return spec.get('releaseName') or ((spec['targetNamespace'] + '-')
                                       if spec.get('targetNamespace') else '') + release['metadata']['name']
+
+
+def application_package_fixture(root):
+    """Explicit identity-package opt-in for offline tests, never operator input."""
+    objects = [obj for obj in build(root / 'clusters/local')
+               if obj['metadata']['name'] != 'values-longhorn']
+    for name in ['headlamp', 'keycloak']:
+        objects += build(root / 'configuration/packages' / name)
+    return objects

@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 import yaml
-from fixtures.render_helpers import build, helm, ordered_values
+from fixtures.render_helpers import build, helm, ordered_values, application_package_fixture
 
 ROOT=Path(__file__).resolve().parents[2]
 
@@ -14,7 +14,7 @@ class OptionalPlatformPackages(unittest.TestCase):
         cls.sources=Path(os.environ['PREFLIGHT_SOURCES_DIR'])
         cls.root=build(ROOT/'clusters/local')
         cls.parent=next(x for x in cls.root if x['kind']=='HelmRelease')
-        cls.inputs=cls.root+build(ROOT/'configuration/packages/longhorn')+build(ROOT/'configuration/packages/rancher')
+        cls.inputs=application_package_fixture(ROOT)+build(ROOT/'configuration/packages/longhorn')+build(ROOT/'configuration/packages/rancher')
         outer=helm(cls.sources/'bigbang/chart','bigbang','bigbang',ordered_values(cls.inputs,cls.parent))
         with tempfile.TemporaryDirectory() as temp:
             p=Path(temp);(p/'render.yaml').write_text(yaml.safe_dump_all(outer))
@@ -25,12 +25,18 @@ class OptionalPlatformPackages(unittest.TestCase):
             values=next(x for x in cls.outer if x['kind']=='Secret' and x['metadata']['name']==name+'-values')['stringData']['values.yaml']
             cls.children[name]=helm(cls.sources/name,name,namespace,[values])
 
-    def test_current_root_stays_paused_and_new_packages_absent(self):
+    def test_current_root_selects_only_longhorn_and_stays_paused(self):
         self.assertTrue(self.parent['spec']['suspend'])
         names={x['metadata']['name'] for x in self.root}
-        self.assertFalse({'values-longhorn','values-rancher','rancher-official'} & names)
+        self.assertIn('values-longhorn', names)
+        self.assertFalse({'values-headlamp','values-keycloak','values-rancher','values-openbao','rancher-official','tenant-enrollments'} & names)
         outer=helm(self.sources/'bigbang/chart','bigbang','bigbang',ordered_values(self.root,self.parent))
-        self.assertFalse({'longhorn','rancher'} & {x['metadata']['name'] for x in outer if x['kind']=='HelmRelease'})
+        releases={x['metadata']['name']:x for x in outer if x['kind']=='HelmRelease'}
+        self.assertEqual(set(releases), {'longhorn'})
+        self.assertTrue(releases['longhorn']['spec']['suspend'])
+        self.assertEqual({x['metadata']['name'] for x in outer if x['kind']=='GitRepository'}, {'longhorn','bigbang-wrapper'})
+        self.assertFalse(any(x['kind'] in ['Deployment','StatefulSet','PersistentVolumeClaim','Namespace','ClusterRole','ClusterRoleBinding'] for x in outer))
+        self.assertFalse(any(x['kind']=='Kustomization' for x in self.root))
 
     def test_opt_in_graph_and_external_rancher_credential(self):
         releases={x['metadata']['name']:x for x in self.outer if x['kind']=='HelmRelease'}

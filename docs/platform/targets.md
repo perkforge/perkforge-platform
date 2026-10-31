@@ -13,7 +13,7 @@
 
 ## Choose tenant enrollment
 
-The shipped local root currently excludes tenant enrollment while core platform services are established. Enrollment prerequisite apply refuses this unselected root before external access. Optional enrolled-chain tests explicitly opt in temporary fixtures; they do not enable the operator root.
+The shipped local root selects only suspended Longhorn for initial storage acceptance; Rancher follows through a reviewed source change. Headlamp, Keycloak, OpenBao and tenant enrollment are excluded. Enrollment prerequisite apply refuses this unselected root before external access. Optional enrolled-chain tests explicitly opt in temporary fixtures; they do not enable the operator root.
 
 For a later enrolled target, copy `enrollments/local/` to `enrollments/dev/`, select it in the cluster root, and set its Flux reconciliation path to `./clusters/dev` in the enrollment repository. Prepare matching enrollment/app contexts and publish compatible releases. Dependency order is application → enrollment → platform; advance only to real published tags.
 

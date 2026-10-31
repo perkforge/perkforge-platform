@@ -1,6 +1,6 @@
-# Optional Longhorn storage package
+# Longhorn storage package
 
-Prepared, not selected or installed. clusters/local still omits this directory;
+Selected in clusters/local for the initial storage stage, not installed;
 the outer Big Bang release/seed and this package's Flux HelmRelease stay paused.
 Big Bang 3.35.1 generates the single child release/source from the official charts
 Git tag longhorn-1.13.0 (charts/longhorn). The checksummed official chart artifact

@@ -92,7 +92,7 @@ addons:
   mimir:
     enabled: false
   headlamp:
-    enabled: true
+    enabled: false
     values:
       bigbang:
         rbac:

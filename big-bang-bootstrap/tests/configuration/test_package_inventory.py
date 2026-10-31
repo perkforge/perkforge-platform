@@ -6,7 +6,7 @@ import unittest
 
 import yaml
 
-from fixtures.render_helpers import build, child_values, helm, ordered_values, release_name
+from fixtures.render_helpers import application_package_fixture, build, child_values, helm, ordered_values, release_name
 from fixtures.resource_inventory import inventory, quantity
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -21,7 +21,7 @@ class MinimalRenderTests(unittest.TestCase):
         cls.flux = build(cls.sources / 'bigbang/base/flux')
         cls.local_flux = cls.flux
         for target in ('local',):
-            root = build(ROOT / 'clusters' / target)
+            root = application_package_fixture(ROOT)
             release = next(obj for obj in root if obj['kind'] == 'HelmRelease')
             assert release['spec']['suspend']
             test_root = root + build(ROOT / 'configuration/packages/openbao')
@@ -53,7 +53,7 @@ class MinimalRenderTests(unittest.TestCase):
             for target, report in cls.reports.items():
                 (Path(output) / (target + '.json')).write_text(json.dumps(report, indent=2) + '\n')
 
-    def test_authoritative_defaults_pause_release_and_enrollment(self):
+    def test_explicit_application_fixture_keeps_release_paused(self):
         for target, objects in self.objects.items():
             default = {obj['metadata']['name'] for obj in objects['default'] if obj['kind'] == 'HelmRelease'}
             self.assertEqual(default, {'headlamp', 'keycloak'})

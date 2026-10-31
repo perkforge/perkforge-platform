@@ -97,15 +97,14 @@ or a stale API boot ID. These are distinct from the successful live checks.
 Read-only storage assessment: no StorageClasses, PVs or PVCs exist. Each node has
 one roughly 256GB NVMe with XFS root shared by OS/RKE2; about 226–227GiB remains
 free, six CPUs and about 15GiB RAM. Links report 1 Gbps; no NAS is available.
-Worker storage prerequisites are installed as detailed below. Current selected packages are Headlamp
-and Keycloak; the authored Keycloak database claim is 4GiB on a retained static
+Worker storage prerequisites are installed as detailed below. The core-only source now selects suspended Longhorn; Headlamp/Keycloak remain unselected. Previously authored identity inputs remain inert: the authored Keycloak database claim is 4GiB on a retained static
 local-identity PV, with worker/path still placeholders. Its advertised capacity is
 not a filesystem quota. No storage backend, directory, quota, package or disk was
 changed. The later growth scope includes Harbor image retention, portal PostgreSQL,
 Nextcloud personal files/photos and OpenBao. Proposed storage baseline is Longhorn
 with two worker replicas and an initial 80–100GiB logical budget, with independent
 backups and later dedicated worker SSDs as growth requires; see infrastructure/README.md.
-Longhorn and Rancher are now prepared as optional unselected Big Bang packages.
+Longhorn is selected but suspended; Rancher remains an optional unselected Big Bang package.
 Their child HelmReleases and the outer release/seed remain suspended. No bootstrap,
 node labels or platform resources changed in that source-only preparation. Later approved worker host preparation is recorded below.
 Longhorn is pinned 1.13.0 with worker-only placement, two hard-separated replicas,
@@ -262,8 +261,7 @@ Firefox ESR has a public-certificate Install policy at
 Certificates Install entry under active policies. Live browser HTTPS is not yet verified. All three nodes remain
 Ready. No signing/service private key was distributed, no cluster Secret or API
 OIDC change was made, and no RKE2/browser restart was performed. OS trust does not
-populate application/container CA stores. Next is reviewed leaf/key Secret and
-application CA delivery, preserving paused bootstrap. Independent CA backup and
+populate application/container CA stores. Next is Longhorn-first source review/publication and separately approved Flux/storage activation; application TLS delivery is deferred. Independent CA backup and
 passphrase custody remain unconfirmed. Source and repeat procedures are retained in the repository.
 
 TLS resource delivery is prepared, not applied, in
@@ -301,3 +299,20 @@ regressions for matching, missing and wrong context keys. No old configuration i
 accepted as current bootstrap input. Local verification passed all156 Python tests across platform/infrastructure/PXE/
 evidence/release/docs, native Flux admission checks and the C4 build. Fix-PR review
 and hosted checks remain before release publication can resume. Tenant bootstrap stays excluded.
+
+## Core-only bootstrap selection
+
+The current feature source selects only Longhorn. Shared Headlamp enablement is
+false; its values references are optional. Identity packages, Rancher, OpenBao and
+tenant enrollment are absent from the operator root. Offline identity tests opt
+into explicit fixtures to preserve their coverage. All activation remains paused.
+Platform v0.9.0 retains the previous identity selection and cannot be used for this
+new bootstrap sequence; review/publish the core-only source first.
+
+Follow configuration/ansible/README.md: Flux foundation and paused seed, reviewed
+common/Longhorn installer prerequisites, separately approved storage activation
+and persistence/reattachment/two-worker replica acceptance, then Rancher with its
+own TLS/bootstrap credentials. Defer SSO until Keycloak is separately ready.
+Previously prepared three-application TLS inputs remain protected and unapplied;
+they are not the initial storage stage. No live mutation, commit or push is
+authorized by the source preparation.
