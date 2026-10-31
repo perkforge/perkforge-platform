@@ -124,3 +124,53 @@ token exports. The kubeconfig and bundled client can be fetched again. A credent
 ZIP is unencrypted unless explicitly encrypted separately; restrict it to mode0600,
 keep it ignored and transfer it only to protected storage. No archive or exported
 token contains the etcd datastore unless a separate snapshot operation was performed.
+
+## Disposable workload networking smoke test
+
+`tests/workload-smoke.yml` is a human-invoked live test, separate from offline
+unittest discovery. It creates two nonprivileged, resource-limited BusyBox pods,
+one per explicit worker, and a ClusterIP service in `perkforge-workload-smoke`.
+The image is pinned by digest. It validates both pods' exact placement, resolves
+Kubernetes and test-service DNS from each pod, sends direct pod HTTP in both
+cross-worker directions, and checks the service by ClusterIP and DNS from both
+workers. Responses must identify the expected worker; success is more than an
+open port. It tests IPv4/default cluster.local networking, not ingress, policy
+isolation, storage persistence, reboot recovery or etcd backup/restore.
+
+Before a live run, review the kubeconfig endpoint and node names. Read the
+`kube-system` namespace UID using that reviewed client/config, then author ignored
+`inventory/.rke2-state/smoke-inputs.yml` with these explicit fields:
+
+```yaml
+workload_smoke_kubeconfig: /ABSOLUTE/PATH/TO/.rke2-state/cluster/rke2.yaml
+workload_smoke_kubectl: /ABSOLUTE/PATH/TO/.rke2-state/cluster/kubectl
+workload_smoke_output_parent: /ABSOLUTE/PATH/TO/.rke2-state
+workload_smoke_expected_cluster_uid: REPLACE_WITH_REVIEWED_KUBE_SYSTEM_NAMESPACE_UID
+workload_smoke_workers: [worker-1, worker-2]
+```
+
+Keep the kubeconfig/input file mode0600 and output parent mode0700. The test
+checks the expected cluster UID before any mutation and refuses an existing
+namespace, including leftovers. It never adopts or deletes a preexisting namespace.
+For the separately approved live run, from the repository root:
+
+```sh
+ansible-playbook -i localhost, infrastructure/ansible/tests/workload-smoke.yml -e @infrastructure/ansible/inventory/.rke2-state/smoke-inputs.yml -e workload_smoke_apply=true
+```
+
+Without the flag, or with `--check`, the playbook makes no Kubernetes connection.
+Each run retains a fresh mode0700 workload-smoke-* directory with mode0600
+summary.yml and namespace-local diagnostics.txt under the ignored output parent.
+Cleanup runs on probe success/failure, verifies its ownership label, and uses an
+atomic namespace UID deletion precondition. A foreign/replaced namespace is
+preserved and cleanup is reported failed. The command fails if probes, diagnostic
+capture or cleanup fail. A hard process kill can interrupt cleanup; inspect the
+recorded namespace and ownership before separately approving manual removal.
+Do not put results, actual topology or cluster credentials in tracked fixtures.
+
+Offline refusal/success/failure/cleanup tests use a mocked kubectl and never a
+cluster:
+
+```sh
+python3 -m unittest discover -s infrastructure/ansible/tests -p test_workload_smoke.py
+```

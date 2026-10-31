@@ -1,6 +1,7 @@
 # Current operator handoff
 
-Live cluster work is paused at the operator's request. Use this existing feature
+Provisioning remains paused; the operator separately approved the disposable
+workload smoke test described below. Use this existing feature
 worktree; never push main or merge. Publish changes only when explicitly requested.
 
 ## Current state
@@ -52,8 +53,16 @@ private inputs and credentials remain ignored. Host preparation refuses an
 existing RKE2 installation; do not rerun it on the installed cluster. Token export
 refuses to overwrite existing exports.
 
-Before platform activation, separately approve disposable cross-node/DNS/service
-validation, off-node snapshot/token custody, sequential reboot verification and a
-persistent-storage choice. These checks remain outstanding; no new live action
-is authorized by this handoff. Keep architecture and human repeat instructions,
+The approved live workload smoke test passed with zero failures: two Ready pods on
+separate workers, four DNS checks, two cross-worker direct HTTP checks and four
+ClusterIP/service-DNS HTTP checks. Owned namespace cleanup completed. Private
+summary/diagnostics are in ignored .rke2-state/workload-smoke-v3xg8pd0/. Offline
+mock checks separately cover default/check refusal, wrong cluster, existing
+namespace, failed probes and foreign-namespace cleanup refusal. The test source is
+in infrastructure/ansible/tests/workload-smoke.yml and fixtures/workload-smoke.yaml.
+
+Before platform activation, separately approve off-node snapshot/token custody,
+sequential reboot verification and a persistent-storage choice. These checks remain
+outstanding. Smoke success does not establish ingress, policy isolation, durable
+storage or recovery. No further live action is authorized by this handoff. Keep architecture and human repeat instructions,
 not session journals, planning archives or duplicate procedure documents.

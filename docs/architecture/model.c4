@@ -132,7 +132,7 @@ model {
         description 'Run workloads and join using the shared separate agent-only token in secure format, without receiving the server token.'
       }
       networking = component 'Canal / CoreDNS / Traefik' {
-        description 'Pod networking, cluster DNS and ingress. Host preparation persists modules/sysctls, excludes virtual interfaces from NetworkManager and explicitly disables firewalld for Canal compatibility.'
+        description 'Pod networking, cluster DNS and ingress. Host preparation persists modules/sysctls, excludes virtual interfaces from NetworkManager and explicitly disables firewalld for Canal compatibility. An explicit disposable two-worker smoke test checks DNS, cross-worker pod HTTP and ClusterIP access, then verifies owned namespace cleanup; it does not prove ingress or policy isolation.'
       }
       operator_access = component 'Private administrator kubeconfig' {
         description 'Mode0600 credentials with the reviewed API endpoint. Use the protected bundled client; default kubeconfig replacement requires an explicit operator request.'

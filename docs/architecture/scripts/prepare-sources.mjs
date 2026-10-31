@@ -7,6 +7,8 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../../..')
 const output = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(here, '../public/sources')
 const files = {
+  'workload-smoke.yml': 'infrastructure/ansible/tests/workload-smoke.yml',
+  'workload-smoke.yaml': 'infrastructure/ansible/tests/fixtures/workload-smoke.yaml',
   'prepare.yml': 'pxe/transport/prepare.yml',
   'inputs.example.yml': 'pxe/transport/inputs.example.yml',
   'activate.yml': 'pxe/transport/activate.yml',

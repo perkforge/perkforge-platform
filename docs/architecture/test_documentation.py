@@ -71,7 +71,9 @@ class Documentation(unittest.TestCase):
         self.assertNotIn('pilot.sh',str(package['scripts']))
 
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
-        copies={'prepare.yml': 'pxe/transport/prepare.yml',
+        copies={'workload-smoke.yml': 'infrastructure/ansible/tests/workload-smoke.yml',
+         'workload-smoke.yaml': 'infrastructure/ansible/tests/fixtures/workload-smoke.yaml',
+         'prepare.yml': 'pxe/transport/prepare.yml',
          'inputs.example.yml': 'pxe/transport/inputs.example.yml',
          'activate.yml': 'pxe/transport/activate.yml',
          'activation-placement.yml': 'pxe/transport/activation-placement.yml',

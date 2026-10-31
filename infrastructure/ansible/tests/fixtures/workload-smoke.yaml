@@ -1,0 +1,79 @@
+# Rendered only by workload-smoke.yml after explicit live approval.
+apiVersion: v1
+kind: List
+items:
+{% for worker in workload_smoke_workers %}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    name: {{ ['probe-a', 'probe-b'][loop.index0] }}
+    namespace: {{ workload_smoke_namespace }}
+    labels:
+      app.kubernetes.io/name: workload-smoke
+      perkforge.io/probe: {{ ['probe-a', 'probe-b'][loop.index0] }}
+  spec:
+    automountServiceAccountToken: false
+    restartPolicy: Never
+    terminationGracePeriodSeconds: 2
+    nodeSelector:
+      kubernetes.io/hostname: {{ worker | to_json }}
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      fsGroup: 65532
+      seccompProfile:
+        type: RuntimeDefault
+    containers:
+    - name: probe
+      image: {{ workload_smoke_image | to_json }}
+      imagePullPolicy: IfNotPresent
+      command: [sh, -ec]
+      args:
+      - 'mkdir -p /tmp/www; printf "%s\n" "$NODE_NAME" > /tmp/www/index.html; exec httpd -f -p 8080 -h /tmp/www'
+      env:
+      - name: NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+      ports:
+      - containerPort: 8080
+        name: http
+      readinessProbe:
+        httpGet:
+          path: /
+          port: http
+        periodSeconds: 2
+        timeoutSeconds: 2
+      resources:
+        requests:
+          cpu: 5m
+          memory: 8Mi
+        limits:
+          cpu: 100m
+          memory: 32Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: [ALL]
+      volumeMounts:
+      - name: temporary
+        mountPath: /tmp
+    volumes:
+    - name: temporary
+      emptyDir:
+        sizeLimit: 8Mi
+{% endfor %}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: smoke-http
+    namespace: {{ workload_smoke_namespace }}
+  spec:
+    type: ClusterIP
+    selector:
+      perkforge.io/probe: probe-b
+    ports:
+    - port: 8080
+      targetPort: http
