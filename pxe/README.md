@@ -1,64 +1,93 @@
-# Physical RHEL 10.2 PXE pilot
+# Physical RHEL provisioning
 
-Selected target: **control-1 only**, RHEL10.2 x86_64 DVD, interactive non-FIPS
-installation. Workers remain excluded. The pilot node is in firmware setup;
-**no physical network boot or installation has happened**.
+Start with [Red Hat's current workflow and our adaptations](../infrastructure/RHEL-PROVISIONING-GUIDANCE.md).
+The target experience is review a per-node plan, approve the exact install, select
+network boot, and receive a verified installed-host result. **Installation is not
+ready or armed yet.** Current code implements offline preparation only. Human steps are power,
+BIOS/network-boot selection and a trusted physical identity/fingerprint check when
+needed. Normal installation must otherwise run from the workstation, with no
+node command transcription or interactive installer. This is an agreed future
+operator boundary, not approval to change firmware or boot a node now.
 
-The operator verified/staged the media, completed isolated packet tests, and
-successfully activated the bounded workstation pilot at23:53UTC after fixing a
-PID-check quoting bug. A pause/shutdown was requested before supper; consult
-[the current handoff](pilot/HANDOFF.md) and [chronological evidence](../infrastructure/EXECUTION-JOURNAL.md)
-for its confirmed outcome. Historical RHEL9/iPXE/partial Kickstart examples were
-removed; do not use them.
+Follow along in the [interactive LikeC4 views](../docs/architecture/README.md):
+context, numbered operations1–7, boot sequence, stop gates and observed checkpoint.
 
-## Completed preparation and remaining limits
+## Normal starting point
 
-| Item | Evidence / remaining stop |
+| Path | Role |
 |---|---|
-| Media | DVD SHA256 matched Red Hat's published value; dedicated full-tree staging completed |
-| EFI chain | Staged loaders match ISO; GRUB verifies against CA8 embedded in ISO shim; firmware db/dbx/SBAT acceptance pending |
-| Firmware | Operator reports UEFIOnly, Secure Boot enabled and wired IPv4 PXE enabled; no settings changed |
-| Network | Router remains sole allocator; workstation proxy targets pilot only; namespace positive/negative tests passed |
-| Services | Dedicated root-controlled configs/state; isolated dnsmasq/nginx, nft guard and30minute transient units; original system/libvirt preserved |
-| Recovery | First activation failed at PID parsing; bounded rollback confirmed, evidence quarantined; corrected retry succeeded |
-| Access | Personal key backup tested by operator; node public-key account/password-sudo design selected, not installed |
-| Storage | No Windows preservation requested; exact node/disk/data-loss approval still required |
-| Platform | No RHEL install, SSH handoff, host configuration, RKE2/Rancher/Flux action or compatibility certification |
+| ansible/prepare.yml | Local Ansible preparation: render two private, inert review files; no host/services/packages/network actions |
+| inputs.example.yml | Nonsecret input shape; missing values explicit, credential mode undecided |
+| kickstart/rhel10.ks.j2 | Standard RHEL10 candidate; unconditional abort, no active disk-erasure/layout commands |
+| tests/ | Real Ansible preparation tests with synthetic metadata and temporary output only |
+| pilot/ | Historical interactive pilot, evidence-producing fixtures and existing recovery/shutdown compatibility; not the default install path |
 
-See [pilot files/checks](pilot/README.md), [activation/shutdown contract](pilot/ACTIVATION-PROPOSAL.md),
-[isolated fixture](pilot/PACKET-VALIDATION-PROPOSAL.md), and
-[subsequent infrastructure stages](../infrastructure/PREPARATION.md).
+[Preparation details](ansible/README.md), [redesign](../infrastructure/PROVISIONING-REDESIGN.md),
+[retrospective](../infrastructure/PROVISIONING-RETRO-2026-10-31.md) and
+[readiness](../infrastructure/TOMORROW-READINESS.md) distinguish working code from
+proposed install/status/stop behavior. There is no apply/install switch hidden in
+preparation. Filling metadata cannot remove the Kickstart's hardcoded abort.
 
-## Boot chain and exposure
+This offline example writes only a **new** private temporary review directory;
+choose a fresh name if it already exists. It does not inspect or install a node:
 
-UEFI → router address + targeted proxy boot information → DVD shim/GRUB →
-kernel/initrd → Anaconda inst.repo tree → interactive review. The selected DVD
-includes .treeinfo, installer runtime and BaseOS/AppStream. There is no inst.ks,
-automatic agreement acceptance or unattended disk command.
+```sh
+ansible-playbook -i localhost, -c local pxe/ansible/prepare.yml -e output_dir=/tmp/perkforge-pxe-plan-review
+```
 
-Dedicated nonsecret TFTP/HTTP roots only: never repository, home, .secrets or the
-images directory. No private keys, passwords/hashes, tokens or subscription/registry
-credentials in served content or URLs. DHCP MAC targeting is not file access
-authentication: independent interface/IP/MAC ingress guards and nginx IP allowlist
-restrict file traffic; spoofing remains possible. Secure Boot does not authenticate
-GRUB configuration or HTTP transport. Stop on coexistence/trust failure rather
-than disabling security or widening targeting.
+Real operator metadata belongs in ignored private inputs, never this example or
+Git. `--check` validates without creating output. Both generated files remain
+BLOCKED; no media is copied or served. Existing output is preserved, not reset.
 
-## First physical boot checkpoint
+## Red Hat solution and nginx
 
-1. Confirm current shutdown/retained-state evidence and review reactivation; never
-   blindly run fresh activate/retry against retained roots. Recheck named unit,
-   listener and guard status. Existing DNS/libvirt and router remain untouched.
-2. After **separate boot approval**, select the Lenovo **F12** one-time UEFI wired
-   IPv4 network entry before Windows; no permanent boot-order change.
-3. **Stop at the indefinite GRUB menu. Do not choose the installer.** Record actual
-   architecture/request paths and Secure Boot acceptance or exact error. Firmware
-   fallback is not proof of a Windows recovery path.
-4. Installer/kernel loading, OS configuration and exact disk/data-loss confirmation
-   are later approvals. No wipe/Begin Installation permission follows from boot.
-5. Use identity-checked dedicated shutdown; confirm units/listeners/guard absent,
-   preserve evidence and safe menu. Timer expiry alone does not remove the guard.
+Red Hat documents DHCP plus PXE/TFTP or UEFI HTTP boot, and an HTTP(S) installation
+tree/Kickstart source. Nginx is a sound static HTTP server for that role on our
+Debian workstation; it does not replace DHCP, firmware or Anaconda. Red Hat's
+RHEL-server examples use different packages/services, so their host commands are
+not a drop-in Debian recipe. Our router remains the address allocator; proxy
+DHCP is an explicit coexistence adaptation. No need to replace nginx merely to
+follow the installation workflow.
 
-Sources: [Red Hat RHEL10 PXE preparation](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html/automatically_installing_rhel/preparing-a-pxe-installation-source),
-[dnsmasq](https://thekelleys.org.uk/dnsmasq/docs/dnsmasq-man.html),
-[Lenovo one-time startup guidance](https://support.lenovo.com/us/en/products/desktops-and-all-in-ones/thinkcentre-m-series-desktops/thinkcentre-m920q/solutions/ht500209).
+Red Hat prefers UEFI HTTP boot when firmware supports it because it is usually
+more reliable; PXE/TFTP has wider support. Our pilot proved a TFTP-based boot,
+**not UEFI HTTP support**. Treat HTTP boot as a candidate to verify, not an
+unannounced protocol/firmware change. [Vendor overview](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html/automatically_installing_rhel/preparing-a-pxe-installation-source).
+[Satellite](https://docs.redhat.com/en/documentation/red_hat_satellite/6.17/html/provisioning_hosts/index)
+is Red Hat's larger managed provisioning solution; adopting that product is not
+needed for this three-node project and is outside this refactor.
+
+## Existing pilot is preserved
+
+The first pilot completed RHEL10.2 installation, disk-first boot and key-only
+SSH/password-sudo verification. Operator reports temporary PXE shutdown successful
+at2026-10-31 02:14:52UTC; final independent probes were not supplied. Workers and
+RKE2/platform preparation remain untouched. See [current handoff](pilot/HANDOFF.md)
+and [journal](../infrastructure/EXECUTION-JOURNAL.md). Power-off is not confirmed.
+
+The old `pilot/pilot.sh shutdown` path and protected identity checks are unchanged
+by the new preparation. Preserve held/runtime/log/media evidence and ignored
+backups. Do not run old activate/retry/rearm or console-enrollment helpers as a
+new installer. The failed HTTP enrollment route is historical, not a dependency.
+No files moved/deleted that would break current recovery or its regression tests.
+
+Considering control-1 again is a possible future test target, **not disk-erasure
+approval**. Keep its working OS/access intact until a complete replacement has
+passed rehearsal and a new exact-disk/data-loss plan is explicitly approved.
+
+## Gates and trust
+
+Complete disk identity and protected credential mode, RHEL10 validation tooling,
+actual install/reboot/key/sudo rehearsal and scoped service lifecycle before any
+install. No private keys/passwords/hashes/tokens in served files or URLs. MAC/IP
+filters are spoofable; Secure Boot does not authenticate fetched GRUB/Kickstart.
+Do not disable security or widen the LAN to make a test pass. RKE2 is a separate
+approved stage; working SSH does not establish host readiness.
+
+Offline checks (no native packet/service test):
+
+```sh
+python3 -m unittest discover -s pxe/tests
+python3 -m unittest discover -s pxe/pilot/tests
+python3 -m unittest discover -s pxe/pilot/console
+```

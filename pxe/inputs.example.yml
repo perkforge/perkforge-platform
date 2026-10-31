@@ -1,0 +1,15 @@
+# Nonsecret offline plan inputs only; copy to an ignored private inventory location.
+# This is NOT an installation inventory or authorization. No password/hash/token.
+output_dir: UNCONFIGURED
+hostname: UNCONFIGURED
+boot_nic_mac: UNCONFIGURED
+boot_method: UNDECIDED
+installation_source_url: UNCONFIGURED
+timezone: UNCONFIGURED
+ntp_server: UNCONFIGURED
+bootstrap_username: UNCONFIGURED
+bootstrap_public_key: UNCONFIGURED
+credential_mode: UNDECIDED
+disk_stable_id: UNCONFIGURED
+disk_serial: UNCONFIGURED
+disk_capacity_bytes: UNCONFIGURED

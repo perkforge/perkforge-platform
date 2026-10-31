@@ -1,0 +1,55 @@
+# DESIGN CANDIDATE ONLY — NOT DEPLOYABLE, NOT SERVED, NO INSTALL APPROVAL.
+# Always aborts in %pre; intentionally contains no active disk-erasure/layout
+# commands, credential hash or bootstrap sudo policy. Do not wire into GRUB.
+# Required inputs are supplied only by synthetic offline tests for now.
+# Vendor baseline: infrastructure/RHEL-PROVISIONING-GUIDANCE.md (RHEL10/10.2).
+# Standard directives are candidates, not a ksvalidator/rehearsal pass.
+
+text --non-interactive
+lang en_US.UTF-8
+keyboard us
+url --url="{{ installation_source_url }}"
+timezone {{ timezone }} --utc
+timesource --ntp-server {{ ntp_server }}
+network --bootproto=dhcp --device={{ boot_nic_mac }} --activate --hostname={{ hostname }}
+rootpw --lock
+user --name={{ bootstrap_username }} --groups=wheel --lock
+sshkey --username={{ bootstrap_username }} "{{ bootstrap_public_key }}"
+selinux --enforcing
+firewall --enabled --service=ssh
+services --enabled=sshd
+
+%pre --erroronfail --log=/tmp/perkforge-candidate-pre.log
+printf '%s\n' 'BLOCKED: non-deployable design candidate; disk identity and credential mode unresolved.' >&2
+exit 1
+%end
+
+# STORAGE POLICY DRAFT ONLY; never uncomment without real RHEL validation,
+# verified persistent disk targeting and a newly approved exact node/disk plan.
+# Required disk stable ID: {{ disk_stable_id }}
+# Required serial: {{ disk_serial }}
+# Required capacity bytes: {{ disk_capacity_bytes }}
+# intended: ignoredisk restricted to the verified disk
+# intended: clearpart restricted to that same disk, never unrestricted all disks
+# intended: EFI600MiB + XFS /boot2GiB + ordinary LVM/XFS root using remainder
+# no separate home/swap; encryption/FIPS must be explicit per-target decisions
+
+%packages
+@^minimal-environment
+openssh-server
+sudo
+python3
+kernel-modules-extra
+%end
+
+# BEFORE THIS CAN BECOME AN INSTALLER:
+# - Choose protected credential delivery; a locked user alone does not prove
+#   key login or passwordless sudo works. No password/hash goes into HTTP.
+# - Use/test standard per-node network selection and disk-specific storage.
+#   Add only a minimal pre-check if vendor directives cannot enforce the plan.
+# - Apply/test key-only SSH policy and SELinux labels before first SSH exposure.
+# - Verify host-key generation/console fingerprint/first-boot ordering on RHEL.
+# - Add complete source/network/storage/end-of-install and bootstrap-removal
+#   behavior; do not copy a generated anaconda-ks.cfg containing password hashes.
+# - Validate with ksvalidator -v RHEL10 AND perform an authorized real rehearsal.
+# - Remove this unconditional abort only in a separately reviewed implementation.

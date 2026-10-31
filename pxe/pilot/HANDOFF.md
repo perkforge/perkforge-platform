@@ -1,61 +1,98 @@
-# Resume before the first physical boot
+# Physical pilot: installed OS and key-only access verified
 
-Corrected pilot activation succeeded and both dedicated units were active at the
-operator's23:55UTC check. The operator paused before network boot and reported
-"Stopped" at23:58:38 after the shutdown instruction. **Shutdown recap and explicit
-guard/listener verification remain pending**; do not equate that word with complete
-cleanup. First read the latest journal entry and native current status.
+For next-session preparation, start with [tomorrow readiness](../../infrastructure/TOMORROW-READINESS.md).
+Its candidate is intentionally non-deployable; no worker boot is requested.
+The [interactive architecture/runbook](../../docs/architecture/README.md) shows the
+ordered proposed operations separately from this observed pilot checkpoint.
 
-## Completed
+At 2026-10-31 02:13:22 UTC the operator completed a fresh public-key-only SSH
+login and password-authenticated sudo check; hostname returned control-1 and the
+connection closed normally. RHEL10.2 Minimal Install is installed on the pilot.
+At02:14:52 the operator reported workstation pilot shutdown successful; exact
+recap and independent resource probes were not supplied.
+No further boot, provisioning or package changes are implied by this checkpoint.
 
-- Verified RHEL10.2 x86_64 DVD, root-owned read-only full tree and TFTP boot assets.
-- Secure Boot/UEFIOnly/IPv4 PXE enabled per console report; no settings changed.
-- GRUB signature verified against CA8 embedded in ISO shim; firmware trust pending.
-- Native namespace fixture: four PASS phases and namespaces ABSENT.
-- First activation PID-check failure diagnosed/reproduced; bounded rollback checked.
-- Original state/logs preserved in held20261030-2337 roots. PID fix validates numeric
-  tokens and preserves exclusion/identity comparison. Safe-menu retry mode tested.
-- Corrected live workstation retry succeeded; default nginx masked/inactive and
-  original system/libvirt dnsmasq identities preserved at activation checks.
-- No physical PXE boot, installer/kernel acceptance, disk write, node SSH/RKE2 action.
+## Completed, with operator evidence
 
-## Return checklist — no blind activation
+- Verified RHEL10.2 x86_64 DVD and root-owned read-only HTTP/TFTP media staging.
+- Secure Boot/UEFIOnly/IPv4 PXE reported enabled. Actual physical PXE reached the
+  reviewed indefinite GRUB menu, then the interactive installer GUI. This is boot
+  acceptance evidence, not complete firmware attestation.
+- Isolated packet fixture: four PASS phases; test namespaces confirmed absent.
+- Activation PID-check defect fixed; failed-attempt rollback verified and evidence
+  retained. Later activation/rearm passed. Session lifetime changed to unlimited
+  by explicit operator choice, requiring explicit shutdown and verification.
+- Pilot's only identified 256GB SK hynix NVMe was explicitly approved for Windows
+  replacement. Installation completed successfully per operator. Layout:600MiB
+  EFI,2GiB XFS /boot, remaining approximately235.89GiB XFS root on ordinary LVM;
+  no separate home/swap, no disk encryption, non-FIPS local-lab choice.
+- Disk-first boot restored, installed console login and hostname verified. Named
+  administrator uses password-authenticated sudo; root was disabled in installer.
+- Existing passphrase-protected personal SSH key added with standard ssh-copy-id.
+  Operator compared full Ed25519 host fingerprint against console before trust.
+- The approved temporary password-SSH setup window ended with validated key-only
+  policy and SSH reload at02:12:29. Publickey required; password/keyboard-interactive
+  and root SSH disabled; PAM retained. Fresh key-only login and sudo passed02:13:22.
+  Private-key passphrase and sudo password were entered locally, never collected.
+- Workers remain excluded; no worker OS installation or RKE2/Rancher/Flux action.
 
-1. Current native read-only status for dedicated pilot units, reserved listeners
-   and table names. If shutdown succeeded, confirm units inactive/MainPID0,
-   no69/4011/8080/20000–20009 listeners and no inet perkforge_pxe_pilot.
-   Existing system/libvirt DNS/DHCP is expected to remain.
-2. Shutdown retains /run/perkforge-pxe-pilot and /var/log/perkforge-pxe-pilot.
-   Do not run activate/retry yet: both deliberately refuse those roots.
-   Inspect this successful attempt's protected record/menu hashes and choose
-   **new absent held names**; never reuse/overwrite held20261030-2337.
-   Any further quarantine/reset requires exact approval; preserve all evidence.
-3. Review ignored private inputs and ephemeral review-source existence/checksums.
-   If /tmp sources are gone or code/inputs changed, render new review files and
-   refresh reviewed snapshots offline before approval. No secret reads are needed.
-4. After approved reset and its verification, reviewed short command shape:
-   `bash "$REPO_ROOT/pxe/pilot/pilot.sh" retry`. Same30minute service limit, guard
-   before LAN bind/listen, no default-service restart or node boot. Confirm current
-   active units/timer and read-only readiness; do not extend timers automatically.
-5. **Separate first-boot approval:** only control-1, one-time F12 UEFI wired IPv4
-   entry, Secure Boot stays ON. Stop at the indefinite GRUB menu; do not choose the
-   installer. Record actual option93/request/firmware result or exact error.
-   Workers remain excluded. No boot-order/security workaround without review.
-6. Use the reviewed shutdown command and confirm pilot resources gone before
-   leaving. Preserve logs and safe menu. A timer expiring is not complete cleanup.
+## Immediate pause checkpoint
 
-Commands above are shapes using REPO_ROOT; the parent supplies complete native
-paths after the relevant approval. Do not source scripts or paste historical
-staging heredocs. Never rerun ISO staging or nginx installation to check readiness.
+Operator reports the reviewed workstation shutdown succeeded at02:14:52. This is
+user-reported completion, not independent unit/listener/table inspection. No more
+commands tonight. Preserve protected records/logs, held roots, private inputs,
+public delivery files and read-only staged media; no cleanup is implied. Before
+any future reuse, review current dedicated unit/listener/table state while leaving
+original system DNS/libvirt services and tables untouched.
 
-Detailed execution/provenance: [journal](../../infrastructure/EXECUTION-JOURNAL.md).
-Activation/reset/rollback details: [contract](ACTIVATION-PROPOSAL.md).
+Shutdown retains /run/perkforge-pxe-pilot and /var/log/perkforge-pxe-pilot. Any future
+activation must review retained state and current scripts; activate/retry refuse
+existing roots deliberately. Do not blindly restage media, reinstall packages,
+reuse held names, overwrite evidence or reactivate simply to inspect readiness.
+Any further reset/rearm/start requires its own reviewed purpose and authorization.
 
-## Branch verification at pause
+## Access workflow and unresolved preparation defects
 
-Offline checks passed:25 PXE tests,18 infrastructure tests,8 evidence tests;
-nine Ansible entrypoint syntax checks; both shell entrypoints bash-n; packet
-verifier compilation; local documentation links; diff and private-identifier scan.
-Tests used synthetic fixtures/temporary mocks, not a native network rerun.
-Native operator results are separately attributed in the execution journal.
-Ignored inputs, keys, raw logs and held runtime/log evidence are excluded from Git.
+The successful path was standard ssh-copy-id, a separate key-only login, then the
+reviewed [standalone hardening file](console/harden-ssh.sh) transferred over the
+host-verified SSH connection. It refuses an existing managed drop-in. Do not rerun
+it blindly. Keep existing access until any future authentication change is tested.
+
+The earlier HTTP-delivered console enrollment script did **not** finish. Its first
+empty-filtered-systemctl exit defect was corrected; a later broad SSH-socket text
+guard rejected before mutation. Exact native triggering socket remains unresolved.
+ISO sshd.socket is TCP22, while packaged presets enable sshd.service and disable
+unmatched units. Native state cannot be inferred from those presets. Do not call
+that console route successful, bypass its guard or resume its helper scripts.
+Public delivery files remain staged unless later cleanup is explicitly approved;
+no private key was published. Twelve console-enrollment fixture tests include full
+mocked success/failure flow; they are not real RHEL policy integration evidence.
+
+## Before host/RKE2 preparation
+
+Stop at the OS/access checkpoint. Before workers, implement and rehearse the
+[consolidated provisioning proposal](../../infrastructure/PROVISIONING-REDESIGN.md),
+with the [retrospective](../../infrastructure/PROVISIONING-RETRO-2026-10-31.md) as context; do not repeat the prolonged manual
+console workflow. Inspect and review the physical Ansible inventory
+and actual host prerequisites before any separately approved host configuration.
+Official RKE2 requirements specify kernel-modules-extra on RHEL10 for nf_conntrack.
+The current RKE2 prerequisite task installs only curl/tar/gzip; configure-hosts is
+scaffolding. This gap remains unresolved; do not infer readiness from Minimal
+Install or working SSH. Python, repositories/subscription registration, time,
+NetworkManager/CNI, firewall and pinned RKE2 compatibility still need review.
+Source: https://docs.rke2.io/install/requirements . No prerequisite install yet.
+
+## Evidence and local verification
+
+[Chronological journal](../../infrastructure/EXECUTION-JOURNAL.md) distinguishes
+user execution from offline tests and pending results. [Activation contract](ACTIVATION-PROPOSAL.md)
+contains lifecycle/rollback details. No credentials, personal fingerprints, private
+addresses, raw native logs or ignored inventory belong in tracked documentation.
+
+Earlier branch checkpoint:25 PXE,18 infrastructure and8 evidence tests passed,
+nine Ansible syntax checks and shell/verification/link/privacy checks passed.
+Later rearm tests and16 console tests passed, including four whole hardening-flow
+fixtures (success reload, policy/syntax rejection and existing-file preservation).
+Fixtures use temporary paths and mocked privilege/service/SELinux operations;
+native operator results are separately attributed. Latest documentation diff
+check passes. No native packet/service rerun was performed for this update.

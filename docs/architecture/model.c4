@@ -1,0 +1,111 @@
+specification {
+  element actor { style { shape person } }
+  element system
+  element component
+  element implemented { style { color green } }
+  element observed { style { color blue } }
+  element planned { style { color amber } }
+  element gate { style { color red } }
+}
+
+model {
+  engineer = actor 'Platform engineer' {
+    description 'Human power/BIOS/network-boot and trusted physical identity checks. No node command transcription in the proposed normal workflow.'
+    link /runbook.html#operator 'Operator boundary'
+  }
+  router = system 'Existing LAN router' {
+    description 'Sole DHCP address allocator; reservations stay here. No address pool on the workstation.'
+    link /runbook.html#boot 'Boot roles'
+  }
+  workstation = system 'Engineer workstation' {
+    description 'Debian controller. Existing nginx/dnsmasq pilot; new offline Ansible preparation. Automated installation is not implemented.'
+    link /runbook.html 'Ordered runbook'
+    prepare = implemented 'Offline Ansible preparation' {
+      description 'Implemented/tested: two private review files only. Kickstart always aborts; no native apply path.'
+      link /runbook.html#prepare '1. Prepare offline'
+      link /sources/prepare.yml 'Actual Ansible source'
+    }
+    controller = planned 'Install / verify / cleanup' {
+      description 'Proposed standard Ansible lifecycle, not a new service/framework. No node connection or install approval follows from this model.'
+      link /runbook.html#verify '6. Verify first boot'
+      link /runbook.html#cleanup '7. Disarm and cleanup'
+    }
+    proxy = observed 'PXE proxy dnsmasq' {
+      description 'Pilot configuration supplies boot metadata only; separate system/libvirt instances preserved. IPv4 PXE route observed.'
+      link /runbook.html#boot '3. Boot protocols'
+    }
+    tftp = observed 'TFTP boot files' {
+      description 'Vendor shim/GRUB, GRUB configuration, kernel/initrd. Client initiates transfers; not an authenticated content channel.'
+      link /runbook.html#boot '3. Boot protocols'
+    }
+    http = observed 'nginx installation tree' {
+      description 'Static full DVD tree. Future nonsecret Kickstart is not published. HTTP serving is distinct from UEFI HTTP boot support.'
+      link /runbook.html#install '4. Kickstart / source'
+      link https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html/automatically_installing_rhel/preparing-network-based-repositories 'Red Hat installation source'
+    }
+    ssh = observed 'Workstation SSH client' {
+      description 'Pilot key-only login and password-authenticated sudo verified by operator; private key remains on workstation/approved encrypted backup.'
+      link /runbook.html#observed 'Observed access checkpoint'
+    }
+    report = planned 'Compact result / retained logs' {
+      description 'Proposed single sanitized result; preserve evidence, no manual log transcription. Logs never contain credentials.'
+      link /runbook.html#cleanup '7. Completion result'
+    }
+  }
+  node = system 'Selected physical node' {
+    description 'Pilot OS/access observed. Next candidate could be a worker or control-1; no reinstall is approved. No private hardware identifiers in this model.'
+    link /runbook.html#observed 'Observed versus planned'
+    firmware = observed 'UEFI + vendor shim/GRUB' {
+      description 'Pilot reached GRUB/installer with Secure Boot previously reported enabled. Not full attestation; UEFI HTTP capability unproven.'
+      link /runbook.html#boot '3. Power / firmware / boot'
+    }
+    installer = observed 'Installer initramfs / Anaconda' {
+      description 'Initramfs loads installer runtime; interactive Anaconda installation worked. Complete unattended Kickstart and credential handoff remain untested.'
+      link /runbook.html#install '4. Standard Kickstart'
+      link /sources/rhel10.ks.j2 'Blocked Kickstart candidate'
+    }
+    disk = observed 'Explicitly selected system disk' {
+      description 'Only the pilot disk was approved and installed. Future erase requires a new exact persistent-disk/data-loss plan.'
+      link /runbook.html#approve '2. Exact disk approval'
+    }
+    os = observed 'Installed RHEL / OpenSSH / sudo' {
+      description 'Pilot first disk boot and key-only SSH/password-sudo passed. Automatic first-boot verification and bootstrap removal are future work.'
+      link /runbook.html#firstboot '5. First disk boot'
+    }
+  }
+  approval = gate 'STOP: target / disk / exposure approval' {
+    description 'New node or control-1 reinstall requires a reviewed exact-disk/data-loss plan. Network and credential privileges must be explicit.'
+    link /runbook.html#approve '2. Review and approve'
+  }
+  credential = gate 'STOP: credential mode undecided' {
+    description 'No password/hash/private key in HTTP/TFTP. Protected sudo/bootstrap choice and actual PAM/key behavior need approval and rehearsal.'
+    link /runbook.html#credentials 'Credential decision'
+  }
+  custody = system 'Approved credential custody / recovery' {
+    description 'Private key and recovery material remain protected off cluster. No automatic secret delivery configured by this model.'
+    link /runbook.html#credentials 'Public key versus secret'
+  }
+  bootstrap = planned 'Protected bootstrap handoff' {
+    description 'Choice pending: protected temporary privileges or controlled media. Never pretend the public-key Kickstart creates a usable sudo credential.'
+    link /runbook.html#credentials 'Pending handoff choice'
+  }
+  platform = planned 'Host readiness then RKE2 / platform' {
+    description 'Separate approved stage. Working OS/access does not establish kernel, repository, networking or RKE2 readiness.'
+    link /runbook.html#verify 'OS/access boundary'
+  }
+
+  engineer -> workstation 'Operates from the workstation'
+  engineer -> node 'Power / BIOS / trusted identity only'
+  workstation -> node 'Scoped boot/source and managed access'
+  router -> node 'DHCP address lease'
+  custody -> workstation 'Protected operator credential use'
+  workstation.prepare -> workstation.controller 'Future reviewed install input; currently blocked'
+  workstation.controller -> workstation.proxy 'Proposed session lifecycle'
+  workstation.controller -> workstation.tftp 'Proposed session lifecycle'
+  workstation.controller -> workstation.http 'Proposed session lifecycle'
+  workstation.ssh -> node.os 'Observed verified key-only access'
+  node.firmware -> node.installer 'Boots kernel / installer initramfs'
+  node.installer -> node.disk 'Installs only approved disk/layout'
+  node.installer -> node.os 'Produces installed OS; automation still planned'
+  node.os -> platform 'Separate readiness/installation approval'
+}

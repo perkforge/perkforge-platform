@@ -155,3 +155,24 @@ bash "$REPO_ROOT/pxe/pilot/pilot.sh" retry
 ```
 
 Do not run retry merely because code is corrected. Shutdown command is unchanged.
+
+## Approved current-session rearm
+
+After reaching the indefinite GRUB menu, the operator explicitly selected no
+runtime timeout for this pilot session, replacing the proposed two-hour choice.
+This is not a new deployment-wide default: normal activation remains30minutes.
+
+`pilot.sh rearm` invokes `rearm.yml`: verify protected transaction/config/menu
+hashes, exact unchanged guard, unit path/KillMode/InvocationIDs and saved original
+process baseline; archive old transaction/invocation records; stop only matching
+dedicated units; require old names/listeners absent; recreate those same units
+with RuntimeMaxSec=infinity; capture new start timestamps/identities, update
+shutdown records and verify guard/default-service/baseline preservation.
+Already-expired absent units are accepted only with trusted prior identity records.
+A half-failed rearm stops only matching pilot units and retains guard/evidence.
+No staging, quarantine, media/GRUB rewrite or firewall apply/removal occurs.
+
+Hold at GRUB throughout; rearm does not approve installer selection. The final
+message must report RuntimeMaxUSec=infinity for both units. With no automatic
+timeout, explicit shutdown and verification when finished are required. Never use
+set-property for the running257 service; it does not support this property update.

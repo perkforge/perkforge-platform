@@ -4,13 +4,15 @@ Big Bang/Flux is the chosen platform. Start with [bootstrap tasks](big-bang-boot
 
 ## Physical preparation checkpoint
 
-Verified RHEL10.2 media staging, isolated PXE/file-policy tests and operator
-workstation activation have recorded evidence; first physical network boot is
-pending. The operator paused before boot. Read the
-[physical first-boot handoff](pxe/pilot/HANDOFF.md) and
+The physical pilot completed RHEL10.2 installation and operator-verified key-only
+SSH plus password-authenticated sudo at2026-10-31 02:13:22UTC. Operator reports workstation PXE
+shutdown successful at02:14:52; no exact recap/independent probes supplied. Read the
+[physical handoff](pxe/pilot/HANDOFF.md) and
 [chronological journal](infrastructure/EXECUTION-JOURNAL.md) before any action.
-Confirm native shutdown state; retained roots intentionally block blind
-reactivation. No node OS/SSH/platform installation or disk write is implied.
+Workers and RKE2/platform provisioning remain untouched; working SSH does not
+establish host readiness. Before workers, review the [provisioning redesign](infrastructure/PROVISIONING-REDESIGN.md)
+and [retrospective](infrastructure/PROVISIONING-RETRO-2026-10-31.md), then
+[tomorrow readiness](infrastructure/TOMORROW-READINESS.md). No deployable replacement is implemented. Preserve retained runtime/log/media evidence.
 
 ## Existing local trial
 

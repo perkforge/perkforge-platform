@@ -1,8 +1,16 @@
-# Physical PXE pilot files
+# Historical interactive PXE pilot and recovery
+
+New provisioning starts with [offline Ansible preparation](../ansible/README.md).
+This folder is retained for pilot evidence and compatible recovery/shutdown, not
+as the normal worker or control-node reinstall workflow. Do not copy its manual
+GUI/HTTP enrollment sequence into the replacement.
 
 Start with [the current handoff](HANDOFF.md). Media staging, isolated packet tests
 and corrected workstation activation have user-supplied success evidence.
-Physical network boot, firmware acceptance and installation remain pending.
+The pilot has since completed physical boot, RHEL installation and key-only SSH/
+sudo verification; shutdown was reported successful. See the handoff for limits.
+Before workers, use the [redesign proposal](../../infrastructure/PROVISIONING-REDESIGN.md);
+it is not implemented by these interactive pilot files.
 Source preparation/tests do not grant permission to run native entrypoints.
 
 ## Files and execution boundaries
@@ -17,7 +25,7 @@ Source preparation/tests do not grant permission to run native entrypoints.
 | probe_packets.py | Standard-library protocol verification, not configuration generation; namespace guard before sockets |
 | activate.yml + placement/hash helpers | Approved workstation placement/guard/listen/services; default approvalfalse |
 | shutdown.yml + tasks | Verify transaction/unit/guard identities before stopping/removing only this pilot |
-| pilot.sh | Short Ansible dispatch: activate, explicit retry, shutdown; never source |
+| pilot.sh | Short Ansible dispatch: activate, explicit retry, rearm, shutdown; never source |
 | tests/ | Offline rendering, protocol codecs, gates and temporary command mocks; no native fixture/activation |
 | EXECUTION-JOURNAL.md | The actual journal is [under infrastructure](../../infrastructure/EXECUTION-JOURNAL.md); no raw private evidence in Git |
 
@@ -50,8 +58,9 @@ map7=x86-64_EFI and9=BC_EFI; pilot chooses7 only. Do not advertise every archite
 or treat the boot-item handler as an authentication boundary.
 
 pxe_media_layout_reviewed and pxe_boot_candidates_reviewed attest source review,
-not successful firmware boot. Manifest labels architecture advertisement, actual
-requests, db/dbx/SBAT and installer/kernel acceptance **pending**. ISO identity and
+not successful firmware boot. Rendered candidate manifests record preparation-time pending fields; they are not
+updated runtime attestations. Actual boot/installer observations are in the journal;
+db/dbx/SBAT inspection and full attestation remain unproven. ISO identity and
 GRUB CA8 signature verification do not prove target firmware trust. Do not disable
 Secure Boot or enroll keys to work around a failed first boot.
 
@@ -95,7 +104,7 @@ and retry succeeded. The journal preserves all failures and provenance.
 Nginx-t is **not** a pure read-only parser: it creates files and can briefly
 bind/listen before exiting. Native checks/activation need their explicit scope.
 Nft-c checks without applying; never omit -c outside approved apply steps.
-Actual first-node boot and future OS/platform stages are separate approvals.
+Future worker boots/reinstalls and host/platform changes remain separate approvals.
 
 ## Pause and resume
 

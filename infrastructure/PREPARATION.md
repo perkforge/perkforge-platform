@@ -11,12 +11,17 @@ and IL2 readiness/hardening is deferred.
 
 - PXE selected RHEL10.2 interactive installation. Media staging, isolated packet
   tests, failed-attempt rollback/quarantine and corrected workstation activation
-  have operator evidence. First node boot is pending; pause/shutdown status and
-  exact resume gates are in [the current handoff](../pxe/pilot/HANDOFF.md).
+  have operator evidence. First-node interactive installation and key-only SSH/sudo
+  subsequently passed; shutdown was reported successful. Current evidence and
+  remaining limits are in [the handoff](../pxe/pilot/HANDOFF.md).
+  Before workers, review the [redesign](PROVISIONING-REDESIGN.md) and
+  [retrospective](PROVISIONING-RETRO-2026-10-31.md); proposed automation is not implemented.
   Obsolete RHEL9/iPXE/partial Kickstart examples were removed; do not reintroduce them.
 - Private inventory is retained at the existing ignored physical inventory path
   (`.secrets/physical/hosts.yaml` in the operator checkout), mode 0600: one server,
-  two agents, reserved addresses checked offline. SSH remains `UNCONFIGURED`.
+  two agents, reserved addresses checked offline. Its last documented SSH input was
+  `UNCONFIGURED`; reconcile private inventory with actual first-node access before
+  any host run. This documentation update does not edit or verify that private file.
   Do not copy that inventory into this document or commit it. No secret read is
   needed to verify these nonsecret inventory fields.
 - RHEL 10.2 x86_64 DVD and interactive non-FIPS installation are selected; media
@@ -46,16 +51,20 @@ Set `ANSIBLE_LOCAL_TEMP` to a private temporary directory if the default is not
 writable. Tests use synthetic data and stubbed clients. They establish controller
 gates and rendering behavior, not actual package installation or cluster readiness.
 
-## Next: one stage at a time
+## Stage boundaries — first pilot complete, workers require redesigned install
 
-1. **Boot preparation:** review decisions in `pxe/README.md`; approve named boot
-   services and network changes separately. Start with control-1 only, using the
-   Lenovo one-time UEFI boot menu before Windows. First boot test stops at the
-   indefinite GRUB menu; installer selection/loading needs its next approval.
-2. **Disk approval:** inspect exact disk serials at the console; stop before
-   any write. The operator requires no Windows preservation; approve the exact
-   target disk and data loss separately. Complete
-   the first RHEL installation manually; confirm OS and public-key SSH handoff.
+1. **Before workers:** implement/rehearse the [consolidated design](PROVISIONING-REDESIGN.md).
+   Existing pilot files are interactive; they do not yet provide the proposed
+   unattended Kickstart path. Review a complete per-node plan covering services,
+   identity/disk, access, reboot and cleanup before the install batch. The earlier
+   step-by-step GRUB/GUI pilot is historical evidence, not the worker runbook.
+2. **Disk approval:** obtain exact worker disk identities and explicit data-loss
+   approval tied to each plan before arming installation. The pilot's Windows
+   replacement approval does not cover workers. A complete approved batch can
+   proceed through installer fields without repeated conversational permission;
+   changed disk/credential/exposure scope must stop for review. Rehearse automatic
+   OS/public-key SSH handoff before a worker install; no current command here
+   performs it.
 3. **Host preparation:** approve named SSH connections and OS changes separately.
    Review RHEL/RKE2 supported combinations, SELinux policy, required ports,
    NetworkManager/CNI exclusions, firewall policy, free disk/RAM and repositories.

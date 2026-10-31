@@ -34,7 +34,7 @@ class ActivationTests(unittest.TestCase):
         self.assertIn('RuntimeMaxSec=',(ROOT/'activate.yml').read_text())
 
     def test_shutdown_mocks_success_identity_collision_guard_change_and_residual(self):
-        for scenario in ('normal','unit-mismatch','invocation-mismatch','guard-mismatch','listener-remains'):
+        for scenario in ('normal','already-stopped','unit-mismatch','invocation-mismatch','guard-mismatch','listener-remains'):
             with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as tmp:
                 root=Path(tmp)
                 config='/run/perkforge-pxe-pilot/config/session-fixture'
@@ -42,7 +42,7 @@ class ActivationTests(unittest.TestCase):
                 baseline='1 system-dnsmasq\n2 libvirt-dnsmasq'
                 canonical=json.dumps({'nftables':[{'table':{'family':'inet','name':'perkforge_pxe_pilot'}}]})
                 record=dict(config_dir=config,units=units,dnsmasq_baseline=baseline)
-                (root/'guard').write_text('present')
+                if scenario!='already-stopped': (root/'guard').write_text('present')
                 mock=root/'mock.py'
                 mock.write_text(r'''import json,sys
 from pathlib import Path
@@ -50,6 +50,7 @@ root=Path(sys.argv[1]); scenario=sys.argv[2]; cmd=sys.argv[3:]
 with (root/'events').open('a') as f:f.write(json.dumps(cmd)+'\n')
 if cmd[:2]==['systemctl','show']:
  if cmd[2]=='nginx.service':print('LoadState=masked\nActiveState=inactive')
+ elif 'ExecStart' in cmd and scenario=='already-stopped':print('LoadState=not-found')
  elif 'ExecStart' in cmd:
   print('LoadState=loaded\nExecStart=/usr/sbin/dnsmasq '+('/other' if scenario=='unit-mismatch' else '/run/perkforge-pxe-pilot/config/session-fixture')+'/dnsmasq.conf\nInvocationID='+'1'*32+'\nMainPID=123\nKillMode=control-group')
  else:print('MainPID=0\nActiveState=inactive')
@@ -69,6 +70,9 @@ else:raise SystemExit('Unexpected command '+repr(cmd))
                     out=[]
                     for task in items:
                         task=dict(task)
+                        if 'ansible.builtin.include_tasks' in task:
+                            out.extend(transform(yaml.safe_load((ROOT/task['ansible.builtin.include_tasks']).read_text())))
+                            continue
                         if 'ansible.builtin.stat' in task or 'ansible.builtin.slurp' in task:
                             continue
                         if 'ansible.builtin.command' in task:
@@ -89,13 +93,13 @@ else:raise SystemExit('Unexpected command '+repr(cmd))
                 play.write_text(yaml.safe_dump([dict(hosts='localhost',connection='local',gather_facts=False,vars=variables,tasks=transform(tasks))]))
                 result=subprocess.run(['ansible-playbook','-i','localhost,',str(play)],capture_output=True,text=True,
                     env={**os.environ,'ANSIBLE_LOCAL_TEMP':str(root/'local'),'ANSIBLE_REMOTE_TEMP':str(root/'remote')},timeout=30)
-                self.assertEqual(result.returncode==0,scenario=='normal',result.stdout+result.stderr)
+                self.assertEqual(result.returncode==0,scenario in ('normal','already-stopped'),result.stdout+result.stderr)
                 events=[json.loads(line) for line in (root/'events').read_text().splitlines()]
                 stops=[v for v in events if v[:2]==['systemctl','stop']]
                 deletes=[v for v in events if v[:3]==['/usr/sbin/nft','delete','table']]
-                self.assertEqual(len(stops),0 if scenario in ('unit-mismatch','invocation-mismatch') else 2)
+                self.assertEqual(len(stops),0 if scenario in ('already-stopped','unit-mismatch','invocation-mismatch') else 2)
                 self.assertEqual(deletes,[['/usr/sbin/nft','delete','table','inet','perkforge_pxe_pilot']] if scenario=='normal' else [])
-                self.assertEqual((root/'guard').exists(),scenario!='normal')
+                self.assertEqual((root/'guard').exists(),scenario not in ('normal','already-stopped'))
 
     def test_wrapper_dispatches_only_expected_playbooks_with_mock_ansible(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -111,7 +115,7 @@ else:raise SystemExit('Unexpected command '+repr(cmd))
             fake.chmod(0o700)
             argv=root/'argv'
             env={**os.environ,'PATH':str(root/'bin')+':'+os.environ['PATH'],'FIXTURE_ARGV':str(argv),'BASH_ENV':'/dev/null'}
-            for mode in ('activate','retry','shutdown'):
+            for mode in ('activate','retry','rearm','shutdown'):
                 run=subprocess.run(['bash',str(wrapper),mode],env=env,capture_output=True,text=True)
                 self.assertEqual(run.returncode,0,run.stderr)
                 args=argv.read_text().splitlines()
@@ -119,7 +123,7 @@ else:raise SystemExit('Unexpected command '+repr(cmd))
                 self.assertIn('--ask-become-pass',args)
                 if mode in ('activate','retry'):
                     self.assertIn('pilot_retry_reviewed_menu='+str(mode=='retry').lower(),args)
-                self.assertIn('pilot_activation_approved=true' if mode in ('activate','retry') else 'pilot_shutdown_approved=true',args)
+                self.assertIn('pilot_activation_approved=true' if mode in ('activate','retry') else ('pilot_rearm_approved=true' if mode=='rearm' else 'pilot_shutdown_approved=true'),args)
                 argv.unlink()
             run=subprocess.run(['bash',str(wrapper),'invalid'],env=env,capture_output=True,text=True)
             self.assertEqual(run.returncode,2)

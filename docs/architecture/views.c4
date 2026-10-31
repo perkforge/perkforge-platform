@@ -1,0 +1,104 @@
+views {
+  view index {
+    title 'Provisioning context — observed roles, planned automation'
+    description 'Green: implemented preparation. Blue: observed pilot role. Amber: planned work. Red: unresolved stop gate. Click workstation/node for details; use the view selector for ordered operations.'
+    link /runbook.html 'Ordered operating runbook'
+    include engineer, router, workstation, node, custody
+  }
+  view workstation_detail of workstation {
+    title 'Workstation — implementation versus proposal'
+    description 'Preparation is implemented. Pilot transport/SSH roles were observed. Controller and compact automatic completion are proposed, not running services.'
+    include prepare, controller, proxy, tftp, http, ssh, report
+  }
+  view node_detail of node {
+    title 'Physical node — boot, installer, disk, installed OS'
+    description 'Observed pilot roles; future unattended installation is not armed. BIOS tweaks are human steps; no normal node command transcription.'
+    include firmware, installer, disk, os
+  }
+  dynamic view operations {
+    title 'PLANNED ordered operations 1–7 — only preparation implemented'
+    description 'The future workstation-owned journey. Numbered steps link to matching runbook sections. Stop at missing disk/credential/approval; do not use this view as permission to install.'
+    link /runbook.html '1–7 runbook'
+    engineer -> workstation.prepare '1. Prepare offline draft' {
+      notes 'Implemented [1. Prepare](/runbook.html#prepare). Operator: supply/review nonsecret workstation inputs. Automation: local Ansible writes two private review files only. Evidence / stop: plan plus BLOCKED candidate; no live action.'
+    }
+    workstation.prepare -> engineer '2. Review exact plan; STOP before approval' {
+      notes 'Planned [2. Review/approve](/runbook.html#approve). Operator: approve exact node/disk/data loss, exposure and privileges. Automation: report missing inputs and stay unarmed. Evidence / stop: currently STOP for unresolved choices and installation rehearsal; changed scope needs new approval.'
+    }
+    engineer -> node.firmware '3. Power / BIOS / select network boot' {
+      navigateTo boot_protocol
+      notes '[3. Boot](/runbook.html#boot). Operator: approved power/BIOS/network boot with Secure Boot retained. Automation: proposed scoped services and client-driven boot exchange. Evidence / stop: expected physical target and trusted boot chain; stop on target, protocol or trust error.'
+    }
+    node.firmware -> node.installer '4. Kickstart installation' {
+      navigateTo installation
+      notes 'NOT READY [4. Install](/runbook.html#install). Operator: observe, no GUI or node typing. Automation: proposed approved Kickstart disk/packages/key-only policy. Evidence / stop: current candidate always aborts; real validation, rehearsal, approval and completed installation required.'
+    }
+    node.installer -> node.os '5. Reboot to local disk' {
+      notes 'Planned [5. First boot](/runbook.html#firstboot). Operator: observe disk boot, BIOS choice if reviewed. Automation: withdraw reinstall offer and reboot installed disk. Evidence / stop: completed install and OS boot without repeated erase; preserve recovery on failure.'
+    }
+    workstation.controller -> node.os '6. Verify identity, key login, sudo, readiness' {
+      navigateTo security_handoff
+      notes 'Planned [6. Verify](/runbook.html#verify). Operator: trusted physical fingerprint comparison and local credential entry. Automation: fresh key-only SSH/sudo, OS checks and bootstrap removal. Evidence / stop: successful identity/access/readiness report; no automatic RKE2 approval.'
+    }
+    workstation.controller -> workstation.report '7. Disarm / stop / report' {
+      notes 'Planned [7. Cleanup](/runbook.html#cleanup). Operator: read final report, review mismatch. Automation: disarm, stop only owned services/rules and retain logs. Evidence / stop: scoped resource absence and original services preserved, otherwise incomplete; no active-install cutoff.'
+    }
+  }
+  dynamic view boot_protocol {
+    variant sequence
+    title 'BOOT REFERENCE — client-initiated pilot PXE/TFTP route'
+    description 'Protocol explanation from reviewed config/observations, not a packet trace. Router allocates; proxy supplies boot information. UEFI HTTP boot is an unproven alternative, not a switch already made.'
+    link /runbook.html#boot '3. Boot runbook'
+    node.firmware -> router '1. DHCPDISCOVER: request address (client UDP68 → server67)'
+    node.firmware -> workstation.proxy '2. PXE/proxy exchange on same boot network'
+    router -> node.firmware '3. Address lease from existing router'
+    workstation.proxy -> node.firmware '4. Boot metadata only; no address allocation'
+    node.firmware -> workstation.tftp '5. Client TFTP requests vendor shim and GRUB'
+    workstation.tftp -> node.firmware '6. Requested loader bytes'
+    node.firmware -> workstation.tftp '7. GRUB requests config, kernel and initrd'
+    node.firmware -> node.installer '8. Boot kernel / installer initramfs'
+    node.installer -> workstation.http '9. Initramfs HTTP requests installer runtime'
+    workstation.http -> node.installer '10. Requested runtime bytes from DVD tree'
+    node.installer -> node.installer '11. Anaconda starts: pilot interactive; Kickstart planned'
+    node.installer -> workstation.http '12. Anaconda requests installation packages'
+    workstation.http -> node.installer '13. Requested package bytes; full tree incl .treeinfo'
+  }
+  dynamic view installation {
+    title 'PLANNED install detail — current Kickstart always aborts'
+    description 'Standard RHEL Kickstart, not a custom installer. This flow is not implemented or approved. No active disk erase exists in the candidate.'
+    link /runbook.html#install '4. Install runbook'
+    node.installer -> workstation.http '4.1 Fetch nonsecret Kickstart + package source'
+    node.installer -> approval '4.2 STOP unless exact node/disk plan approved' {
+      notes '[Disk approval](/runbook.html#approve). Standard persistent disk targeting first; add only necessary checks.'
+    }
+    node.installer -> credential '4.3 STOP while protected credential mode undecided' {
+      notes '[Credential gate](/runbook.html#credentials). No passwords/hashes/private keys in HTTP. Candidate currently aborts regardless of input.'
+    }
+    node.installer -> node.disk '4.4 Install approved layout/packages ONLY AFTER gates'
+    node.installer -> node.os '4.5 Enroll public key + key-only SSH before first boot'
+  }
+  dynamic view security_handoff {
+    title 'PLANNED trust / credential handoff — choice still pending'
+    description 'Public key may be in Kickstart; private keys and sudo/recovery secrets may not. Protected bootstrap privileges are a new undecided choice, not an existing feature.'
+    link /runbook.html#credentials 'Credential and trust boundary'
+    engineer -> approval '1. Approve scope and exact disk; no blanket full-access grant'
+    workstation.prepare -> node.installer '2. Future public key only in nonsecret configuration'
+    engineer -> credential '3. Resolve protected bootstrap mode; STOP if undecided'
+    custody -> bootstrap '4. Future protected secret delivery, never HTTP/TFTP'
+    bootstrap -> node.os '5. Proposed human credential setup / temporary authorization removal'
+    engineer -> workstation.ssh '6. Compare trusted physical host fingerprint'
+    workstation.ssh -> node.os '7. Verify key-only login and password-sudo'
+    node.os -> platform '8. Separate host/RKE2 stage; not automatic'
+  }
+  dynamic view observed_pilot {
+    title 'OBSERVED pilot checkpoint — not unattended install evidence'
+    description 'Operator reports: interactive RHEL installed, local disk boot, standard SSH recovery, temporary password window ended, key-only policy/sudo verified and PXE shutdown successful. Native socket cause unresolved; power-off unconfirmed.'
+    link /runbook.html#observed 'Observed evidence and limits'
+    engineer -> node.firmware '1. Pilot booted vendor chain; installer GUI reached'
+    engineer -> node.installer '2. Interactive layout/account installation completed'
+    node.installer -> node.os '3. Local disk boot and console login'
+    workstation.ssh -> node.os '4. Standard public-key enrollment and key-only policy verified'
+    workstation.ssh -> node.os '5. Fresh key-only login and password-sudo passed'
+    engineer -> workstation.proxy '6. Operator reports pilot services shutdown successful'
+  }
+}
