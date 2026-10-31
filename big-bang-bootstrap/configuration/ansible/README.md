@@ -19,3 +19,9 @@ Kustomize file order is not readiness. Database startup also retains a bounded n
 Pause the affected root first, then the affected child source/reconciler/release before manually stopping new workloads. Root suspension stops manifest updates, not running services or every child controller. Preserve retained database data, backups and existing healthy Flux/services. Resume only from a reviewed canonical configuration; do not let an active parent undo containment. Existing published tags/old paths remain unchanged and provide historical source, not permission to run removed workflows.
 
 Keep private logs locally with timestamps, symptoms, confirmed causes versus hypotheses, fixes and verification; no token/password/Secret bodies or shell tracing around credentials. The temporary laptop guardian was operational trial tooling, not a controller deployed by this code. Physical observation thresholds/duration and recovery actions require a new measured plan.
+
+Rancher OIDC/admin configuration lives in `configure-rancher-oidc.yaml`, with
+explicit private inputs overriding `vars/rancher-oidc.yml`. It is default-off,
+contacts no cluster in check mode, and requires separate security-change approval
+after Rancher and Keycloak readiness. See the Rancher package README. Infrastructure
+contains no direct Rancher installer or Rancher API operations.

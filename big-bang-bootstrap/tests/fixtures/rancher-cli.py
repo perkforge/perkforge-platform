@@ -5,16 +5,9 @@ from pathlib import Path
 p = Path(os.environ['RANCHER_FIXTURE_STATE'])
 state = json.loads(p.read_text())
 args = sys.argv[1:]
-mode = 'helm' if 'helm' in Path(sys.argv[0]).name else 'kubectl'
-verb = next((x for x in args if x in ('repo', 'upgrade', 'get', 'patch', 'apply', 'rollout')), None)
-state.setdefault('events', []).append({'tool': mode, 'verb': verb})
-if mode == 'helm':
-    if verb == 'upgrade':
-        state.setdefault('installs', []).append({'args': args, 'values': sys.stdin.read() if '--values' in args else ''})
-        print('Release has been installed')
-    else:
-        print('repository ready')
-elif verb == 'get':
+verb = next((x for x in args if x in ('get', 'patch', 'apply')), None)
+state.setdefault('events', []).append({'tool': 'kubectl', 'verb': verb})
+if verb == 'get':
     rest = args[args.index('get') + 1:]
     resource = rest[0]
     if resource == 'namespace':
@@ -50,8 +43,6 @@ elif verb == 'apply':
         print('globalrolebinding created')
     else:
         raise SystemExit('Unexpected immutable fixture change')
-elif verb == 'rollout':
-    print('deployment successfully rolled out')
 else:
     raise SystemExit('Unexpected fixture command')
 p.write_text(json.dumps(state))

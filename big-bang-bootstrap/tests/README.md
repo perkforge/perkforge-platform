@@ -10,7 +10,7 @@
 
 Configuration/test_optional_enrollment checks a tenant-free root preserves platform objects; bootstrap/test_prerequisites checks package ownership, unique definitions and explicit common-first ordering.
 
-The former Headlamp/identity mixed modules were split case-by-case. Shared rendered package setup has no test cases. Release/seed checks are separate from cross-repo configuration tests; generic findings tests live at repository-root evidence/tests, and infrastructure RKE2/Rancher tests stay with infrastructure/ansible/tests. No test is labelled live integration when it only exercises a fixture.
+The former Headlamp/identity mixed modules were split case-by-case. Shared rendered package setup has no test cases. Release/seed checks are separate from cross-repo configuration tests; generic findings tests live at repository-root evidence/tests, and infrastructure RKE2 tests stay with infrastructure/ansible/tests; Rancher API safety tests live in bootstrap/test_rancher_management.py with the platform operation. No test is labelled live integration when it only exercises a fixture.
 
 ## Offline commands
 

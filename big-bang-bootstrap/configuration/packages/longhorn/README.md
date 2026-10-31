@@ -13,7 +13,7 @@ StorageClass. V2 is off (no raw disk/hugepage changes). Components select only n
 labeled storage.perkforge.io/worker=true. Only the two reviewed workers may get that
 label and node.longhorn.io/create-default-disk=true; leave control-1 unlabeled and
 without a Longhorn data disk. Host prerequisites and label changes require separate
-infrastructure approval. No worker labels or directories have been created here.
+infrastructure approval. Worker directories and host prerequisites are prepared; node labels remain absent.
 
 The data path /var/lib/longhorn initially shares each worker's OS filesystem.
 Reserve 30% for the default disk, keep 25% minimum available, and use 100% scheduling
@@ -28,8 +28,8 @@ still single-server. Add dedicated worker SSDs as actual growth requires.
 
 1. Run a read-only RHEL/Longhorn preflight: pinned RKE2/Longhorn compatibility,
    SELinux policy, iSCSI package/version/module/service, mount propagation, free
-   disk/RAM, networking and worker selection. Existing nodes currently lack iSCSI
-   and NFS client packages. Do not install open-iscsi 2.1.12; check upstream guidance.
+   disk/RAM, networking and worker selection. Worker packages/service/module and directory preparation completed;
+   node labels and runtime validation are still pending. Do not install open-iscsi 2.1.12; check upstream guidance.
 2. Separately approve host prerequisites and directory/label preparation. Longhorn
    needs privileged root/host access; prerequisites/ contains a privileged namespace,
    installer RBAC and named bind/escalate permissions derived from the pinned chart.
@@ -74,16 +74,51 @@ Default/check mode contacts no hosts. Explicit verification reads worker state o
 SSH without sudo and writes a fresh local mode0600 summary; it never prepares hosts.
 Missing probes are recorded rather than treated as installation readiness.
 
-The current audit found matching worker hostnames, XFS/shared mount propagation,
-six CPUs, about 15GiB RAM and 227GiB free per worker. Both lack iSCSI tools/service;
-iscsi_tcp exists on disk but is not loaded. The data directory and storage labels
-remain deliberately absent. NFS tools are needed for RWX/NFS backup and cryptsetup
-for encrypted volumes. Enforcing SELinux has RKE2/container policies, but active
-policy permissions and later runtime behavior remain unverified. No installation
-is ready merely because the audit completed. Chart network policies explicitly
-select the RKE2 distribution; this authored correction has not been applied.
+The post-preparation audit found matching worker hostnames, XFS/shared mount
+propagation, six CPUs, about 15GiB RAM and approximately 227GiB free per worker.
+Both now have the reviewed iSCSI package, active/enabled iscsid, loaded iscsi_tcp,
+NFS/encryption/inspection tools and the root-owned storage directory. All named
+host probes completed successfully. SELinux remains enforcing; read-only queries
+confirmed iscsid_t dac_override and container_t-to-spc_t socket connectto allow
+rules. No direct iscsid_t-to-container_file_t directory rule was returned; this
+alone does not establish a missing runtime permission. Runtime process contexts,
+AVC behavior and PVC I/O remain unverified until Longhorn runs. Storage labels
+remain absent. Chart network policies explicitly select RKE2; the chart is not
+applied. Host readiness does not authorize deployment.
 
 When reviewing cluster metadata, compare node names, hostname labels and RKE2
 hostname annotations with the inventory. Investigate unexpected test values;
 controller-owned annotations require understanding before removal. Keep full
 metadata and physical identifiers out of tracked evidence.
+
+## Worker prerequisite preparation
+
+`infrastructure/ansible/playbooks/prepare-longhorn-hosts.yml` is a separate,
+default-off maintenance operation for worker-1 and worker-2, sequentially. It
+requires matching host identity, RHEL 10.2, enforcing SELinux, active RKE2 agent,
+XFS/shared kubelet propagation and safe root-owned managed paths before writes.
+The reviewed cached RHEL package is
+`iscsi-initiator-utils-6.2.1.11-1.git4b3e853.el10_2.2.x86_64` on both workers.
+It is pinned to avoid silently selecting the known problematic upstream 2.1.12.
+Recheck available versions before using this procedure on a later OS/repository.
+
+The operation installs that iSCSI package plus nfs-utils, cryptsetup and
+setools-console (inspection only); persists/loads iscsi_tcp, enables/starts iscsid,
+and creates root-owned mode0700 /var/lib/longhorn. This directory shares the root
+filesystem and is not a quota. It does not change SELinux policy or labeling,
+restart RKE2, modify control-1, label nodes, create claims or deploy Longhorn.
+NFS/encryption tools make those features available; neither is enabled here.
+
+After action-specific approval, use the private inventory and password sudo:
+
+```sh
+ansible-playbook -i infrastructure/ansible/inventory/.topology.yml \
+  infrastructure/ansible/playbooks/prepare-longhorn-hosts.yml --ask-become-pass \
+  -e longhorn_host_prepare_apply=true -e longhorn_host_prepare_reviewed=true
+```
+
+Omitting apply or using check mode contacts no hosts. Afterward rerun the read-only
+audit and inspect active SELinux allow rules with sesearch, including iscsid_t
+capability/directory access. Do not install a policy workaround without evidence.
+Later runtime contexts, AVC denials and actual PVC I/O still require validation.
+Review and approve worker labels separately after host verification.

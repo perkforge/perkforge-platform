@@ -94,7 +94,7 @@
       that:
       - rancher_oidc_current.type | default('genericOIDCConfig') == 'genericOIDCConfig'
       - >-
-        (rancher_oidc_current.metadata.labels | default({})).get('platform.perkforge.io/managed-by', '') == 'infrastructure-ansible'
+        (rancher_oidc_current.metadata.labels | default({})).get('platform.perkforge.io/managed-by', '') == 'platform-ansible'
         or (not (rancher_oidc_current.enabled | default(false))
             and not (rancher_oidc_current.clientId | default(''))
             and not (rancher_oidc_current.issuer | default(''))
@@ -112,14 +112,14 @@
     ansible.builtin.assert:
       that:
       - item.globalRoleName in (rancher_roles | map(attribute='metadata.name') | list)
-      - existing | length == 0 or ((existing[0].metadata.labels | default({})).get('platform.perkforge.io/managed-by', '') == 'infrastructure-ansible' and existing[0].groupPrincipalName == item.groupPrincipalName and existing[0].globalRoleName == item.globalRoleName and not (existing[0].userName | default('')) and not (existing[0].userPrincipalName | default('')))
+      - existing | length == 0 or ((existing[0].metadata.labels | default({})).get('platform.perkforge.io/managed-by', '') == 'platform-ansible' and existing[0].groupPrincipalName == item.groupPrincipalName and existing[0].globalRoleName == item.globalRoleName and not (existing[0].userName | default('')) and not (existing[0].userPrincipalName | default('')))
     vars:
       existing: "{{ rancher_bindings | selectattr('metadata.name', 'equalto', item.name) | list }}"
     loop: '{{ rancher_management_bindings }}'
   - name: Require explicit revocation review for previously owned bindings omitted from desired inputs
     ansible.builtin.assert:
       that: item.metadata.name in (rancher_management_bindings | map(attribute='name') | list)
-    when: (item.metadata.labels | default({})).get('platform.perkforge.io/managed-by', '') == 'infrastructure-ansible'
+    when: (item.metadata.labels | default({})).get('platform.perkforge.io/managed-by', '') == 'platform-ansible'
     loop: '{{ rancher_bindings }}'
   - ansible.builtin.set_fact:
       rancher_oidc_drift: false
@@ -132,11 +132,11 @@
     when: rancher_oidc_drift | bool
     ansible.builtin.command:
       argv: ['{{ rancher_kubectl }}', --kubeconfig, '{{ rancher_kubeconfig }}', --context, '{{ rancher_context }}', --request-timeout=20s, patch, authconfig.management.cattle.io, genericoidc, --type=merge, --patch-file=/dev/stdin]
-      stdin: "{{ rancher_oidc_settings | combine({'metadata': {'resourceVersion': rancher_oidc_current.metadata.resourceVersion, 'labels': {'platform.perkforge.io/managed-by': 'infrastructure-ansible'}}, 'clientSecret': rancher_oidc_secret_value}) | to_json }}"
+      stdin: "{{ rancher_oidc_settings | combine({'metadata': {'resourceVersion': rancher_oidc_current.metadata.resourceVersion, 'labels': {'platform.perkforge.io/managed-by': 'platform-ansible'}}, 'clientSecret': rancher_oidc_secret_value}) | to_json }}"
   - name: Apply only explicit management group bindings
     ansible.builtin.command:
       argv: ['{{ rancher_kubectl }}', --kubeconfig, '{{ rancher_kubeconfig }}', --context, '{{ rancher_context }}', --request-timeout=20s, apply, -f, '-']
-      stdin: "{{ {'apiVersion': 'management.cattle.io/v3', 'kind': 'GlobalRoleBinding', 'metadata': {'name': item.name, 'labels': {'platform.perkforge.io/managed-by': 'infrastructure-ansible'}}, 'groupPrincipalName': item.groupPrincipalName, 'globalRoleName': item.globalRoleName} | to_json }}"
+      stdin: "{{ {'apiVersion': 'management.cattle.io/v3', 'kind': 'GlobalRoleBinding', 'metadata': {'name': item.name, 'labels': {'platform.perkforge.io/managed-by': 'platform-ansible'}}, 'groupPrincipalName': item.groupPrincipalName, 'globalRoleName': item.globalRoleName} | to_json }}"
     register: rancher_binding_result
     changed_when: "'created' in rancher_binding_result.stdout or 'configured' in rancher_binding_result.stdout"
     loop: '{{ rancher_management_bindings }}'

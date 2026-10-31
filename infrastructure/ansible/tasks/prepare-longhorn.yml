@@ -1,0 +1,89 @@
+---
+- name: Confirm host identity before changes
+  ansible.builtin.command:
+    argv: [hostname]
+  register: longhorn_hostname
+  changed_when: false
+- ansible.builtin.assert:
+    that: longhorn_hostname.stdout | trim == inventory_hostname
+- ansible.builtin.setup:
+    gather_subset: [min]
+- name: Require the reviewed RHEL version and enforcing SELinux
+  ansible.builtin.assert:
+    that:
+    - ansible_facts.distribution == 'RedHat'
+    - ansible_facts.distribution_version == '10.2'
+    - ansible_facts.architecture == 'x86_64'
+    - ansible_facts.selinux.mode == 'enforcing'
+- name: Require the installed RKE2 agent to remain active
+  ansible.builtin.command:
+    argv: [systemctl, is-active, rke2-agent]
+  changed_when: false
+- name: Verify XFS and shared propagation for the kubelet path
+  ansible.builtin.command:
+    argv: [findmnt, -n, -T, /var/lib/kubelet, -o, 'FSTYPE,PROPAGATION']
+  register: longhorn_mount
+  changed_when: false
+- ansible.builtin.assert:
+    that: longhorn_mount.stdout.split() == ['xfs', 'shared']
+- name: Inspect managed paths without following symlinks
+  ansible.builtin.stat:
+    path: '{{ item }}'
+    follow: false
+  loop:
+  - /var/lib/longhorn
+  - /etc/modules-load.d/90-perkforge-longhorn.conf
+  register: longhorn_paths
+- name: Refuse symlinks or wrong types at managed paths
+  ansible.builtin.assert:
+    that:
+    - not item.stat.exists or not (item.stat.islnk | default(false))
+    - not item.stat.exists or item.stat.uid == 0
+    - not item.stat.exists or (item.stat.isdir | default(false) if item.item == '/var/lib/longhorn' else item.stat.isreg | default(false))
+  loop: '{{ longhorn_paths.results }}'
+- name: Confirm the V1 kernel module is available before package changes
+  ansible.builtin.command:
+    argv: [/usr/sbin/modinfo, -F, filename, iscsi_tcp]
+  changed_when: false
+- name: Install reviewed storage and inspection tools without a general OS upgrade
+  ansible.builtin.dnf:
+    name:
+    - iscsi-initiator-utils-6.2.1.11-1.git4b3e853.el10_2.2.x86_64
+    - nfs-utils
+    - cryptsetup
+    - setools-console
+    state: present
+    allow_downgrade: false
+- name: Persist only the Longhorn V1 iSCSI module
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/90-perkforge-longhorn.conf
+    content: "iscsi_tcp\n"
+    owner: root
+    group: root
+    mode: '0644'
+- ansible.builtin.stat:
+    path: /sys/module/iscsi_tcp
+  register: longhorn_module
+- name: Load the iSCSI module only when absent
+  ansible.builtin.command:
+    argv: [/usr/sbin/modprobe, iscsi_tcp]
+  when: not longhorn_module.stat.exists
+- name: Enable and start the host iSCSI daemon
+  ansible.builtin.systemd_service:
+    name: iscsid
+    enabled: true
+    state: started
+- name: Create the root-owned default storage directory without relabeling policy
+  ansible.builtin.file:
+    path: /var/lib/longhorn
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+- name: Confirm SELinux remains enforcing
+  ansible.builtin.command:
+    argv: [getenforce]
+  register: longhorn_selinux
+  changed_when: false
+- ansible.builtin.assert:
+    that: longhorn_selinux.stdout | trim == 'Enforcing'

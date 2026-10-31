@@ -4,7 +4,7 @@ Use the [human-operated RHEL procedure](../pxe/README.md) for installation and S
 [Current state](../HANDOFF.md) records readiness; the [C4 views](../docs/architecture/README.md)
 show architecture, the local topology and operating boundaries.
 
-[Ansible entrypoints](ansible/README.md) own explicit host/RKE2 and Rancher API operations; optional Rancher/Longhorn Helm deployment belongs to Big Bang/Flux.
+[Ansible entrypoints](ansible/README.md) own explicit host/RKE2 operations; optional Rancher/Longhorn Helm deployment belongs to Big Bang/Flux.
 The [public inventory skeleton](ansible/inventory/hosts.yml) contains no physical identifiers.
 The ignored `ansible/inventory/.topology.yml` holds the actual IP/MAC map and SSH references. Private key bytes/passwords are not in the repository.
 The ignored `ansible/inventory/known_hosts.local` retains current verified host trust;

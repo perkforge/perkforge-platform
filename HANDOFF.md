@@ -97,7 +97,7 @@ or a stale API boot ID. These are distinct from the successful live checks.
 Read-only storage assessment: no StorageClasses, PVs or PVCs exist. Each node has
 one roughly 256GB NVMe with XFS root shared by OS/RKE2; about 226–227GiB remains
 free, six CPUs and about 15GiB RAM. Links report 1 Gbps; no NAS is available.
-iscsi-initiator-utils/nfs-utils are absent. Current selected packages are Headlamp
+Worker storage prerequisites are installed as detailed below. Current selected packages are Headlamp
 and Keycloak; the authored Keycloak database claim is 4GiB on a retained static
 local-identity PV, with worker/path still placeholders. Its advertised capacity is
 not a filesystem quota. No storage backend, directory, quota, package or disk was
@@ -107,13 +107,13 @@ with two worker replicas and an initial 80–100GiB logical budget, with indepen
 backups and later dedicated worker SSDs as growth requires; see infrastructure/README.md.
 Longhorn and Rancher are now prepared as optional unselected Big Bang packages.
 Their child HelmReleases and the outer release/seed remain suspended. No bootstrap,
-labels, prerequisites, storage directory, host packages or live resources changed.
+node labels or platform resources changed in that source-only preparation. Later approved worker host preparation is recorded below.
 Longhorn is pinned 1.13.0 with worker-only placement, two hard-separated replicas,
 Retain/nondefault StorageClass and disk headroom settings. Keycloak has an alternate
 Longhorn PVC overlay and readiness dependency. Rancher is pinned 2.15.2, strictly
 TLS, required external bootstrap-values Secret, no fabricated storage dependency.
-Its direct Ansible installer refuses under the selected Big Bang deployment owner;
-gated API/OIDC administration remains Ansible. Privileged installer RBAC and
+Its old direct infrastructure installer is removed; gated API/OIDC administration
+now lives under Big Bang bootstrap Ansible. Privileged installer RBAC and
 namespace prerequisites are staged separately for review. Activation requires
 read-only host compatibility checks, explicit host/disk/label preparation, DNS/TLS/
 credentials and reviewed source selection/unpause. No live install is approved. Application PV
@@ -122,10 +122,9 @@ contents need their own backup; the verified etcd snapshot does not contain them
 The operator selected Longhorn for growth and requested this intermediate source
 commit/push before any bootstrap. The approved read-only Longhorn host audit completed; protected evidence is in
 .rke2-state/longhorn-preflight-jkilmqcb/. Both workers have matching hostnames,
-XFS/shared propagation, six CPUs, about 15GiB RAM and 227GiB free. Both lack
-iSCSI tools/service and a loaded iscsi_tcp module (the module exists on disk).
-NFS/encryption tools, Longhorn directory and worker labels are absent. SELinux
-remains enforcing; active policy/runtime permissions are unverified. This is not
+XFS/shared propagation, six CPUs, about 15GiB RAM and 227GiB free. This initial audit identified missing host prerequisites; the completed maintenance
+and post-preparation audit below supersede those gaps. Worker labels remain
+absent and runtime contexts/I/O remain unverified. SELinux remains enforcing. This is not
 installation readiness. The reusable command is in the Longhorn package README.
 Node names, hostname labels and RKE2 hostname annotations match control-1,
 worker-1 and worker-2; no custom test annotation keys were observed. Review
@@ -143,3 +142,24 @@ metadata and release compatibility still require coordinated review before any
 activation. Local example.test URLs and worker selectors remain unresolved inputs;
 choose the actual DNS suffix and scheduling placement consistently across values,
 identity/routing and RKE2 OIDC settings before bootstrap.
+
+Approved worker-only Longhorn prerequisite maintenance completed sequentially,
+with zero failures. Protected run evidence is in
+.rke2-state/longhorn-host-preparation-bbomy7w9/ and the successful follow-up audit
+is .rke2-state/longhorn-preflight-2mdne6_j/. Both workers now have pinned iSCSI
+6.2.1.11 plus NFS/cryptsetup/setools tools, persistent loaded iscsi_tcp,
+active/enabled iscsid and root-owned mode0700 /var/lib/longhorn. Both host audit
+unmet-check lists are empty. SELinux remains enforcing and all three nodes remain
+Ready. Separate read-only policy queries confirmed iscsid_t dac_override and
+container_t-to-spc_t unix socket connectto permissions on both workers. A direct
+iscsid_t-to-container_file_t directory query returned no rule; this is not by itself
+a demonstrated runtime failure. Actual process contexts/AVCs and PVC I/O still
+require later Longhorn validation. No policy workaround, node labels, control-plane
+change, RKE2 restart or bootstrap was performed. Node labels require separate
+approval. Maintenance source and repeat instructions are retained with the infrastructure procedure.
+
+Rancher cleanup removed the direct infrastructure Helm installer, values and
+installer-only tests. OIDC tasks/defaults/playbook and the retained safety tests/CLI
+fixture moved under big-bang-bootstrap; platform-owned resources use the
+platform-ansible ownership value. No Rancher resources have been installed or
+configured, so no live ownership migration occurred. RKE2 vendor paths stay intact.

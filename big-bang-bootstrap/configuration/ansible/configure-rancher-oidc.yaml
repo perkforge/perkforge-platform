@@ -3,7 +3,7 @@
   hosts: localhost
   connection: local
   gather_facts: false
-  vars_files: [../group_vars/rancher.yml]
+  vars_files: [vars/rancher-oidc.yml]
   tasks:
   - name: Report safe default without reading credentials or contacting a cluster
     ansible.builtin.debug:
@@ -11,5 +11,5 @@
   - name: Run only the separately approved management operation
     when: rancher_oidc_apply | bool and not ansible_check_mode
     block:
-    - ansible.builtin.include_tasks: ../tasks/rancher-target.yml
-    - ansible.builtin.include_tasks: ../tasks/rancher-oidc.yml
+    - ansible.builtin.include_tasks: tasks/rancher-target.yml
+    - ansible.builtin.include_tasks: tasks/rancher-oidc.yml
