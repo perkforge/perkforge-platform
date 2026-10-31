@@ -1,10 +1,11 @@
-# Paused until reviewed activation; Ansible owns namespaces and installer foundations.
+# Active desired state only after the release-pinned seed is explicitly resumed.
+# Ansible owns namespaces and installer foundations; seed defaults remain paused.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: bigbang
 spec:
-  suspend: true
+  suspend: false
   interval: 10m
   releaseName: bigbang
   targetNamespace: bigbang

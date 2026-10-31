@@ -15,7 +15,7 @@ configuration/
 tests/                             configuration/bootstrap/security/integration
 ```
 
-Local selects only Longhorn, with the seed, outer release and Longhorn child suspended. Headlamp is disabled in shared defaults; Headlamp, Keycloak, Rancher, OpenBao and tenant enrollment are unselected. Start with storage acceptance, then select Rancher with its own TLS/bootstrap inputs; defer identity/SSO and tenant activation. No source change installs anything. Local means the physical three-node cluster. Actual IL2 preparation is deferred.
+Local selects only Longhorn, with active outer/child Helm desired state behind a paused, release-pinned seed. Headlamp is disabled in shared defaults; Headlamp, Keycloak, Rancher, OpenBao and tenant enrollment are unselected. Start with storage acceptance, then select Rancher with its own TLS/bootstrap inputs; defer identity/SSO and tenant activation. Publication does not select a release or resume the paused seed. Local means the physical three-node cluster. Actual IL2 preparation is deferred.
 
 Start with [platform maintenance](../docs/platform/README.md): [applications and values](../docs/platform/applications.md), [targets/environments](../docs/platform/targets.md), and [impact profiles](../docs/platform/profiles.md). Use [operation order](configuration/ansible/README.md), [verification commands](tests/README.md), [infrastructure prerequisites](../infrastructure/README.md).
 
@@ -25,3 +25,7 @@ Prepared storage/management inputs and activation boundaries are documented in
 [Longhorn](configuration/packages/longhorn/README.md) and
 [Rancher](configuration/packages/rancher/README.md). Nothing is bootstrapped by
 adding or rendering these files.
+
+For Longhorn activation, publish this source as a new release, select its verified
+tag as runtime input, prepare the paused seed and installer foundations, then
+separately approve seed resume. See [release and seed activation](configuration/ansible/README.md#longhorn-only-release-and-seed-activation).

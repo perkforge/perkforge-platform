@@ -142,7 +142,7 @@ model {
       }
     }
     storage = component 'Longhorn application storage' {
-      description 'Selected initial Big Bang custom package, still suspended; Flux reconciles its pinned upstream chart only after reviewed activation. Storage acceptance precedes Rancher, then identity/SSO and tenants. No storage is installed. Host prerequisites and labels remain separately approved infrastructure work.'
+      description 'Selected initial Big Bang custom package with active Helm desired state behind a paused release-pinned seed; Flux reconciles its pinned upstream chart only after reviewed seed resume. Storage acceptance precedes Rancher, then identity/SSO and tenants. No storage is installed. Host prerequisites and labels remain separately approved infrastructure work.'
       link /runbook.html#storage 'Storage ownership, rollout and testing'
       volumes = component 'Retained expandable application volumes' {
         description 'Nondefault StorageClass, two replicas, WaitForFirstConsumer. Keycloak depends on Longhorn and its alternate PVC overlay removes the old static PV binding. Future Harbor, portal, Nextcloud and OpenBao claims need explicit sizing.'
