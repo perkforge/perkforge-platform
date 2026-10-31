@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/perkforge/perkforge-platform/compare/v0.9.0...v0.10.0) (2026-10-31)
+
+
+### Features
+
+* **bootstrap:** stage Longhorn-first platform rollout ([#87](https://github.com/perkforge/perkforge-platform/issues/87)) ([e441dc6](https://github.com/perkforge/perkforge-platform/commit/e441dc682c4f9575c27cdf52eb7fca5784f949d8))
+
 ## [0.9.0](https://github.com/perkforge/perkforge-platform/compare/v0.8.0...v0.9.0) (2026-10-31)
 
 
