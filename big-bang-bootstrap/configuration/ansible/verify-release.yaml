@@ -35,8 +35,12 @@
 - name: Require released entrypoint to match selected inventory context
   ansible.builtin.assert:
     that:
+    - "'platform.perkforge.io/cluster' in released_context"
+    - "'platform.perkforge.io/environment' in released_context"
+    - "'platform.perkforge.io/profile' in released_context"
     - released_context['platform.perkforge.io/cluster'] == inventory_hostname
     - released_context['platform.perkforge.io/environment'] == deployment_environment
     - released_context['platform.perkforge.io/profile'] == impact_profile
+    fail_msg: Published release lacks or mismatches the platform selection annotation contract.
   vars:
     released_context: "{{ (released_entrypoint.stdout | b64decode | from_yaml).commonAnnotations }}"

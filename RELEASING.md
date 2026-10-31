@@ -17,7 +17,7 @@ portal chart/image versions are independent; this does not bump either of those.
 
 ## Published chain and rollout
 
-Dependency tags and reviewed resolved commits are recorded in `release-evidence.json`. The preceding trial chain is platform v0.7.0 → enrollment v0.4.0 → tenant-app v0.3.0 → portal image v0.3.0; operator-only enrollment fixes are separately released. Do not infer compatibility from version numbers alone.
+Dependency tags and reviewed resolved commits are recorded in `release-evidence.json`. The selected configuration dependency chain is enrollment v1.0.0 → portal config v1.0.0; a compatible platform release containing this selection must publish before bootstrap can use it. Image versions remain independently selected by application configuration. Do not infer compatibility from version numbers alone.
 
 Publish source/image changes first when required, then app configuration → enrollment → platform. Each dependency advance is a reviewed PR using an actually published compatible tag. Verify source contents, paths, cluster/environment/profile context and rendering before adopting it.
 

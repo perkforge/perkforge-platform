@@ -54,6 +54,9 @@ class ReleaseWorkflowTests(unittest.TestCase):
                     if s.get('name') == 'Verify tag-aware bootstrap without Kubernetes access')
         self.assertIn('config_tag=v0.1.0', step['run'])
         self.assertIn('gitops_path=./local-lab-big-bang/examples/clusters/local', step['run'])
+        self.assertIn('Historical release unexpectedly passed', step['run'])
+        self.assertIn('Published release lacks or mismatches the platform selection annotation contract.', step['run'])
+        self.assertNotIn('|| true', step['run'])
         # Only this historical verification uses the old path; onboarding selects the new layout.
         inventory = yaml.safe_load(Path('big-bang-bootstrap/configuration/ansible/inventory.yaml').read_text())
         self.assertEqual(inventory['all']['children']['bootstrap_clusters']['hosts']['local']['gitops_path'],

@@ -1,5 +1,5 @@
 """Offline release refusal and paused seed rendering; no Kubernetes calls."""
-import os,json,subprocess,tempfile,unittest
+import os,json,subprocess,tempfile,unittest,base64
 from pathlib import Path
 import yaml
 from fixtures.selection import EXAMPLES,context
@@ -42,3 +42,20 @@ class ReleaseSeedTests(unittest.TestCase):
                 source = next(obj for obj in documents if obj["kind"] == "GitRepository")
                 self.assertEqual(source["spec"]["ref"], {"tag": "v0.1.0"})
                 self.assertTrue(root["spec"]["suspend"])
+
+
+class ReleasedContextTests(unittest.TestCase):
+    def test_current_contract_accepts_matching_context_and_rejects_missing_or_wrong_keys(self):
+        task = yaml.safe_load((EXAMPLES / 'configuration/ansible/verify-release.yaml').read_text())[-1]
+        current = {'platform.perkforge.io/'+key: value for key,value in
+                   [('cluster','local'),('environment','local'),('profile','il2')]}
+        for annotations, expected in [(current,0),({},2),({**current,'platform.perkforge.io/environment':'wrong'},2)]:
+            with self.subTest(annotations=annotations), tempfile.TemporaryDirectory() as directory:
+                root=Path(directory)
+                encoded=base64.b64encode(yaml.safe_dump({'commonAnnotations':annotations}).encode()).decode()
+                play=root/'fixture.yaml';play.write_text(yaml.safe_dump([{'hosts':'local','connection':'local','gather_facts':False,
+                    'vars':{'deployment_environment':'local','impact_profile':'il2','released_entrypoint':{'stdout':encoded}},'tasks':[task]}]))
+                result=subprocess.run(['ansible-playbook','-i','local,',str(play)],capture_output=True,text=True,timeout=20,
+                    env={**os.environ,'ANSIBLE_LOCAL_TEMP':directory+'/local','ANSIBLE_REMOTE_TEMP':directory+'/remote'})
+                self.assertEqual(result.returncode,expected,result.stdout+result.stderr)
+                if expected:self.assertIn('Published release lacks or mismatches',result.stdout)
