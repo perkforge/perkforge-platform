@@ -13,7 +13,7 @@ StorageClass. V2 is off (no raw disk/hugepage changes). Components select only n
 labeled storage.perkforge.io/worker=true. Only the two reviewed workers may get that
 label and node.longhorn.io/create-default-disk=true; leave control-1 unlabeled and
 without a Longhorn data disk. Host prerequisites and label changes require separate
-infrastructure approval. Worker directories and host prerequisites are prepared; node labels remain absent.
+infrastructure approval. Worker directories, host prerequisites and both reviewed selection labels are prepared.
 
 The data path /var/lib/longhorn initially shares each worker's OS filesystem.
 Reserve 30% for the default disk, keep 25% minimum available, and use 100% scheduling
@@ -29,7 +29,7 @@ still single-server. Add dedicated worker SSDs as actual growth requires.
 1. Run a read-only RHEL/Longhorn preflight: pinned RKE2/Longhorn compatibility,
    SELinux policy, iSCSI package/version/module/service, mount propagation, free
    disk/RAM, networking and worker selection. Worker packages/service/module and directory preparation completed;
-   node labels and runtime validation are still pending. Do not install open-iscsi 2.1.12; check upstream guidance.
+   runtime validation is still pending. Do not install open-iscsi 2.1.12; check upstream guidance.
 2. Separately approve host prerequisites and directory/label preparation. Longhorn
    needs privileged root/host access; prerequisites/ contains a privileged namespace,
    installer RBAC and named bind/escalate permissions derived from the pinned chart.
@@ -82,8 +82,7 @@ host probes completed successfully. SELinux remains enforcing; read-only queries
 confirmed iscsid_t dac_override and container_t-to-spc_t socket connectto allow
 rules. No direct iscsid_t-to-container_file_t directory rule was returned; this
 alone does not establish a missing runtime permission. Runtime process contexts,
-AVC behavior and PVC I/O remain unverified until Longhorn runs. Storage labels
-remain absent. Chart network policies explicitly select RKE2; the chart is not
+AVC behavior and PVC I/O remain unverified until Longhorn runs. The two reviewed worker selection labels are applied; control-1 remains excluded. Chart network policies explicitly select RKE2; the chart is not
 applied. Host readiness does not authorize deployment.
 
 When reviewing cluster metadata, compare node names, hostname labels and RKE2
@@ -122,3 +121,25 @@ audit and inspect active SELinux allow rules with sesearch, including iscsid_t
 capability/directory access. Do not install a policy workaround without evidence.
 Later runtime contexts, AVC denials and actual PVC I/O still require validation.
 Review and approve worker labels separately after host verification.
+
+## Worker selection labels
+
+After host preparation and verification, separately approve
+`infrastructure/ansible/playbooks/label-longhorn-workers.yml`. It adds exactly
+`storage.perkforge.io/worker=true` (our storage scheduling selector) and
+`node.longhorn.io/create-default-disk=true` (Longhorn's upstream default-disk
+opt-in) to worker-1 and worker-2. Control-1 remains unlabeled for both keys.
+These are operational labels, not illustrative metadata. They match the pinned
+chart's component selectors and default-disk creation gate.
+
+Supply explicit absolute `longhorn_labels_kubeconfig`, `longhorn_labels_kubectl`
+and `longhorn_labels_expected_cluster_uid` through an ignored protected vars file.
+After separate approval, invoke the playbook with that file and both
+`longhorn_worker_labels_apply=true` and `longhorn_worker_labels_reviewed=true`.
+Defaults/check mode contact no cluster. It checks cluster UID, the exact three
+node names, matching hostname labels, Ready status, worker roles and label conflicts
+before writing. JSON patches test each node UID/resourceVersion, preserve unrelated
+metadata and do not overwrite conflicting values. Reruns skip matching labels;
+concurrent changes cause failure for review rather than a blind overwrite. A failed
+second-worker patch may leave the first worker labeled; inspect before retrying.
+The operation does not install Longhorn, create disks/claims or unpause Flux.

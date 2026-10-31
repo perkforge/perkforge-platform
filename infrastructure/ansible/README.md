@@ -4,6 +4,7 @@ The operator uses PXE and interactive Anaconda to install RHEL. Infrastructure A
 
 | Entrypoint | Purpose | Default |
 |---|---|---|
+| `playbooks/label-longhorn-workers.yml` | separately approved worker-only storage labels | no cluster access |
 | `playbooks/prepare-longhorn-hosts.yml` | separately approved worker-only V1 storage prerequisites | no connections |
 | `tests/longhorn-preflight.yml` | read-only worker storage prerequisite audit | no connections |
 | `playbooks/configure-hosts.yml` | reviewed RHEL/Canal prerequisites | no connections |

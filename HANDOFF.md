@@ -163,3 +163,10 @@ installer-only tests. OIDC tasks/defaults/playbook and the retained safety tests
 fixture moved under big-bang-bootstrap; platform-owned resources use the
 platform-ansible ownership value. No Rancher resources have been installed or
 configured, so no live ownership migration occurred. RKE2 vendor paths stay intact.
+
+The approved worker-label operation completed with zero failures using
+infrastructure/ansible/playbooks/label-longhorn-workers.yml. Read-back confirmed
+storage.perkforge.io/worker=true and node.longhorn.io/create-default-disk=true on
+worker-1/worker-2 only; both labels remain absent on control-1. All three nodes
+remain Ready. No Longhorn installation, disk creation, PVC or bootstrap occurred.
+The operation remains default-off and identity/readiness/conflict guarded.
