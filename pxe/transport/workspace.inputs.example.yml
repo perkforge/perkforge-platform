@@ -1,0 +1,40 @@
+# Copy outside Git and fill confirmed metadata. No passwords, hashes or private keys.
+workspace_node: UNCONFIGURED
+workspace_run: UNCONFIGURED
+# reviewed means the exact indefinite menu already served; stock needs its SHA256.
+workspace_menu_state: UNCONFIGURED
+workspace_stock_menu_sha256: UNCONFIGURED
+workspace_lifetime_seconds: 1800
+workspace_metadata_source: UNCONFIGURED
+# Optional stopped-session preservation. Leave unknown; preserve refuses until set.
+workspace_previous_review_file: UNCONFIGURED
+workspace_previous_config_dir: UNCONFIGURED
+workspace_hold_label: UNCONFIGURED
+
+pxe_interface: UNCONFIGURED
+pxe_server_ip: UNCONFIGURED
+pxe_pilot_ip: UNCONFIGURED
+pxe_pilot_mac: UNCONFIGURED
+pxe_network: UNCONFIGURED
+pxe_netmask: UNCONFIGURED
+pxe_service_user: UNCONFIGURED
+pxe_service_group: UNCONFIGURED
+pxe_http_user: UNCONFIGURED
+pxe_http_group: UNCONFIGURED
+pxe_tftp_ownership_policy: UNCONFIGURED
+pxe_media_layout_reviewed: false
+pxe_boot_candidates_reviewed: false
+pxe_csa: UNCONFIGURED
+pxe_efi_entry: UNCONFIGURED
+pxe_grub_config_relative: UNCONFIGURED
+pxe_kernel_relative: UNCONFIGURED
+pxe_initrd_relative: UNCONFIGURED
+pxe_linux_command: UNCONFIGURED
+pxe_initrd_command: UNCONFIGURED
+pxe_tftp_root: /srv/perkforge-pxe-pilot/tftp
+pxe_http_root: /srv/perkforge-pxe-pilot/http
+pxe_runtime_dir: /run/perkforge-pxe-pilot
+pxe_log_dir: /var/log/perkforge-pxe-pilot
+pxe_http_port: 8080
+pxe_tftp_first_port: 20000
+pxe_tftp_last_port: 20009

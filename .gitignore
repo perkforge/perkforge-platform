@@ -15,3 +15,5 @@ infrastructure/ansible/vault-password.txt
 
 # Generated private provisioning review output, never source or install media.
 /pxe/local/
+# Current operator trust cache; public topology is documented separately.
+/infrastructure/ansible/inventory/known_hosts.local

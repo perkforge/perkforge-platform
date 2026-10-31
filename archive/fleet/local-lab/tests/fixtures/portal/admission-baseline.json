@@ -1,4 +1,0 @@
-{
-  "change": "Accept absent empty API request group/subResource fields; nonempty subresources remain forbidden",
-  "digest": "7b08d003dcdf694b8fd44c15129f143e500d1419606d3b073d05faf5286c0b34"
-}

@@ -17,6 +17,20 @@ model {
   workstation = system 'Engineer workstation' {
     description 'Runs reviewed Ansible PXE lifecycle, dedicated boot/source services and SSH client. Existing system/libvirt services remain separate.'
     link /runbook.html#prepare 'Preparation and prerequisites'
+    workspace = component 'Per-node private working directory' {
+      description 'Ignored pxe/local/worker-x/runs/run workspace; mode0700 directories and0600 metadata/evidence. Tracked offline workspace.yml rebuilds fresh artifacts from backed-up nonsecret inputs without AI or live operations.'
+      link /runbook.html#workspace 'Directory construction and artifact ownership'
+      link /sources/workspace.yml 'Offline Ansible rebuild source'
+      target_inputs = component 'Target inputs and provenance' {
+        description 'Generated README and inputs.yml snapshot record confirmed node/network identity and source references. Extract only required nonsecret inventory fields; unresolved identity stays UNCONFIGURED. Credentials remain in protected custody.'
+      }
+      discovery = component 'Discovery configuration and lifecycle evidence' {
+        description 'Retained rendered configuration, activation-review.yml hashes, generated standard session.sh caller and unique private logs/exit summaries. Root service state is separate; retained roots require reviewed preservation before reuse.'
+      }
+      access = component 'Per-run host trust and access evidence' {
+        description 'Fresh access/handoff-* directory: untrusted host-key candidate, physical-console trust confirmation, pinned known_hosts, read-only inspection and step results. Historical per-run launchers are not required by the rebuild recipe. Existing private key referenced in custody, never copied here.'
+      }
+    }
     review = component 'Private target inputs and reviewed configuration' {
       description 'Target/network identity, verified media, boot paths, service identities and hashes. Ansible renders inert files into a fresh private review directory; review before activation.'
       link /sources/prepare.yml 'Transport preparation source'
@@ -45,8 +59,9 @@ model {
       link /sources/nginx.conf.j2 'HTTP template'
     }
     ssh = component 'SSH client / public-key enrollment' {
-      description 'Trust full host fingerprint through physical console before connection. Enroll an existing public key; prove fresh key login before approved key-only hardening. Keep recovery session until fresh login/sudo succeeds.'
+      description 'Shared access.sh requires physical-confirmed pinned host trust and existing key reference. Standard SSH tools enroll the public key, verify fresh access, transfer/hash the checked helper and prove a separate fresh key-only/password-sudo connection.'
       link /runbook.html#access 'Access handoff'
+      link /sources/access.sh 'Shared handoff caller'
     }
     evidence = component 'Protected transaction and operational logs' {
       description 'Root-protected active record, config hashes, unit invocation identities and guard identity. Private automatic output/exit summary honors no_log and excludes terminal/password capture. Preserve failed attempts without overwriting.'
@@ -54,10 +69,10 @@ model {
     }
   }
   node = system 'Selected physical node' {
-    description 'Physical RHEL target. Repeat the process only for an explicitly selected node; preserve other installed nodes. Session status and approvals live in the handoff/journal, not this model.'
+    description 'Physical RHEL target. Repeat the process only for an explicitly selected node; preserve other installed nodes. Session status and approvals live in the handoff, not this model.'
     link /runbook.html#approve 'Target and erase review'
     firmware = component 'UEFI / boot selection' {
-      description 'Retain Secure Boot. Prefer one-time wired IPv4 PXE; if interrupt is unreliable, temporarily put network first in Startup / Primary Boot Sequence. Record original order and restore disk-first before normal disk boot.'
+      description 'Retain Secure Boot. Prefer one-time wired IPv4 PXE; if interrupt is unreliable, temporarily put network first in Startup / Primary Boot Sequence. Record original order. Inspect Primary and Automatic Boot Sequence; restore disk-first in the relevant sequences and verify boot with Ethernet connected.'
       link /runbook.html#boot 'Firmware and restoration'
     }
     menu = component 'Indefinite GRUB menu' {
@@ -85,6 +100,22 @@ model {
     description 'Private keys, passwords and recovery inputs remain protected outside served content and tracked files. Public key references only in nonsecret configuration.'
     link /runbook.html#access 'Trust and custody'
   }
+  local_network = system 'Local wired LAN — 192.168.1.0/24' {
+    description 'Current physical inventory. Links represent SSH traffic over the shared LAN, not direct cables. IP/MAC values are explicitly documented operator metadata; confirm DHCP/address assignments before reuse.'
+    link /runbook.html#topology 'Local network topology'
+    controller = component 'Workstation | 192.168.1.100 | 00:e0:4c:68:76:0c' {
+      description 'Wired interface enx00e04c68760c; operator SSH and temporary PXE/HTTP serving host.'
+    }
+    control_1 = component 'control-1 | 192.168.1.101 | 98:fa:9b:1e:57:be' {
+      description 'Installed RHEL physical node; selected server role in inventory. RKE2 is not installed.'
+    }
+    worker_1 = component 'worker-1 | 192.168.1.102 | 8c:16:45:eb:7a:af' {
+      description 'Installed RHEL physical node; selected agent role in inventory. RKE2 is not installed.'
+    }
+    worker_2 = component 'worker-2 | 192.168.1.103 | 98:fa:9b:17:f6:9f' {
+      description 'Installed RHEL physical node; selected agent role in inventory. RKE2 is not installed.'
+    }
+  }
   platform = system 'Host readiness and platform ownership' {
     description 'Separate from OS installation. Infrastructure Ansible owns host/RKE2/Rancher configuration. Flux owns GitOps and Big Bang supplies curated platform packages.'
     link /runbook.html#platform 'Platform responsibilities'
@@ -103,12 +134,20 @@ model {
     }
   }
 
+  local_network.controller -> local_network.control_1 'SSH / TCP22 over shared LAN'
+  local_network.controller -> local_network.worker_1 'SSH / TCP22 over shared LAN'
+  local_network.controller -> local_network.worker_2 'SSH / TCP22 over shared LAN'
   engineer -> workstation 'Reviews inputs; runs approved lifecycle and SSH'
   engineer -> node 'Firmware, installer and trusted physical identity'
   engineer -> approval 'Approves exact target and action scope'
   router -> node 'DHCP lease'
   workstation -> node 'PXE/TFTP, HTTP source and SSH'
   custody -> workstation 'Protected local credential use'
+  engineer -> workstation.workspace.target_inputs 'Confirm selected-node metadata and provenance'
+  workstation.workspace.target_inputs -> workstation.review 'Private inputs for shared Ansible rendering'
+  workstation.review -> workstation.workspace.discovery 'Retain reviewed copies and exact source hashes'
+  workstation.workspace.discovery -> workstation.lifecycle 'Reviewed target-specific launcher and snapshot'
+  workstation.ssh -> workstation.workspace.access 'Per-run trust and access evidence'
   workstation.review -> workstation.lifecycle 'Reviewed configuration and hashes'
   workstation.lifecycle -> workstation.guard 'Exclusive table before LAN listeners'
   workstation.lifecycle -> workstation.proxy 'Dedicated transient unit'

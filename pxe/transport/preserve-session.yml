@@ -1,0 +1,133 @@
+---
+- name: Preserve only the reviewed stopped PXE transaction; no reset, stop or activation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    workspace_preservation_approved: false
+    held_suffix: '{{ workspace_hold_label }}'
+  vars_files: [workspace.inputs.example.yml]
+  tasks:
+    - name: Require explicit preservation approval and exact expected prior state
+      ansible.builtin.assert:
+        that:
+          - workspace_preservation_approved | bool
+          - not ansible_check_mode
+          - inventory_hostname == 'localhost' and ansible_connection == 'local'
+          - workspace_previous_review_file is match('^/[A-Za-z0-9_./-]+$')
+          - "'..' not in workspace_previous_review_file.split('/')"
+          - workspace_previous_config_dir is match('^/run/perkforge-pxe-pilot/config/session-[A-Za-z0-9_-]+$')
+          - workspace_hold_label != 'UNCONFIGURED' and workspace_hold_label is match('^held-[A-Za-z0-9][A-Za-z0-9-]{0,63}$')
+        fail_msg: 'Review stopped-state preservation and fill exact prior manifest/config/held label. No generic cleanup.'
+    - ansible.builtin.include_vars:
+        file: '{{ workspace_previous_review_file }}'
+        name: previous_review
+      no_log: true
+    - ansible.builtin.assert:
+        that:
+          - previous_review.pilot_review_hashes.keys() | sort == ['dnsmasq.conf', 'grub.cfg', 'ingress.nft', 'nginx.conf']
+          - previous_review.pilot_review_hashes.values() | select('match', '^[0-9a-f]{64}$') | list | length == 4
+          - previous_review.pilot_lifetime_seconds in [0, 1800]
+      no_log: true
+    - name: Require both dedicated transient units unloaded and stopped; never reset or stop them here
+      ansible.builtin.command:
+        argv: [systemctl, show, '{{ item }}', '-p', LoadState, '-p', ActiveState, '-p', MainPID]
+      loop: [perkforge-pxe-pilot-dnsmasq.service, perkforge-pxe-pilot-http.service]
+      register: stopped
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+          - "'LoadState=not-found' in item.stdout_lines"
+          - "'ActiveState=inactive' in item.stdout_lines"
+          - "'MainPID=0' in item.stdout_lines"
+      loop: '{{ stopped.results }}'
+    - name: Require reserved listeners gone before evidence preservation
+      ansible.builtin.command: /usr/bin/ss -H -lntu
+      register: sockets
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+          - sockets.stdout_lines | select('search', ':(69|4011|8080|2000[0-9])\s') | list | length == 0
+          - sockets.stdout_lines | select('search', ':67\s') | reject('search', '%virbr0:67\s') | list | length == 0
+    - name: Require dedicated ingress guard absent; query failure is not absence
+      ansible.builtin.command: /usr/sbin/nft -j list tables
+      register: tables
+      changed_when: false
+    - ansible.builtin.assert:
+        that: "(tables.stdout | from_json).nftables | selectattr('table', 'defined') | map(attribute='table') | selectattr('family', 'equalto', 'inet') | selectattr('name', 'equalto', 'perkforge_pxe_pilot') | list | length == 0"
+    - name: Inspect exact retained roots and fresh non-overwriting held destinations
+      ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop:
+        - /run/perkforge-pxe-pilot
+        - /var/log/perkforge-pxe-pilot
+        - '/run/perkforge-pxe-pilot.{{ held_suffix }}'
+        - '/var/log/perkforge-pxe-pilot.{{ held_suffix }}'
+      register: roots
+    - ansible.builtin.assert:
+        that:
+          - roots.results[0].stat.exists and roots.results[1].stat.exists
+          - not roots.results[2].stat.exists and not roots.results[3].stat.exists
+    - ansible.builtin.assert:
+        that:
+          - item.stat.isdir | default(false)
+          - not item.stat.islnk | default(false)
+          - item.stat.uid == 0
+      loop: '{{ roots.results[:2] }}'
+    - name: Inspect exact prior protected transaction
+      ansible.builtin.stat:
+        path: /run/perkforge-pxe-pilot/config/active.json
+        follow: false
+      register: prior_record_file
+    - ansible.builtin.assert:
+        that:
+          - prior_record_file.stat.isreg | default(false)
+          - not prior_record_file.stat.islnk | default(false)
+          - prior_record_file.stat.uid == 0
+          - prior_record_file.stat.mode == '0600'
+    - ansible.builtin.slurp:
+        src: /run/perkforge-pxe-pilot/config/active.json
+      register: prior_record_bytes
+      no_log: true
+    - ansible.builtin.set_fact:
+        prior_record: '{{ prior_record_bytes.content | b64decode | from_json }}'
+      no_log: true
+    - ansible.builtin.assert:
+        that:
+          - prior_record.config_dir == workspace_previous_config_dir
+          - prior_record.units == ['perkforge-pxe-pilot-dnsmasq.service', 'perkforge-pxe-pilot-http.service']
+          - prior_record.hashes == previous_review.pilot_review_hashes
+          - prior_record.lifetime_seconds == previous_review.pilot_lifetime_seconds
+      no_log: true
+    - name: Require neither prior root is a mountpoint
+      ansible.builtin.command:
+        argv: [mountpoint, -q, '{{ item }}']
+      loop: [/run/perkforge-pxe-pilot, /var/log/perkforge-pxe-pilot]
+      register: mounts
+      failed_when: mounts.rc != 32
+      changed_when: false
+    - name: Preserve only exact stopped session roots; never overwrite earlier evidence
+      ansible.builtin.command:
+        argv: [mv, -T, -n, '--', '{{ item }}', '{{ item }}.{{ held_suffix }}']
+      loop: [/run/perkforge-pxe-pilot, /var/log/perkforge-pxe-pilot]
+      changed_when: true
+    - name: Confirm evidence moved completely before starting fresh activation
+      ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop:
+        - /run/perkforge-pxe-pilot
+        - /var/log/perkforge-pxe-pilot
+        - '/run/perkforge-pxe-pilot.{{ held_suffix }}'
+        - '/var/log/perkforge-pxe-pilot.{{ held_suffix }}'
+      register: preserved
+    - ansible.builtin.assert:
+        that:
+          - not preserved.results[0].stat.exists and not preserved.results[1].stat.exists
+          - preserved.results[2].stat.isdir | default(false)
+          - preserved.results[3].stat.isdir | default(false)
+          - preserved.results[2].stat.uid == 0 and preserved.results[3].stat.uid == 0
+          - not preserved.results[2].stat.islnk and not preserved.results[3].stat.islnk

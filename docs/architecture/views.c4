@@ -1,14 +1,39 @@
 views {
   view index {
     title 'Physical provisioning — system context'
-    description 'Start here, then click workstation, node or platform to narrow the architecture. Use operations for the repeatable process; protocol, installation, access and lifecycle views provide detail. These views are documentation, not live status or approval.'
+    description 'Start here, then click workstation, node or platform to narrow the architecture. Use operations for the repeatable process; protocol, installation, access and lifecycle views provide detail. Select topology for the actual workstation/three-node IP/MAC map. These views are documentation, not live status or approval.'
     link /runbook.html 'Operating runbook'
     include engineer, router, workstation, node, approval, custody, platform
+  }
+  view topology of local_network {
+    title 'Topology — workstation and three physical nodes'
+    description 'Wired LAN192.168.1.0/24. Each device label shows its IPv4 and MAC address. Arrows are SSH traffic across the existing LAN, not point-to-point wiring. Inventory is infrastructure/ansible/inventory/hosts.yml; credentials and host public-key pins are excluded from this diagram.'
+    link /runbook.html#topology 'Inventory and network roles'
+    include controller, control_1, worker_1, worker_2
   }
   view workstation_detail of workstation {
     title 'Workstation — PXE services, ownership and evidence'
     description 'Ansible manages reviewed private configuration and dedicated serving resources; the router and existing system/libvirt services remain separate. Boot media is public/nonsecret; transaction records and credentials are protected.'
-    include review, lifecycle, guard, proxy, tftp, http, ssh, evidence
+    include workspace, review, lifecycle, guard, proxy, tftp, http, ssh, evidence
+  }
+  view workspace_detail of workstation.workspace {
+    title 'Private node workspace — inputs, discovery and access artifacts'
+    description 'Narrow from workstation to the ignored per-node directory. Metadata/review files are not live service configuration or secret custody; runtime/log roots and staged media stay outside this tree. See construction flow and linked directory recipe.'
+    link /runbook.html#workspace 'Directory layout and creation recipe'
+    include target_inputs, discovery, access
+  }
+  dynamic view workspace_construction {
+    title 'Construct a worker workspace — provenance through retained evidence'
+    description 'Tracked offline Ansible rebuild from a backed-up input file; generated working artifacts are reproducible, unique evidence and credentials require restore or new verification. Keep private target values in ignored files, use fresh output/run names and review each launcher against the exact retained state. No credentials or session timelines in this model.'
+    link /runbook.html#workspace 'Repeatable workspace construction'
+    engineer -> workstation.workspace.target_inputs '1. Supply backed-up confirmed metadata and a fresh node/run label'
+    engineer -> workstation.workspace.target_inputs '2. Validate names, metadata, destination absence and safe ancestor ownership'
+    workstation.workspace.target_inputs -> workstation.review '3. workspace.yml invokes shared prepare.yml for a fresh private render'
+    workstation.review -> workstation.workspace.discovery '4. Assemble protected run, retained renders, input snapshot and exact hash manifest'
+    engineer -> workstation.workspace.discovery '5. Generate standard session caller; human reviews content and approves action separately'
+    workstation.workspace.discovery -> workstation.lifecycle '6. Separate approved preserve/start verifies retained state and installs native copies'
+    workstation.lifecycle -> workstation.workspace.discovery '7. Save unique private logs and bounded exit summaries; preserve prior evidence'
+    workstation.ssh -> workstation.workspace.access '8. Later approved access run creates fresh host-trust and verification evidence'
   }
   view node_detail of node {
     title 'Physical node — firmware through installed OS'
@@ -20,6 +45,7 @@ views {
     description 'Interactive RHEL installation using the existing PXE transport. Each stage links to required inputs, operator actions and completion checks. Review actions for each target; do not inherit a previous node approval.'
     link /runbook.html 'Repeatable runbook'
     engineer -> workstation.review '1. Prepare reviewed PXE configuration' {
+      navigateTo workspace_construction
       notes '[1. Prepare](/runbook.html#prepare). Operator: select node/network/media and review configuration. Automation: Ansible renders fresh private review files only. Evidence / stop: verified media/assets and hashes; missing prerequisites or existing output stop preparation.'
     }
     engineer -> approval '2. Review target, disk and action scope' {

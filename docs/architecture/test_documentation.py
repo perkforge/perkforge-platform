@@ -5,6 +5,9 @@ import json
 from pathlib import Path
 import re
 import unittest
+import tempfile
+import subprocess
+import yaml
 
 ROOT=Path(__file__).resolve().parent
 REPO=ROOT.parents[1]
@@ -68,27 +71,39 @@ class Documentation(unittest.TestCase):
         self.assertNotIn('pilot.sh',str(package['scripts']))
 
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
-        copies={'prepare.yml': 'pxe/pilot/prepare.yml',
-         'inputs.example.yml': 'pxe/pilot/inputs.example.yml',
-         'activate.yml': 'pxe/pilot/activate.yml',
-         'activation-placement.yml': 'pxe/pilot/activation-placement.yml',
-         'verify-activation-copies.yml': 'pxe/pilot/verify-activation-copies.yml',
-         'verify-pilot-identity.yml': 'pxe/pilot/verify-pilot-identity.yml',
-         'shutdown.yml': 'pxe/pilot/shutdown.yml',
-         'shutdown-tasks.yml': 'pxe/pilot/shutdown-tasks.yml',
-         'dnsmasq.conf.j2': 'pxe/pilot/templates/dnsmasq.conf.j2',
-         'grub.cfg.j2': 'pxe/pilot/templates/grub.cfg.j2',
-         'nginx.conf.j2': 'pxe/pilot/templates/nginx.conf.j2',
-         'ingress.nft.j2': 'pxe/pilot/templates/ingress.nft.j2',
-         'stage-media.sh': 'pxe/pilot/stage-media.sh',
-         'harden-ssh.sh': 'pxe/pilot/history/console/harden-ssh.sh'}
-        output=ROOT/'public/sources'
+        copies={'prepare.yml': 'pxe/transport/prepare.yml',
+         'inputs.example.yml': 'pxe/transport/inputs.example.yml',
+         'activate.yml': 'pxe/transport/activate.yml',
+         'activation-placement.yml': 'pxe/transport/activation-placement.yml',
+         'verify-activation-copies.yml': 'pxe/transport/verify-activation-copies.yml',
+         'verify-session-identity.yml': 'pxe/transport/verify-session-identity.yml',
+         'shutdown.yml': 'pxe/transport/shutdown.yml',
+         'shutdown-tasks.yml': 'pxe/transport/shutdown-tasks.yml',
+         'dnsmasq.conf.j2': 'pxe/transport/templates/dnsmasq.conf.j2',
+         'grub.cfg.j2': 'pxe/transport/templates/grub.cfg.j2',
+         'nginx.conf.j2': 'pxe/transport/templates/nginx.conf.j2',
+         'ingress.nft.j2': 'pxe/transport/templates/ingress.nft.j2',
+         'stage-media.sh': 'pxe/transport/stage-media.sh',
+         'harden-ssh.sh': 'pxe/transport/harden-ssh.sh',
+         'access.sh': 'pxe/transport/access.sh',
+         'workspace.yml': 'pxe/transport/workspace.yml',
+         'workspace.inputs.example.yml': 'pxe/transport/workspace.inputs.example.yml',
+         'provisioning.md': 'pxe/README.md',
+         'preserve-session.yml': 'pxe/transport/preserve-session.yml',
+         'workspace-session.sh.j2': 'pxe/transport/templates/workspace/session.sh.j2',
+         'workspace-inputs.yml.j2': 'pxe/transport/templates/workspace/inputs.yml.j2',
+         'workspace-manifest.yml.j2': 'pxe/transport/templates/workspace/activation-review.yml.j2',
+         'workspace-readme.md.j2': 'pxe/transport/templates/workspace/README.md.j2'}
+        temporary=tempfile.TemporaryDirectory(prefix='c4-source-links-')
+        self.addCleanup(temporary.cleanup)
+        output=Path(temporary.name)/'sources'
+        subprocess.run(['node',str(ROOT/'scripts/prepare-sources.mjs'),str(output)],check=True,capture_output=True,text=True)
         self.assertEqual({p.name for p in output.iterdir()},set(copies))
         for name,source in copies.items():
             self.assertEqual(hashlib.sha256((output/name).read_bytes()).digest(),hashlib.sha256((REPO/source).read_bytes()).digest())
         page=HTML();page.feed((ROOT/'public/runbook.html').read_text())
         for link in page.links:
-            if link.startswith('sources/'):self.assertTrue((ROOT/'public'/link).is_file(),link)
+            if link.startswith('sources/'):self.assertTrue((output/link.removeprefix('sources/')).is_file(),link)
 
     def test_architecture_has_repeat_process_without_session_or_proposal_views(self):
         model=(ROOT/'model.c4').read_text()
@@ -96,7 +111,8 @@ class Documentation(unittest.TestCase):
         page=(ROOT/'public/runbook.html').read_text()
         text='\n'.join([model,views,page])
         for view in ['index','workstation_detail','node_detail','operations','boot_protocol',
-                     'installation','security_handoff','service_lifecycle','platform_detail']:
+                     'installation','security_handoff','service_lifecycle','platform_detail',
+                     'workspace_detail','workspace_construction','topology']:
             self.assertRegex(views,r'view '+view+r'\b')
         for obsolete in ['observed_pilot','worker_discovery','worker_interactive_review','discovery_recovery']:
             self.assertNotRegex(views,r'view '+obsolete+r'\b')
@@ -107,7 +123,37 @@ class Documentation(unittest.TestCase):
             self.assertIn(requirement,text)
         for leaked_history in ['activation-output-', '10:41:44', '107ok', 'installation underway']:
             self.assertNotIn(leaked_history,text)
-        self.assertIn('candidate deliberately aborts',page)
-        self.assertIn('HANDOFF.md',page)
-        self.assertIn('EXECUTION-JOURNAL.md',page)
-        self.assertNotRegex(text,r'192\.168\.|/home/corey|(?:[0-9a-f]{2}:){5}[0-9a-f]{2}|SHA256:[A-Za-z0-9+/]{20}')
+        self.assertIn('sources/provisioning.md',page)
+        self.assertNotRegex(text,r'/home/corey|PRIVATE KEY-----|ssh-ed25519 [A-Za-z0-9+/]{30,}|SHA256:[A-Za-z0-9+/]{20}')
+
+    def test_workspace_recipe_links_construction_to_artifact_ownership(self):
+        page=(ROOT/'public/runbook.html').read_text()
+        section=page.split('<section id="workspace">',1)[1].split('</section>',1)[0]
+        for artifact in ['discovery/', 'inputs.yml', 'activation-review.yml',
+                         'session.sh', 'access/', 'handoff-&lt;unique&gt;',
+                         'known_hosts', 'summary.txt']:
+            self.assertIn(artifact,section)
+        for boundary in ['mode0700','mode0600','UNCONFIGURED',
+                         'workspace.yml','fresh run',
+                         'not served or watched']:
+            self.assertIn(boundary,section)
+        self.assertIn('href="#workspace"',page.split('<section id="prepare">',1)[1].split('</section>',1)[0])
+
+    def test_topology_matches_current_inventory_without_other_private_addresses(self):
+        inventory=yaml.safe_load((REPO/'infrastructure/ansible/inventory/hosts.yml').read_text())['all']
+        expected={'Workstation':(inventory['vars']['workstation_address'],inventory['vars']['workstation_mac'])}
+        for group in inventory['children'].values():
+            for name,node in group['hosts'].items():expected[name]=(node['ansible_host'],node['pxe_boot_mac'])
+        model=(ROOT/'model.c4').read_text()
+        views=(ROOT/'views.c4').read_text()
+        page=(ROOT/'public/runbook.html').read_text()
+        self.assertIn('view topology of local_network',views)
+        allowed_ips={'192.168.1.0'}
+        allowed_macs=set()
+        for name,(address,mac) in expected.items():
+            self.assertIn(name+' | '+address+' | '+mac,model)
+            self.assertIn('<td>'+address+'</td><td>'+mac+'</td>',page)
+            allowed_ips.add(address);allowed_macs.add(mac)
+        text=model+views+page
+        self.assertLessEqual(set(re.findall(r'\b192\.168\.[0-9]+\.[0-9]+\b',text)),allowed_ips)
+        self.assertEqual(set(re.findall(r'\b(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\b',text)),allowed_macs)
