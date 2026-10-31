@@ -75,3 +75,10 @@ workload-specific policies remain outstanding. See the infrastructure DNS proced
 the router as its resolver; router capabilities must be confirmed before choosing
 local records, forwarding or an independent resolver. Keep actual addresses in the
 ignored topology, not public procedure files.
+
+Published selection annotations are a versioned cross-repository contract. Advance
+portal release → enrollment release → platform evidence/pin when that contract
+changes; do not accept missing keys, silently fall back to an older namespace or
+rewrite released tags. Historical platform v0.1.0 remains a valid immutable ref but
+has an incompatible selection schema. CI verifies that ref, then requires explicit
+contract rejection; it does not accept that release as current bootstrap input.

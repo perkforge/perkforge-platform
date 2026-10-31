@@ -289,3 +289,15 @@ root. Tests retain explicit optional-chain fixtures without enabling operator
 selection. Re-enable only after core services and identity acceptance with reviewed
 compatible downstream context/pins and separate activation approval. No live
 resource was changed by this source containment adjustment.
+
+Current CI repair uses published enrollment v1.0.0 at
+446cb2c480f4c80adead679980c4b52081337e95, selecting published portal v1.0.0 at
+dcb6e3fc56961a977172bac3f2c493df2eb806e3. Platform source/evidence now select that
+verified enrollment tag; the six strict selection-contract tests pass against
+those exact checkouts. No legacy annotation fallback or rewritten tag is used.
+The historical platform v0.1.0 read-only CI check now verifies its immutable ref
+then requires explicit rejection of its incompatible annotation contract, with
+regressions for matching, missing and wrong context keys. No old configuration is
+accepted as current bootstrap input. Local verification passed all156 Python tests across platform/infrastructure/PXE/
+evidence/release/docs, native Flux admission checks and the C4 build. Fix-PR review
+and hosted checks remain before release publication can resume. Tenant bootstrap stays excluded.

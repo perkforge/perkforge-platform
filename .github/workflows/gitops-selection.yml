@@ -110,11 +110,21 @@ jobs:
         GH_TOKEN: ${{ github.token }}
         ANSIBLE_LOCAL_TEMP: ${{ runner.temp }}/bootstrap-tag-ansible
       run: |
-        ansible-playbook -i big-bang-bootstrap/configuration/ansible/inventory.yaml \
+        set -euo pipefail
+        # Preserve immutable-ref verification, but reject its incompatible context schema.
+        if ansible-playbook -i big-bang-bootstrap/configuration/ansible/inventory.yaml \
           big-bang-bootstrap/configuration/ansible/bootstrap.yaml --limit local \
           -e bootstrap_verify_release=true -e config_tag=v0.1.0 \
           -e gitops_path=./local-lab-big-bang/examples/clusters/local \
-          -e config_release_evidence="$GITHUB_WORKSPACE/big-bang-bootstrap/tests/fixtures/platform-v0.1.0.json"
+          -e config_release_evidence="$GITHUB_WORKSPACE/big-bang-bootstrap/tests/fixtures/platform-v0.1.0.json" \
+          > "$RUNNER_TEMP/historical-release-check.log" 2>&1; then
+          echo 'Historical release unexpectedly passed the current context contract' >&2
+          exit 1
+        fi
+        if ! grep -Fq 'Published release lacks or mismatches the platform selection annotation contract.' "$RUNNER_TEMP/historical-release-check.log"; then
+          cat "$RUNNER_TEMP/historical-release-check.log"
+          exit 1
+        fi
 
     - uses: actions/setup-go@v7.0.0
       with:
