@@ -29,6 +29,7 @@ Use context first, then narrow into components or an operating flow. The single
 | installation | Manual layout/account review and disk commitment |
 | security_handoff | Physical trust, public-key enrollment and fresh access checks |
 | service_lifecycle | Preflight, identity, exposure and scoped stop |
+| rke2_detail | Server/workers, Canal/DNS/Traefik, administrator access and recovery |
 | platform_detail | Separate readiness and RKE2/Rancher/Flux/Big Bang ownership |
 
 Actual IP/MAC values and SSH identity references remain in ignored
@@ -39,7 +40,7 @@ These views are architecture, not a live status dashboard or approval.
 ## View and validate
 
 Requires Node >=22.22.3/npm. LikeC4 1.60.0 is locked locally; install dependencies when
-needed rather than keeping generated build/dependency folders in the working tree.
+needed; dependencies and generated build folders remain local and untracked.
 
 ```sh
 npm --prefix docs/architecture ci --ignore-scripts --no-audit --no-fund

@@ -4,8 +4,9 @@ The operator uses PXE and interactive Anaconda to install RHEL. Infrastructure A
 
 | Entrypoint | Purpose | Default |
 |---|---|---|
-| `playbooks/configure-hosts.yml` | physical OS preparation starter | still scaffolding |
-| `playbooks/install-rke2.yml` | recovered single-server RKE2 installation/join/readiness | no connections |
+| `playbooks/configure-hosts.yml` | reviewed RHEL/Canal prerequisites | no connections |
+| `playbooks/install-rke2.yml` | pinned single-server RKE2 installation/join/readiness | no connections |
+| `playbooks/export-rke2-tokens.yml` | protected, nonoverwriting server/agent token export | no connections |
 | `playbooks/install-rancher.yml` | pinned management server installation | no cluster access |
 | `playbooks/configure-rancher-oidc.yml` | explicit platform-group login and global-role bindings | no credential reads or cluster access |
 

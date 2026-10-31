@@ -137,4 +137,11 @@ views {
     link /runbook.html#platform 'Platform readiness and responsibilities'
     include readiness, rke2, rancher, flux, bigbang, enrollment, applications
   }
+  view rke2_detail of platform.rke2 {
+    title 'RKE2 — server, workers, networking, access and recovery'
+    description 'One server and two agents, without HA. Readiness is separate from workload/network, reboot and recovery validation. Application storage is a separate decision. Actual topology and all credentials stay private.'
+    link /runbook.html#rke2 'Architecture and human repeat process'
+    include server, agents, networking, operator_access, recovery
+  }
+
 }

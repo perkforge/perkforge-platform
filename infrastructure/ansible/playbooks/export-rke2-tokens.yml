@@ -1,0 +1,78 @@
+---
+- name: Select only the approved server for private token export
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [../group_vars/rke2.yml]
+  vars:
+    rke2_token_export_apply: false
+  tasks:
+  - name: Validate token destination before connecting to a server
+    when: rke2_token_export_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - groups.get('rke2_servers', []) | length == 1
+        - rke2_private_output_dir is match('^/')
+        - rke2_private_output_dir | realpath == rke2_private_output_dir
+    - ansible.builtin.stat:
+        path: '{{ rke2_private_output_dir }}'
+        follow: false
+      register: token_output
+    - ansible.builtin.assert:
+        that:
+        - token_output.stat.isdir | default(false)
+        - not (token_output.stat.islnk | default(false))
+        - token_output.stat.mode == '0700'
+        - token_output.stat.pw_name == lookup('env', 'USER')
+        - lookup('file', rke2_private_output_dir + '/perkforge-cluster-id') | trim == rke2_cluster_id
+    - name: Refuse overwriting existing token exports
+      ansible.builtin.stat:
+        path: '{{ rke2_private_output_dir }}/{{ item }}'
+        follow: false
+      loop: [server-token.secure, agent-token.secure]
+      register: token_destinations
+    - ansible.builtin.assert:
+        that: not item.stat.exists and not (item.stat.islnk | default(false))
+      loop: '{{ token_destinations.results }}'
+    - ansible.builtin.add_host:
+        name: "{{ groups['rke2_servers'][0] }}"
+        groups: rke2_approved_token_export
+
+- name: Export complete tokens without displaying their contents
+  hosts: rke2_approved_token_export
+  gather_facts: false
+  become: true
+  vars_files: [../group_vars/rke2.yml]
+  tasks:
+  - name: Keep credential reads and writes out of output
+    when: rke2_token_export_apply | default(false) | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.slurp:
+        src: /var/lib/rancher/rke2/server/token
+      register: exported_server_token
+    - ansible.builtin.slurp:
+        src: /var/lib/rancher/rke2/server/agent-token
+      register: exported_agent_token
+    - ansible.builtin.assert:
+        that:
+        - exported_server_token.content | b64decode | trim is match('^K10[0-9a-f]{64}::')
+        - exported_agent_token.content | b64decode | trim is match('^K10[0-9a-f]{64}::')
+        - exported_server_token.content != exported_agent_token.content
+    - name: Save the complete server token in protected operator storage
+      ansible.builtin.copy:
+        content: '{{ exported_server_token.content | b64decode }}'
+        dest: '{{ rke2_private_output_dir }}/server-token.secure'
+        mode: '0600'
+        force: false
+      delegate_to: localhost
+      become: false
+    - name: Save the complete agent-only token in protected operator storage
+      ansible.builtin.copy:
+        content: '{{ exported_agent_token.content | b64decode }}'
+        dest: '{{ rke2_private_output_dir }}/agent-token.secure'
+        mode: '0600'
+        force: false
+      delegate_to: localhost
+      become: false

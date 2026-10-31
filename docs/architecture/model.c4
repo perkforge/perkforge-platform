@@ -101,19 +101,19 @@ model {
     link /runbook.html#access 'Trust and custody'
   }
   local_network = system 'Local wired LAN' {
-    description 'Current physical inventory. Links represent SSH traffic over the shared LAN, not direct cables. IP/MAC values are explicitly documented operator metadata; confirm DHCP/address assignments before reuse.'
+    description 'Current physical inventory. Links represent SSH traffic over the shared LAN, not direct cables. Actual IP/MAC values remain in ignored local inventory; confirm DHCP/address assignments before reuse.'
     link /runbook.html#topology 'Local network topology'
     controller = component 'Workstation' {
-      description 'Wired interface enx00e04c68760c; operator SSH and temporary PXE/HTTP serving host.'
+      description 'Operator SSH and temporary PXE/HTTP serving host on the wired LAN.'
     }
     control_1 = component 'control-1' {
-      description 'Installed RHEL physical node; selected server role in inventory. RKE2 is not installed.'
+      description 'RHEL host assigned the RKE2 server/control-plane/etcd role.'
     }
     worker_1 = component 'worker-1' {
-      description 'Installed RHEL physical node; selected agent role in inventory. RKE2 is not installed.'
+      description 'RHEL host assigned an RKE2 agent/workload role.'
     }
     worker_2 = component 'worker-2' {
-      description 'Installed RHEL physical node; selected agent role in inventory. RKE2 is not installed.'
+      description 'RHEL host assigned an RKE2 agent/workload role.'
     }
   }
   platform = system 'Host readiness and platform ownership' {
@@ -122,7 +122,25 @@ model {
     readiness = boundary 'Host readiness / separate approval' {
       description 'Review repositories, Python, time, kernel prerequisites, networking/CNI, firewall, SELinux and capacity before cluster changes. Installed OS and working SSH alone are insufficient.'
     }
-    rke2 = component 'Physical RKE2 cluster'
+    rke2 = component 'Physical RKE2 cluster' {
+      description 'One server with embedded etcd and two agents; not HA. Canal owns pod networking and Traefik handles ingress. SELinux remains enforcing. Infrastructure Ansible owns host preparation, pinned RPM install and serial joins. Separate server/agent tokens and admin kubeconfig remain in protected custody. Server token plus matching etcd snapshots are needed for recovery; node Ready is not backup validation.'
+      link /runbook.html#rke2 'Cluster architecture and repeat process'
+      server = component 'Single control-plane / embedded etcd server' {
+        description 'Pinned RPM installation with enforcing SELinux; owns API, registration and datastore. Loss of this host interrupts the control plane; workers do not provide etcd quorum.'
+      }
+      agents = component 'Two serially joined worker agents' {
+        description 'Run workloads and join using the shared separate agent-only token in secure format, without receiving the server token.'
+      }
+      networking = component 'Canal / CoreDNS / Traefik' {
+        description 'Pod networking, cluster DNS and ingress. Host preparation persists modules/sysctls, excludes virtual interfaces from NetworkManager and explicitly disables firewalld for Canal compatibility.'
+      }
+      operator_access = component 'Private administrator kubeconfig' {
+        description 'Mode0600 credentials with the reviewed API endpoint. Use the protected bundled client; default kubeconfig replacement requires an explicit operator request.'
+      }
+      recovery = component 'Server token and matching etcd snapshots' {
+        description 'Keep protected off-node copies together for recovery. Exported tokens or their ZIP alone do not back up etcd. Restore validation and application storage remain separate work.'
+      }
+    }
     rancher = component 'Rancher cluster lifecycle administration'
     flux = component 'Flux GitOps reconciliation'
     bigbang = component 'Big Bang platform packages'
@@ -161,6 +179,11 @@ model {
   workstation.ssh -> node.os 'Host-verified key-only SSH and password-sudo'
   node.os -> platform.readiness 'Separate readiness assessment'
   platform.readiness -> platform.rke2 'Approved host/cluster preparation'
+  platform.rke2.agents -> platform.rke2.server 'Secure agent registration'
+  platform.rke2.server -> platform.rke2.networking 'Install cluster networking and ingress'
+  platform.rke2.agents -> platform.rke2.networking 'Run per-node networking'
+  platform.rke2.operator_access -> platform.rke2.server 'TLS-authenticated Kubernetes API'
+  platform.rke2.server -> platform.rke2.recovery 'Preserve datastore and bootstrap recovery material'
   platform.rancher -> platform.rke2 'Platform-admin lifecycle'
   platform.flux -> platform.bigbang 'Reconcile platform packages'
   platform.flux -> platform.enrollment 'Reconcile tenant foundations'

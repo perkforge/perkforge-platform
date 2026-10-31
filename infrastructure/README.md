@@ -18,3 +18,8 @@ reviewed action and separate operator authorization.
 Rancher is platform-admin cluster lifecycle management. Flux owns GitOps; Big Bang
 supplies curated platform packages. No repository maintenance command changes nodes,
 workstation services or a running cluster.
+
+[RKE2 operator procedure](ansible/RKE2.md) covers reviewed host preparation, pinned
+installation, token export and private local custody. A running cluster still needs
+workload/network tests, off-node recovery material, reboot checks and a persistent-
+storage decision before platform activation; see the current handoff.

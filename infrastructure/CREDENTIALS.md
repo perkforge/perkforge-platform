@@ -21,7 +21,9 @@ credential, rotation, registration or backup operation is authorized by this gui
   secret-service recovery material in independent protected custody. The cluster's
   own secret store must not be its only recovery path.
 
-The current installation created no RKE2 credentials. Custody and restore testing
-must be reviewed before the install gate is enabled. Removing an obsolete local
+Installation creates cluster credentials; export complete server/agent tokens only
+through the separately approved protected export procedure. Keep tokens and any
+credential ZIP ignored and mode0600. A ZIP is not encrypted and is not an etcd
+backup. Independent custody and restore testing remain separate requirements. Removing an obsolete local
 file does not revoke credentials on a node or at an issuer; that is a separate
 security operation.

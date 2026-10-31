@@ -1,9 +1,44 @@
 ---
-- name: Report physical host preparation status without contacting nodes
+- name: Select physical hosts only after explicit preparation approval
   hosts: localhost
   connection: local
   gather_facts: false
+  vars:
+    physical_host_prepare_apply: false
+    physical_host_prepare_reviewed: false
+    physical_disable_firewalld_approved: false
   tasks:
-  - name: Stop at the unimplemented OS preparation stage
+  - name: Report default-off host preparation
     ansible.builtin.debug:
-      msg: 'Host preparation is scaffolding only. Review RHEL repositories, SSH/become, SELinux, NetworkManager, firewall/CNI and storage before separately approved RKE2 installation.'
+      msg: 'Host preparation apply={{ physical_host_prepare_apply | bool }}; check={{ ansible_check_mode }}. No hosts selected by default.'
+  - name: Validate the concrete preparation scope before any connection
+    when: physical_host_prepare_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - physical_host_prepare_reviewed | bool
+        - physical_disable_firewalld_approved | bool
+        - groups.get('rke2_servers', []) | length == 1
+        - groups.get('rke2_agents', []) | length == 2
+    - name: Require explicit host and SSH identity
+      ansible.builtin.assert:
+        that:
+        - hostvars[item].ansible_host | default('UNCONFIGURED') != 'UNCONFIGURED'
+        - hostvars[item].ansible_user | default('UNCONFIGURED') != 'UNCONFIGURED'
+      loop: "{{ groups['rke2_servers'] + groups['rke2_agents'] }}"
+    - name: Select only reviewed physical hosts
+      ansible.builtin.add_host:
+        name: '{{ item }}'
+        groups: physical_approved_preparation
+      loop: "{{ groups['rke2_servers'] + groups['rke2_agents'] }}"
+
+- name: Prepare the approved RHEL hosts for Canal and RKE2
+  hosts: physical_approved_preparation
+  serial: 1
+  become: true
+  gather_facts: false
+  tasks:
+  - name: Prepare only in the approved noncheck stage
+    when: physical_host_prepare_apply | default(false) | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.include_tasks: ../tasks/prepare-rhel.yml
