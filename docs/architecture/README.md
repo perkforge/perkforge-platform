@@ -1,5 +1,17 @@
 # Interactive provisioning architecture
 
+## Step index
+
+1. [Prepare offline draft](../../pxe/ansible/README.md) — Render the private plan and blocked Kickstart draft.
+2. [Review exact plan; STOP before approval](../../infrastructure/PROVISIONING-REDESIGN.md#operator-journey-and-approval-contract) — Confirm the exact target, disk, access and exposure.
+3. [Power / BIOS / select network boot](../../pxe/README.md#red-hat-solution-and-nginx) — Select the approved node and boot path.
+4. [Kickstart installation](../../pxe/kickstart/README.md) — Install only after validation and approval gates pass.
+5. [Reboot to local disk](../../infrastructure/PROVISIONING-REDESIGN.md#lifecycle-trust-and-readiness) — Start the installed OS without repeating installation.
+6. [Verify identity, key login, sudo, readiness](../../pxe/pilot/HANDOFF.md) — Confirm trusted access and OS readiness.
+7. [Disarm / stop / report](../../pxe/pilot/HANDOFF.md#immediate-pause-checkpoint) — Stop owned temporary resources and retain the result.
+
+Only step 1 is implemented in the normal workflow; later stages remain planned and blocked.
+
 LikeC41.60.0 is pinned locally in this documentation project; the lockfile pins its
 dependencies. No global tool or system package is required. It is documentation,
 not a deployment controller or the parked portal project.

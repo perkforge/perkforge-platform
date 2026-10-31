@@ -27,6 +27,25 @@ class Documentation(unittest.TestCase):
         self.assertTrue(anchors <= page.ids,anchors-page.ids)
         self.assertTrue({'prepare','approve','boot','install','firstboot','verify','cleanup'} <= anchors)
 
+    def test_short_indexes_match_operation_names_and_link_to_details(self):
+        views=(ROOT/'views.c4').read_text().split('dynamic view operations {',1)[1].split('\n  dynamic view',1)[0]
+        names=re.findall(r"-> [A-Za-z0-9_.]+ '[1-7]\. ([^']+)'",views)
+        readme=(ROOT/'README.md').read_text().split('## Step index',1)[1].split('\nOnly step 1',1)[0]
+        entries=re.findall(r'^([1-7])\. \[([^]]+)\]\(([^)]+)\) — ([^\n]+)$',readme,re.M)
+        self.assertEqual([e[0] for e in entries],list('1234567'))
+        self.assertEqual([e[1] for e in entries],names)
+        for _,_,link,description in entries:
+            path=link.split('#')[0]
+            self.assertTrue((ROOT/path).is_file(),link)
+            self.assertLessEqual(len(description.split()),10)
+        page=(ROOT/'public/runbook.html').read_text()
+        nav=page.split('<nav aria-label="Step index">',1)[1].split('</nav>',1)[0]
+        linked=re.findall(r'<li><a href="#([^"]+)">([^<]+)</a> — ([^<]+)</li>',nav)
+        self.assertEqual([entry[1] for entry in linked],names)
+        self.assertEqual([entry[2] for entry in linked],[entry[3] for entry in entries])
+        ids=HTML();ids.feed(page)
+        self.assertTrue({entry[0] for entry in linked} <= ids.ids)
+
     def test_each_ordered_stage_explains_roles_and_evidence_gate(self):
         page=(ROOT/'public/runbook.html').read_text()
         views=(ROOT/'views.c4').read_text().split('dynamic view operations {',1)[1].split('\n  dynamic view',1)[0]
