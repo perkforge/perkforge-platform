@@ -1,0 +1,132 @@
+---
+- name: Configure approved workstation-only lab split DNS
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    workstation_dns_apply: false
+    workstation_dns_expected_hostname: UNCONFIGURED
+    workstation_lab_dns_server: UNCONFIGURED
+    workstation_lab_ingress_ip: UNCONFIGURED
+    workstation_dns_gateway: UNCONFIGURED
+    workstation_dns_profile: UNCONFIGURED
+    workstation_dns_device: UNCONFIGURED
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Workstation DNS apply={{ workstation_dns_apply | bool }}; check={{ ansible_check_mode }}. Default/check mode makes no changes.'
+  - name: Run only the explicitly approved workstation operation
+    when: workstation_dns_apply | bool and not ansible_check_mode
+    become: true
+    block:
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - workstation_dns_expected_hostname != 'UNCONFIGURED'
+        - workstation_dns_profile != 'UNCONFIGURED'
+        - workstation_dns_device != 'UNCONFIGURED'
+        - workstation_dns_gateway is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
+        - workstation_dns_gateway not in [workstation_lab_dns_server, '127.0.0.1']
+        - workstation_lab_dns_server is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
+        - workstation_lab_ingress_ip is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
+    - ansible.builtin.command:
+        argv: [hostname]
+      register: workstation_dns_hostname
+      changed_when: false
+    - ansible.builtin.assert:
+        quiet: true
+        that: workstation_dns_hostname.stdout | trim == workstation_dns_expected_hostname
+    - ansible.builtin.command:
+        argv: [/usr/sbin/dnsmasq, --version]
+      changed_when: false
+    - name: Require NetworkManager to be active
+      ansible.builtin.command:
+        argv: [systemctl, is-active, NetworkManager]
+      changed_when: false
+    - name: Require the existing standalone DNS resolver
+      ansible.builtin.command:
+        argv: [systemctl, is-active, dnsmasq]
+      changed_when: false
+    - name: Require the selected device to use the reviewed profile
+      ansible.builtin.command:
+        argv: [nmcli, -g, GENERAL.CON-UUID, device, show, '{{ workstation_dns_device }}']
+      register: workstation_dns_active_profile
+      changed_when: false
+    - ansible.builtin.assert:
+        quiet: true
+        that: workstation_dns_active_profile.stdout | trim == workstation_dns_profile
+    - name: Capture only the resolver properties for rollback
+      ansible.builtin.command:
+        argv: [nmcli, -g, '{{ item }}', connection, show, '{{ workstation_dns_profile }}']
+      loop: [ipv4.dns, ipv4.ignore-auto-dns, ipv6.dns, ipv6.ignore-auto-dns, ipv4.dns-priority]
+      register: workstation_dns_original
+      changed_when: false
+    - ansible.builtin.stat:
+        path: /etc/dnsmasq.d/90-perkforge-lab.conf
+        follow: false
+      register: workstation_dns_path
+    - ansible.builtin.assert:
+        quiet: true
+        that: not workstation_dns_path.stat.exists
+    - name: Apply and verify with rollback on failure
+      block:
+      - ansible.builtin.copy:
+          content: |
+            # Managed by PerkForge workstation split DNS.
+            # Explicit gateway avoids a loop after resolv.conf points here.
+            no-resolv
+            server={{ workstation_dns_gateway }}
+            server=/perkforge.home.arpa/{{ workstation_lab_dns_server }}
+          dest: /etc/dnsmasq.d/90-perkforge-lab.conf
+          owner: root
+          group: root
+          mode: '0644'
+          validate: /usr/sbin/dnsmasq --test --conf-file=%s
+      - name: Validate the full existing DNS configuration before restart
+        ansible.builtin.command:
+          argv: [/usr/sbin/dnsmasq, --test]
+        changed_when: false
+      - ansible.builtin.systemd_service:
+          name: dnsmasq
+          state: restarted
+      - name: Persist loopback DNS while keeping IPv6 networking enabled
+        ansible.builtin.command:
+          argv: [nmcli, connection, modify, '{{ workstation_dns_profile }}', ipv4.dns, 127.0.0.1, ipv4.ignore-auto-dns, 'yes', ipv4.dns-priority, '-50', ipv6.dns, '', ipv6.ignore-auto-dns, 'yes']
+      - name: Reapply the active device without reconnecting it
+        ansible.builtin.command:
+          argv: [nmcli, device, reapply, '{{ workstation_dns_device }}']
+      - ansible.builtin.command:
+          argv: [nmcli, general, reload, dns-rc]
+      - name: Refuse a resolver list that bypasses split DNS
+        ansible.builtin.slurp:
+          src: /etc/resolv.conf
+        register: workstation_active_resolver
+      - ansible.builtin.assert:
+          quiet: true
+          that: (workstation_active_resolver.content | b64decode).splitlines() | select('match', '^nameserver ') | list == ['nameserver 127.0.0.1']
+      - name: Verify lab DNS through the normal workstation resolver
+        ansible.builtin.command:
+          argv: [dig, '{{ item }}.perkforge.home.arpa', A, +short, +time=2, +tries=1]
+        changed_when: false
+        register: workstation_dns_answers
+        retries: 5
+        delay: 2
+        until: workstation_dns_answers.stdout | trim == workstation_lab_ingress_ip
+        loop: [headlamp, keycloak, rancher, openbao]
+      - name: Verify ordinary internet DNS still works
+        ansible.builtin.command:
+          argv: [getent, ahostsv4, att.com]
+        changed_when: false
+      rescue:
+      - name: Restore the original resolver properties
+        ansible.builtin.command:
+          argv: [nmcli, connection, modify, '{{ workstation_dns_profile }}', ipv4.dns, '{{ workstation_dns_original.results[0].stdout | trim }}', ipv4.ignore-auto-dns, '{{ workstation_dns_original.results[1].stdout | trim }}', ipv6.dns, '{{ workstation_dns_original.results[2].stdout | trim }}', ipv6.ignore-auto-dns, '{{ workstation_dns_original.results[3].stdout | trim }}', ipv4.dns-priority, '{{ workstation_dns_original.results[4].stdout | trim }}']
+      - ansible.builtin.command:
+          argv: [nmcli, device, reapply, '{{ workstation_dns_device }}']
+      - ansible.builtin.file:
+          path: /etc/dnsmasq.d/90-perkforge-lab.conf
+          state: absent
+      - ansible.builtin.systemd_service:
+          name: dnsmasq
+          state: restarted
+      - ansible.builtin.fail:
+          msg: 'Split DNS verification failed; prior profile DNS properties restored and the new resolver file removed.'

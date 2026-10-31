@@ -171,3 +171,39 @@ storage.perkforge.io/worker=true and node.longhorn.io/create-default-disk=true o
 worker-1/worker-2 only; both labels remain absent on control-1. All three nodes
 remain Ready. No Longhorn installation, disk creation, PVC or bootstrap occurred.
 The operation remains default-off and identity/readiness/conflict guarded.
+
+Read-only DNS/ingress review: workstation DNS is supplied by the router. The
+RKE2-managed rke2-traefik DaemonSet is ready on all three nodes and binds host ports
+80/443; its service is ClusterIP. Router model/custom DNS capabilities and the
+selected LAN ingress endpoint remain undecided. No records, forwarding, CA/trust,
+service configuration or application routes were applied.
+
+Approved DNS-only host installation on control-1 completed with zero failures.
+The dedicated perkforge-lab-dns service is active/running, enabled for boot and
+configured Restart=on-failure. DNS binds only the server LAN IPv4 on TCP/UDP53;
+no wildcard/IPv6 listener was observed. The four application names under
+perkforge.home.arpa resolve to worker-1's Traefik endpoint. Workstation direct
+queries passed all eight application/transport checks, unknown-local NXDOMAIN,
+local AAAA NODATA and ordinary gateway forwarding. SELinux remains enforcing and
+all three Kubernetes nodes remain Ready. Boot enablement was verified; an actual
+DNS-service reboot recovery test has not been run.
+
+Protected installation evidence and LAN verification are in
+.rke2-state/lab-dns-install-gnnx3hvx/. The earlier attempt stopped at rejected sudo
+without host changes; its evidence is preserved. The first-install playbook refuses
+existing managed files, so do not rerun it for maintenance. Router DHCP and node DNS settings remain unchanged; approved workstation
+resolver completion is recorded below. Client resolver migration (workstation and
+three nodes), cluster/host-network lookups and private-CA/TLS remain separate
+reviewed actions. No Big Bang/Flux or application activation was performed.
+
+Approved workstation DNS migration completed. The existing standalone dnsmasq
+service, already enabled for boot, now routes only perkforge.home.arpa to control-1
+and other queries to the explicit gateway. The wired NetworkManager profile uses
+loopback DNS with negative IPv4 DNS priority and ignores automatic DNS from both
+address families. A lingering RA-supplied IPv6 gateway resolver after reapply was
+excluded by the priority correction; IPv6 networking remains enabled. Final active
+resolv.conf contains only 127.0.0.1. All four application names passed normal DNS
+and OS lookup; ordinary internet lookup passed. Protected inputs/logs/verification
+are in .rke2-state/workstation-dns-doxbigdu/. No node/router resolver, DHCP or
+libvirt change was made. Workstation reboot recovery/browser DoH are untested.
+Repeat/rollback source is configure-workstation-dns.yml under infrastructure/ansible/playbooks.

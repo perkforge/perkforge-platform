@@ -60,3 +60,14 @@ Private-CA certificates and trust must cover browsers, workloads, API-server OID
 and Rancher agents as applicable. Existing reviewed TLS Secret names stay intact.
 Do not bypass certificate validation. DNS, CA/trust and live API-server changes
 remain separate reviewed actions; changing source URLs does not activate them.
+
+Read-only ingress inspection found the RKE2-managed `rke2-traefik` DaemonSet
+healthy on all three nodes, with host ports 80/443 and a ClusterIP service. The
+existing controller can serve a selected worker address without an additional
+load balancer for initial lab use. A single address has a worker availability
+dependency; multi-address DNS is not a health-checked failover mechanism. The selected initial ingress endpoint is worker-1. A separate dnsmasq host service
+is installed and enabled on control-1; direct LAN resolution/forwarding checks
+passed. Client resolver migration remains separately gated. See the infrastructure DNS procedure. The workstation uses
+the router as its resolver; router capabilities must be confirmed before choosing
+local records, forwarding or an independent resolver. Keep actual addresses in the
+ignored topology, not public procedure files.

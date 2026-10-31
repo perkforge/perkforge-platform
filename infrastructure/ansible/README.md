@@ -7,6 +7,8 @@ The operator uses PXE and interactive Anaconda to install RHEL. Infrastructure A
 | `playbooks/label-longhorn-workers.yml` | separately approved worker-only storage labels | no cluster access |
 | `playbooks/prepare-longhorn-hosts.yml` | separately approved worker-only V1 storage prerequisites | no connections |
 | `tests/longhorn-preflight.yml` | read-only worker storage prerequisite audit | no connections |
+| `playbooks/configure-workstation-dns.yml` | approved first-time workstation split DNS using its existing resolver | no changes |
+| `playbooks/configure-lab-dns.yml` | separately approved DNS-only first installation on control-1 | no connections |
 | `playbooks/configure-hosts.yml` | reviewed RHEL/Canal prerequisites | no connections |
 | `playbooks/install-rke2.yml` | pinned single-server RKE2 installation/join/readiness | no connections |
 | `tests/reboot-verification.yml` | bootstrap-only worker-first reboots and persistence/Ready checks | no connections |

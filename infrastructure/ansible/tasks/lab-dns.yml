@@ -1,0 +1,96 @@
+---
+- ansible.builtin.command:
+    argv: [hostname]
+  changed_when: false
+  register: lab_dns_hostname
+- ansible.builtin.assert:
+    quiet: true
+    that: lab_dns_hostname.stdout | trim == 'control-1'
+- ansible.builtin.setup:
+    gather_subset: [min, network]
+- ansible.builtin.assert:
+    quiet: true
+    that:
+    - ansible_facts.distribution == 'RedHat'
+    - ansible_facts.distribution_version == '10.2'
+    - ansible_facts.selinux.mode == 'enforcing'
+    - lab_dns_server_ip in ansible_facts.all_ipv4_addresses
+- name: Inspect the dedicated service ownership marker
+  ansible.builtin.stat:
+    path: /etc/systemd/system/perkforge-lab-dns.service
+    follow: false
+  register: lab_dns_unit
+- name: Refuse existing unmanaged service files
+  ansible.builtin.assert:
+    quiet: true
+    that: not lab_dns_unit.stat.exists
+    fail_msg: 'This first-install operation refuses an existing unit. Review maintenance separately.'
+- name: Refuse any existing DNS listener before package changes
+  ansible.builtin.command:
+    argv: [ss, -H, -lntu, sport, '=', ':53']
+  changed_when: false
+  register: lab_dns_listeners
+- ansible.builtin.assert:
+    quiet: true
+    that: lab_dns_listeners.stdout | trim | length == 0
+- name: Refuse existing dedicated configuration
+  ansible.builtin.stat:
+    path: /etc/dnsmasq.d/perkforge-lab.conf
+    follow: false
+  register: lab_dns_config
+- ansible.builtin.assert:
+    quiet: true
+    that: not lab_dns_config.stat.exists
+- name: Install only DNS daemon and query tools
+  ansible.builtin.dnf:
+    name: [dnsmasq, bind-utils]
+    state: present
+- ansible.builtin.file:
+    path: /etc/dnsmasq.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+- name: Validate and write only the dedicated DNS configuration
+  ansible.builtin.template:
+    src: ../templates/lab-dns.conf.j2
+    dest: /etc/dnsmasq.d/perkforge-lab.conf
+    owner: root
+    group: root
+    mode: '0644'
+    validate: /usr/sbin/dnsmasq --test --conf-file=%s
+- name: Restore the vendor-defined configuration label without policy changes
+  ansible.builtin.command:
+    argv: [restorecon, /etc/dnsmasq.d/perkforge-lab.conf]
+  changed_when: false
+- ansible.builtin.template:
+    src: ../templates/lab-dns.service.j2
+    dest: /etc/systemd/system/perkforge-lab-dns.service
+    owner: root
+    group: root
+    mode: '0644'
+- name: Enable and start only the dedicated DNS service
+  ansible.builtin.systemd_service:
+    name: perkforge-lab-dns
+    daemon_reload: true
+    enabled: true
+    state: started
+- name: Verify each exact application A record over UDP and TCP
+  ansible.builtin.command:
+    argv: [dig, '@{{ lab_dns_server_ip }}', '{{ item.0 }}.perkforge.home.arpa', A, +short, +time=2, +tries=1, '{{ item.1 }}']
+  changed_when: false
+  register: lab_dns_answers
+  loop: "{{ ['headlamp', 'keycloak', 'rancher', 'openbao'] | product(['+notcp', '+tcp']) | list }}"
+- ansible.builtin.assert:
+    quiet: true
+    that: item.stdout | trim == lab_dns_ingress_ip
+  loop: '{{ lab_dns_answers.results }}'
+  loop_control:
+    label: '{{ item.item }}'
+- ansible.builtin.command:
+    argv: [getenforce]
+  changed_when: false
+  register: lab_dns_selinux
+- ansible.builtin.assert:
+    quiet: true
+    that: lab_dns_selinux.stdout | trim == 'Enforcing'
