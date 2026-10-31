@@ -23,7 +23,7 @@ class MinimalRenderTests(unittest.TestCase):
         for target in ('local',):
             root = application_package_fixture(ROOT)
             release = next(obj for obj in root if obj['kind'] == 'HelmRelease')
-            assert release['spec']['suspend']
+            assert release['spec']['suspend'] is False
             test_root = root + build(ROOT / 'configuration/packages/openbao')
             values = ordered_values(test_root, release)
             cls.objects[target] = {'root': root}
@@ -53,7 +53,7 @@ class MinimalRenderTests(unittest.TestCase):
             for target, report in cls.reports.items():
                 (Path(output) / (target + '.json')).write_text(json.dumps(report, indent=2) + '\n')
 
-    def test_explicit_application_fixture_keeps_release_paused(self):
+    def test_explicit_application_fixture_keeps_reviewed_release_graph(self):
         for target, objects in self.objects.items():
             default = {obj['metadata']['name'] for obj in objects['default'] if obj['kind'] == 'HelmRelease'}
             self.assertEqual(default, {'headlamp', 'keycloak'})
@@ -61,7 +61,7 @@ class MinimalRenderTests(unittest.TestCase):
             self.assertEqual(selected, {'headlamp', 'keycloak', 'openbao'})
             for obj in objects['root']:
                 if obj['kind'] in ('GitRepository', 'Kustomization', 'HelmRelease'):
-                    self.assertEqual(obj['spec']['suspend'], obj['metadata']['name'] != 'bigbang-chart')
+                    self.assertEqual(obj['spec']['suspend'], obj['metadata']['name'] not in {'bigbang-chart', 'bigbang'})
             self.assertEqual(len(self.reports[target]['portal']['workloads']), 1)
 
     def test_real_keycloak_database_pin_connection_and_external_credentials(self):

@@ -55,6 +55,7 @@ class OptionalPlatformPackages(unittest.TestCase):
 
     def test_longhorn_render_has_worker_placement_and_retained_two_replica_class(self):
         objects=self.children['longhorn']
+        self.assertFalse(any(obj['kind']=='Ingress' for obj in objects))
         for obj in objects:
             if obj['kind'] in ['DaemonSet','Deployment']:
                 self.assertEqual(obj['spec']['template']['spec']['nodeSelector'],{'storage.perkforge.io/worker':'true'})
