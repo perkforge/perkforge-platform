@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/perkforge/perkforge-platform/compare/v0.10.0...v0.11.0) (2026-10-31)
+
+
+### Features
+
+* **bootstrap:** enable Longhorn-only GitOps desired state ([#89](https://github.com/perkforge/perkforge-platform/issues/89)) ([1b2264d](https://github.com/perkforge/perkforge-platform/commit/1b2264db30c79f75822540ffe01daf4455ab9a64))
+
 ## [0.10.0](https://github.com/perkforge/perkforge-platform/compare/v0.9.0...v0.10.0) (2026-10-31)
 
 
