@@ -1,0 +1,157 @@
+---
+- name: Explicitly approved worker-first physical RKE2 reboot verification
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  any_errors_fatal: true
+  vars_files: [../group_vars/rke2.yml]
+  vars:
+    reboot_verification_apply: false
+    reboot_kubeconfig: /UNCONFIGURED/kubeconfig
+    reboot_kubectl: /UNCONFIGURED/kubectl
+    reboot_expected_cluster_uid: UNCONFIGURED
+    reboot_output_parent: /UNCONFIGURED/results
+    reboot_backup_directory: /UNCONFIGURED/verified-backup
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Reboot verification apply={{ reboot_verification_apply | bool }}; check={{ ansible_check_mode }}. Defaults/check mode make no API or SSH connection.'
+  - name: Run only the separately approved three-node reboot sequence
+    when: reboot_verification_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - groups.get('rke2_servers', []) | length == 1
+        - groups.get('rke2_agents', []) | length == 2
+        - (groups['rke2_servers'] + groups['rke2_agents']) | unique | length == 3
+        - reboot_expected_cluster_uid is match('^[0-9a-f-]{36}$')
+        - reboot_kubeconfig is match('^/') and not reboot_kubeconfig.startswith('/UNCONFIGURED/')
+        - reboot_kubectl is match('^/') and not reboot_kubectl.startswith('/UNCONFIGURED/')
+        - reboot_output_parent is match('^/') and not reboot_output_parent.startswith('/UNCONFIGURED/')
+        - reboot_backup_directory is match('^/') and not reboot_backup_directory.startswith('/UNCONFIGURED/')
+        - rke2_cluster_id != 'UNCONFIGURED'
+    - name: Require explicit SSH target identity before connecting
+      ansible.builtin.assert:
+        quiet: true
+        that:
+        - hostvars[item].ansible_host | default('UNCONFIGURED') != 'UNCONFIGURED'
+        - hostvars[item].ansible_user | default('UNCONFIGURED') != 'UNCONFIGURED'
+      loop: "{{ groups['rke2_agents'] + groups['rke2_servers'] }}"
+    - name: Inspect local inputs and verified backup without reading secrets
+      ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+        get_checksum: false
+        get_mime: false
+      loop:
+      - '{{ reboot_kubeconfig }}'
+      - '{{ reboot_kubectl }}'
+      - '{{ reboot_output_parent }}'
+      - '{{ reboot_backup_directory }}'
+      - '{{ reboot_backup_directory }}/server-token.secure'
+      - '{{ reboot_backup_directory }}/snapshot.db'
+      - '{{ reboot_backup_directory }}/summary.yml'
+      register: reboot_paths
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - item.stat.exists
+        - not (item.stat.islnk | default(false))
+        - item.item | realpath == item.item
+      loop: '{{ reboot_paths.results }}'
+      loop_control:
+        label: '{{ item.item }}'
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - reboot_paths.results[0].stat.isreg and reboot_paths.results[0].stat.mode == '0600'
+        - reboot_paths.results[1].stat.isreg and reboot_paths.results[1].stat.executable
+        - reboot_paths.results[2].stat.isdir and reboot_paths.results[2].stat.mode == '0700'
+        - reboot_paths.results[2].stat.pw_name == lookup('env', 'USER')
+        - reboot_paths.results[3].stat.isdir and reboot_paths.results[3].stat.mode == '0700'
+        - reboot_paths.results[3].stat.pw_name == lookup('env', 'USER')
+        - reboot_paths.results[4].stat.isreg and reboot_paths.results[4].stat.mode == '0600'
+        - reboot_paths.results[5].stat.isreg and reboot_paths.results[5].stat.mode == '0600'
+        - reboot_paths.results[6].stat.isreg and reboot_paths.results[6].stat.mode == '0600'
+    - name: Read only the nonsecret backup summary
+      ansible.builtin.include_vars:
+        file: '{{ reboot_backup_directory }}/summary.yml'
+        name: reboot_backup_summary
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - reboot_backup_summary.backup_verified | bool
+        - reboot_backup_summary.cluster_uid == reboot_expected_cluster_uid
+        - reboot_backup_summary.cluster_id == rke2_cluster_id
+    - name: Recheck off-node snapshot integrity before any reboot
+      ansible.builtin.command:
+        argv: ['{{ ansible_playbook_python }}', '{{ playbook_dir }}/verify_etcd_snapshot.py', '{{ reboot_backup_directory }}/snapshot.db']
+      register: reboot_backup_integrity
+      changed_when: false
+    - ansible.builtin.assert:
+        quiet: true
+        that: (reboot_backup_integrity.stdout | from_json).sha256 == reboot_backup_summary.snapshot_sha256
+    - ansible.builtin.set_fact:
+        reboot_cli: ['{{ reboot_kubectl }}', --kubeconfig, '{{ reboot_kubeconfig }}', --request-timeout=15s]
+        reboot_order: "{{ groups['rke2_agents'] + groups['rke2_servers'] }}"
+        reboot_completed: []
+        reboot_sequence_passed: false
+        reboot_failed_node: ''
+    - name: Verify exact cluster identity before any remote action
+      ansible.builtin.command:
+        argv: "{{ reboot_cli + ['get', 'namespace', 'kube-system', '-o', 'json'] }}"
+      register: reboot_identity
+      changed_when: false
+    - ansible.builtin.assert:
+        quiet: true
+        that: (reboot_identity.stdout | from_json).metadata.uid == reboot_expected_cluster_uid
+    - name: Require exactly the selected three nodes Ready
+      ansible.builtin.command:
+        argv: "{{ reboot_cli + ['get', 'nodes', '-o', 'json'] }}"
+      register: reboot_initial_nodes
+      changed_when: false
+    - ansible.builtin.assert:
+        quiet: true
+        that: (reboot_initial_nodes.stdout | from_json)['items'] | map(attribute='metadata.name') | sort | list == reboot_order | sort
+    - ansible.builtin.assert:
+        quiet: true
+        that: item.status.conditions | selectattr('type', 'equalto', 'Ready') | selectattr('status', 'equalto', 'True') | list | length == 1
+      loop: "{{ (reboot_initial_nodes.stdout | from_json)['items'] }}"
+      loop_control:
+        label: '{{ item.metadata.name }}'
+    - name: Require the bootstrap-only workload scope before uncordoned reboot testing
+      ansible.builtin.command:
+        argv: "{{ reboot_cli + ['get', 'pods', '-A', '-o', 'json'] }}"
+      register: reboot_initial_pods
+      changed_when: false
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - item.metadata.namespace == 'kube-system'
+        - item.status.phase in ['Running', 'Succeeded']
+      loop: "{{ (reboot_initial_pods.stdout | from_json)['items'] }}"
+      loop_control:
+        label: '{{ item.metadata.namespace }}/{{ item.metadata.name }}'
+    - name: Allocate fresh private reboot evidence
+      ansible.builtin.tempfile:
+        state: directory
+        path: '{{ reboot_output_parent }}'
+        prefix: reboot-verification-
+      register: reboot_output
+    - name: Reboot one exact node at a time, stopping on the first failure
+      block:
+      - ansible.builtin.include_tasks: reboot-node.yml
+        loop: '{{ reboot_order }}'
+        loop_control:
+          loop_var: reboot_target
+      - ansible.builtin.set_fact:
+          reboot_sequence_passed: true
+      always:
+      - name: Save bounded progress even if a node fails to recover
+        ansible.builtin.copy:
+          dest: '{{ reboot_output.path }}/summary.yml'
+          mode: '0600'
+          content: |
+            {{ {'cluster_uid': reboot_expected_cluster_uid, 'order': reboot_order, 'completed': reboot_completed, 'reboots_passed': reboot_sequence_passed, 'in_progress_or_failed_node': reboot_failed_node, 'smoke_test': 'separate follow-up command; not asserted by this playbook'} | to_nice_yaml }}
+      - ansible.builtin.debug:
+          msg: 'Sequential reboots passed={{ reboot_sequence_passed }}; completed={{ reboot_completed | length }}; private evidence={{ reboot_output.path }}'

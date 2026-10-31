@@ -126,7 +126,7 @@ model {
       description 'One server with embedded etcd and two agents; not HA. Canal owns pod networking and Traefik handles ingress. SELinux remains enforcing. Infrastructure Ansible owns host preparation, pinned RPM install and serial joins. Separate server/agent tokens and admin kubeconfig remain in protected custody. Server token plus matching etcd snapshots are needed for recovery; node Ready is not backup validation.'
       link /runbook.html#rke2 'Cluster architecture and repeat process'
       server = component 'Single control-plane / embedded etcd server' {
-        description 'Pinned RPM installation with enforcing SELinux; owns API, registration and datastore. Loss of this host interrupts the control plane; workers do not provide etcd quorum.'
+        description 'Pinned RPM installation with enforcing SELinux; owns API, registration and datastore. Loss or reboot of this host interrupts the control plane; workers do not provide etcd quorum. Explicit worker-first reboot verification requires changed boot IDs, automatic service recovery and API/node readiness before continuing. It is limited to bootstrap-only workloads, not HA failover or production workload maintenance.'
       }
       agents = component 'Two serially joined worker agents' {
         description 'Run workloads and join using the shared separate agent-only token in secure format, without receiving the server token.'

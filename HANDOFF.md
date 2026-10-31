@@ -1,7 +1,7 @@
 # Current operator handoff
 
 Provisioning remains paused; the operator separately approved the disposable
-workload smoke and off-node snapshot checks described below. Use this existing feature
+workload smoke, off-node snapshot and sequential reboot checks described below. Use this existing feature
 worktree; never push main or merge. Publish changes only when explicitly requested.
 
 ## Current state
@@ -20,8 +20,9 @@ worktree; never push main or merge. Publish changes only when explicitly request
   firewalld. SELinux remains enforcing; no active swap; time is synchronized.
 - Key-only SSH and password-authenticated sudo are verified. Root/password SSH
   are disabled. Each OS disk has 600 MiB EFI, 2 GiB XFS /boot and remaining XFS
-  root on LVM. Worker-1's Primary and Automatic boot sequences were corrected;
-  connected boot succeeded. Do not assume all other firmware paths were retested.
+  root on LVM. All three completed connected sequential OS reboots and recovered
+  SSH/RKE2. The test changed no firmware settings and did not verify every possible
+  firmware boot path.
 - Dedicated workstation PXE services/listeners/guard are stopped. Verified media
   and native runtime records remain outside this repository. Documentation work
   does not authorize changing those resources or any node.
@@ -75,8 +76,25 @@ in tests/etcd-backup.yml and RKE2.md under infrastructure/ansible. Offline tests
 separately cover default/check refusal, wrong-cluster refusal, token change during
 snapshot, protected exports and corrupt/missing/truncated integrity hashes.
 
-Before platform activation, separately approve sequential reboot verification and
-a persistent-storage choice. Restore validation and independent encrypted/off-site
-custody also remain outstanding. Smoke success does not establish ingress, policy isolation, durable
+Approved sequential reboot verification completed in order worker-1, worker-2,
+control-1, with no task failures. Each returned over SSH with a changed boot ID,
+its enabled RKE2 service started automatically, and the API reported the new boot
+ID plus Ready before proceeding. API/datastore readiness, unchanged cluster UID,
+SELinux, modules, forwarding/bridge settings and NetworkManager were verified.
+Independent fresh SSH also confirmed firewalld inactive/disabled and RKE2
+active/enabled on every host. Control-1's reboot caused expected temporary API
+unavailability; its service startup completed without manual intervention.
+
+Private per-node boot-ID evidence and progress are in ignored
+.rke2-state/reboot-verification-opc6lkcp/. The post-reboot workload smoke check
+passed all DNS/direct-pod/ClusterIP probes and verified owned namespace deletion;
+its private evidence is .rke2-state/workload-smoke-0wz7xqpz/. Source and repeat
+commands are in tests/reboot-verification.yml, tests/reboot-node.yml and RKE2.md
+under infrastructure/ansible. Offline mocks separately verify default/check mode,
+wrong-target refusal, worker-first ordering and stopping after first-node failure
+or a stale API boot ID. These are distinct from the successful live checks.
+
+Before platform activation, separately approve a persistent-storage choice.
+Restore validation and independent encrypted/off-site custody also remain outstanding. Smoke success does not establish ingress, policy isolation, durable
 storage or recovery. No further live action is authorized by this handoff. Keep architecture and human repeat instructions,
 not session journals, planning archives or duplicate procedure documents.

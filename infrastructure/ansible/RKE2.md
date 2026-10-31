@@ -223,3 +223,52 @@ fixtures, never a live cluster:
 ```sh
 python3 -m unittest discover -s infrastructure/ansible/tests -p test_etcd_backup.py
 ```
+
+## Sequential reboot and persistence verification
+
+`tests/reboot-verification.yml` is explicitly scoped to the bootstrap-only physical
+cluster: exactly one server and two workers, all Ready, with no pods outside
+kube-system and system pods only in Running/Succeeded phases. It does not cordon/drain, evict
+workloads, change firmware, start RKE2 manually, or alter configuration. A cluster
+with application workloads requires a separately reviewed maintenance procedure.
+
+Default/check mode makes no API/SSH connection. Before any reboot, the test
+verifies the expected cluster UID, explicit SSH inventory, and an existing protected
+off-node snapshot/token bundle with matching identity and verified snapshot hash.
+Author ignored `.rke2-state/reboot-inputs.yml` with explicit absolute
+`reboot_kubeconfig`, `reboot_kubectl`, `reboot_output_parent`,
+`reboot_backup_directory` and the reviewed `reboot_expected_cluster_uid`.
+The kubeconfig and backup files must be mode0600; output/backup directories must
+be operator-owned mode0700. Use the same reviewed inventory/install.yml as the
+cluster installation. Run only after action-specific reboot approval:
+
+```sh
+ansible-playbook -i infrastructure/ansible/inventory/.topology.yml infrastructure/ansible/tests/reboot-verification.yml --ask-become-pass -e @infrastructure/ansible/inventory/.rke2-state/install.yml -e @infrastructure/ansible/inventory/.rke2-state/reboot-inputs.yml -e reboot_verification_apply=true
+```
+
+The order is the two inventory workers, then the single server. Enter sudo locally.
+Each node must match its hostname/installation owner and have RKE2 enabled before
+reboot. Ansible waits for SSH and changed boot identity; the test requires RKE2
+active/enabled without manual startup, enforcing SELinux, forwarding/bridge sysctls,
+loaded kernel modules, active NetworkManager and disabled firewalld. It waits for
+API readiness (including datastore readiness), the node's new boot ID plus Ready
+condition in the API, unchanged cluster UID, and every selected node Ready before
+moving on. Failure stops the sequence; it never retries a reboot automatically.
+If firmware/network boot blocks recovery, inspect that node physically before any
+separately approved intervention. The single server's reboot temporarily removes
+API availability; this is not an HA/failover test.
+
+Private mode0700 reboot-verification-* output contains mode0600 per-node boot-ID
+and persistence evidence plus a progress summary, retained even on task failure.
+A process kill can interrupt evidence collection; inspect actual state before any
+rerun. The playbook does not assert application/network smoke success by itself.
+After a successful sequence, run the separately approved workload-smoke.yml command
+above and verify both its probes and namespace cleanup pass. Do not run that
+follow-up automatically after a reboot failure.
+
+Offline sequencing/refusal/stale-boot-ID checks replace every host command and
+reboot with temporary-file mocks; they never reboot a machine:
+
+```sh
+python3 -m unittest discover -s infrastructure/ansible/tests -p test_reboot_verification.py
+```

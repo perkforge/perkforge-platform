@@ -1,0 +1,141 @@
+---
+- ansible.builtin.set_fact:
+    reboot_failed_node: '{{ reboot_target }}'
+    reboot_service: "rke2-{{ 'server' if reboot_target in groups['rke2_servers'] else 'agent' }}"
+- name: Verify node ownership and persistence before reboot
+  delegate_to: '{{ reboot_target }}'
+  become: true
+  vars:
+    ansible_connection: ssh
+  block:
+  - ansible.builtin.command:
+      argv: [hostname]
+    register: reboot_hostname
+    changed_when: false
+  - ansible.builtin.assert:
+      quiet: true
+      that: reboot_hostname.stdout | trim == reboot_target
+  - ansible.builtin.slurp:
+      src: /etc/rancher/rke2/perkforge-owner.json
+    register: reboot_owner
+  - ansible.builtin.assert:
+      quiet: true
+      that: reboot_owner.content | b64decode | from_json == {'owner':'perkforge-infrastructure','cluster':rke2_cluster_id,'role':'server' if reboot_target in groups['rke2_servers'] else 'agent'}
+  - ansible.builtin.command:
+      argv: [systemctl, is-enabled, '{{ reboot_service }}']
+    register: reboot_enabled
+    changed_when: false
+  - ansible.builtin.assert:
+      quiet: true
+      that: reboot_enabled.stdout | trim == 'enabled'
+  - ansible.builtin.command:
+      argv: [cat, /proc/sys/kernel/random/boot_id]
+    register: reboot_boot_before
+    changed_when: false
+  - name: Reboot this node and wait for fresh SSH and a changed boot ID
+    ansible.builtin.reboot:
+      reboot_timeout: 600
+      connect_timeout: 10
+      post_reboot_delay: 10
+      test_command: whoami
+      msg: Approved sequential RKE2 reboot verification
+  - ansible.builtin.command:
+      argv: [cat, /proc/sys/kernel/random/boot_id]
+    register: reboot_boot_after
+    changed_when: false
+  - ansible.builtin.assert:
+      quiet: true
+      that: reboot_boot_before.stdout | trim != reboot_boot_after.stdout | trim
+  - name: Require RKE2 to recover automatically without starting it manually
+    ansible.builtin.command:
+      argv: [systemctl, is-active, '{{ reboot_service }}']
+    register: reboot_active
+    until: reboot_active.rc == 0 and reboot_active.stdout | trim == 'active'
+    retries: 36
+    delay: 5
+    changed_when: false
+  - ansible.builtin.command:
+      argv: [systemctl, is-enabled, '{{ reboot_service }}']
+    register: reboot_enabled_after
+    changed_when: false
+  - ansible.builtin.assert:
+      quiet: true
+      that: reboot_enabled_after.stdout | trim == 'enabled'
+  - name: Verify enforcing SELinux persisted
+    ansible.builtin.command:
+      argv: [getenforce]
+    register: reboot_selinux
+    changed_when: false
+  - ansible.builtin.assert:
+      quiet: true
+      that: reboot_selinux.stdout | trim == 'Enforcing'
+  - name: Verify forwarding and bridge settings persisted
+    ansible.builtin.command:
+      argv: [sysctl, -n, net.ipv4.ip_forward, net.bridge.bridge-nf-call-iptables, net.bridge.bridge-nf-call-ip6tables]
+    register: reboot_sysctls
+    changed_when: false
+  - ansible.builtin.assert:
+      quiet: true
+      that: reboot_sysctls.stdout_lines == ['1', '1', '1']
+  - name: Verify required modules loaded on boot
+    ansible.builtin.stat:
+      path: '/sys/module/{{ item }}'
+    loop: [overlay, br_netfilter, nf_conntrack]
+    register: reboot_modules
+  - ansible.builtin.assert:
+      quiet: true
+      that: item.stat.exists
+    loop: '{{ reboot_modules.results }}'
+    loop_control:
+      label: '{{ item.item }}'
+  - name: Verify NetworkManager remains active
+    ansible.builtin.command:
+      argv: [systemctl, is-active, NetworkManager]
+    changed_when: false
+  - name: Verify firewalld remains disabled without changing it
+    ansible.builtin.command:
+      argv: [systemctl, is-enabled, firewalld]
+    register: reboot_firewalld
+    failed_when: reboot_firewalld.stdout | trim != 'disabled'
+    changed_when: false
+- name: Wait for the API and etcd readiness checks to recover
+  ansible.builtin.command:
+    argv: "{{ reboot_cli + ['get', '--raw=/readyz'] }}"
+  register: reboot_api
+  until: reboot_api.rc == 0 and reboot_api.stdout | trim == 'ok'
+  retries: 60
+  delay: 5
+  changed_when: false
+- name: Require the exact rebooted node Ready with its new boot ID in the API
+  ansible.builtin.command:
+    argv: "{{ reboot_cli + ['get', 'node', reboot_target, '-o', 'json'] }}"
+  register: reboot_node_ready
+  until:
+  - reboot_node_ready.rc == 0
+  - (reboot_node_ready.stdout | from_json).status.nodeInfo.bootID == reboot_boot_after.stdout | trim
+  - (reboot_node_ready.stdout | from_json).status.conditions | selectattr('type', 'equalto', 'Ready') | selectattr('status', 'equalto', 'True') | list | length == 1
+  retries: 60
+  delay: 5
+  changed_when: false
+- name: Confirm the cluster identity is unchanged after this reboot
+  ansible.builtin.command:
+    argv: "{{ reboot_cli + ['get', 'namespace', 'kube-system', '-o', 'json'] }}"
+  register: reboot_identity_after
+  changed_when: false
+- ansible.builtin.assert:
+    quiet: true
+    that: (reboot_identity_after.stdout | from_json).metadata.uid == reboot_expected_cluster_uid
+- name: Require every selected node Ready before continuing to another reboot
+  ansible.builtin.command:
+    argv: "{{ reboot_cli + ['wait', '--for=condition=Ready', 'node/' + item, '--timeout=180s'] }}"
+  loop: '{{ reboot_order }}'
+  changed_when: false
+- name: Record this node's changed boot ID and persistence checks
+  ansible.builtin.copy:
+    dest: '{{ reboot_output.path }}/{{ reboot_target }}.yml'
+    mode: '0600'
+    content: |
+      {{ {'node': reboot_target, 'service': reboot_service, 'boot_id_before': reboot_boot_before.stdout | trim, 'boot_id_after': reboot_boot_after.stdout | trim, 'ssh_returned': true, 'service_active_and_enabled': true, 'api_node_new_boot_id_ready': true, 'host_settings_persisted': true} | to_nice_yaml }}
+- ansible.builtin.set_fact:
+    reboot_completed: '{{ reboot_completed + [reboot_target] }}'
+    reboot_failed_node: ''

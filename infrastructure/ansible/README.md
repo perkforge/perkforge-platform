@@ -6,6 +6,7 @@ The operator uses PXE and interactive Anaconda to install RHEL. Infrastructure A
 |---|---|---|
 | `playbooks/configure-hosts.yml` | reviewed RHEL/Canal prerequisites | no connections |
 | `playbooks/install-rke2.yml` | pinned single-server RKE2 installation/join/readiness | no connections |
+| `tests/reboot-verification.yml` | bootstrap-only worker-first reboots and persistence/Ready checks | no connections |
 | `tests/etcd-backup.yml` | named snapshot, protected off-node token/datastore copy and integrity checks | no connections |
 | `tests/workload-smoke.yml` | disposable two-worker DNS/pod/ClusterIP verification and cleanup | no cluster access |
 | `playbooks/export-rke2-tokens.yml` | protected, nonoverwriting server/agent token export | no connections |
