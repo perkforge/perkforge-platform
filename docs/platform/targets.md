@@ -13,9 +13,11 @@
 
 ## Choose tenant enrollment
 
-For an enrolled target, copy `enrollments/local/` to `enrollments/dev/`, select it in the cluster root, and set its Flux reconciliation path to `./clusters/dev` in the enrollment repository. Prepare matching enrollment/app contexts and publish compatible releases. Dependency order is application → enrollment → platform; advance only to real published tags.
+The shipped local root currently excludes tenant enrollment while core platform services are established. Enrollment prerequisite apply refuses this unselected root before external access. Optional enrolled-chain tests explicitly opt in temporary fixtures; they do not enable the operator root.
 
-For a new tenant-free management/C2 target, omit `../../enrollments/<name>` from the cluster resources and skip `configuration/ansible/enrollment-prerequisites.yaml`. No enrollment source, reconciler or prerequisite RBAC is then required; platform services remain selected independently. An isolated configuration regression verifies omission preserves every other root object and contains no enrollment references. Current cross-repository CI still assumes the shipped local enrollment chain; selecting appropriate validation for an additional tenant-free target remains work before adopting it.
+For a later enrolled target, copy `enrollments/local/` to `enrollments/dev/`, select it in the cluster root, and set its Flux reconciliation path to `./clusters/dev` in the enrollment repository. Prepare matching enrollment/app contexts and publish compatible releases. Dependency order is application → enrollment → platform; advance only to real published tags.
+
+For a new tenant-free management/C2 target, omit `../../enrollments/<name>` from the cluster resources and skip `configuration/ansible/enrollment-prerequisites.yaml`. No enrollment source, reconciler or prerequisite RBAC is then required; platform services remain selected independently. An isolated regression verifies the default root contains no enrollment references and explicit temporary opt-in preserves every other platform object. Cross-repository selection tests retain their opt-in contract fixtures; compatible downstream context/pins still require verification before enabling enrollment.
 
 This is not removal guidance for an already enrolled cluster: prune is false and removing Git references does not revoke existing objects or permissions. Review cleanup separately.
 

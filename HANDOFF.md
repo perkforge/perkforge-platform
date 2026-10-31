@@ -280,3 +280,12 @@ and overwrite-refusal tests passed. No namespace, Secret, ConfigMap, route, stor
 or bootstrap change occurred. Next prerequisites are committing/reviewing/publishing
 compatible release inputs, then explicit namespace/TLS delivery approval. Do not
 bypass the release guards with dirty source or older incompatible context metadata.
+
+Tenant enrollment is now explicitly excluded from the local cluster root until
+core platform readiness. The retained enrollment source/reconciler stay suspended;
+its prerequisite playbook refuses an unselected root before release/API access.
+No tenant bootstrap source, reconciler or root authority is in the rendered local
+root. Tests retain explicit optional-chain fixtures without enabling operator
+selection. Re-enable only after core services and identity acceptance with reviewed
+compatible downstream context/pins and separate activation approval. No live
+resource was changed by this source containment adjustment.

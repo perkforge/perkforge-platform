@@ -4,7 +4,6 @@ resources:
 - ../../configuration/defaults
 - ../../configuration/packages/headlamp
 - ../../configuration/packages/keycloak
-- ../../enrollments/local
 - ../../providers/rke2
 - ../../profiles/il2
 - ../../configuration/packages/bigbang

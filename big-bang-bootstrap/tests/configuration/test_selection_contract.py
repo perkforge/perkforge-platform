@@ -64,14 +64,16 @@ class SelectionContractTests(unittest.TestCase):
         return objects
 
     def platform_selection(self, cluster):
-        if cluster == 'local':
-            objects = build(EXAMPLES / 'clusters/local')
-        else:
-            # Exercise documented copy/edit steps in temporary YAML, never ship a second target.
-            with tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
-                for name in ('clusters', 'enrollments', 'configuration', 'providers', 'profiles'):
-                    shutil.copytree(EXAMPLES / name, root / name)
+        # Test the optional enrolled chain explicitly without enabling the operator root.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('clusters', 'enrollments', 'configuration', 'providers', 'profiles'):
+                shutil.copytree(EXAMPLES / name, root / name)
+            recipe = root / 'clusters/local/kustomization.yaml'
+            selected = yaml.safe_load(recipe.read_text())
+            selected['resources'].append('../../enrollments/local')
+            recipe.write_text(yaml.safe_dump(selected))
+            if cluster != 'local':
                 for kind in ('clusters', 'enrollments'):
                     shutil.copytree(root / kind / 'local', root / kind / cluster)
                     for path in (root / kind / cluster).glob('*.yaml'):
@@ -80,7 +82,7 @@ class SelectionContractTests(unittest.TestCase):
                         value = value.replace('cluster: local', 'cluster: ' + cluster).replace('environment: local', 'environment: dev')
                         value = value.replace('suspend: false', 'suspend: true')
                         path.write_text(value)
-                objects = build(root / 'clusters' / cluster)
+            objects = build(root / 'clusters' / cluster)
         parent = next(obj for obj in objects if obj['kind'] == 'Kustomization')
         source = next(obj for obj in objects if obj['kind'] == 'GitRepository'
                       and obj['metadata']['name'] == parent['spec']['sourceRef']['name'])
@@ -168,7 +170,7 @@ class SelectionContractTests(unittest.TestCase):
             value['commonAnnotations'][PREFIX + 'profile'] = 'il5'
             path.write_text(yaml.safe_dump(value))
             objects = build(root / 'clusters/local')
-            parent = next(o for o in objects if o['kind'] == 'Kustomization')
+            parent = next(o for o in objects if o['kind'] == 'HelmRelease' and o['metadata']['name'] == 'bigbang')
             self.assertEqual(context(parent)['profile'], 'il5')
             impact = next(o for o in objects if o['kind'] == 'ConfigMap' and o['metadata']['name'] == 'values-impact')
             # Structural reuse only: copied values still contain the original UI guardrails.

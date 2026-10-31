@@ -15,7 +15,7 @@ configuration/
 tests/                             configuration/bootstrap/security/integration
 ```
 
-Local selects Headlamp and Keycloak. OpenBao, Longhorn and Rancher are defined but unselected. Longhorn/Rancher child releases are additionally suspended. The seed, outer release and enrollment remain paused. Local means an engineer-owned physical cluster; existing trial VMs and historical release paths are not changed by this source layout. Actual IL2 preparation is deferred.
+Local selects Headlamp and Keycloak. Tenant enrollment is omitted from the local root until core platform readiness; its retained source/reconciler remain suspended and require explicit later selection. OpenBao, Longhorn and Rancher are defined but unselected. Longhorn/Rancher child releases are additionally suspended. The seed, outer release and enrollment remain paused. Local means an engineer-owned physical cluster; existing trial VMs and historical release paths are not changed by this source layout. Actual IL2 preparation is deferred.
 
 Start with [platform maintenance](../docs/platform/README.md): [applications and values](../docs/platform/applications.md), [targets/environments](../docs/platform/targets.md), and [impact profiles](../docs/platform/profiles.md). Use [operation order](configuration/ansible/README.md), [verification commands](tests/README.md), [infrastructure prerequisites](../infrastructure/README.md).
 

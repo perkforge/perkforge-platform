@@ -23,6 +23,9 @@ class PortalTrialTests(unittest.TestCase):
     def test_authoritative_root_keeps_identity_first_and_generic_enrollment_paused(self):
         objects = build(ROOT / 'clusters/local')
         parent = [o for o in objects if o['metadata']['name'] == 'tenant-enrollments']
+        self.assertEqual(parent, [])
+        retained = build(ROOT / 'enrollments/local')
+        parent = [o for o in retained if o['metadata']['name'] == 'tenant-enrollments']
         self.assertEqual({o['kind'] for o in parent}, {'GitRepository','Kustomization'})
         self.assertTrue(all(o['spec']['suspend'] is True for o in parent))
         self.assertNotIn('secretRef', next(o for o in parent if o['kind'] == 'GitRepository')['spec'])

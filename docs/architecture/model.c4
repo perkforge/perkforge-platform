@@ -160,6 +160,7 @@ model {
     flux = component 'Flux GitOps reconciliation'
     bigbang = component 'Big Bang platform packages'
     enrollment = component 'Tenant enrollment repository' {
+      // Not selected in the local root until core platform readiness.
       description 'Owns tenant foundations and registration.'
     }
     applications = component 'Application repositories' {
@@ -206,6 +207,6 @@ model {
   platform.flux -> platform.storage 'Reconciles approved Helm deployment'
   platform.rancher -> platform.rke2 'Platform-admin lifecycle'
   platform.flux -> platform.bigbang 'Reconcile platform packages'
-  platform.flux -> platform.enrollment 'Reconcile tenant foundations'
+  platform.flux -> platform.enrollment 'Optional later enrollment; currently excluded locally'
   platform.flux -> platform.applications 'Reconcile application configuration'
 }
