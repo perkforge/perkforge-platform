@@ -1,0 +1,21 @@
+---
+- name: Stop only recorded pilot resources; preserve system/libvirt and evidence
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    pilot_shutdown_approved: false
+    pilot_runtime: /run/perkforge-pxe-pilot
+    pilot_logs: /var/log/perkforge-pxe-pilot
+    pilot_units: [perkforge-pxe-pilot-dnsmasq.service, perkforge-pxe-pilot-http.service]
+  tasks:
+    - ansible.builtin.assert:
+        that:
+          - pilot_shutdown_approved | bool
+          - not ansible_check_mode
+          - inventory_hostname == 'localhost' and ansible_connection == 'local'
+          - pilot_runtime == '/run/perkforge-pxe-pilot'
+          - pilot_logs == '/var/log/perkforge-pxe-pilot'
+    - ansible.builtin.include_tasks: shutdown-tasks.yml

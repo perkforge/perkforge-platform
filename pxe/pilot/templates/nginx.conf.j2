@@ -1,0 +1,30 @@
+# Standalone nginx config; no system includes or default server roots.
+user {{ pxe_http_user }} {{ pxe_http_group }};
+pid {{ pxe_runtime_dir }}/http/nginx.pid;
+error_log {{ pxe_log_dir }}/http/nginx-error.log warn;
+lock_file {{ pxe_runtime_dir }}/http/nginx.lock;
+worker_processes 1;
+events { worker_connections 64; }
+http {
+    access_log {{ pxe_log_dir }}/http/nginx-access.log;
+    client_body_temp_path {{ pxe_runtime_dir }}/http/client-body;
+    proxy_temp_path {{ pxe_runtime_dir }}/http/proxy;
+    fastcgi_temp_path {{ pxe_runtime_dir }}/http/fastcgi;
+    uwsgi_temp_path {{ pxe_runtime_dir }}/http/uwsgi;
+    scgi_temp_path {{ pxe_runtime_dir }}/http/scgi;
+    server_tokens off;
+    server {
+        listen {{ pxe_server_ip }}:{{ pxe_http_port }};
+        server_name _;
+        root {{ pxe_http_root }};
+        autoindex off;
+        disable_symlinks on;
+        location /rhel-10.2/ {
+            allow {{ pxe_pilot_ip }};
+            deny all;
+            limit_except GET HEAD { deny all; }
+            try_files $uri =404;
+        }
+        location / { return 404; }
+    }
+}

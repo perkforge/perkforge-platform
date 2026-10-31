@@ -1,0 +1,244 @@
+---
+- name: Isolated synthetic PXE fixture; native execution requires separate approval
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    fixture_execution_approved: false
+    fixture_namespaces: [pfpxe-s, pfpxe-c]
+    fixture_units: [pfpxe-fixture-observer.service, pfpxe-fixture-dnsmasq.service, pfpxe-fixture-http.service]
+    namespace_owned: {}
+    pxe_interface: fixture0
+    pxe_server_ip: 192.0.2.10
+    pxe_pilot_ip: 192.0.2.11
+    pxe_pilot_mac: '02:00:00:00:00:11'
+    pxe_network: 192.0.2.0
+    pxe_netmask: 255.255.255.0
+    pxe_service_user: dnsmasq
+    pxe_service_group: nogroup
+    pxe_http_user: www-data
+    pxe_http_group: www-data
+    pxe_http_port: 8080
+    pxe_tftp_first_port: 20000
+    pxe_tftp_last_port: 20009
+    pxe_csa: 7
+    pxe_efi_entry: EFI/BOOT/BOOTX64.EFI
+  tasks:
+    - name: Require explicit execution flag; no check-mode simulation of kernel state
+      ansible.builtin.assert:
+        that:
+          - fixture_execution_approved | bool
+          - not ansible_check_mode
+          - inventory_hostname == 'localhost'
+          - ansible_connection == 'local'
+        fail_msg: 'STOP: fixture execution requires separate native approval; no resources created.'
+    - name: Inspect namespace names without creating any
+      ansible.builtin.command: /usr/bin/ip netns list
+      register: existing_namespaces
+      changed_when: false
+    - name: Require both proposed names absent
+      ansible.builtin.assert:
+        that: item not in (existing_namespaces.stdout_lines | map('regex_replace', ' .*$', '') | list)
+      loop: '{{ fixture_namespaces }}'
+    - name: Inspect dedicated unit names without changing any
+      ansible.builtin.command:
+        argv: [systemctl, show, '{{ item }}', '-p', LoadState]
+      loop: '{{ fixture_units }}'
+      register: existing_units
+      changed_when: false
+    - name: Require all proposed unit names absent
+      ansible.builtin.assert:
+        that: item.stdout == 'LoadState=not-found'
+      loop: '{{ existing_units.results }}'
+    - name: Require installed tools and existing service accounts; never install dependencies
+      ansible.builtin.command:
+        argv: '{{ item }}'
+      loop:
+        - [/usr/bin/ip, -Version]
+        - [/usr/sbin/dnsmasq, --version]
+        - [/usr/sbin/nginx, -v]
+        - [/usr/sbin/nft, --version]
+        - [systemd-run, --version]
+        - [getent, passwd, dnsmasq]
+        - [getent, passwd, www-data]
+        - [getent, group, nogroup]
+        - [getent, group, www-data]
+      changed_when: false
+    - name: Allocate unique root-controlled fixture directory
+      ansible.builtin.tempfile:
+        state: directory
+        path: /tmp
+        prefix: perkforge-pxe-packets-
+      register: fixture_dir
+    - name: Run bounded fixture and always inspect cleanup
+      block:
+        - name: Permit traversal only through root-owned fixture parent
+          ansible.builtin.file:
+            path: '{{ fixture_dir.path }}'
+            state: directory
+            owner: root
+            group: root
+            mode: '0711'
+        - ansible.builtin.set_fact:
+            pxe_runtime_dir: '{{ fixture_dir.path }}/state'
+            pxe_log_dir: '{{ fixture_dir.path }}/logs'
+            pxe_tftp_root: '{{ fixture_dir.path }}/tftp'
+            pxe_http_root: '{{ fixture_dir.path }}/http'
+        - name: Create isolated fixture runtime layout; never live pilot paths
+          ansible.builtin.file:
+            path: '{{ fixture_dir.path }}/{{ item.path }}'
+            state: directory
+            owner: '{{ item.owner }}'
+            group: '{{ item.group }}'
+            mode: '{{ item.mode }}'
+          loop:
+            - {path: config, owner: root, group: root, mode: '0700'}
+            - {path: state, owner: root, group: root, mode: '0711'}
+            - {path: logs, owner: root, group: root, mode: '0711'}
+            - {path: state/dnsmasq, owner: dnsmasq, group: nogroup, mode: '0700'}
+            - {path: logs/dnsmasq, owner: dnsmasq, group: nogroup, mode: '0700'}
+            - {path: state/http, owner: www-data, group: www-data, mode: '0700'}
+            - {path: logs/http, owner: www-data, group: www-data, mode: '0700'}
+            - {path: http, owner: root, group: root, mode: '0555'}
+            - {path: http/rhel-10.2, owner: root, group: root, mode: '0555'}
+            - {path: tftp, owner: root, group: root, mode: '0555'}
+        - name: Create service-owned HTTP temporary children
+          ansible.builtin.file:
+            path: '{{ pxe_runtime_dir }}/http/{{ item }}'
+            state: directory
+            owner: www-data
+            group: www-data
+            mode: '0700'
+          loop: [client-body, proxy, fastcgi, uwsgi, scgi]
+        - name: Install harmless public fixture files only
+          ansible.builtin.copy:
+            content: "PXE fixture: public dummy data\n"
+            dest: '{{ item }}/public-fixture.txt'
+            owner: root
+            group: root
+            mode: '0444'
+          loop: ['{{ pxe_tftp_root }}', '{{ pxe_http_root }}/rhel-10.2']
+        - name: Render the actual production templates with synthetic inputs
+          ansible.builtin.template:
+            src: 'templates/{{ item }}.j2'
+            dest: '{{ fixture_dir.path }}/config/{{ item }}'
+            owner: root
+            group: root
+            mode: '0600'
+          loop: [dnsmasq.conf, nginx.conf, ingress.nft]
+        - name: Copy reviewed verifier into root-controlled fixture directory
+          ansible.builtin.copy:
+            src: probe_packets.py
+            dest: '{{ fixture_dir.path }}/config/probe_packets.py'
+            owner: root
+            group: root
+            mode: '0600'
+        - name: Syntax-check dnsmasq before any service launch
+          ansible.builtin.command:
+            argv: [/usr/sbin/dnsmasq, --test, '--conf-file={{ fixture_dir.path }}/config/dnsmasq.conf']
+          changed_when: false
+        - name: Create namespaces individually and record ownership immediately
+          ansible.builtin.include_tasks: packet-namespace.yml
+          loop: '{{ fixture_namespaces }}'
+          loop_control:
+            loop_var: fixture_namespace
+        - name: Create veth directly between namespaces; never a host link
+          ansible.builtin.command:
+            argv: [/usr/bin/ip, -n, pfpxe-s, link, add, fixture0, type, veth, peer, name, client0, netns, pfpxe-c]
+          changed_when: true
+        - name: Configure only namespace-local interfaces and connected addresses
+          ansible.builtin.command:
+            argv: '{{ item }}'
+          loop:
+            - [/usr/bin/ip, -n, pfpxe-s, link, set, lo, up]
+            - [/usr/bin/ip, -n, pfpxe-c, link, set, lo, up]
+            - [/usr/bin/ip, -n, pfpxe-s, link, set, fixture0, address, '02:00:00:00:00:10']
+            - [/usr/bin/ip, -n, pfpxe-c, link, set, client0, address, '02:00:00:00:00:11']
+            - [/usr/bin/ip, -n, pfpxe-s, address, add, 192.0.2.10/24, dev, fixture0]
+            - [/usr/bin/ip, -n, pfpxe-c, address, add, 192.0.2.11/24, dev, client0]
+            - [/usr/bin/ip, -n, pfpxe-c, address, add, 192.0.2.12/24, dev, client0]
+            - [/usr/bin/ip, -n, pfpxe-s, link, set, fixture0, up]
+            - [/usr/bin/ip, -n, pfpxe-c, link, set, client0, up]
+          changed_when: true
+        - name: Supervise bounded observer and foreground services only in server namespace
+          ansible.builtin.command:
+            argv: '{{ item }}'
+          loop:
+            - [systemd-run, --quiet, --unit=pfpxe-fixture-observer.service, --property=Type=exec, --property=Restart=no, --property=RuntimeMaxSec=150, --property=KillMode=control-group, --, /usr/bin/ip, netns, exec, pfpxe-s, /usr/bin/python3, '{{ fixture_dir.path }}/config/probe_packets.py', --observe, '{{ fixture_dir.path }}/observations.jsonl']
+            - [systemd-run, --quiet, --unit=pfpxe-fixture-dnsmasq.service, --property=Type=exec, --property=Restart=no, --property=RuntimeMaxSec=150, --property=KillMode=control-group, --, /usr/bin/ip, netns, exec, pfpxe-s, /usr/sbin/dnsmasq, --keep-in-foreground, '--conf-file={{ fixture_dir.path }}/config/dnsmasq.conf']
+            - [systemd-run, --quiet, --unit=pfpxe-fixture-http.service, --property=Type=exec, --property=Restart=no, --property=RuntimeMaxSec=150, --property=KillMode=control-group, --, /usr/bin/ip, netns, exec, pfpxe-s, /usr/sbin/nginx, -p, '{{ fixture_dir.path }}/', -e, stderr, -c, '{{ fixture_dir.path }}/config/nginx.conf', -g, 'daemon off;']
+          changed_when: true
+        - name: Record exact transient-unit invocation identities
+          ansible.builtin.command:
+            argv: [systemctl, show, '{{ item }}', '-p', InvocationID, '--value']
+          loop: '{{ fixture_units }}'
+          register: fixture_invocations
+          changed_when: false
+        - name: Require nonempty invocation identities
+          ansible.builtin.assert:
+            that: item.stdout is match('^[0-9a-f]{32}$')
+          loop: '{{ fixture_invocations.results }}'
+        - name: Wait only for observer readiness file; no host network probe
+          ansible.builtin.wait_for:
+            path: '{{ fixture_dir.path }}/observations.jsonl'
+            search_regex: '"ready": true'
+            timeout: 5
+        - name: Read namespace-local listeners until both services are ready
+          ansible.builtin.command:
+            argv: [/usr/bin/ip, netns, exec, pfpxe-s, /usr/bin/ss, -H, -lntu]
+          register: fixture_listeners
+          changed_when: false
+          until: "':8080 ' in fixture_listeners.stdout and ':69 ' in fixture_listeners.stdout and ':4011 ' in fixture_listeners.stdout"
+          retries: 5
+          delay: 1
+        - name: Verify daemon-only positive and negative packet paths
+          ansible.builtin.command:
+            argv: [/usr/bin/ip, netns, exec, pfpxe-c, /usr/bin/python3, '{{ fixture_dir.path }}/config/probe_packets.py', --phase, daemon]
+          register: daemon_results
+          changed_when: false
+        - name: Check rules only inside the owned server namespace
+          ansible.builtin.command:
+            argv: [/usr/bin/ip, netns, exec, pfpxe-s, /usr/sbin/nft, -c, -f, '{{ fixture_dir.path }}/config/ingress.nft']
+          changed_when: false
+        - name: Apply rules only inside server namespace after daemon checks
+          ansible.builtin.command:
+            argv: [/usr/bin/ip, netns, exec, pfpxe-s, /usr/sbin/nft, -f, '{{ fixture_dir.path }}/config/ingress.nft']
+          changed_when: true
+        - name: Verify combined namespace-firewall packet paths
+          ansible.builtin.command:
+            argv: [/usr/bin/ip, netns, exec, pfpxe-c, /usr/bin/python3, '{{ fixture_dir.path }}/config/probe_packets.py', --phase, guarded]
+          register: guarded_results
+          changed_when: false
+        - name: Verify wrong-interface and source combined denial through server loopback
+          ansible.builtin.command:
+            argv: [/usr/bin/ip, netns, exec, pfpxe-s, /usr/bin/python3, '{{ fixture_dir.path }}/config/probe_packets.py', --phase, wrong-interface]
+          register: loopback_results
+          changed_when: false
+        - name: Recheck positive controls after wrong-interface negatives
+          ansible.builtin.command:
+            argv: [/usr/bin/ip, netns, exec, pfpxe-c, /usr/bin/python3, '{{ fixture_dir.path }}/config/probe_packets.py', --phase, control]
+          register: final_controls
+          changed_when: false
+        - name: Preserve bounded synthetic result summaries
+          ansible.builtin.copy:
+            content: '{{ item.content }}'
+            dest: '{{ fixture_dir.path }}/{{ item.name }}.json'
+            owner: root
+            group: root
+            mode: '0600'
+          loop:
+            - {name: daemon, content: '{{ daemon_results.stdout }}'}
+            - {name: guarded, content: '{{ guarded_results.stdout }}'}
+            - {name: wrong-interface, content: '{{ loopback_results.stdout }}'}
+            - {name: final-controls, content: '{{ final_controls.stdout }}'}
+        - name: Require server-side observation of every emitted DHCP/PXE transaction
+          ansible.builtin.command:
+            argv: [/usr/bin/python3, '{{ fixture_dir.path }}/config/probe_packets.py', --verify-observations, '{{ fixture_dir.path }}/observations.jsonl', '{{ fixture_dir.path }}/daemon.json', '{{ fixture_dir.path }}/guarded.json', '{{ fixture_dir.path }}/final-controls.json']
+          changed_when: false
+        - ansible.builtin.debug:
+            msg: 'Packet assertions passed; cleanup still must pass. Evidence retained at {{ fixture_dir.path }}. No real firmware/router validation.'
+      always:
+        - name: Clean up only verified resources belonging to this attempt
+          ansible.builtin.include_tasks: packet-cleanup.yml

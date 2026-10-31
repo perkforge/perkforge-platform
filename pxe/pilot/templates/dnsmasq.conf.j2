@@ -1,0 +1,24 @@
+# Standalone file only. Never include from the system/libvirt configuration.
+port=0
+interface={{ pxe_interface }}
+except-interface=lo
+bind-interfaces
+no-hosts
+no-resolv
+user={{ pxe_service_user }}
+group={{ pxe_service_group }}
+pid-file={{ pxe_runtime_dir }}/dnsmasq/dnsmasq.pid
+log-facility={{ pxe_log_dir }}/dnsmasq/dnsmasq.log
+log-dhcp
+# Dedicated state; never read/write the system or libvirt lease database.
+dhcp-leasefile={{ pxe_runtime_dir }}/dnsmasq/leases
+dhcp-range={{ pxe_network }},proxy,{{ pxe_netmask }}
+dhcp-host={{ pxe_pilot_mac }},set:pilot
+dhcp-ignore=tag:!pilot
+pxe-service=tag:pilot,{{ pxe_csa }},"RHEL 10.2 pilot bootloader",{{ pxe_efi_entry }},{{ pxe_server_ip }}
+enable-tftp={{ pxe_interface }}
+tftp-root={{ pxe_tftp_root }},{{ pxe_interface }}
+# Explicit root-readonly policy: root-owned, non-service-writable tree only.
+# tftp-secure is deliberately omitted: it would reject root-owned served files.
+# Recheck no symlinks or service-writable paths before a separately approved launch.
+tftp-port-range={{ pxe_tftp_first_port }},{{ pxe_tftp_last_port }}

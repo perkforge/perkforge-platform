@@ -1,0 +1,26 @@
+# REVIEW ONLY. Never flush the ruleset or alter iptables-nft/libvirt tables.
+# Check this table does not already exist before any separately approved apply.
+# accept here does not override drops in other base chains.
+table inet perkforge_pxe_pilot {
+    chain input {
+        type filter hook input priority -10; policy accept;
+        # These ports must be reserved exclusively for this pilot before activation.
+        # No IPv6 service is intended; block alternate-address/interface bypasses.
+        meta nfproto ipv6 udp dport { 4011, 69, {{ pxe_tftp_first_port }}-{{ pxe_tftp_last_port }} } drop
+        meta nfproto ipv6 tcp dport {{ pxe_http_port }} drop
+        meta nfproto ipv4 udp dport { 4011, 69, {{ pxe_tftp_first_port }}-{{ pxe_tftp_last_port }} } ip daddr != {{ pxe_server_ip }} drop
+        meta nfproto ipv4 tcp dport {{ pxe_http_port }} ip daddr != {{ pxe_server_ip }} drop
+        # DHCP before an address exists: allow source 0.0.0.0 or pilot address.
+        # Only the wired interface's DHCP server INPUT is restricted; virbr is untouched.
+        iifname "{{ pxe_interface }}" udp dport 67 ether saddr != {{ pxe_pilot_mac }} drop
+        iifname "{{ pxe_interface }}" udp dport 67 ip saddr != { 0.0.0.0, {{ pxe_pilot_ip }} } drop
+        # Separate source/interface restrictions for PXEBS and TFTP, including ACKs.
+        ip daddr {{ pxe_server_ip }} udp dport { 4011, 69, {{ pxe_tftp_first_port }}-{{ pxe_tftp_last_port }} } iifname != "{{ pxe_interface }}" drop
+        ip daddr {{ pxe_server_ip }} udp dport { 4011, 69, {{ pxe_tftp_first_port }}-{{ pxe_tftp_last_port }} } ether saddr != {{ pxe_pilot_mac }} drop
+        ip daddr {{ pxe_server_ip }} udp dport { 4011, 69, {{ pxe_tftp_first_port }}-{{ pxe_tftp_last_port }} } ip saddr != {{ pxe_pilot_ip }} drop
+        # HTTP has its own IP allowlist too; a MAC tag alone is not file-service auth.
+        ip daddr {{ pxe_server_ip }} tcp dport {{ pxe_http_port }} iifname != "{{ pxe_interface }}" drop
+        ip daddr {{ pxe_server_ip }} tcp dport {{ pxe_http_port }} ether saddr != {{ pxe_pilot_mac }} drop
+        ip daddr {{ pxe_server_ip }} tcp dport {{ pxe_http_port }} ip saddr != {{ pxe_pilot_ip }} drop
+    }
+}

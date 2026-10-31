@@ -1,0 +1,251 @@
+---
+- name: Workstation-only pilot activation; no node boot or installer action
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    pilot_activation_approved: false
+    pilot_retry_reviewed_menu: false
+    pilot_runtime: /run/perkforge-pxe-pilot
+    pilot_logs: /var/log/perkforge-pxe-pilot
+    pilot_units: [perkforge-pxe-pilot-dnsmasq.service, perkforge-pxe-pilot-http.service]
+  tasks:
+    - ansible.builtin.assert:
+        that:
+          - pilot_activation_approved | bool
+          - not ansible_check_mode
+          - inventory_hostname == 'localhost' and ansible_connection == 'local'
+          - pilot_review_dir is match('^/tmp/perkforge-pxe-review-[A-Za-z0-9-]+$')
+          - pilot_interface is match('^[A-Za-z0-9][A-Za-z0-9_.-]{0,14}$') and pilot_interface != 'lo'
+          - pilot_lifetime_seconds == 1800
+          - pilot_runtime == '/run/perkforge-pxe-pilot'
+          - pilot_logs == '/var/log/perkforge-pxe-pilot'
+        fail_msg: 'STOP: exact reviewed inputs and specific activation approval required.'
+    - name: Require absent pilot runtime/log paths; preserve partial attempts
+      ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop: ['{{ pilot_runtime }}', '{{ pilot_logs }}']
+      register: initial_paths
+    - ansible.builtin.assert:
+        that: not item.stat.exists
+      loop: '{{ initial_paths.results }}'
+    - name: Require default nginx remains masked and inactive
+      ansible.builtin.command: systemctl show nginx.service -p LoadState -p ActiveState
+      register: default_nginx
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+          - "'LoadState=masked' in default_nginx.stdout_lines"
+          - "'ActiveState=inactive' in default_nginx.stdout_lines"
+    - name: Require dedicated unit names absent
+      ansible.builtin.command:
+        argv: [systemctl, show, '{{ item }}', '-p', LoadState]
+      loop: '{{ pilot_units }}'
+      register: initial_units
+      changed_when: false
+    - ansible.builtin.assert:
+        that: item.stdout == 'LoadState=not-found'
+      loop: '{{ initial_units.results }}'
+    - name: Inspect workstation wired address without node contact
+      ansible.builtin.command:
+        argv: [/usr/bin/ip, -j, -4, address, show, dev, '{{ pilot_interface }}']
+      register: wired
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+          - (wired.stdout | from_json) | length == 1
+          - (wired.stdout | from_json)[0].operstate == 'UP'
+          - pilot_server_ip in ((wired.stdout | from_json)[0].addr_info | map(attribute='local') | list)
+          - 24 in ((wired.stdout | from_json)[0].addr_info | selectattr('local', 'equalto', pilot_server_ip) | map(attribute='prefixlen') | list)
+    - name: Read reserved-port occupancy
+      ansible.builtin.command: /usr/bin/ss -H -lntu
+      register: initial_sockets
+      changed_when: false
+    - name: Reject occupied reserved ports and unexpected DHCP bindings
+      ansible.builtin.assert:
+        that:
+          - initial_sockets.stdout_lines | select('search', ':(69|4011|8080|2000[0-9])\s') | list | length == 0
+          - initial_sockets.stdout_lines | select('search', ':67\s') | reject('search', '%virbr0:67\s') | list | length == 0
+        fail_msg: 'Reserved port or DHCP collision; do not stop existing services.'
+    - name: Require dedicated guard table absent; query errors are not treated as absence
+      ansible.builtin.command: /usr/sbin/nft -j list tables
+      register: initial_tables
+      changed_when: false
+    - ansible.builtin.assert:
+        that: "(initial_tables.stdout | from_json).nftables | selectattr('table', 'defined') | map(attribute='table') | selectattr('family', 'equalto', 'inet') | selectattr('name', 'equalto', 'perkforge_pxe_pilot') | list | length == 0"
+    - name: Record existing dnsmasq process identities privately
+      ansible.builtin.command: ps -ww -C dnsmasq -o pid=,args=
+      register: dnsmasq_before
+      changed_when: false
+      no_log: true
+    - name: Require nonempty numeric original process rows before extracting tokens
+      ansible.builtin.assert:
+        that:
+          - dnsmasq_before.stdout_lines | length > 0
+          - dnsmasq_before.stdout_lines | select('match', '^\\s*[1-9][0-9]*\\s+\\S') | list | length == dnsmasq_before.stdout_lines | length
+        fail_msg: 'Original dnsmasq PID rows are empty or invalid; no activation permitted.'
+    - name: Extract original numeric PID tokens without regex replacement escapes
+      ansible.builtin.set_fact:
+        pilot_baseline_pids: '{{ dnsmasq_before.stdout_lines | map("split") | map("first") | list }}'
+      no_log: true
+    - name: Validate exact numeric PID list and reject duplicates
+      ansible.builtin.assert:
+        that:
+          - pilot_baseline_pids | select('match', '^[1-9][0-9]*$') | list | length == pilot_baseline_pids | length
+          - pilot_baseline_pids | unique | length == pilot_baseline_pids | length
+        fail_msg: 'Original PID list failed numeric/uniqueness validation; no activation permitted.'
+    - ansible.builtin.assert:
+        that: pilot_review_hashes.keys() | sort == ['dnsmasq.conf', 'grub.cfg', 'ingress.nft', 'nginx.conf']
+    - name: Inspect reviewed source hashes without symlink traversal
+      ansible.builtin.stat:
+        path: '{{ pilot_review_dir }}/{{ item.key }}'
+        follow: false
+        checksum_algorithm: sha256
+      loop: '{{ pilot_review_hashes | dict2items }}'
+      register: sources
+    - ansible.builtin.assert:
+        that:
+          - item.stat.isreg | default(false)
+          - not item.stat.islnk | default(false)
+          - item.stat.checksum == item.item.value
+      loop: '{{ sources.results }}'
+    - name: Inspect dedicated media roots and ancestors
+      ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop: [/srv, /srv/perkforge-pxe-pilot, /srv/perkforge-pxe-pilot/tftp, /srv/perkforge-pxe-pilot/http, /srv/perkforge-pxe-pilot/http/rhel-10.2]
+      register: roots
+    - ansible.builtin.assert:
+        that: item.stat.isdir | default(false) and not (item.stat.islnk | default(false))
+      loop: '{{ roots.results }}'
+    - name: Reject special files, symlinks, wrong owners and writable staged media
+      ansible.builtin.command:
+        argv: '{{ item }}'
+      loop:
+        - [find, /srv/perkforge-pxe-pilot, -xdev, '!', -type, d, '!', -type, f, -print, -quit]
+        - [find, /srv/perkforge-pxe-pilot, -xdev, '!', -user, root, -print, -quit]
+        - [find, /srv/perkforge-pxe-pilot, -xdev, -perm, /0222, -print, -quit]
+      register: media_checks
+      changed_when: false
+    - ansible.builtin.assert:
+        that: item.stdout == ''
+      loop: '{{ media_checks.results }}'
+    - name: Reject alternative served GRUB menus
+      ansible.builtin.command:
+        argv: [find, /srv/perkforge-pxe-pilot/tftp, -name, 'grub.cfg*', -print]
+      register: menus
+      changed_when: false
+    - ansible.builtin.assert:
+        that: menus.stdout_lines == ['/srv/perkforge-pxe-pilot/tftp/EFI/BOOT/grub.cfg']
+    - ansible.builtin.stat:
+        path: /srv/perkforge-pxe-pilot/tftp/EFI/BOOT/grub.cfg
+        checksum_algorithm: sha256
+        follow: false
+      register: old_menu
+    - name: Select one exact expected pre-attempt menu hash; no broad either-or bypass
+      ansible.builtin.set_fact:
+        pilot_expected_menu_sha256: "{{ pilot_review_hashes['grub.cfg'] if pilot_retry_reviewed_menu | bool else pilot_original_menu_sha256 }}"
+    - name: Require exact stock menu for first activation or exact reviewed menu for explicit retry
+      ansible.builtin.assert:
+        that:
+          - old_menu.stat.isreg | default(false)
+          - not old_menu.stat.islnk | default(false)
+          - old_menu.stat.checksum == pilot_expected_menu_sha256
+        fail_msg: 'Current TFTP menu is not the exact expected reviewed state; stop and preserve evidence.'
+    - name: Compare critical boot assets between dedicated media trees
+      ansible.builtin.command:
+        argv: [cmp, '--', '/srv/perkforge-pxe-pilot/tftp/{{ item }}', '/srv/perkforge-pxe-pilot/http/rhel-10.2/{{ item }}']
+      loop: [EFI/BOOT/BOOTX64.EFI, EFI/BOOT/grubx64.efi, images/pxeboot/vmlinuz, images/pxeboot/initrd.img]
+      changed_when: false
+    - name: Install only reviewed root and service subtrees
+      ansible.builtin.include_tasks: activation-placement.yml
+    - name: Guard, validate LAN binding and launch bounded dedicated units
+      block:
+        - ansible.builtin.include_tasks: verify-activation-copies.yml
+        - name: Apply only dedicated ingress table before any LAN listen check
+          ansible.builtin.command:
+            argv: [/usr/sbin/nft, -f, '{{ config_session.path }}/apply-guard.nft']
+          changed_when: true
+        - name: Capture applied guard identity before starting anything
+          ansible.builtin.command: /usr/sbin/nft -j list table inet perkforge_pxe_pilot
+          register: guard_identity
+          changed_when: false
+        - ansible.builtin.copy:
+            content: '{{ guard_identity.stdout }}'
+            dest: '{{ config_session.path }}/applied-guard.json'
+            owner: root
+            group: root
+            mode: '0600'
+        - name: Validate final nginx; briefly binds and listens on LAN TCP8080 behind guard
+          ansible.builtin.command:
+            argv: [/usr/sbin/nginx, -t, -p, '{{ pilot_runtime }}/http/', -e, stderr, -c, '{{ config_session.path }}/nginx.conf']
+          changed_when: false
+        - ansible.builtin.include_tasks: verify-activation-copies.yml
+        - name: Launch bounded dedicated units; never default system services
+          ansible.builtin.command:
+            argv: '{{ item }}'
+          loop:
+            - [systemd-run, --quiet, --unit=perkforge-pxe-pilot-dnsmasq.service, --property=Type=exec, --property=Restart=no, '--property=RuntimeMaxSec={{ pilot_lifetime_seconds }}', --property=KillMode=control-group, --, /usr/sbin/dnsmasq, --keep-in-foreground, '--conf-file={{ config_session.path }}/dnsmasq.conf']
+            - [systemd-run, --quiet, --unit=perkforge-pxe-pilot-http.service, --property=Type=exec, --property=Restart=no, '--property=RuntimeMaxSec={{ pilot_lifetime_seconds }}', --property=KillMode=control-group, --, /usr/sbin/nginx, -p, '{{ pilot_runtime }}/http/', -e, stderr, -c, '{{ config_session.path }}/nginx.conf', -g, 'daemon off;']
+          changed_when: true
+        - name: Capture dedicated invocation identities
+          ansible.builtin.command:
+            argv: [systemctl, show, '{{ item }}', '-p', InvocationID, '-p', MainPID, '-p', ExecStart, '-p', ActiveState]
+          loop: '{{ pilot_units }}'
+          register: launched_units
+          changed_when: false
+        - ansible.builtin.assert:
+            that:
+              - "'ActiveState=active' in item.stdout"
+              - config_session.path in item.stdout
+              - item.stdout is search('InvocationID=[0-9a-f]{32}')
+              - item.stdout is search('MainPID=[1-9][0-9]*')
+          loop: '{{ launched_units.results }}'
+        - ansible.builtin.copy:
+            content: '{{ launched_units.results | map(attribute="stdout") | list | to_nice_json }}'
+            dest: '{{ config_session.path }}/unit-identities.json'
+            owner: root
+            group: root
+            mode: '0600'
+        - name: Recheck original dnsmasq processes without including the new pilot
+          ansible.builtin.command:
+            argv: [ps, -ww, '-p', '{{ pilot_baseline_pids | join(",") }}', '-o', 'pid=,args=']
+          register: baseline_after
+          changed_when: false
+          failed_when: false
+          no_log: true
+        - name: Report PID-query failure without exposing process arguments
+          ansible.builtin.assert:
+            that: baseline_after.rc == 0
+            fail_msg: 'Original PID query failed, exit={{ baseline_after.rc }}, expected PID count={{ pilot_baseline_pids | length }}. Pilot rollback follows; no existing service restart.'
+        - name: Require unchanged original process identities without printing arguments
+          ansible.builtin.assert:
+            that: baseline_after.stdout == dnsmasq_before.stdout
+            fail_msg: 'Original dnsmasq process identity comparison failed. Protected baseline retained; pilot rollback follows.'
+        - ansible.builtin.command: systemctl show nginx.service -p LoadState -p ActiveState
+          register: default_after
+          changed_when: false
+        - ansible.builtin.assert:
+            that: default_after.stdout == default_nginx.stdout
+        - ansible.builtin.command: /usr/bin/ss -H -lntu
+          register: active_sockets
+          changed_when: false
+        - ansible.builtin.assert:
+            that:
+              - active_sockets.stdout is search(':8080\s')
+              - active_sockets.stdout is search(':69\s')
+              - active_sockets.stdout is search(':4011\s')
+        - ansible.builtin.debug:
+            msg: 'Workstation pilot active at most1800seconds; session {{ config_session.path }}. STOP: no node boot authorized. Use reviewed shutdown.yml before leaving session.'
+      rescue:
+        - name: Save safe failure checkpoint without module arguments or output
+          ansible.builtin.set_fact:
+            pilot_failure_task: '{{ ansible_failed_task.name | default("unnamed task") }}'
+            pilot_failure_rc: '{{ ansible_failed_result.rc | default("not applicable") }}'
+        - name: Attempt only identity-verified bounded rollback
+          ansible.builtin.include_tasks: shutdown-tasks.yml
+        - ansible.builtin.fail:
+            msg: 'Activation failed at {{ pilot_failure_task }}; command exit={{ pilot_failure_rc }}. Bounded shutdown completed its assertions. Preserve output and inspect before retry; paths retained. No process arguments or output shown.'

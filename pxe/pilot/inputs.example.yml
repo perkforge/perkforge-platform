@@ -1,0 +1,34 @@
+# Operator values stay private. Nothing here authorizes activation or media access.
+pxe_interface: UNCONFIGURED
+pxe_server_ip: UNCONFIGURED
+pxe_pilot_ip: UNCONFIGURED
+pxe_pilot_mac: UNCONFIGURED
+pxe_network: UNCONFIGURED
+pxe_netmask: UNCONFIGURED
+pxe_service_user: UNCONFIGURED
+pxe_service_group: UNCONFIGURED
+# HTTP workers use a separate existing identity; never a new shared group.
+pxe_http_user: UNCONFIGURED
+pxe_http_group: UNCONFIGURED
+# Explicit review choice: root-readonly, or remain blocked. See STAGING-PROPOSAL.md.
+pxe_tftp_ownership_policy: UNCONFIGURED
+# New private output directory only; never an auto-loaded host configuration path.
+pxe_output_dir: UNCONFIGURED
+# Dedicated serving/runtime paths are proposals; prepare.yml never creates these.
+pxe_tftp_root: /srv/perkforge-pxe-pilot/tftp
+pxe_http_root: /srv/perkforge-pxe-pilot/http
+pxe_runtime_dir: /run/perkforge-pxe-pilot
+pxe_log_dir: /var/log/perkforge-pxe-pilot
+pxe_http_port: 8080
+pxe_tftp_first_port: 20000
+pxe_tftp_last_port: 20009
+# Reviewed source candidates only; actual firmware boot acceptance is runtime evidence.
+pxe_media_layout_reviewed: false
+pxe_boot_candidates_reviewed: false
+pxe_csa: UNCONFIGURED
+pxe_efi_entry: UNCONFIGURED
+pxe_grub_config_relative: UNCONFIGURED
+pxe_kernel_relative: UNCONFIGURED
+pxe_initrd_relative: UNCONFIGURED
+pxe_linux_command: UNCONFIGURED
+pxe_initrd_command: UNCONFIGURED

@@ -2,6 +2,16 @@
 
 Big Bang/Flux is the chosen platform. Start with [bootstrap tasks](big-bang-bootstrap/README.md). The previous Fleet handoff is [historical only](archive/fleet/HANDOFF.md).
 
+## Physical preparation checkpoint
+
+Verified RHEL10.2 media staging, isolated PXE/file-policy tests and operator
+workstation activation have recorded evidence; first physical network boot is
+pending. The operator paused before boot. Read the
+[physical first-boot handoff](pxe/pilot/HANDOFF.md) and
+[chronological journal](infrastructure/EXECUTION-JOURNAL.md) before any action.
+Confirm native shutdown state; retained roots intentionally block blind
+reactivation. No node OS/SSH/platform installation or disk write is implied.
+
 ## Existing local trial
 
 Historical running trial, outside the supported source workflows: two RHEL/RKE2 VMs: cks-control (192.168.122.201, 2 CPU/4 GiB, 30 GiB disk), cks-worker (.202, 2 CPU/4 GiB, 100 GiB disk). The unused AWS EC2 harness is removed from tracked source. Preserve workstation `.secrets`, backups and ignored evidence. Provisioning or teardown requires action-time approval; a merge is not live approval.
