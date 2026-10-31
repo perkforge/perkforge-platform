@@ -8,4 +8,4 @@ Never print, commit or copy credentials from `.secrets/` into tracked files. Pre
 
 Preserve evidence-producing tests when moving code; distinguish historical fixtures from current live validation. Configuration management belongs in Ansible/YAML; Python is for verification, not a new configuration generator.
 
-Maintain only the supported human-operated procedure and required implementation/tests. Do not recreate historical archives, session journals, planning folders or duplicate docs. Current network topology may include operator-approved IP/MAC metadata; credentials and private keys must remain outside tracked files.
+Maintain only the supported human-operated procedure and required implementation/tests. Do not recreate historical archives, session journals, planning folders or duplicate docs. Physical IP/MAC metadata belongs only in ignored infrastructure/ansible/inventory/.topology.yml. Public topology views show relationships without physical identifiers; credentials and private keys must remain outside tracked files.

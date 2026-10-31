@@ -20,7 +20,7 @@ Use context first, then narrow into components or an operating flow. The single
 | View | Purpose |
 |---|---|
 | index | Operator, workstation, router, selected node, custody and platform |
-| topology | Workstation/control-1/worker-1/worker-2 with wired IPs and MACs |
+| topology | Workstation/control-1/worker-1/worker-2 on the shared wired LAN |
 | workstation_detail | Inputs, dedicated services, ingress, SSH and state ownership |
 | workspace_detail / workspace_construction | Human input → fresh offline working files |
 | node_detail | Firmware, menu, interactive installer, disk and OS |
@@ -31,9 +31,9 @@ Use context first, then narrow into components or an operating flow. The single
 | service_lifecycle | Preflight, identity, exposure and scoped stop |
 | platform_detail | Separate readiness and RKE2/Rancher/Flux/Big Bang ownership |
 
-The topology's IP/MAC values are intentionally documented current operator metadata;
-credentials and host-key pin values are excluded. Nodes' source inventory is
-[infrastructure/ansible/inventory/hosts.yml](../../infrastructure/ansible/inventory/hosts.yml).
+Actual IP/MAC values and SSH identity references remain in ignored
+`infrastructure/ansible/inventory/.topology.yml` beside the public inventory skeleton.
+The private file is never copied into viewer assets or public source links.
 These views are architecture, not a live status dashboard or approval.
 
 ## View and validate

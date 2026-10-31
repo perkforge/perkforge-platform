@@ -17,3 +17,6 @@ infrastructure/ansible/vault-password.txt
 /pxe/local/
 # Current operator trust cache; public topology is documented separately.
 /infrastructure/ansible/inventory/known_hosts.local
+
+# Private physical inventory/topology; never publish hardware identifiers.
+/infrastructure/ansible/inventory/.topology.yml

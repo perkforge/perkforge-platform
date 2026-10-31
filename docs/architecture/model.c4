@@ -100,19 +100,19 @@ model {
     description 'Private keys, passwords and recovery inputs remain protected outside served content and tracked files. Public key references only in nonsecret configuration.'
     link /runbook.html#access 'Trust and custody'
   }
-  local_network = system 'Local wired LAN — 192.168.1.0/24' {
+  local_network = system 'Local wired LAN' {
     description 'Current physical inventory. Links represent SSH traffic over the shared LAN, not direct cables. IP/MAC values are explicitly documented operator metadata; confirm DHCP/address assignments before reuse.'
     link /runbook.html#topology 'Local network topology'
-    controller = component 'Workstation | 192.168.1.100 | 00:e0:4c:68:76:0c' {
+    controller = component 'Workstation' {
       description 'Wired interface enx00e04c68760c; operator SSH and temporary PXE/HTTP serving host.'
     }
-    control_1 = component 'control-1 | 192.168.1.101 | 98:fa:9b:1e:57:be' {
+    control_1 = component 'control-1' {
       description 'Installed RHEL physical node; selected server role in inventory. RKE2 is not installed.'
     }
-    worker_1 = component 'worker-1 | 192.168.1.102 | 8c:16:45:eb:7a:af' {
+    worker_1 = component 'worker-1' {
       description 'Installed RHEL physical node; selected agent role in inventory. RKE2 is not installed.'
     }
-    worker_2 = component 'worker-2 | 192.168.1.103 | 98:fa:9b:17:f6:9f' {
+    worker_2 = component 'worker-2' {
       description 'Installed RHEL physical node; selected agent role in inventory. RKE2 is not installed.'
     }
   }

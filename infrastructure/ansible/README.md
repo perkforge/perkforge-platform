@@ -9,6 +9,6 @@ The operator uses PXE and interactive Anaconda to install RHEL. Infrastructure A
 | `playbooks/install-rancher.yml` | pinned management server installation | no cluster access |
 | `playbooks/configure-rancher-oidc.yml` | explicit platform-group login and global-role bindings | no credential reads or cluster access |
 
-See [RKE2 inputs and safety](RKE2.md) and [Rancher management](rancher/README.md). The current physical inventory contains the operator-approved IP/MAC map and SSH identity references; private key bytes/passwords remain outside the repository. Its ignored known_hosts.local file retains existing verified host trust. A fresh checkout must establish trust physically before connecting.
+See [RKE2 inputs and safety](RKE2.md) and [Rancher management](rancher/README.md). The public hosts.yml is an empty skeleton. The ignored .topology.yml beside it contains the physical IP/MAC map and SSH identity references; use it explicitly with -i for approved local operations. Its ignored known_hosts.local file retains existing verified host trust. A fresh checkout must establish trust physically before connecting.
 
 All apply flags default false; check mode never contacts nodes/clusters. Source restoration is not physical-readiness or live-execution approval. RHEL, repositories, SSH/become, network/CNI/firewall, storage, TLS and capacity must be reviewed first. No VM or AWS provisioning workflow is reintroduced.

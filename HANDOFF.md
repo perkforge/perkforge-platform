@@ -16,8 +16,9 @@ to `origin` when explicitly asked; never push main or merge.
   remains under `/srv/perkforge-pxe-pilot`; retained native records remain under
   `/run/perkforge-pxe-pilot` and `/var/log/perkforge-pxe-pilot`. Repository cleanup
   does not authorize changing those resources or any node.
-- Current addresses/MACs are in the [inventory](infrastructure/ansible/inventory/hosts.yml)
-  and [C4 topology](docs/architecture/README.md). Current host trust is retained in
+- Current addresses/MACs remain only in ignored
+  `infrastructure/ansible/inventory/.topology.yml`. Public C4 topology shows
+  relationships without physical identifiers. Current host trust is retained in
   ignored `infrastructure/ansible/inventory/known_hosts.local`; actual private key
   remains in the workstation SSH store, outside this working tree.
 

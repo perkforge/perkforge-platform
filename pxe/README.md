@@ -6,7 +6,9 @@ installer, bootstrap-account framework or AI dependency. The retained scripts an
 Ansible playbooks run only when an operator invokes and approves them.
 
 [Current network inventory](../infrastructure/ansible/inventory/hosts.yml) and the
-[C4 topology](../docs/architecture/README.md) identify the workstation and nodes.
+[C4 topology](../docs/architecture/README.md) describe the workstation and nodes.
+Actual IP/MAC values are in ignored `infrastructure/ansible/inventory/.topology.yml`;
+pass that file explicitly as the Ansible inventory for approved node operations.
 [HANDOFF.md](../HANDOFF.md) contains current readiness, not a session history.
 
 ## 1. Prerequisites and media

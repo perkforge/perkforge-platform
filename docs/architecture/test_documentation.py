@@ -139,21 +139,15 @@ class Documentation(unittest.TestCase):
             self.assertIn(boundary,section)
         self.assertIn('href="#workspace"',page.split('<section id="prepare">',1)[1].split('</section>',1)[0])
 
-    def test_topology_matches_current_inventory_without_other_private_addresses(self):
+    def test_public_topology_excludes_physical_identifiers(self):
         inventory=yaml.safe_load((REPO/'infrastructure/ansible/inventory/hosts.yml').read_text())['all']
-        expected={'Workstation':(inventory['vars']['workstation_address'],inventory['vars']['workstation_mac'])}
-        for group in inventory['children'].values():
-            for name,node in group['hosts'].items():expected[name]=(node['ansible_host'],node['pxe_boot_mac'])
-        model=(ROOT/'model.c4').read_text()
-        views=(ROOT/'views.c4').read_text()
-        page=(ROOT/'public/runbook.html').read_text()
-        self.assertIn('view topology of local_network',views)
-        allowed_ips={'192.168.1.0'}
-        allowed_macs=set()
-        for name,(address,mac) in expected.items():
-            self.assertIn(name+' | '+address+' | '+mac,model)
-            self.assertIn('<td>'+address+'</td><td>'+mac+'</td>',page)
-            allowed_ips.add(address);allowed_macs.add(mac)
-        text=model+views+page
-        self.assertLessEqual(set(re.findall(r'\b192\.168\.[0-9]+\.[0-9]+\b',text)),allowed_ips)
-        self.assertEqual(set(re.findall(r'\b(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\b',text)),allowed_macs)
+        self.assertTrue(all(not group['hosts'] for group in inventory['children'].values()))
+        text=''.join((ROOT/name).read_text() for name in ['model.c4','views.c4','public/runbook.html'])
+        self.assertIn('view topology of local_network',text)
+        for name in ['Workstation','control-1','worker-1','worker-2']:
+            self.assertIn(name,text)
+        self.assertNotRegex(text,r'\b192\.168\.[0-9]+\.[0-9]+\b')
+        self.assertNotRegex(text,r'\b(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}\b')
+        helper=(ROOT/'scripts/prepare-sources.mjs').read_text()
+        self.assertNotIn('.topology.yml',helper)
+        self.assertIn('/infrastructure/ansible/inventory/.topology.yml', (REPO/'.gitignore').read_text())

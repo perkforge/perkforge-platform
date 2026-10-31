@@ -1,13 +1,13 @@
 views {
   view index {
     title 'Physical provisioning — system context'
-    description 'Start here, then click workstation, node or platform to narrow the architecture. Use operations for the repeatable process; protocol, installation, access and lifecycle views provide detail. Select topology for the actual workstation/three-node IP/MAC map. These views are documentation, not live status or approval.'
+    description 'Start here, then click workstation, node or platform to narrow the architecture. Use operations for the repeatable process; protocol, installation, access and lifecycle views provide detail. Select topology for the workstation/three-node relationships. These views are documentation, not live status or approval.'
     link /runbook.html 'Operating runbook'
     include engineer, router, workstation, node, approval, custody, platform
   }
   view topology of local_network {
     title 'Topology — workstation and three physical nodes'
-    description 'Wired LAN192.168.1.0/24. Each device label shows its IPv4 and MAC address. Arrows are SSH traffic across the existing LAN, not point-to-point wiring. Inventory is infrastructure/ansible/inventory/hosts.yml; credentials and host public-key pins are excluded from this diagram.'
+    description 'Workstation and three nodes share the existing wired LAN. Arrows show SSH traffic, not point-to-point wiring. Actual IP/MAC values remain in the ignored inventory/.topology.yml, excluded from the public viewer.'
     link /runbook.html#topology 'Inventory and network roles'
     include controller, control_1, worker_1, worker_2
   }
