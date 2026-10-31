@@ -1,0 +1,15 @@
+# Managed by PerkForge lab DNS.
+[Unit]
+Description=PerkForge local application DNS
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=/usr/sbin/dnsmasq --test --conf-file=/etc/dnsmasq.d/perkforge-lab.conf
+ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --conf-file=/etc/dnsmasq.d/perkforge-lab.conf
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

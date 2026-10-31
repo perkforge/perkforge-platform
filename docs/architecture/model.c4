@@ -1,0 +1,212 @@
+specification {
+  element actor { style { shape person } }
+  element system
+  element component
+  element boundary { style { color red } }
+}
+
+model {
+  engineer = actor 'Platform engineer' {
+    description 'Selects the physical target, approves disk/data loss and access scope, operates firmware/installer and verifies trusted host identity. Enters credentials locally.'
+    link /runbook.html#operator 'Operator responsibilities'
+  }
+  router = system 'Existing LAN router' {
+    description 'Sole DHCP address allocator. Workstation proxy supplies boot information, never an address pool.'
+    link /runbook.html#boot 'Boot protocol'
+  }
+  workstation = system 'Engineer workstation' {
+    description 'Runs reviewed Ansible PXE lifecycle, dedicated boot/source services and SSH client. Existing system/libvirt services remain separate.'
+    link /runbook.html#prepare 'Preparation and prerequisites'
+    workspace = component 'Per-node private working directory' {
+      description 'Ignored pxe/local/worker-x/runs/run workspace; mode0700 directories and0600 metadata/evidence. Tracked offline workspace.yml rebuilds fresh artifacts from backed-up nonsecret inputs without AI or live operations.'
+      link /runbook.html#workspace 'Directory construction and artifact ownership'
+      link /sources/workspace.yml 'Offline Ansible rebuild source'
+      target_inputs = component 'Target inputs and provenance' {
+        description 'Generated README and inputs.yml snapshot record confirmed node/network identity and source references. Extract only required nonsecret inventory fields; unresolved identity stays UNCONFIGURED. Credentials remain in protected custody.'
+      }
+      discovery = component 'Discovery configuration and lifecycle evidence' {
+        description 'Retained rendered configuration, activation-review.yml hashes, generated standard session.sh caller and unique private logs/exit summaries. Root service state is separate; retained roots require reviewed preservation before reuse.'
+      }
+      access = component 'Per-run host trust and access evidence' {
+        description 'Fresh access/handoff-* directory: untrusted host-key candidate, physical-console trust confirmation, pinned known_hosts, read-only inspection and step results. Historical per-run launchers are not required by the rebuild recipe. Existing private key referenced in custody, never copied here.'
+      }
+    }
+    review = component 'Private target inputs and reviewed configuration' {
+      description 'Target/network identity, verified media, boot paths, service identities and hashes. Ansible renders inert files into a fresh private review directory; review before activation.'
+      link /sources/prepare.yml 'Transport preparation source'
+      link /sources/inputs.example.yml 'Nonsecret input schema'
+    }
+    lifecycle = component 'Ansible activation / shutdown' {
+      description 'Preflight, root-controlled copies, guard before LAN listeners, dedicated transient units and identity-checked rollback/shutdown. Runtime/log roots retained; existing roots cause stop for reviewed recovery.'
+      link /runbook.html#lifecycle 'Lifecycle and recovery contract'
+      link /sources/activate.yml 'Activation source'
+      link /sources/shutdown.yml 'Shutdown source'
+    }
+    guard = component 'Dedicated nft ingress table' {
+      description 'Restricts reviewed interface/client/ports before LAN binding. MAC/IP restrictions are spoofable, not authentication. Never edit unrelated tables.'
+      link /sources/ingress.nft.j2 'Ingress template'
+    }
+    proxy = component 'Proxy DHCP / dnsmasq' {
+      description 'Dedicated dnsmasq process supplies PXE boot metadata. Router keeps address allocation; system/libvirt dnsmasq identities are preserved.'
+      link /sources/dnsmasq.conf.j2 'Proxy and TFTP template'
+    }
+    tftp = component 'Read-only TFTP boot tree' {
+      description 'Vendor shim/GRUB, indefinite default-exit menu, kernel/initrd. Root-owned read-only media, reviewed hashes and a single GRUB lookup path.'
+      link /sources/grub.cfg.j2 'GRUB menu template'
+    }
+    http = component 'nginx / read-only RHEL DVD tree' {
+      description 'Full verified DVD tree including .treeinfo serves runtime/packages on reviewed TCP8080. Dedicated service identity/state. No passwords, hashes or private keys in served content.'
+      link /sources/nginx.conf.j2 'HTTP template'
+    }
+    ssh = component 'SSH client / public-key enrollment' {
+      description 'Shared access.sh requires physical-confirmed pinned host trust and existing key reference. Standard SSH tools enroll the public key, verify fresh access, transfer/hash the checked helper and prove a separate fresh key-only/password-sudo connection.'
+      link /runbook.html#access 'Access handoff'
+      link /sources/access.sh 'Shared handoff caller'
+    }
+    evidence = component 'Protected transaction and operational logs' {
+      description 'Root-protected active record, config hashes, unit invocation identities and guard identity. Private automatic output/exit summary honors no_log and excludes terminal/password capture. Preserve failed attempts without overwriting.'
+      link /runbook.html#lifecycle 'Evidence and ownership'
+    }
+  }
+  node = system 'Selected physical node' {
+    description 'Physical RHEL target. Repeat the process only for an explicitly selected node; preserve other installed nodes. Session status and approvals live in the handoff, not this model.'
+    link /runbook.html#approve 'Target and erase review'
+    firmware = component 'UEFI / boot selection' {
+      description 'Retain Secure Boot. Prefer one-time wired IPv4 PXE; if interrupt is unreliable, temporarily put network first in Startup / Primary Boot Sequence. Record original order. Inspect Primary and Automatic Boot Sequence; restore disk-first in the relevant sequences and verify boot with Ethernet connected.'
+      link /runbook.html#boot 'Firmware and restoration'
+    }
+    menu = component 'Indefinite GRUB menu' {
+      description 'Default exit with timeout disabled. Reaching GRUB proves menu acceptance only, not a remote shell or disk inventory. Interactive installer selection is a separate approved action. Exit does not guarantee disk boot.'
+      link /runbook.html#boot 'Menu acceptance'
+    }
+    installer = component 'RHEL Anaconda interactive installer' {
+      description 'Minimal Install, reviewed hostname/wired networking, custom storage and root-disabled named administrator. Review only selected-disk changes before committing. Source stays available until installation finishes.'
+      link /runbook.html#install 'Repeatable installation settings'
+    }
+    disk = component 'Reviewed system disk' {
+      description 'For interactive single-disk install, review model/capacity/device and sole internal-drive status. Approve all data loss for this node. Device names are not persistent identity for automated disk erasure.'
+      link /runbook.html#approve 'Disk identification and data loss'
+    }
+    os = component 'Installed RHEL / OpenSSH / sudo' {
+      description 'Local-disk boot and trusted host identity precede public-key enrollment, key-only SSH verification and password-authenticated sudo. OS/access success does not establish RKE2 readiness.'
+      link /runbook.html#verify 'Verification requirements'
+    }
+  }
+  approval = boundary 'Target, exposure, erase and access scope' {
+    description 'Review each new physical target. Approval for boot services, network boot, installer inspection, erase and access changes has distinct scope. Prior-node approval does not transfer.'
+    link /runbook.html#approve 'Approval boundaries'
+  }
+  custody = system 'Protected credential custody / recovery' {
+    description 'Private keys, passwords and recovery inputs remain protected outside served content and tracked files. Public key references only in nonsecret configuration.'
+    link /runbook.html#access 'Trust and custody'
+  }
+  local_network = system 'Local wired LAN' {
+    description 'Current physical inventory. Links represent SSH traffic over the shared LAN, not direct cables. Actual IP/MAC values remain in ignored local inventory; confirm DHCP/address assignments before reuse.'
+    link /runbook.html#topology 'Local network topology'
+    controller = component 'Workstation' {
+      description 'Operator SSH and temporary PXE/HTTP serving host on the wired LAN.'
+    }
+    control_1 = component 'control-1' {
+      description 'RHEL host assigned the RKE2 server/control-plane/etcd role.'
+    }
+    worker_1 = component 'worker-1' {
+      description 'RHEL host assigned an RKE2 agent/workload role.'
+    }
+    worker_2 = component 'worker-2' {
+      description 'RHEL host assigned an RKE2 agent/workload role.'
+    }
+  }
+  platform = system 'Host readiness and platform ownership' {
+    description 'Separate from OS installation. Infrastructure Ansible owns host/RKE2; platform Ansible owns gated Rancher API configuration. Flux owns optional Big Bang Longhorn/Rancher Helm deployments and GitOps and Big Bang supplies curated platform packages.'
+    link /runbook.html#platform 'Platform responsibilities'
+    readiness = boundary 'Host readiness / separate approval' {
+      description 'Review repositories, Python, time, kernel prerequisites, networking/CNI, firewall, SELinux and capacity before cluster changes. Installed OS and working SSH alone are insufficient.'
+    }
+    rke2 = component 'Physical RKE2 cluster' {
+      description 'One server with embedded etcd and two agents; not HA. Canal owns pod networking and Traefik handles ingress. SELinux remains enforcing. Infrastructure Ansible owns host preparation, pinned RPM install and serial joins. Separate server/agent tokens and admin kubeconfig remain in protected custody. Server token plus matching etcd snapshots are needed for recovery; node Ready is not backup validation.'
+      link /runbook.html#rke2 'Cluster architecture and repeat process'
+      server = component 'Single control-plane / embedded etcd server' {
+        description 'Pinned RPM installation with enforcing SELinux; owns API, registration and datastore. Loss or reboot of this host interrupts the control plane; workers do not provide etcd quorum. Explicit worker-first reboot verification requires changed boot IDs, automatic service recovery and API/node readiness before continuing. It is limited to bootstrap-only workloads, not HA failover or production workload maintenance.'
+      }
+      agents = component 'Two serially joined worker agents' {
+        description 'Run workloads and join using the shared separate agent-only token in secure format, without receiving the server token.'
+      }
+      networking = component 'Canal / CoreDNS / Traefik' {
+        description 'Pod networking, cluster DNS and ingress. Local application suffix is perkforge.home.arpa: headlamp, keycloak, rancher and openbao use separate hostnames. The existing RKE2 Traefik DaemonSet binds host ports 80/443 on all three nodes; selecting a worker ingress address does not require a new load balancer but creates a worker availability dependency. BGW320-500 remains the household gateway/DHCP owner. Lab DNS is an installed, enabled DNS-only host service on control-1 outside Kubernetes, with four application records pointing to worker-1. LAN UDP/TCP and forwarding checks passed; actual service reboot recovery is untested. Workstation split DNS now routes lab queries via its existing loopback resolver to control-1 and other queries to the gateway; persistent NetworkManager DNS priority excludes gateway bypass without disabling IPv6. All three node resolvers now use control-1 directly with persistent DNS priority and successful host checks. CoreDNS completed an approved rolling refresh with two healthy replicas; lab UDP/TCP, internal service discovery and public forwarding passed through its service from control-1. Workload-specific/host-network DNS policies and API OIDC remain unverified. Local PKI issuance completed with an encrypted root and four separate one-year hostname server certificates in protected workstation custody. Independent offline backup is unconfirmed. Only the public CA is intended for trust stores and each service receives its own leaf/key; public OS CA trust is installed on the workstation/nodes with all16 leaf checks passed. Firefox was reopened and its active certificate-install policy confirmed by the operator; live browser HTTPS is unverified. No private keys were distributed and no cluster Secrets installed. Application TLS delivery is prepared with separate namespace-only and credential gates, published clean source and exact-cluster checks. It creates Headlamp/Keycloak/Rancher leaf Secrets and Headlamp/Rancher public CA resources without RBAC, storage, routes or activation. Delivery and OpenBao internal TLS still require separate approval; authored URLs create neither records nor certificates. Host preparation persists modules/sysctls, excludes virtual interfaces from NetworkManager and explicitly disables firewalld for Canal compatibility. An explicit disposable two-worker smoke test checks DNS, cross-worker pod HTTP and ClusterIP access, then verifies owned namespace cleanup; it does not prove ingress or policy isolation.'
+      }
+      operator_access = component 'Private administrator kubeconfig' {
+        description 'Mode0600 credentials with the reviewed API endpoint. Use the protected bundled client; default kubeconfig replacement requires an explicit operator request.'
+      }
+      recovery = component 'Server token and matching etcd snapshots' {
+        description 'Keep protected off-node copies together for recovery. The explicit backup check creates a named snapshot, requires an unchanged server token, compares transfer size/SHA256 and validates the embedded integrity trailer without restart/restore. Exported tokens or their ZIP alone do not back up etcd. Byte integrity is separate from database consistency and restore validation. Etcd snapshots do not contain application PV data; that requires its own backup. The existing Keycloak specification uses a retained 4Gi local PV with unset worker/path and no enforced quota. Prepared optional Big Bang Longhorn 1.13.0 package proposes two Longhorn replicas on distinct workers, initially around 80–100Gi logical capacity, no data replicas on control-1, bounded retention, independent backups and later dedicated worker disks. Not installed or a claim of HA. Read-only host audit confirms worker identity, XFS/shared propagation and capacity; approved iSCSI/module/service and directory preparation completed on both workers. SELinux stays enforcing; queried capability/socket rules are present, while runtime contexts and I/O remain unverified. Actual claims require later runtime validation.'
+      }
+    }
+    storage = component 'Longhorn application storage' {
+      description 'Prepared optional Big Bang custom package; Flux reconciles its pinned upstream chart only after explicit selection/unpause. No storage is installed. Host prerequisites and labels remain separately approved infrastructure work.'
+      link /runbook.html#storage 'Storage ownership, rollout and testing'
+      volumes = component 'Retained expandable application volumes' {
+        description 'Nondefault StorageClass, two replicas, WaitForFirstConsumer. Keycloak depends on Longhorn and its alternate PVC overlay removes the old static PV binding. Future Harbor, portal, Nextcloud and OpenBao claims need explicit sizing.'
+      }
+      replica_pair = component 'Replicas on two distinct workers' {
+        description 'Worker-only placement and disk labels exclude control-1 from application-data replicas. V1 engine, no overprovisioning, root-disk headroom and bounded snapshots; add dedicated disks as measured growth requires. One worker outage leaves a single surviving copy until rebuild.'
+      }
+      backups = component 'Independent application-data backups' {
+        description 'Protect personal files, databases and secret recovery separately. Replication/Retain do not protect against deletion or corruption, and etcd snapshots do not contain PV contents. Independent custody and restore tests are required before relying on personal-data storage.'
+      }
+    }
+    rancher = component 'Rancher cluster lifecycle administration' {
+      description 'Optional Big Bang custom package, reconciled by Flux; unselected/suspended until reviewed DNS/TLS and external bootstrap credentials. No Longhorn/PVC prerequisite for the server Helm deployment. Ansible handles gated OIDC/admin API configuration after Keycloak is ready; host/RKE2 recovery remains independent.'
+    }
+    flux = component 'Flux GitOps reconciliation'
+    bigbang = component 'Big Bang platform packages'
+    enrollment = component 'Tenant enrollment repository' {
+      // Not selected in the local root until core platform readiness.
+      description 'Owns tenant foundations and registration.'
+    }
+    applications = component 'Application repositories' {
+      description 'Own application configuration and tenant deployments.'
+    }
+  }
+
+  local_network.controller -> local_network.control_1 'SSH / TCP22 over shared LAN'
+  local_network.controller -> local_network.worker_1 'SSH / TCP22 over shared LAN'
+  local_network.controller -> local_network.worker_2 'SSH / TCP22 over shared LAN'
+  engineer -> workstation 'Reviews inputs; runs approved lifecycle and SSH'
+  engineer -> node 'Firmware, installer and trusted physical identity'
+  engineer -> approval 'Approves exact target and action scope'
+  router -> node 'DHCP lease'
+  workstation -> node 'PXE/TFTP, HTTP source and SSH'
+  custody -> workstation 'Protected local credential use'
+  engineer -> workstation.workspace.target_inputs 'Confirm selected-node metadata and provenance'
+  workstation.workspace.target_inputs -> workstation.review 'Private inputs for shared Ansible rendering'
+  workstation.review -> workstation.workspace.discovery 'Retain reviewed copies and exact source hashes'
+  workstation.workspace.discovery -> workstation.lifecycle 'Reviewed target-specific launcher and snapshot'
+  workstation.ssh -> workstation.workspace.access 'Per-run trust and access evidence'
+  workstation.review -> workstation.lifecycle 'Reviewed configuration and hashes'
+  workstation.lifecycle -> workstation.guard 'Exclusive table before LAN listeners'
+  workstation.lifecycle -> workstation.proxy 'Dedicated transient unit'
+  workstation.proxy -> workstation.tftp 'Serves requested boot assets'
+  workstation.lifecycle -> workstation.http 'Separate dedicated transient unit'
+  workstation.lifecycle -> workstation.evidence 'Record transaction, identities and result'
+  node.firmware -> node.menu 'Vendor boot chain and reviewed menu'
+  node.menu -> node.installer 'Explicit installer selection'
+  node.installer -> node.disk 'Commit reviewed layout only after erase approval'
+  node.installer -> node.os 'Install then boot local disk'
+  workstation.ssh -> node.os 'Host-verified key-only SSH and password-sudo'
+  node.os -> platform.readiness 'Separate readiness assessment'
+  platform.readiness -> platform.rke2 'Approved host/cluster preparation'
+  platform.rke2.agents -> platform.rke2.server 'Secure agent registration'
+  platform.rke2.server -> platform.rke2.networking 'Install cluster networking and ingress'
+  platform.rke2.agents -> platform.rke2.networking 'Run per-node networking'
+  platform.rke2.operator_access -> platform.rke2.server 'TLS-authenticated Kubernetes API'
+  platform.rke2.server -> platform.rke2.recovery 'Preserve datastore and bootstrap recovery material'
+  platform.storage.volumes -> platform.storage.replica_pair 'Persist two copies on distinct workers'
+  platform.storage.replica_pair -> platform.storage.backups 'Separate protected backup and restore process'
+  platform.bigbang -> platform.storage 'Declares optional chart and dependencies'
+  platform.bigbang -> platform.rancher 'Declares optional management chart'
+  platform.flux -> platform.storage 'Reconciles approved Helm deployment'
+  platform.rancher -> platform.rke2 'Platform-admin lifecycle'
+  platform.flux -> platform.bigbang 'Reconcile platform packages'
+  platform.flux -> platform.enrollment 'Optional later enrollment; currently excluded locally'
+  platform.flux -> platform.applications 'Reconcile application configuration'
+}

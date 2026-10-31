@@ -102,6 +102,7 @@ jobs:
       run: |
         python3 -m unittest discover -s big-bang-bootstrap/tests -v
         python3 -m unittest discover -s infrastructure/ansible/tests -v
+        python3 -m unittest discover -s pxe/tests -v
         python3 -m unittest discover -s evidence/tests -v
     # Historical released fixture keeps its original path; new layout needs a new release.
     - name: Verify tag-aware bootstrap without Kubernetes access

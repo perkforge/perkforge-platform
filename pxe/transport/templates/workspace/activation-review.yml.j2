@@ -1,0 +1,11 @@
+# Generated snapshot of actual bytes, not a record of human approval.
+pilot_review_dir: {{ workspace_review_dir | to_json }}
+pilot_interface: {{ pxe_interface | to_json }}
+pilot_server_ip: {{ pxe_server_ip | to_json }}
+pilot_lifetime_seconds: {{ workspace_lifetime_seconds }}
+pilot_retry_reviewed_menu: {{ (workspace_menu_state == 'reviewed') | to_json }}
+pilot_original_menu_sha256: {{ (workspace_render_hashes['grub.cfg'] if workspace_menu_state == 'reviewed' else workspace_stock_menu_sha256) | to_json }}
+pilot_review_hashes:
+{% for name, sha in workspace_render_hashes | dictsort %}
+  {{ name }}: {{ sha }}
+{% endfor %}

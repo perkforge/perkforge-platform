@@ -3,7 +3,7 @@ import os,re,json,subprocess
 from pathlib import Path
 import yaml
 EXAMPLES=Path(__file__).resolve().parents[2]
-PREFIX='example.perkforge.io/'
+PREFIX='platform.perkforge.io/'
 KEYS=('cluster','environment','profile')
 def build(path):
     output = subprocess.check_output(

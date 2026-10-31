@@ -1,0 +1,154 @@
+views {
+  view index {
+    title 'Physical provisioning — system context'
+    description 'Start here, then click workstation, node or platform to narrow the architecture. Use operations for the repeatable process; protocol, installation, access and lifecycle views provide detail. Select topology for the workstation/three-node relationships. These views are documentation, not live status or approval.'
+    link /runbook.html 'Operating runbook'
+    include engineer, router, workstation, node, approval, custody, platform
+  }
+  view topology of local_network {
+    title 'Topology — workstation and three physical nodes'
+    description 'Workstation and three nodes share the existing wired LAN. Arrows show SSH traffic, not point-to-point wiring. Actual IP/MAC values remain in the ignored inventory/.topology.yml, excluded from the public viewer.'
+    link /runbook.html#topology 'Inventory and network roles'
+    include controller, control_1, worker_1, worker_2
+  }
+  view workstation_detail of workstation {
+    title 'Workstation — PXE services, ownership and evidence'
+    description 'Ansible manages reviewed private configuration and dedicated serving resources; the router and existing system/libvirt services remain separate. Boot media is public/nonsecret; transaction records and credentials are protected.'
+    include workspace, review, lifecycle, guard, proxy, tftp, http, ssh, evidence
+  }
+  view workspace_detail of workstation.workspace {
+    title 'Private node workspace — inputs, discovery and access artifacts'
+    description 'Narrow from workstation to the ignored per-node directory. Metadata/review files are not live service configuration or secret custody; runtime/log roots and staged media stay outside this tree. See construction flow and linked directory recipe.'
+    link /runbook.html#workspace 'Directory layout and creation recipe'
+    include target_inputs, discovery, access
+  }
+  dynamic view workspace_construction {
+    title 'Construct a worker workspace — provenance through retained evidence'
+    description 'Tracked offline Ansible rebuild from a backed-up input file; generated working artifacts are reproducible, unique evidence and credentials require restore or new verification. Keep private target values in ignored files, use fresh output/run names and review each launcher against the exact retained state. No credentials or session timelines in this model.'
+    link /runbook.html#workspace 'Repeatable workspace construction'
+    engineer -> workstation.workspace.target_inputs '1. Supply backed-up confirmed metadata and a fresh node/run label'
+    engineer -> workstation.workspace.target_inputs '2. Validate names, metadata, destination absence and safe ancestor ownership'
+    workstation.workspace.target_inputs -> workstation.review '3. workspace.yml invokes shared prepare.yml for a fresh private render'
+    workstation.review -> workstation.workspace.discovery '4. Assemble protected run, retained renders, input snapshot and exact hash manifest'
+    engineer -> workstation.workspace.discovery '5. Generate standard session caller; human reviews content and approves action separately'
+    workstation.workspace.discovery -> workstation.lifecycle '6. Separate approved preserve/start verifies retained state and installs native copies'
+    workstation.lifecycle -> workstation.workspace.discovery '7. Save unique private logs and bounded exit summaries; preserve prior evidence'
+    workstation.ssh -> workstation.workspace.access '8. Later approved access run creates fresh host-trust and verification evidence'
+  }
+  view node_detail of node {
+    title 'Physical node — firmware through installed OS'
+    description 'Menu acceptance, disk inspection, erase approval, installation and first disk boot are separate transitions. Firmware selection and installer settings are operator steps in this interactive process.'
+    include firmware, menu, installer, disk, os
+  }
+  dynamic view operations {
+    title 'Repeat physical installation — operations 1–7'
+    description 'Interactive RHEL installation using the existing PXE transport. Each stage links to required inputs, operator actions and completion checks. Review actions for each target; do not inherit a previous node approval.'
+    link /runbook.html 'Repeatable runbook'
+    engineer -> workstation.review '1. Prepare reviewed PXE configuration' {
+      navigateTo workspace_construction
+      notes '[1. Prepare](/runbook.html#prepare). Operator: select node/network/media and review configuration. Automation: Ansible renders fresh private review files only. Evidence / stop: verified media/assets and hashes; missing prerequisites or existing output stop preparation.'
+    }
+    engineer -> approval '2. Review target, disk and action scope' {
+      notes '[2. Review](/runbook.html#approve). Operator: approve service exposure and boot; inspect disk before separate erase/access decisions. Automation: activation enforces service preflight, not disk identity. Evidence / stop: exact selected node and sufficient disk evidence; stop for ambiguity or consequential scope changes.'
+    }
+    engineer -> node.firmware '3. Activate PXE and select network boot' {
+      navigateTo boot_protocol
+      notes '[3. Boot](/runbook.html#boot). Operator: run approved activation then select wired UEFI IPv4 PXE, retaining Secure Boot; record temporary Primary Boot Sequence change if needed. Automation: dedicated services serve a client-initiated exchange. Evidence / stop: reviewed indefinite GRUB menu; menu arrival is not installer or erase approval.'
+    }
+    engineer -> node.installer '4. Install RHEL with reviewed settings' {
+      navigateTo installation
+      notes '[4. Install](/runbook.html#install). Operator: review disk/layout, Minimal Install, hostname/network and root-disabled named administrator; commit only approved storage changes. Automation: Anaconda installs from HTTP source. Evidence / stop: installation completion; retain source services and stop on unexpected disks or errors.'
+    }
+    engineer -> node.os '5. Restore disk-first and boot installed OS' {
+      notes '[5. First boot](/runbook.html#firstboot). Operator: after installation completes, restore disk-first Primary Boot Sequence before normal boot. Automation: firmware boots the installed disk. Evidence / stop: installed OS login and expected hostname, no installer loop; retain source until no longer needed.'
+    }
+    workstation.ssh -> node.os '6. Verify identity, key login and sudo' {
+      navigateTo security_handoff
+      notes '[6. Verify](/runbook.html#verify). Operator: compare full host fingerprint through physical console and enter credentials locally. Automation: standard SSH tools enroll the public key; approved policy hardening requires syntax/effective-policy validation. Evidence / stop: fresh key-only login and password-sudo; retain recovery access on failure. Cluster readiness is separate.'
+    }
+    engineer -> workstation.lifecycle '7. Stop owned services and retain evidence' {
+      navigateTo service_lifecycle
+      notes '[7. Cleanup](/runbook.html#cleanup). Operator: authorize shutdown once source is no longer needed and read its result. Automation: verify transaction/unit/guard identity, stop only owned resources and check original services unchanged. Evidence / stop: owned processes/listeners/guard gone, logs retained; report incomplete on mismatch.'
+    }
+  }
+  dynamic view boot_protocol {
+    variant sequence
+    title 'Boot protocol — router DHCP, proxy PXE, TFTP and HTTP'
+    description 'Reference exchange, not a packet trace. Router allocates; proxy supplies boot information. GRUB can wait indefinitely before the separately approved installer choice. PXE does not provide a remote disk-inventory service.'
+    link /runbook.html#boot 'Boot settings and checks'
+    node.firmware -> router '1. Client requests DHCP lease (UDP68 → UDP67)'
+    router -> node.firmware '2. Router allocates address'
+    node.firmware -> workstation.proxy '3. PXE/proxy boot-information exchange'
+    workstation.proxy -> node.firmware '4. Metadata only, no address allocation'
+    node.firmware -> workstation.tftp '5. Request vendor shim/GRUB and config (TFTP UDP69 + reviewed transfer ports)'
+    workstation.tftp -> node.menu '6. Indefinite default-exit menu'
+    engineer -> node.menu '7. Select interactive installer within approved scope'
+    node.menu -> workstation.tftp '8. Request kernel/initrd'
+    node.menu -> node.installer '9. Boot installer initramfs'
+    node.installer -> workstation.http '10. HTTP TCP8080: runtime and package requests'
+    workstation.http -> node.installer '11. Full verified DVD tree including .treeinfo'
+  }
+  dynamic view installation {
+    title 'Installation detail — interactive disk, layout and account review'
+    description 'Manual Anaconda path. Pending partition edits are reviewed before Begin Installation commits storage changes. This process does not establish unattended Kickstart or automatic credential handoff support.'
+    link /runbook.html#install 'Exact repeat settings'
+    engineer -> node.installer '1. Language → Installation Summary → inspect destination'
+    node.installer -> engineer '2. Review internal disk count, model, capacity and device'
+    engineer -> approval '3. Approve this target disk data loss and account scope'
+    engineer -> node.disk '4. Custom layout:600MiB EFI,2GiB XFS /boot, remaining XFS LVM root'
+    engineer -> node.installer '5. Minimal Install; hostname/wired network; root disabled, named admin'
+    engineer -> node.installer '6. Review only selected-disk changes; Begin Installation'
+    node.installer -> workstation.http '7. Fetch packages; keep source available through completion'
+    engineer -> node.firmware '8. After completion restore disk-first before normal boot'
+    node.firmware -> node.os '9. Verify installed OS boots'
+  }
+  dynamic view security_handoff {
+    title 'Access handoff — host trust, public key and fresh verification'
+    description 'Standard tools and explicit access scope; credentials stay local. Initial installed-host SSH availability must be inspected. Any temporary password-SSH window needs separate approval, a bounded purpose and verified closure.'
+    link /runbook.html#access 'Access procedure and boundaries'
+    engineer -> node.os '1. Physical console: confirm hostname, address and complete host fingerprint'
+    engineer -> workstation.ssh '2. Compare full fingerprint before accepting host trust'
+    custody -> workstation.ssh '3. Existing private key stays protected; local password/passphrase input'
+    workstation.ssh -> node.os '4. Approved public-key enrollment with standard tools'
+    workstation.ssh -> node.os '5. Fresh key-only login before policy change'
+    engineer -> node.os '6. Approved hardening: validate syntax/effective policy then reload'
+    workstation.ssh -> node.os '7. Fresh key-only login and password-authenticated sudo'
+    node.os -> platform.readiness '8. Separate host readiness and cluster approval'
+  }
+  dynamic view service_lifecycle {
+    title 'PXE lifecycle — preflight, exposure, identity and shutdown'
+    description 'Reusable ownership contract for existing Ansible components. Fresh activation refuses retained roots/units; recovery requires a new exact-state review. No broad reset, service termination or evidence deletion.'
+    link /runbook.html#lifecycle 'Preflight, recovery and shutdown'
+    engineer -> workstation.lifecycle '1. Approve reviewed service scope and lifetime'
+    workstation.lifecycle -> workstation.review '2. Check hashes, interface, media, free ports and original services'
+    workstation.lifecycle -> workstation.evidence '3. Root-controlled unique config; retain transaction record'
+    workstation.lifecycle -> workstation.guard '4. Exclusive dedicated guard before LAN bindings'
+    workstation.lifecycle -> workstation.proxy '5. Launch dedicated dnsmasq unit'
+    workstation.lifecycle -> workstation.http '6. Launch dedicated HTTP unit'
+    workstation.lifecycle -> workstation.evidence '7. Verify runtime/listeners/original services; save private result'
+    engineer -> workstation.lifecycle '8. Explicit shutdown after source no longer needed'
+    workstation.lifecycle -> workstation.evidence '9. Check exact config/invocation/guard ownership; preserve on mismatch'
+    workstation.lifecycle -> workstation.guard '10. Stop owned units, verify listeners/processes gone, remove matching guard'
+    workstation.lifecycle -> workstation.evidence '11. Retain runtime/log evidence; verify original services preserved'
+  }
+  view platform_detail of platform {
+    title 'Platform boundary — readiness and ownership'
+    description 'Separate operating scope after OS/access. Infrastructure Ansible owns host/RKE2/Rancher configuration; Rancher owns platform-admin cluster lifecycle, Flux owns GitOps and Big Bang supplies curated packages. Enrollment and application repositories retain their respective ownership.'
+    link /runbook.html#platform 'Platform readiness and responsibilities'
+    include readiness, rke2, storage, rancher, flux, bigbang, enrollment, applications
+  }
+  view rke2_detail of platform.rke2 {
+    title 'RKE2 — server, workers, networking, access and recovery'
+    description 'One server and two agents, without HA. Readiness is separate from workload/network, reboot and recovery validation. Application storage is a separate decision. Actual topology and all credentials stay private.'
+    link /runbook.html#rke2 'Architecture and human repeat process'
+    include server, agents, networking, operator_access, recovery
+  }
+
+  view storage_detail of platform.storage {
+    title 'Storage — application claims, worker replicas and independent backups'
+    description 'Prepared design, not installed. Storage-first rollout supports stateful apps; Rancher Helm has no storage dependency. Read-only host compatibility precedes installation, then disposable PVC persistence/reattach tests. No live bootstrap is authorized by this diagram.'
+    link /runbook.html#storage 'Storage rollout and next tests'
+    include volumes, replica_pair, backups
+  }
+
+}

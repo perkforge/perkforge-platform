@@ -1,0 +1,17 @@
+# Controller-side platform OIDC inputs; override with reviewed external vars.
+rancher_oidc_apply: false
+rancher_kubectl: kubectl
+rancher_kubeconfig: /UNCONFIGURED/kubeconfig
+rancher_context: UNCONFIGURED
+rancher_cluster_uid: UNCONFIGURED
+rancher_hostname: rancher.perkforge.home.arpa
+rancher_oidc_client_id: rancher
+rancher_oidc_issuer: https://keycloak.perkforge.home.arpa/auth/realms/perkforge
+rancher_oidc_secret_file: /UNCONFIGURED/rancher-oidc-secret
+rancher_management_groups:
+- genericoidc_group:///platform/admins
+# No developer/tenant role mapping. Separate engineer grants need reviewed inputs.
+rancher_management_bindings:
+- name: platform-admins
+  groupPrincipalName: genericoidc_group:///platform/admins
+  globalRoleName: admin

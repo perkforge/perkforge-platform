@@ -1,7 +1,0 @@
-name: local-lab-openbao-support
-labels:
-  local-lab.homelab/component: openbao-support
-# Fleet creates these two new namespaces before the support chart claims them.
-# Adopt only the reviewed resources in this new platform-owned bundle.
-helm:
-  takeOwnership: true

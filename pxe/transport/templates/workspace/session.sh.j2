@@ -1,0 +1,35 @@
+#!/bin/bash
+# Generated thin caller. Configuration and lifecycle stay in tracked Ansible.
+# Never source, trace, tee, or record terminal/password input.
+set -euo pipefail
+[[ $# == 2 && $2 == approved && $1 =~ ^(start|stop|preserve)$ ]] || {
+  echo 'Usage: bash session.sh {start|stop|preserve} approved; review the exact action first.' >&2; exit 2;
+}
+here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+repo={{ workspace_repo | quote }}
+umask 077
+log_file=$(mktemp "$here/discovery/$1-output-XXXXXXXX.log")
+summary="${log_file%.log}.summary.txt"
+export ANSIBLE_LOG_PATH="$log_file"
+export ANSIBLE_DISPLAY_ARGS_TO_STDOUT=false
+export ANSIBLE_VERBOSITY=0
+rc=0
+case "$1" in
+ start)
+  ansible-playbook -i localhost, -c local --ask-become-pass "$repo/pxe/transport/activate.yml" \
+    -e "@$here/discovery/activation-review.yml" \
+    -e pilot_activation_approved=true -e pilot_manual_stop_session_approved=true || rc=$?
+  ;;
+ stop)
+  ansible-playbook -i localhost, -c local --ask-become-pass "$repo/pxe/transport/shutdown.yml" \
+    -e pilot_shutdown_approved=true || rc=$?
+  ;;
+ preserve)
+  ansible-playbook -i localhost, -c local --ask-become-pass "$repo/pxe/transport/preserve-session.yml" \
+    -e "@$here/inputs.yml" -e workspace_preservation_approved=true || rc=$?
+  ;;
+esac
+{ printf 'Action: %s\nExit status: %s\nAnsible log: %s\n' "$1" "$rc" "$log_file"; printf 'No node boot, installation, credential operation or evidence deletion. Nonzero exit: inspect before retry.\n'; } > "$summary"
+chmod 0600 "$log_file" "$summary"
+printf 'Private result summary: %s (exit %s)\n' "$summary" "$rc"
+exit "$rc"

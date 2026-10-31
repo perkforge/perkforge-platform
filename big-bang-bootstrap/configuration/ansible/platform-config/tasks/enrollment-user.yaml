@@ -14,7 +14,7 @@
       enabled: true
       firstName: Platform
       lastName: Admin Test
-      email: platform-admin-test-user@example.invalid
+      email: platform-admin-test-user@test.invalid
       emailVerified: true
       requiredActions: []
       credentials:
@@ -37,7 +37,7 @@
       - enrollment_saved_users.json | length == 1
       - enrollment_saved_users.json[0].username == enrollment_username
       - enrollment_saved_users.json[0].enabled
-      - enrollment_saved_users.json[0].email == 'platform-admin-test-user@example.invalid'
+      - enrollment_saved_users.json[0].email == 'platform-admin-test-user@test.invalid'
   no_log: true
 - name: Record only the created user ID for safe idempotent ownership checks
   ansible.builtin.copy:

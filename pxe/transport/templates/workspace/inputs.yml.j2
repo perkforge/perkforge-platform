@@ -1,0 +1,13 @@
+# Generated allowlisted metadata only. Back up the original human-maintained input.
+workspace_node: {{ workspace_node | to_json }}
+workspace_run: {{ workspace_run | to_json }}
+workspace_metadata_source: {{ workspace_metadata_source | to_json }}
+workspace_menu_state: {{ workspace_menu_state | to_json }}
+workspace_stock_menu_sha256: {{ workspace_stock_menu_sha256 | to_json }}
+workspace_lifetime_seconds: {{ workspace_lifetime_seconds }}
+workspace_previous_review_file: {{ workspace_previous_review_file | to_json }}
+workspace_previous_config_dir: {{ workspace_previous_config_dir | to_json }}
+workspace_hold_label: {{ workspace_hold_label | to_json }}
+{% for key in ['pxe_interface', 'pxe_server_ip', 'pxe_pilot_ip', 'pxe_pilot_mac', 'pxe_network', 'pxe_netmask', 'pxe_service_user', 'pxe_service_group', 'pxe_http_user', 'pxe_http_group', 'pxe_tftp_ownership_policy', 'pxe_efi_entry', 'pxe_grub_config_relative', 'pxe_kernel_relative', 'pxe_initrd_relative', 'pxe_linux_command', 'pxe_initrd_command', 'pxe_tftp_root', 'pxe_http_root', 'pxe_runtime_dir', 'pxe_log_dir', 'pxe_http_port', 'pxe_tftp_first_port', 'pxe_tftp_last_port', 'pxe_csa', 'pxe_media_layout_reviewed', 'pxe_boot_candidates_reviewed'] %}
+{{ key }}: {{ lookup('vars', key) | to_json }}
+{% endfor %}

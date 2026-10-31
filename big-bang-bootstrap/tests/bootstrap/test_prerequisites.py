@@ -24,13 +24,14 @@ class PrerequisiteTests(unittest.TestCase):
         self.assertFalse(any('headlamp' in o['metadata']['name'] for o in packages['keycloak']))
 
     def test_ansible_orders_common_before_only_selected_package(self):
-        for package, playbook in [('headlamp', 'headlamp-prerequisites'), ('keycloak', 'keycloak-prerequisites')]:
+        for package, playbook in [('headlamp', 'headlamp-prerequisites'), ('longhorn', 'longhorn-prerequisites'), ('rancher', 'rancher-prerequisites'), ('keycloak', 'keycloak-prerequisites')]:
             play = yaml.safe_load((ROOT / 'configuration/ansible' / (playbook + '.yaml')).read_text())[0]
             block = next(task['block'] for task in play['tasks'] if 'block' in task)
             apply = next(task for task in block if 'loop' in task and 'ansible.builtin.command' in task)
-            if package == 'headlamp':
-                self.assertEqual(apply['loop'], ['bigbang', 'headlamp'])
+            if package != 'keycloak':
+                self.assertEqual(apply['loop'], ['bigbang', package])
             else:
-                self.assertEqual([item['path'] for item in apply['loop'][:2]],
-                                 ['packages/bigbang/prerequisites', 'packages/keycloak/prerequisites'])
+                from jinja2 import Environment
+                paths=[Environment().from_string(item['path']).render(keycloak_storage_backend='longhorn') for item in apply['loop'][:2]]
+                self.assertEqual(paths,['packages/bigbang/prerequisites','packages/keycloak/prerequisites-longhorn'])
                 self.assertNotIn('headlamp', str(apply))

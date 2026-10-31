@@ -1,0 +1,43 @@
+# Optional upstream Rancher chart; unselected and child release explicitly paused.
+packages:
+  rancher:
+    enabled: true
+    sourceType: helmRepo
+    namespace:
+      name: cattle-system
+      create: false
+    helmRelease:
+      namespace: bigbang
+    helmRepo:
+      repoName: rancher-official
+      chartName: rancher
+      tag: 2.15.2
+    wrapper:
+      enabled: false
+    bbCommonValues: false
+    passBigBangValues: false
+    includeDefaultDependsOn: false
+    flux:
+      suspend: true
+      serviceAccountName: rancher-installer
+      storageNamespace: bigbang
+      timeout: 10m
+      install:
+        createNamespace: false
+        remediation: {retries: 0}
+      upgrade:
+        remediation: {retries: 0}
+    values:
+      hostname: rancher.perkforge.home.arpa
+      replicas: 1
+      features: continuous-delivery=false
+      agentTLSMode: strict
+      privateCA: true
+      additionalTrustedCAs: true
+      ingress:
+        ingressClassName: traefik
+        tls:
+          source: secret
+          secretName: tls-rancher-ingress
+      # Bootstrap password comes from a required external values Secret,
+      # appended to the generated HelmRelease by the outer post-renderer.

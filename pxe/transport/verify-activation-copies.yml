@@ -1,0 +1,27 @@
+---
+- name: Rehash root-controlled copies immediately before use
+  ansible.builtin.stat:
+    path: '{{ config_session.path }}/{{ item.key }}'
+    follow: false
+    checksum_algorithm: sha256
+  loop: '{{ pilot_review_hashes | dict2items }}'
+  register: verified_copies
+- ansible.builtin.assert:
+    that:
+      - item.stat.isreg | default(false)
+      - not item.stat.islnk | default(false)
+      - item.stat.uid == 0 and item.stat.mode == '0600'
+      - item.stat.checksum == item.item.value
+  loop: '{{ verified_copies.results }}'
+
+- name: Recheck actual served menu after placement before network exposure
+  ansible.builtin.stat:
+    path: /srv/perkforge-pxe-pilot/tftp/EFI/BOOT/grub.cfg
+    follow: false
+    checksum_algorithm: sha256
+  register: current_served_menu
+- ansible.builtin.assert:
+    that:
+      - current_served_menu.stat.isreg | default(false)
+      - not current_served_menu.stat.islnk | default(false)
+      - current_served_menu.stat.checksum == (pilot_review_hashes['grub.cfg'] if pilot_menu_placed | default(false) else pilot_expected_menu_sha256)

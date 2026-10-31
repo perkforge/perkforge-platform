@@ -4,4 +4,4 @@ metadata:
   name: headlamp
   labels:
     app.kubernetes.io/managed-by: Ansible
-    example.perkforge.io/stage: local-headlamp
+    app.kubernetes.io/component: headlamp

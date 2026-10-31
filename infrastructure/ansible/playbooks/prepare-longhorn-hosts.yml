@@ -1,0 +1,41 @@
+---
+- name: Select reviewed Longhorn workers without connections by default
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    longhorn_host_prepare_apply: false
+    longhorn_host_prepare_reviewed: false
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Longhorn host preparation apply={{ longhorn_host_prepare_apply | bool }}; check={{ ansible_check_mode }}. No default connections.'
+  - name: Validate the exact worker preparation scope
+    when: longhorn_host_prepare_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - longhorn_host_prepare_reviewed | bool
+        - groups.get('rke2_agents', []) | sort == ['worker-1', 'worker-2']
+        - groups.get('rke2_servers', []) == ['control-1']
+        - (groups['rke2_agents'] + groups['rke2_servers']) | unique | length == 3
+    - ansible.builtin.assert:
+        that:
+        - hostvars[item].ansible_host | default('UNCONFIGURED') != 'UNCONFIGURED'
+        - hostvars[item].ansible_user | default('UNCONFIGURED') != 'UNCONFIGURED'
+      loop: '{{ groups["rke2_agents"] }}'
+    - ansible.builtin.add_host:
+        name: '{{ item }}'
+        groups: longhorn_approved_workers
+      loop: '{{ groups["rke2_agents"] }}'
+
+- name: Prepare only the two reviewed workers for the Longhorn V1 engine
+  hosts: longhorn_approved_workers
+  serial: 1
+  any_errors_fatal: true
+  gather_facts: false
+  become: true
+  tasks:
+  - name: Prepare hosts only in an approved noncheck invocation
+    when: longhorn_host_prepare_apply | default(false) | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.include_tasks: ../tasks/prepare-longhorn.yml

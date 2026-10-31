@@ -1,0 +1,54 @@
+---
+- name: Separately approved CoreDNS rolling resolver refresh
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    coredns_refresh_apply: false
+    coredns_refresh_kubeconfig: /UNCONFIGURED/kubeconfig
+    coredns_refresh_kubectl: /UNCONFIGURED/kubectl
+    coredns_refresh_expected_cluster_uid: UNCONFIGURED
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'CoreDNS refresh apply={{ coredns_refresh_apply | bool }}; check={{ ansible_check_mode }}. Defaults/check mode never contact Kubernetes.'
+  - name: Refresh only the reviewed two-replica DNS deployment
+    when: coredns_refresh_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - coredns_refresh_kubeconfig is match('^/')
+        - not coredns_refresh_kubeconfig.startswith('/UNCONFIGURED/')
+        - coredns_refresh_kubectl is match('^/')
+        - not coredns_refresh_kubectl.startswith('/UNCONFIGURED/')
+        - coredns_refresh_expected_cluster_uid is match('^[0-9a-f-]{36}$')
+    - ansible.builtin.set_fact:
+        coredns_refresh_cli: ['{{ coredns_refresh_kubectl }}', --kubeconfig, '{{ coredns_refresh_kubeconfig }}', --request-timeout=20s]
+    - ansible.builtin.command:
+        argv: "{{ coredns_refresh_cli + ['get', 'namespace', 'kube-system', '-o', 'jsonpath={.metadata.uid}'] }}"
+      changed_when: false
+      register: coredns_refresh_identity
+    - ansible.builtin.assert:
+        quiet: true
+        that: coredns_refresh_identity.stdout == coredns_refresh_expected_cluster_uid
+    - ansible.builtin.command:
+        argv: "{{ coredns_refresh_cli + ['get', 'deployment', 'rke2-coredns-rke2-coredns', '-n', 'kube-system', '-o', 'json'] }}"
+      changed_when: false
+      register: coredns_refresh_before
+    - ansible.builtin.set_fact:
+        coredns_refresh_deployment: '{{ coredns_refresh_before.stdout | from_json }}'
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - coredns_refresh_deployment.spec.replicas == 2
+        - coredns_refresh_deployment.status.availableReplicas == 2
+        - coredns_refresh_deployment.spec.strategy.type == 'RollingUpdate'
+        - coredns_refresh_deployment.spec.strategy.rollingUpdate.maxUnavailable == 1
+        - coredns_refresh_deployment.spec.template.spec.dnsPolicy == 'Default'
+    - name: Roll the deployment to inherit the prepared node resolver files
+      ansible.builtin.command:
+        argv: "{{ coredns_refresh_cli + ['rollout', 'restart', 'deployment/rke2-coredns-rke2-coredns', '-n', 'kube-system'] }}"
+    - name: Wait for the replacement replicas before reporting success
+      ansible.builtin.command:
+        argv: "{{ coredns_refresh_cli + ['rollout', 'status', 'deployment/rke2-coredns-rke2-coredns', '-n', 'kube-system', '--timeout=180s'] }}"
+      changed_when: false

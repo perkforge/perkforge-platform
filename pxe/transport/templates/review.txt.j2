@@ -1,0 +1,31 @@
+WORKSTATION-ONLY OFFLINE REVIEW; rendering performs no service/media/firewall operation.
+NODE-FACING RUNTIME EVIDENCE PENDING: firmware architecture advertisement, Secure Boot
+acceptance (db/dbx/SBAT), actual TFTP/GRUB requests and installer/kernel acceptance.
+Reviewed candidates below are not observations of a successful node boot.
+Pilot: {{ pxe_pilot_ip }} / {{ pxe_pilot_mac }} via {{ pxe_interface }}
+Server: {{ pxe_server_ip }}; proxy subnet {{ pxe_network }} netmask {{ pxe_netmask }}
+TFTP root: {{ pxe_tftp_root }}
+Reviewed EFI entry: {{ pxe_efi_entry }}; numeric CSA: {{ pxe_csa }}
+Reviewed GRUB staging path: {{ pxe_grub_config_relative }}
+Reviewed kernel/initrd: {{ pxe_kernel_relative }} / {{ pxe_initrd_relative }}
+HTTP tree: {{ pxe_http_root }}/rhel-10.2 (full DVD, including .treeinfo)
+Runtime: {{ pxe_runtime_dir }}; logs: {{ pxe_log_dir }}
+TFTP identity: {{ pxe_service_user }} / {{ pxe_service_group }} (must already exist)
+HTTP identity: {{ pxe_http_user }} / {{ pxe_http_group }} (separate existing account)
+TFTP ownership policy: {{ pxe_tftp_ownership_policy }}; must be explicitly accepted.
+Root-owned 0555 directories/0444 files; no symlinks or service write grants.
+No tftp-secure ownership mode; dedicated-root confinement is mandatory.
+HTTP TCP {{ pxe_http_port }}; TFTP UDP 69,{{ pxe_tftp_first_port }}-{{ pxe_tftp_last_port }}; proxy UDP 67/4011, client 68
+Dedicated nft table: inet perkforge_pxe_pilot; no existing table edits.
+No lease allocation, DNS, RA, router override, Kickstart, unattended disk action.
+Flags acknowledge operator review, not automatic media/signature verification.
+Next: review actual inputs, firmware trust, package/native syntax, media and rule coexistence.
+
+PROPOSED WORKSTATION PERMISSIONS (not applied by rendering):
+Runtime/log parents root:root0711 (traverse only; no service listing/write).
+Runtime/config root:root0700; final standalone configs root:root0600.
+Runtime/dnsmasq and log/dnsmasq {{ pxe_service_user }}:{{ pxe_service_group }}0700.
+Runtime/http and log/http {{ pxe_http_user }}:{{ pxe_http_group }}0700.
+HTTP body/proxy/fastcgi/uwsgi/scgi children same HTTP owner0700.
+Service-owned runtime paths are never authoritative process identity; use recorded
+transient-unit InvocationID/MainPID/ExecStart and root-owned config hashes.

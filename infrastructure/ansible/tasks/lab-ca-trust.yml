@@ -1,0 +1,91 @@
+---
+- ansible.builtin.command:
+    argv: [hostname]
+  register: lab_ca_target_hostname
+  changed_when: false
+- ansible.builtin.assert:
+    quiet: true
+    that: lab_ca_target_hostname.stdout | trim == (lab_ca_expected_workstation_hostname if lab_ca_is_workstation else inventory_hostname)
+- ansible.builtin.setup:
+    gather_subset: [min]
+- ansible.builtin.assert:
+    quiet: true
+    that:
+    - (lab_ca_is_workstation and ansible_facts.distribution == 'Debian') or (not lab_ca_is_workstation and ansible_facts.distribution == 'RedHat' and ansible_facts.distribution_version == '10.2')
+- ansible.builtin.set_fact:
+    lab_ca_anchor: '{{ "/usr/local/share/ca-certificates/perkforge-home-lab-root.crt" if lab_ca_is_workstation else "/etc/pki/ca-trust/source/anchors/perkforge-home-lab-root.crt" }}'
+- name: Ensure the RHEL certificate verification command is available
+  ansible.builtin.dnf:
+    name: openssl
+    state: present
+  when: not lab_ca_is_workstation
+- ansible.builtin.stat:
+    path: '{{ lab_ca_anchor }}'
+    follow: false
+  register: lab_ca_existing
+- ansible.builtin.assert:
+    quiet: true
+    that:
+    - not lab_ca_existing.stat.exists or (lab_ca_existing.stat.isreg | default(false) and not (lab_ca_existing.stat.islnk | default(false)) and lab_ca_existing.stat.uid == 0)
+- name: Permit resuming only with the same installed public CA
+  when: lab_ca_existing.stat.exists
+  block:
+  - ansible.builtin.command:
+      argv: [openssl, x509, -in, '{{ lab_ca_anchor }}', -noout, -fingerprint, -sha256]
+    register: lab_ca_previous_fingerprint
+    changed_when: false
+  - ansible.builtin.assert:
+      quiet: true
+      that: lab_ca_previous_fingerprint.stdout == lab_ca_expected_fingerprint
+      fail_msg: 'Different installed lab CA requires explicit rotation review.'
+- name: Copy only the public CA certificate
+  ansible.builtin.copy:
+    src: '{{ lab_ca_public_file }}'
+    dest: '{{ lab_ca_anchor }}'
+    owner: root
+    group: root
+    mode: '0644'
+- name: Refresh the OS trust bundle
+  ansible.builtin.command:
+    argv: '{{ ["/usr/sbin/update-ca-certificates"] if lab_ca_is_workstation else ["update-ca-trust", "extract"] }}'
+- name: Verify the public CA is trusted through the default OpenSSL store
+  ansible.builtin.command:
+    argv: [openssl, verify, '{{ lab_ca_anchor }}']
+  changed_when: false
+- name: Verify the installed public certificate fingerprint
+  ansible.builtin.command:
+    argv: [openssl, x509, -in, '{{ lab_ca_anchor }}', -noout, -fingerprint, -sha256]
+  register: lab_ca_installed_fingerprint
+  changed_when: false
+- ansible.builtin.assert:
+    quiet: true
+    that: lab_ca_installed_fingerprint.stdout == lab_ca_expected_fingerprint
+- name: Verify issued service certificates using the OS default trust store
+  ansible.builtin.command:
+    argv: [openssl, verify, -verify_hostname, '{{ item }}.perkforge.home.arpa', -purpose, sslserver]
+    stdin: '{{ lookup("ansible.builtin.file", lab_ca_leaf_bundle ~ "/" ~ item ~ "/tls.crt") }}'
+  loop: [headlamp, keycloak, rancher, openbao]
+  changed_when: false
+- name: Prepare the approved Firefox certificate install policy only on workstation
+  when: lab_ca_is_workstation
+  block:
+  - ansible.builtin.stat:
+      path: /etc/firefox/policies/policies.json
+      follow: false
+    register: lab_ca_firefox_file
+  - ansible.builtin.assert:
+      quiet: true
+      that: not lab_ca_firefox_file.stat.exists
+      fail_msg: 'Existing Firefox policy requires merge review; no policy is overwritten.'
+  - ansible.builtin.file:
+      path: /etc/firefox/policies
+      state: directory
+      owner: root
+      group: root
+      mode: '0755'
+  - ansible.builtin.copy:
+      dest: /etc/firefox/policies/policies.json
+      owner: root
+      group: root
+      mode: '0644'
+      content: '{{ {"policies": {"Certificates": {"Install": [lab_ca_anchor]}}} | to_nice_json }}'

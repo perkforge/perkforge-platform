@@ -1,0 +1,101 @@
+---
+- name: Render review files locally only; never stage media or configure services
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  vars_files: [inputs.example.yml]
+  tasks:
+  - name: Require explicit safe pilot identity and reviewed source boot candidates
+    ansible.builtin.assert:
+      that:
+      - pxe_interface != 'UNCONFIGURED'
+      - pxe_interface is match('^[A-Za-z0-9][A-Za-z0-9_.-]{0,14}\Z')
+      - pxe_interface != 'lo'
+      - pxe_server_ip is match('^([0-9]{1,3}\.){3}[0-9]{1,3}\Z')
+      - pxe_pilot_ip is match('^([0-9]{1,3}\.){3}[0-9]{1,3}\Z')
+      - pxe_network is match('^([0-9]{1,3}\.){3}[0-9]{1,3}\Z')
+      - pxe_netmask is match('^([0-9]{1,3}\.){3}[0-9]{1,3}\Z')
+      - pxe_server_ip != pxe_pilot_ip
+      - pxe_netmask == '255.255.255.0'
+      - pxe_network.split('.')[-1] == '0'
+      - pxe_server_ip.split('.')[:3] == pxe_network.split('.')[:3]
+      - pxe_pilot_ip.split('.')[:3] == pxe_network.split('.')[:3]
+      - pxe_server_ip.split('.')[-1] | int > 0 and pxe_server_ip.split('.')[-1] | int < 255
+      - pxe_pilot_ip.split('.')[-1] | int > 0 and pxe_pilot_ip.split('.')[-1] | int < 255
+      - pxe_pilot_mac is match('^([0-9a-f]{2}:){5}[0-9a-f]{2}\Z')
+      - pxe_pilot_mac != '00:00:00:00:00:00'
+      - pxe_pilot_mac[1] in '02468ace'
+      - pxe_service_user != 'UNCONFIGURED' and pxe_service_user != 'root'
+      - pxe_service_group != 'UNCONFIGURED' and pxe_service_group != 'root'
+      - pxe_service_user is match('^[a-z_][a-z0-9_-]*\Z')
+      - pxe_service_group is match('^[a-z_][a-z0-9_-]*\Z')
+      - pxe_http_user != 'UNCONFIGURED' and pxe_http_user != 'root'
+      - pxe_http_group != 'UNCONFIGURED' and pxe_http_group != 'root'
+      - pxe_http_user is match('^[a-z_][a-z0-9_-]*\Z')
+      - pxe_http_group is match('^[a-z_][a-z0-9_-]*\Z')
+      - pxe_http_user != pxe_service_user
+      - pxe_http_group != pxe_service_group
+      - pxe_tftp_ownership_policy == 'root-readonly'
+      - pxe_media_layout_reviewed | bool
+      - pxe_boot_candidates_reviewed | bool
+      - pxe_csa | string in ['7', '9']
+      - (pxe_linux_command == 'linux' and pxe_initrd_command == 'initrd') or (pxe_linux_command == 'linuxefi' and pxe_initrd_command == 'initrdefi')
+      - pxe_http_port | string is match('^[0-9]+\Z')
+      - pxe_tftp_first_port | string is match('^[0-9]+\Z')
+      - pxe_tftp_last_port | string is match('^[0-9]+\Z')
+      - pxe_http_port | int > 1024 and pxe_http_port | int < 65536
+      - pxe_tftp_first_port | int > 1024
+      - pxe_tftp_last_port | int >= pxe_tftp_first_port | int
+      - pxe_tftp_last_port | int < 65536
+      - not (pxe_tftp_first_port | int <= 4011 and pxe_tftp_last_port | int >= 4011)
+      - pxe_tftp_last_port | int - pxe_tftp_first_port | int < 32
+      fail_msg: 'Missing or unsafe inputs: no files rendered. Source-candidate flags record review; actual firmware acceptance remains pending.'
+  - name: Validate IPv4 octets before writing any files
+    ansible.builtin.assert:
+      that: item | int >= 0 and item | int <= 255
+    loop: "{{ (pxe_server_ip + '.' + pxe_pilot_ip + '.' + pxe_network + '.' + pxe_netmask).split('.') }}"
+  - name: Require reviewed relative media paths without traversal or config injection
+    ansible.builtin.assert:
+      that:
+      - item != 'UNCONFIGURED'
+      - item is match('^[A-Za-z0-9][A-Za-z0-9_./-]+\Z')
+      - "'..' not in item.split('/')"
+      - "'//' not in item"
+    loop: ['{{ pxe_efi_entry }}', '{{ pxe_grub_config_relative }}', '{{ pxe_kernel_relative }}', '{{ pxe_initrd_relative }}']
+  - name: Require reviewed EFI/config file types and distinct boot assets
+    ansible.builtin.assert:
+      that:
+      - pxe_efi_entry | lower is search('\.efi\Z')
+      - pxe_grub_config_relative is search('grub\.cfg\Z')
+      - pxe_kernel_relative != pxe_initrd_relative
+  - name: Require separate fixed pilot service paths and a private review-only output path
+    ansible.builtin.assert:
+      that:
+      - pxe_tftp_root == '/srv/perkforge-pxe-pilot/tftp'
+      - pxe_http_root == '/srv/perkforge-pxe-pilot/http'
+      - pxe_runtime_dir == '/run/perkforge-pxe-pilot'
+      - pxe_log_dir == '/var/log/perkforge-pxe-pilot'
+      - pxe_output_dir is match('^/[A-Za-z0-9_./-]+\Z')
+      - pxe_output_dir.startswith('/tmp/')
+      - "'..' not in pxe_output_dir.split('/')"
+      - pxe_output_dir | realpath == pxe_output_dir
+  - name: Inspect output path only; never overwrite existing files or directories
+    ansible.builtin.stat:
+      path: '{{ pxe_output_dir }}'
+      follow: false
+    register: pilot_output
+  - ansible.builtin.assert:
+      that: not pilot_output.stat.exists
+      fail_msg: 'Choose a new review directory; existing operator files are preserved.'
+  - name: Create private review directory, never a serving/runtime directory
+    ansible.builtin.file:
+      path: '{{ pxe_output_dir }}'
+      state: directory
+      mode: '0700'
+  - name: Render inert review files; no handlers or command execution
+    ansible.builtin.template:
+      src: 'templates/{{ item }}.j2'
+      dest: '{{ pxe_output_dir }}/{{ item }}'
+      mode: '0600'
+    loop: [dnsmasq.conf, nginx.conf, grub.cfg, ingress.nft, review.txt]

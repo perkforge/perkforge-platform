@@ -12,3 +12,14 @@ ansible/vault-password.txt
 **/__pycache__/
 infrastructure/ansible/.vault-pass
 infrastructure/ansible/vault-password.txt
+
+# Generated private provisioning review output, never source or install media.
+/pxe/local/
+# Current operator trust cache; public topology is documented separately.
+/infrastructure/ansible/inventory/known_hosts.local
+
+# Private physical inventory/topology; never publish hardware identifiers.
+/infrastructure/ansible/inventory/.topology.yml
+# Private cluster credentials and operator output; never publish.
+/infrastructure/ansible/inventory/.rke2-state/
+/infrastructure/ansible/inventory/rke2-state.zip

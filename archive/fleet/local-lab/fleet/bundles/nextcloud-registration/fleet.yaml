@@ -1,3 +1,0 @@
-name: local-lab-nextcloud-registration
-dependsOn:
-- name: local-lab-nextcloud-support

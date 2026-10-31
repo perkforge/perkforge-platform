@@ -1,0 +1,86 @@
+---
+- name: Select explicitly approved public CA trust targets
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    lab_ca_trust_apply: false
+    lab_ca_trust_workstation: false
+    lab_ca_trust_nodes: false
+    lab_ca_public_file: /UNCONFIGURED/root-ca.crt
+    lab_ca_expected_fingerprint: UNCONFIGURED
+    lab_ca_leaf_bundle: /UNCONFIGURED/leaf-bundle
+    lab_ca_expected_workstation_hostname: UNCONFIGURED
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'CA trust apply={{ lab_ca_trust_apply | bool }}; check={{ ansible_check_mode }}. Only the public CA is distributed.'
+  - name: Validate the public certificate before selecting hosts
+    when: lab_ca_trust_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - lab_ca_trust_workstation | bool or lab_ca_trust_nodes | bool
+        - lab_ca_public_file is match('^/')
+        - not lab_ca_public_file.startswith('/UNCONFIGURED/')
+        - lab_ca_public_file | realpath == lab_ca_public_file
+        - lab_ca_expected_fingerprint != 'UNCONFIGURED'
+        - lab_ca_leaf_bundle is match('^/')
+        - not lab_ca_leaf_bundle.startswith('/UNCONFIGURED/')
+    - ansible.builtin.stat:
+        path: '{{ lab_ca_public_file }}'
+        follow: false
+      register: lab_ca_source
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - lab_ca_source.stat.isreg | default(false)
+        - not (lab_ca_source.stat.islnk | default(false))
+    - name: Verify the selected public root against the recorded issuance fingerprint
+      ansible.builtin.command:
+        argv: [openssl, x509, -in, '{{ lab_ca_public_file }}', -noout, -fingerprint, -sha256]
+      changed_when: false
+      register: lab_ca_fingerprint
+    - ansible.builtin.assert:
+        quiet: true
+        that: lab_ca_fingerprint.stdout == lab_ca_expected_fingerprint
+    - ansible.builtin.command:
+        argv: [openssl, x509, -in, '{{ lab_ca_public_file }}', -noout, -ext, basicConstraints]
+      changed_when: false
+      register: lab_ca_constraints
+    - ansible.builtin.assert:
+        quiet: true
+        that: "'CA:TRUE' in lab_ca_constraints.stdout"
+    - name: Select only the approved workstation
+      ansible.builtin.add_host:
+        name: lab_ca_workstation
+        groups: lab_ca_approved_targets
+        ansible_connection: local
+        lab_ca_is_workstation: true
+      when: lab_ca_trust_workstation | bool
+    - name: Require the exact physical node scope
+      ansible.builtin.assert:
+        quiet: true
+        that:
+        - groups.get('rke2_servers', []) == ['control-1']
+        - groups.get('rke2_agents', []) | sort == ['worker-1', 'worker-2']
+      when: lab_ca_trust_nodes | bool
+    - name: Select only approved nodes
+      ansible.builtin.add_host:
+        name: '{{ item }}'
+        groups: lab_ca_approved_targets
+        lab_ca_is_workstation: false
+      loop: [worker-1, worker-2, control-1]
+      when: lab_ca_trust_nodes | bool
+
+- name: Install only the public CA into approved OS trust stores
+  hosts: lab_ca_approved_targets
+  serial: 1
+  any_errors_fatal: true
+  become: true
+  gather_facts: false
+  tasks:
+  - name: Change trust only in the approved live stage
+    when: lab_ca_trust_apply | default(false) | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.include_tasks: ../tasks/lab-ca-trust.yml

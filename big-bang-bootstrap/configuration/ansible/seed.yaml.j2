@@ -21,9 +21,9 @@ metadata:
   name: cluster-root
   namespace: flux-system
   annotations:
-    example.perkforge.io/cluster: {{ inventory_hostname | to_json }}
-    example.perkforge.io/environment: {{ deployment_environment | to_json }}
-    example.perkforge.io/profile: {{ impact_profile | to_json }}
+    platform.perkforge.io/cluster: {{ inventory_hostname | to_json }}
+    platform.perkforge.io/environment: {{ deployment_environment | to_json }}
+    platform.perkforge.io/profile: {{ impact_profile | to_json }}
 spec:
   suspend: true
   interval: 5m

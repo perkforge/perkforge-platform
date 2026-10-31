@@ -9,10 +9,10 @@ metadata:
 spec:
   ingressClassName: traefik
   tls:
-  - hosts: [keycloak-local-il2.example.test]
+  - hosts: [keycloak.perkforge.home.arpa]
     secretName: keycloak-local-tls
   rules:
-  - host: keycloak-local-il2.example.test
+  - host: keycloak.perkforge.home.arpa
     http:
       paths:
       - path: /auth

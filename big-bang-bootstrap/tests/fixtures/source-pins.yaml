@@ -15,3 +15,11 @@ openbao:
   url: https://github.com/openbao/openbao-helm/releases/download/openbao-0.30.6/openbao-0.30.6.tgz
   sha256: 76e90c2315a4922b4b0c6c63fd8a00b9f4bdf0cffda160664f8ea5762d59911c
   chart: .
+longhorn:
+  url: https://github.com/longhorn/charts/releases/download/longhorn-1.13.0/longhorn-1.13.0.tgz
+  sha256: e57f010d2a8bcf0da5b8b03ffecf49c5bc35ddc2663588ce8f22b7567b6133ed
+  chart: .
+rancher:
+  url: https://releases.rancher.com/server-charts/stable/rancher-2.15.2.tgz
+  sha256: 855cb9be954f65a31b9a8c77f7aebce125c2d7797425257d21d35e3380816ac8
+  chart: .

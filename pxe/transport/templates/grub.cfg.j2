@@ -1,0 +1,11 @@
+# Stage only at the reviewed GRUB lookup path: {{ pxe_grub_config_relative }}
+# No automatic installer selection. Exiting does not guarantee local-disk boot.
+set default=0
+set timeout=-1
+menuentry 'Exit network boot without starting installation' {
+    exit
+}
+menuentry 'Start RHEL 10.2 interactive installer (disk approval still required)' {
+    {{ pxe_linux_command }} /{{ pxe_kernel_relative }} ip=dhcp inst.repo=http://{{ pxe_server_ip }}:{{ pxe_http_port }}/rhel-10.2/
+    {{ pxe_initrd_command }} /{{ pxe_initrd_relative }}
+}

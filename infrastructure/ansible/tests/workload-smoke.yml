@@ -1,0 +1,266 @@
+---
+- name: Explicitly approved disposable worker networking smoke test
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    workload_smoke_apply: false
+    workload_smoke_kubeconfig: /UNCONFIGURED/kubeconfig
+    workload_smoke_kubectl: /UNCONFIGURED/kubectl
+    workload_smoke_output_parent: /UNCONFIGURED/smoke-results
+    workload_smoke_expected_cluster_uid: UNCONFIGURED
+    workload_smoke_workers: []
+    workload_smoke_namespace: perkforge-workload-smoke
+    # Official multiarchitecture busybox:1.37.0 index, verified from Docker Hub.
+    workload_smoke_image: docker.io/library/busybox@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
+  tasks:
+  - name: Report the default-off boundary
+    ansible.builtin.debug:
+      msg: 'Live smoke apply={{ workload_smoke_apply | bool }}; check={{ ansible_check_mode }}. Defaults/check mode never contact Kubernetes.'
+  - name: Run only the explicitly approved live test
+    when: workload_smoke_apply | bool and not ansible_check_mode
+    block:
+    - name: Require exact target and protected local inputs before contacting Kubernetes
+      ansible.builtin.assert:
+        quiet: true
+        that:
+        - workload_smoke_kubeconfig is match('^/')
+        - not workload_smoke_kubeconfig.startswith('/UNCONFIGURED/')
+        - workload_smoke_kubectl is match('^/')
+        - not workload_smoke_kubectl.startswith('/UNCONFIGURED/')
+        - workload_smoke_output_parent is match('^/')
+        - not workload_smoke_output_parent.startswith('/UNCONFIGURED/')
+        - workload_smoke_expected_cluster_uid is match('^[0-9a-f-]{36}$')
+        - workload_smoke_workers | length == 2
+        - workload_smoke_workers | unique | length == 2
+        - workload_smoke_namespace is match('^perkforge-[a-z0-9-]{1,40}-smoke$')
+        - workload_smoke_image is match('^docker.io/library/busybox@sha256:[0-9a-f]{64}$')
+    - ansible.builtin.assert:
+        that: item is match('^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$')
+      loop: '{{ workload_smoke_workers }}'
+    - name: Inspect explicit local files without reading credentials
+      ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+        get_checksum: false
+        get_mime: false
+      loop: ['{{ workload_smoke_kubeconfig }}', '{{ workload_smoke_kubectl }}', '{{ workload_smoke_output_parent }}']
+      register: smoke_local_paths
+    - ansible.builtin.assert:
+        that:
+        - smoke_local_paths.results[0].stat.isreg | default(false)
+        - smoke_local_paths.results[0].stat.mode == '0600'
+        - smoke_local_paths.results[1].stat.isreg | default(false)
+        - smoke_local_paths.results[1].stat.executable | default(false)
+        - smoke_local_paths.results[2].stat.isdir | default(false)
+        - smoke_local_paths.results[2].stat.mode == '0700'
+        - smoke_local_paths.results[2].stat.pw_name == lookup('env', 'USER')
+    - name: Refuse symlinked local inputs or outputs
+      ansible.builtin.assert:
+        quiet: true
+        that:
+        - not (item.stat.islnk | default(false))
+        - item.item | realpath == item.item
+      loop: '{{ smoke_local_paths.results }}'
+      loop_control:
+        label: '{{ item.item }}'
+    - ansible.builtin.set_fact:
+        smoke_cli: ['{{ workload_smoke_kubectl }}', --kubeconfig, '{{ workload_smoke_kubeconfig }}', --request-timeout=20s]
+    - name: Verify the exact cluster identity before any mutation
+      ansible.builtin.command:
+        argv: "{{ smoke_cli + ['get', 'namespace', 'kube-system', '-o', 'json'] }}"
+      register: smoke_identity
+      changed_when: false
+    - ansible.builtin.assert:
+        that: (smoke_identity.stdout | from_json).metadata.uid == workload_smoke_expected_cluster_uid
+    - name: Require both selected workers Ready
+      ansible.builtin.command:
+        argv: "{{ smoke_cli + ['get', 'node', item, '-o', 'json'] }}"
+      loop: '{{ workload_smoke_workers }}'
+      register: smoke_nodes
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (item.stdout | from_json).metadata.labels['kubernetes.io/hostname'] == item.item
+        - (item.stdout | from_json).status.conditions | selectattr('type', 'equalto', 'Ready') | selectattr('status', 'equalto', 'True') | list | length == 1
+      loop: '{{ smoke_nodes.results }}'
+      loop_control:
+        label: '{{ item.item }}'
+    - name: Refuse to reuse any preexisting test namespace
+      ansible.builtin.command:
+        argv: "{{ smoke_cli + ['get', 'namespace', workload_smoke_namespace, '--ignore-not-found', '-o', 'json'] }}"
+      register: smoke_existing
+      changed_when: false
+    - ansible.builtin.assert:
+        that: smoke_existing.stdout | trim | length == 0
+        fail_msg: 'Namespace already exists; this run will neither adopt nor delete it.'
+    - name: Allocate a fresh private result directory
+      ansible.builtin.tempfile:
+        state: directory
+        path: '{{ workload_smoke_output_parent }}'
+        prefix: workload-smoke-
+      register: smoke_output
+    - ansible.builtin.set_fact:
+        smoke_run: '{{ smoke_output.path | basename }}'
+        smoke_passed: false
+        smoke_cleanup_passed: false
+        smoke_failure: ''
+    - name: Run probes and retain bounded diagnostic output
+      block:
+      - name: Create only the fresh owned namespace with restricted pod policy
+        ansible.builtin.command:
+          argv: "{{ smoke_cli + ['create', '-f', '-'] }}"
+          stdin: '{{ smoke_namespace_manifest | to_json }}'
+        vars:
+          smoke_namespace_manifest:
+            apiVersion: v1
+            kind: Namespace
+            metadata:
+              name: '{{ workload_smoke_namespace }}'
+              labels:
+                perkforge.io/smoke-run: '{{ smoke_run }}'
+                pod-security.kubernetes.io/enforce: restricted
+                pod-security.kubernetes.io/enforce-version: v1.36
+      - name: Create two pinned pods and a ClusterIP service only in the test namespace
+        ansible.builtin.command:
+          argv: "{{ smoke_cli + ['create', '-f', '-'] }}"
+          stdin: "{{ lookup('template', 'fixtures/workload-smoke.yaml') }}"
+      - name: Wait for both worker pods Ready
+        ansible.builtin.command:
+          argv: "{{ smoke_cli + ['-n', workload_smoke_namespace, 'wait', '--for=condition=Ready', 'pod/probe-a', 'pod/probe-b', '--timeout=180s'] }}"
+        changed_when: false
+      - name: Record pod placement and pod IPs
+        ansible.builtin.command:
+          argv: "{{ smoke_cli + ['-n', workload_smoke_namespace, 'get', 'pods', '-o', 'json'] }}"
+        register: smoke_pods
+        changed_when: false
+      - ansible.builtin.set_fact:
+          smoke_a: "{{ (smoke_pods.stdout | from_json)['items'] | selectattr('metadata.name', 'equalto', 'probe-a') | first }}"
+          smoke_b: "{{ (smoke_pods.stdout | from_json)['items'] | selectattr('metadata.name', 'equalto', 'probe-b') | first }}"
+      - name: Require the pods to be on different exact workers
+        ansible.builtin.assert:
+          quiet: true
+          that:
+          - smoke_a.spec.nodeName == workload_smoke_workers[0]
+          - smoke_b.spec.nodeName == workload_smoke_workers[1]
+          - smoke_a.status.podIP != smoke_b.status.podIP
+      - name: Read the disposable ClusterIP service
+        ansible.builtin.command:
+          argv: "{{ smoke_cli + ['-n', workload_smoke_namespace, 'get', 'service', 'smoke-http', '-o', 'json'] }}"
+        register: smoke_service
+        changed_when: false
+      - name: Read the Kubernetes service IP for DNS answer validation
+        ansible.builtin.command:
+          argv: "{{ smoke_cli + ['-n', 'default', 'get', 'service', 'kubernetes', '-o', 'json'] }}"
+        register: smoke_kubernetes_service
+        changed_when: false
+      - ansible.builtin.set_fact:
+          smoke_service_ip: '{{ (smoke_service.stdout | from_json).spec.clusterIP }}'
+          smoke_service_dns: 'smoke-http.{{ workload_smoke_namespace }}.svc.cluster.local'
+      - name: Resolve both cluster DNS names from each worker pod and validate the answers
+        ansible.builtin.command:
+          argv: "{{ smoke_cli + ['-n', workload_smoke_namespace, 'exec', item.0, '--', 'nslookup', '-type=A', item.1.name] }}"
+        loop: "{{ ['probe-a', 'probe-b'] | product(smoke_dns_queries) | list }}"
+        vars:
+          smoke_dns_queries:
+          - name: kubernetes.default.svc.cluster.local
+            ip: '{{ (smoke_kubernetes_service.stdout | from_json).spec.clusterIP }}'
+          - name: '{{ smoke_service_dns }}'
+            ip: '{{ smoke_service_ip }}'
+        register: smoke_dns
+        until: smoke_dns.rc == 0 and item.1.ip in smoke_dns.stdout.split()
+        retries: 6
+        delay: 3
+        changed_when: false
+      - name: Verify direct pod HTTP across workers in both directions
+        ansible.builtin.command:
+          argv: "{{ smoke_cli + ['-n', workload_smoke_namespace, 'exec', item.source, '--', 'wget', '-q', '-T', '5', '-O', '-', 'http://' + item.ip + ':8080/'] }}"
+        loop:
+        - source: probe-a
+          ip: '{{ smoke_b.status.podIP }}'
+          expected: '{{ workload_smoke_workers[1] }}'
+        - source: probe-b
+          ip: '{{ smoke_a.status.podIP }}'
+          expected: '{{ workload_smoke_workers[0] }}'
+        register: smoke_direct
+        until: smoke_direct.rc == 0 and smoke_direct.stdout | trim == item.expected
+        retries: 6
+        delay: 3
+        changed_when: false
+      - name: Verify the service by ClusterIP and DNS from both workers
+        ansible.builtin.command:
+          argv: "{{ smoke_cli + ['-n', workload_smoke_namespace, 'exec', item.0, '--', 'wget', '-q', '-T', '5', '-O', '-', 'http://' + item.1 + ':8080/'] }}"
+        loop: "{{ ['probe-a', 'probe-b'] | product([smoke_service_ip, smoke_service_dns]) | list }}"
+        register: smoke_service_http
+        until: smoke_service_http.rc == 0 and smoke_service_http.stdout | trim == workload_smoke_workers[1]
+        retries: 6
+        delay: 3
+        changed_when: false
+      - ansible.builtin.set_fact:
+          smoke_passed: true
+      rescue:
+      - ansible.builtin.set_fact:
+          smoke_failure: '{{ ansible_failed_task.name }}'
+      always:
+      - name: Collect diagnostics without preventing owned-resource cleanup
+        block:
+        - name: Capture namespace-local diagnostics before cleanup
+          ansible.builtin.command:
+            argv: "{{ smoke_cli + ['-n', workload_smoke_namespace, 'get', 'pods,services,endpointslices,events', '-o', 'json'] }}"
+          register: smoke_diagnostics
+          changed_when: false
+          failed_when: false
+        - name: Save diagnostics only in the private result directory
+          ansible.builtin.copy:
+            content: '{{ smoke_diagnostics.stdout }}\n{{ smoke_diagnostics.stderr }}'
+            dest: '{{ smoke_output.path }}/diagnostics.txt'
+            mode: '0600'
+        rescue:
+        - ansible.builtin.set_fact:
+            smoke_passed: false
+            smoke_failure: 'Save private namespace diagnostics'
+    - name: Clean up only this run's namespace with an atomic UID precondition
+      block:
+      - ansible.builtin.command:
+          argv: "{{ smoke_cli + ['get', 'namespace', workload_smoke_namespace, '--ignore-not-found', '-o', 'json'] }}"
+        register: smoke_cleanup_namespace
+        changed_when: false
+      - name: Validate namespace ownership before deleting anything
+        when: smoke_cleanup_namespace.stdout | trim | length > 0
+        ansible.builtin.assert:
+          quiet: true
+          that: (smoke_cleanup_namespace.stdout | from_json).metadata.labels['perkforge.io/smoke-run'] | default('') == smoke_run
+      - name: Delete exactly the namespace UID this run owns
+        when: smoke_cleanup_namespace.stdout | trim | length > 0
+        ansible.builtin.command:
+          argv: "{{ smoke_cli + ['delete', '--raw', '/api/v1/namespaces/' + workload_smoke_namespace, '-f', '-'] }}"
+          stdin: '{{ smoke_delete_options | to_json }}'
+        vars:
+          smoke_delete_options:
+            apiVersion: v1
+            kind: DeleteOptions
+            preconditions:
+              uid: '{{ (smoke_cleanup_namespace.stdout | from_json).metadata.uid }}'
+      - name: Verify namespace deletion completes
+        ansible.builtin.command:
+          argv: "{{ smoke_cli + ['wait', '--for=delete', 'namespace/' + workload_smoke_namespace, '--timeout=90s'] }}"
+        changed_when: false
+      - ansible.builtin.set_fact:
+          smoke_cleanup_passed: true
+      rescue:
+      - ansible.builtin.set_fact:
+          smoke_cleanup_passed: false
+    - name: Save the bounded human-readable result without credential data
+      ansible.builtin.copy:
+        dest: '{{ smoke_output.path }}/summary.yml'
+        mode: '0600'
+        content: |
+          {{ {'cluster_uid': workload_smoke_expected_cluster_uid, 'namespace': workload_smoke_namespace, 'workers': workload_smoke_workers, 'image': workload_smoke_image, 'probes_passed': smoke_passed, 'cleanup_passed': smoke_cleanup_passed, 'failed_task': smoke_failure} | to_nice_yaml }}
+    - ansible.builtin.debug:
+        msg: 'Probes={{ smoke_passed }}; cleanup={{ smoke_cleanup_passed }}; private results={{ smoke_output.path }}'
+    - name: Fail the run if probes or cleanup failed
+      ansible.builtin.assert:
+        quiet: true
+        that:
+        - smoke_passed | bool
+        - smoke_cleanup_passed | bool

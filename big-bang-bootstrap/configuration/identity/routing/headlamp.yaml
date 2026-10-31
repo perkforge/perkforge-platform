@@ -9,10 +9,10 @@ metadata:
 spec:
   ingressClassName: traefik
   tls:
-  - hosts: [headlamp-local-il2.example.test]
+  - hosts: [headlamp.perkforge.home.arpa]
     secretName: headlamp-local-tls
   rules:
-  - host: headlamp-local-il2.example.test
+  - host: headlamp.perkforge.home.arpa
     http:
       paths:
       - path: /

@@ -1,0 +1,83 @@
+# Privileged installer: binding cluster-admin is effectively administrative authority.
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: rancher-installer, namespace: bigbang}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: rancher-chart-installer, namespace: cattle-system}
+rules:
+- apiGroups: ['']
+  resources: [serviceaccounts, services, configmaps, secrets, pods]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [apps]
+  resources: [deployments, replicasets]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [batch]
+  resources: [jobs]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [networking.k8s.io]
+  resources: [ingresses]
+  verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: rancher-chart-installer, namespace: cattle-system}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: rancher-chart-installer}
+subjects: [{kind: ServiceAccount, name: rancher-installer, namespace: bigbang}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: rancher-release-storage, namespace: bigbang}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: headlamp-release-storage}
+subjects: [{kind: ServiceAccount, name: rancher-installer, namespace: bigbang}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: rancher-source-writer, namespace: bigbang}
+rules:
+- apiGroups: [source.toolkit.fluxcd.io]
+  resources: [helmrepositories]
+  verbs: [get, list, watch, create, update, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: rancher-source-writer, namespace: bigbang}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: rancher-source-writer}
+subjects: [{kind: ServiceAccount, name: platform-reconciler, namespace: flux-system}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: rancher-chart-installer}
+rules:
+# Create cannot be name-scoped in Kubernetes RBAC; named bind/escalate is still
+# effectively administrative here because the official chart binds cluster-admin.
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [clusterroles, clusterrolebindings]
+  verbs: [create]
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [clusterroles]
+  resourceNames: [rancher-post-delete, rancher-pre-upgrade]
+  verbs: [get, list, watch, update, patch, delete, bind, escalate]
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [clusterroles]
+  resourceNames: [cluster-admin]
+  verbs: [bind]
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [clusterrolebindings]
+  resourceNames: [rancher, rancher-post-delete, rancher-pre-upgrade]
+  verbs: [get, list, watch, update, patch, delete]
+- apiGroups: [scheduling.k8s.io]
+  resources: [priorityclasses]
+  verbs: [create]
+- apiGroups: [scheduling.k8s.io]
+  resources: [priorityclasses]
+  resourceNames: [rancher-critical]
+  verbs: [get, list, watch, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: rancher-chart-installer}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: rancher-chart-installer}
+subjects: [{kind: ServiceAccount, name: rancher-installer, namespace: bigbang}]

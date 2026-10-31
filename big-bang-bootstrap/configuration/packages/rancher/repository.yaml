@@ -1,0 +1,7 @@
+# One explicit Flux source avoids merging unrelated helmRepositories lists.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata: {name: rancher-official, namespace: bigbang}
+spec:
+  interval: 1h
+  url: https://releases.rancher.com/server-charts/stable

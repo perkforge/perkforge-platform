@@ -1,0 +1,35 @@
+---
+- ansible.builtin.file:
+    path: '{{ lab_pki_bundle.path }}/{{ lab_pki_application }}'
+    state: directory
+    mode: '0700'
+- name: Create a separate RSA3072 server key and request
+  ansible.builtin.command:
+    argv: [openssl, req, -new, -newkey, 'rsa:3072', -noenc, -sha256, -subj, '/O=PerkForge Home Lab/CN={{ lab_pki_application }}.perkforge.home.arpa', -keyout, '{{ lab_pki_bundle.path }}/{{ lab_pki_application }}/tls.key', -out, '{{ lab_pki_bundle.path }}/{{ lab_pki_application }}/request.csr']
+  no_log: true
+- ansible.builtin.template:
+    src: ../templates/lab-certificate.ext.j2
+    dest: '{{ lab_pki_bundle.path }}/{{ lab_pki_application }}/extensions.cnf'
+    mode: '0600'
+- name: Generate a separate random certificate serial
+  ansible.builtin.command:
+    argv: [openssl, rand, -hex, '16']
+  register: lab_pki_serial
+  changed_when: false
+- name: Sign a one-year server certificate using the encrypted root
+  ansible.builtin.command:
+    argv: [openssl, x509, -req, -in, '{{ lab_pki_bundle.path }}/{{ lab_pki_application }}/request.csr', -CA, '{{ lab_pki_bundle.path }}/root-ca.crt', -CAkey, '{{ lab_pki_bundle.path }}/root-ca.key.pem', -passin, stdin, -set_serial, '0x{{ lab_pki_serial.stdout }}', -days, '365', -sha256, -extfile, '{{ lab_pki_bundle.path }}/{{ lab_pki_application }}/extensions.cnf', -out, '{{ lab_pki_bundle.path }}/{{ lab_pki_application }}/tls.crt']
+    stdin: '{{ lab_pki_passphrase.user_input }}'
+  no_log: true
+- name: Verify hostname, chain and server-auth purpose
+  ansible.builtin.command:
+    argv: [openssl, verify, -CAfile, '{{ lab_pki_bundle.path }}/root-ca.crt', -verify_hostname, '{{ lab_pki_application }}.perkforge.home.arpa', -purpose, sslserver, '{{ lab_pki_bundle.path }}/{{ lab_pki_application }}/tls.crt']
+  changed_when: false
+- ansible.builtin.file:
+    path: '{{ lab_pki_bundle.path }}/{{ lab_pki_application }}/tls.key'
+    mode: '0600'
+- name: Remove issuance-only request and extension copies after verification
+  ansible.builtin.file:
+    path: '{{ lab_pki_bundle.path }}/{{ lab_pki_application }}/{{ item }}'
+    state: absent
+  loop: [request.csr, extensions.cnf]

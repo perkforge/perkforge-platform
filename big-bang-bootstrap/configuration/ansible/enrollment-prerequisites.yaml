@@ -17,6 +17,11 @@
   - name: Apply separately approved prerequisites from a clean published checkout
     when: enrollment_foundation_apply | bool and not ansible_check_mode
     block:
+    - name: Refuse enrollment prerequisites while the local root excludes enrollment
+      ansible.builtin.assert:
+        quiet: true
+        that: "'../../enrollments/local' in (lookup('file', playbook_dir + '/../../clusters/local/kustomization.yaml') | from_yaml).resources"
+        fail_msg: 'Tenant enrollment is disabled until core platform readiness and explicit source selection.'
     - name: Verify released stage
       ansible.builtin.include_tasks: verify-release.yaml
     - name: Read checkout revision

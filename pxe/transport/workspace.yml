@@ -1,0 +1,121 @@
+---
+- name: Validate fresh private workspace location; no live host or service operations
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  vars_files: [workspace.inputs.example.yml]
+  tasks:
+    - name: Require complete workspace metadata before writing
+      ansible.builtin.assert:
+        that:
+          - not ansible_check_mode
+          - inventory_hostname == 'localhost' and ansible_connection == 'local'
+          - workspace_node != 'UNCONFIGURED' and workspace_node is match('^[a-z][a-z0-9-]{0,31}$')
+          - workspace_run != 'UNCONFIGURED' and workspace_run is match('^[A-Za-z0-9][A-Za-z0-9-]{0,47}$')
+          - workspace_metadata_source != 'UNCONFIGURED' and workspace_metadata_source | length > 0
+          - workspace_menu_state in ['stock', 'reviewed']
+          - workspace_menu_state != 'stock' or workspace_stock_menu_sha256 is match('^[0-9a-f]{64}$')
+          - workspace_lifetime_seconds is integer
+          - workspace_lifetime_seconds in [0, 1800]
+        fail_msg: 'Supply confirmed nonsecret inputs and fresh node/run names. Nothing activated.'
+    - name: Identify local builder owner without sudo
+      ansible.builtin.command:
+        argv: [id, -u]
+      register: workspace_owner
+      changed_when: false
+    - ansible.builtin.assert:
+        that: workspace_owner.stdout | int != 0
+        fail_msg: 'Build as the operator, without sudo or become.'
+    - ansible.builtin.set_fact:
+        workspace_repo: '{{ playbook_dir | dirname | dirname }}'
+        workspace_base: '{{ playbook_dir | dirname }}/local'
+        workspace_node_dir: '{{ playbook_dir | dirname }}/local/{{ workspace_node }}'
+        workspace_run_dir: '{{ playbook_dir | dirname }}/local/{{ workspace_node }}/runs/{{ workspace_run }}'
+        workspace_review_dir: '/tmp/perkforge-pxe-review-{{ workspace_node }}-{{ workspace_run }}'
+    - name: Reject overrides of derived paths before any filesystem change
+      ansible.builtin.assert:
+        that:
+          - workspace_repo == (playbook_dir | dirname | dirname)
+          - workspace_base == (playbook_dir | dirname) ~ '/local'
+          - workspace_node_dir == workspace_base ~ '/' ~ workspace_node
+          - workspace_run_dir == workspace_node_dir ~ '/runs/' ~ workspace_run
+          - workspace_review_dir == '/tmp/perkforge-pxe-review-' ~ workspace_node ~ '-' ~ workspace_run
+    - name: Check existing ancestors without following symlinks
+      ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop: ['{{ workspace_base }}', '{{ workspace_node_dir }}', '{{ workspace_node_dir }}/runs']
+      register: workspace_ancestors
+    - ansible.builtin.assert:
+        that:
+          - item.stat.isdir | default(false)
+          - not item.stat.islnk | default(false)
+          - item.stat.uid == workspace_owner.stdout | int
+      loop: '{{ workspace_ancestors.results | selectattr("stat.exists") | list }}'
+    - name: Refuse existing run or review output; never overwrite evidence
+      ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop: ['{{ workspace_run_dir }}', '{{ workspace_review_dir }}']
+      register: workspace_existing
+    - ansible.builtin.assert:
+        that: not item.stat.exists
+      loop: '{{ workspace_existing.results }}'
+    - name: Pin render destination for the existing transport validator
+      ansible.builtin.set_fact:
+        pxe_output_dir: '{{ workspace_review_dir }}'
+    - ansible.builtin.assert:
+        that: pxe_output_dir == workspace_review_dir
+
+- import_playbook: prepare.yml
+
+- name: Assemble reproducible private artifacts from the validated render; no activation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  vars_files: [workspace.inputs.example.yml, inputs.example.yml]
+  tasks:
+    - name: Create missing protected ancestors without changing existing directories
+      ansible.builtin.file:
+        path: '{{ item.item }}'
+        state: directory
+        mode: '0700'
+      loop: '{{ workspace_ancestors.results }}'
+      when: not item.stat.exists
+    - name: Create fresh run and separate discovery/access directories
+      ansible.builtin.file:
+        path: '{{ item }}'
+        state: directory
+        mode: '0700'
+      loop: ['{{ workspace_run_dir }}', '{{ workspace_run_dir }}/discovery', '{{ workspace_run_dir }}/access']
+    - name: Retain exact reviewed configuration copies
+      ansible.builtin.copy:
+        src: '{{ workspace_review_dir }}/{{ item }}'
+        dest: '{{ workspace_run_dir }}/discovery/{{ item }}'
+        mode: '0600'
+        force: false
+      loop: [dnsmasq.conf, nginx.conf, grub.cfg, ingress.nft, review.txt]
+    - name: Hash actual retained transport files
+      ansible.builtin.stat:
+        path: '{{ workspace_run_dir }}/discovery/{{ item }}'
+        checksum_algorithm: sha256
+        follow: false
+      loop: [dnsmasq.conf, nginx.conf, grub.cfg, ingress.nft]
+      register: workspace_hashes
+    - ansible.builtin.set_fact:
+        workspace_render_hashes: '{{ dict(workspace_hashes.results | map(attribute="item") | zip(workspace_hashes.results | map(attribute="stat.checksum"))) }}'
+    - name: Write nonsecret input snapshot, manifest and operator instructions
+      ansible.builtin.template:
+        src: 'workspace/{{ item.src }}'
+        dest: '{{ workspace_run_dir }}/{{ item.dest }}'
+        mode: '{{ item.mode }}'
+        force: false
+      loop:
+        - {src: inputs.yml.j2, dest: inputs.yml, mode: '0600'}
+        - {src: activation-review.yml.j2, dest: discovery/activation-review.yml, mode: '0600'}
+        - {src: README.md.j2, dest: README.md, mode: '0600'}
+        - {src: session.sh.j2, dest: session.sh, mode: '0700'}
+    - ansible.builtin.debug:
+        msg: 'Offline workspace ready: {{ workspace_run_dir }}. Review README and file contents. No service, media, disk, credential or network operation ran.'

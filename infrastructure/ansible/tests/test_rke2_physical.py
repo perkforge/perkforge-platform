@@ -46,7 +46,7 @@ class PhysicalRKE2Tests(unittest.TestCase):
         self.assertNotEqual(p.returncode, 0)
         self.assertIn('rke2_credential_lifecycle_reviewed', p.stdout)
 
-    def test_host_preparation_scaffold_never_connects_even_with_nonempty_inventory(self):
+    def test_host_preparation_defaults_never_connect_even_with_nonempty_inventory(self):
         for check in [False, True]:
             p = subprocess.run(['ansible-playbook', '-i', str(self.inventory),
                                 str(ROOT / 'playbooks/configure-hosts.yml'),
@@ -56,7 +56,32 @@ class PhysicalRKE2Tests(unittest.TestCase):
                                     'ANSIBLE_LOCAL_TEMP': str(self.work / 'host-ansible')})
             self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
             self.assertFalse(self.marker.exists())
-            self.assertIn('scaffolding only', p.stdout)
+            self.assertIn('No hosts selected by default', p.stdout)
+
+    def test_host_preparation_refuses_unapproved_firewall_change_before_ssh(self):
+        for review,firewall in [(False,False),(True,False)]:
+            result=subprocess.run(['ansible-playbook','-i',str(self.inventory),
+                str(ROOT/'playbooks/configure-hosts.yml'),'-e',json.dumps({
+                    'physical_host_prepare_apply':True,
+                    'physical_host_prepare_reviewed':review,
+                    'physical_disable_firewalld_approved':firewall})],
+                capture_output=True,text=True,timeout=20,
+                env={**os.environ,'PATH':str(self.work)+':'+os.environ['PATH'],
+                    'ANSIBLE_LOCAL_TEMP':str(self.work/'prepare-gates')})
+            self.assertNotEqual(result.returncode,0)
+            self.assertFalse(self.marker.exists())
+            self.assertNotIn('UNREACHABLE!',result.stdout+result.stderr)
+
+    def test_token_export_default_and_check_mode_never_connect(self):
+        for options in [[], ['--check','-e','rke2_token_export_apply=true']]:
+            result=subprocess.run(['ansible-playbook','-i',str(self.inventory),
+                str(ROOT/'playbooks/export-rke2-tokens.yml'),*options],
+                capture_output=True,text=True,timeout=20,
+                env={**os.environ,'PATH':str(self.work)+':'+os.environ['PATH'],
+                    'ANSIBLE_LOCAL_TEMP':str(self.work/'export-gates')})
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            self.assertFalse(self.marker.exists())
+            self.assertNotIn('UNREACHABLE!',result.stdout+result.stderr)
 
     def test_kubeconfig_rewrite_changes_only_the_loopback_address(self):
         plays = yaml.safe_load((ROOT / 'playbooks/install-rke2.yml').read_text())
@@ -159,6 +184,29 @@ class PhysicalRKE2Tests(unittest.TestCase):
         for task in node:
             if 'ansible.builtin.template' in task:
                 self.assertTrue(task['no_log'])
+
+    def test_rpm_binary_and_tarball_collision_guards(self):
+        tasks = yaml.safe_load((ROOT / 'tasks/rke2-node.yml').read_text())
+        inspect = next(t for t in tasks if t.get('register') == 'rke2_existing')
+        self.assertEqual(inspect['loop'][2], '/usr/bin/rke2')
+        self.assertEqual(inspect['loop'][4], '/usr/local/bin/rke2')
+        install = next(t for t in tasks if t.get('environment', {}).get('INSTALL_RKE2_METHOD') == 'rpm')
+        self.assertEqual(install['ansible.builtin.command']['creates'], '/usr/bin/rke2')
+        version = next(t for t in tasks if t.get('register') == 'rke2_installed_version')
+        self.assertEqual(version['ansible.builtin.command']['argv'][0], '/usr/bin/rke2')
+        guard = next(t for t in tasks if t.get('name', '').startswith('Refuse a tarball'))
+        self.assertLess(tasks.index(guard), tasks.index(install))
+        # Execute the real refusal against both synthetic states; no remote host.
+        for exists in [False, True]:
+            fixture = self.work / 'rpm-guard.yml'
+            fixture.write_text(yaml.safe_dump([{'hosts': 'localhost', 'connection': 'local',
+                'gather_facts': False, 'vars': {'rke2_existing': {'results':
+                    [{'stat': {'exists': False}}] * 4 + [{'stat': {'exists': exists}}]}},
+                'tasks': [guard]}]))
+            result = subprocess.run(['ansible-playbook', '-i', 'localhost,', str(fixture)],
+                capture_output=True, text=True, timeout=20,
+                env={**os.environ, 'ANSIBLE_LOCAL_TEMP': str(self.work / 'rpm-check')})
+            self.assertEqual(result.returncode == 0, not exists, result.stdout + result.stderr)
 
     def test_native_templates_preserve_join_token_as_one_yaml_scalar(self):
         template = ROOT / 'templates/rke2-agent.yaml.j2'

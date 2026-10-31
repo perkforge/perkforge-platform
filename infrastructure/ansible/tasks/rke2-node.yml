@@ -14,13 +14,18 @@
   loop:
   - /var/lib/rancher/rke2
   - '{{ rke2_config_dir }}/perkforge-owner.json'
-  - /usr/local/bin/rke2
+  - /usr/bin/rke2
   - '{{ rke2_config_dir }}/config.yaml'
+  - /usr/local/bin/rke2
   register: rke2_existing
 - name: Never adopt an unowned existing RKE2 installation
   ansible.builtin.assert:
     that:
-    - not (rke2_existing.results[0].stat.exists or rke2_existing.results[2].stat.exists or rke2_existing.results[3].stat.exists) or rke2_existing.results[1].stat.isreg | default(false)
+    - not (rke2_existing.results[0].stat.exists or rke2_existing.results[2].stat.exists or rke2_existing.results[3].stat.exists or rke2_existing.results[4].stat.exists) or rke2_existing.results[1].stat.isreg | default(false)
+- name: Refuse a tarball binary in the RPM installation workflow
+  ansible.builtin.assert:
+    that: not rke2_existing.results[4].stat.exists
+    fail_msg: 'An existing /usr/local/bin/rke2 requires a separate installation-method review.'
 - name: Read the nonsecret installation owner marker
   when: rke2_existing.results[1].stat.exists
   ansible.builtin.slurp:
@@ -36,7 +41,7 @@
 - name: Inspect the installed version without performing an upgrade
   when: rke2_existing.results[2].stat.exists
   ansible.builtin.command:
-    argv: [/usr/local/bin/rke2, --version]
+    argv: [/usr/bin/rke2, --version]
   register: rke2_installed_version
   changed_when: false
 - name: Refuse implicit upgrades of an existing installation
@@ -73,7 +78,7 @@
 - name: Install the pinned RPMs and their RKE2 SELinux policy only when absent
   ansible.builtin.command:
     argv: [/bin/sh, /usr/local/sbin/rke2-install.sh]
-    creates: /usr/local/bin/rke2
+    creates: /usr/bin/rke2
   environment:
     INSTALL_RKE2_TYPE: '{{ rke2_role }}'
     INSTALL_RKE2_METHOD: rpm

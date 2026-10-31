@@ -1,0 +1,76 @@
+- ansible.builtin.set_fact:
+    tls_namespace: '{{ "cattle-system" if tls_application == "rancher" else tls_application }}'
+    tls_secret_name: '{{ "tls-rancher-ingress" if tls_application == "rancher" else tls_application ~ "-local-tls" }}'
+    tls_namespace_manifest: '{{ lookup("file", playbook_dir ~ "/../packages/" ~ tls_application ~ "/prerequisites/namespace.yaml") | from_yaml }}'
+- ansible.builtin.command:
+    argv: "{{ tls_cli + ['get', 'namespace', tls_namespace, '--ignore-not-found', '-o', 'json'] }}"
+  register: tls_existing_namespace
+  changed_when: false
+- name: Require explicit namespace preparation when the namespace is absent
+  ansible.builtin.assert:
+    quiet: true
+    that: tls_existing_namespace.stdout | length > 0 or platform_tls_namespaces_apply | bool
+- name: Require authored ownership labels on an existing namespace
+  ansible.builtin.assert:
+    quiet: true
+    that: (tls_existing_namespace.stdout | from_json).metadata.labels.get(item.key) == item.value
+  loop: '{{ tls_namespace_manifest.metadata.labels | dict2items }}'
+  when: tls_existing_namespace.stdout | length > 0
+- name: Create only the authored Namespace object with separate approval
+  ansible.builtin.command:
+    argv: "{{ tls_cli + ['create', '-f', '-'] }}"
+    stdin: '{{ tls_namespace_manifest | to_json }}'
+  when: tls_existing_namespace.stdout | length == 0 and platform_tls_namespaces_apply | bool
+- name: Deliver only the selected first-install TLS and public CA resources
+  when: platform_tls_apply | bool
+  no_log: true
+  block:
+  - ansible.builtin.set_fact:
+      tls_public_resources: "{{ [{'kind': 'secret', 'name': tls_secret_name}] + ([{'kind': 'configmap', 'name': 'identity-ca'}] if tls_application == 'headlamp' else []) + ([{'kind': 'secret', 'name': 'tls-ca'}, {'kind': 'secret', 'name': 'tls-ca-additional'}] if tls_application == 'rancher' else []) }}"
+  - name: Refuse existing TLS resources before creating any credentials for this app
+    ansible.builtin.command:
+      argv: "{{ tls_cli + ['get', item.kind, item.name, '-n', tls_namespace, '--ignore-not-found', '-o', 'jsonpath={.metadata.uid}'] }}"
+    loop: '{{ tls_public_resources }}'
+    changed_when: false
+    register: tls_existing_resources
+  - ansible.builtin.assert:
+      that: item.stdout | trim | length == 0
+    loop: '{{ tls_existing_resources.results }}'
+  - name: Render the TLS Secret in memory without logging private key data
+    ansible.builtin.command:
+      argv: "{{ tls_cli + ['create', 'secret', 'tls', tls_secret_name, '-n', tls_namespace, '--cert=' ~ platform_tls_bundle ~ '/' ~ tls_application ~ '/tls.crt', '--key=' ~ platform_tls_bundle ~ '/' ~ tls_application ~ '/tls.key', '--dry-run=client', '-o', 'json'] }}"
+    register: tls_secret_payload
+    changed_when: false
+  - name: Create the TLS Secret with refusal on concurrent or preexisting resources
+    ansible.builtin.command:
+      argv: "{{ tls_cli + ['create', '-f', '-'] }}"
+      stdin: '{{ tls_secret_payload.stdout }}'
+  - ansible.builtin.set_fact:
+      tls_secret_payload: {}
+      cacheable: false
+  - name: Render the public CA ConfigMap or Secrets in memory
+    ansible.builtin.command:
+      argv: "{{ tls_cli + ['create'] + (['configmap', item.name] if item.kind == 'configmap' else ['secret', 'generic', item.name]) + ['-n', tls_namespace, '--from-file=' ~ ('ca.crt' if item.name == 'identity-ca' else ('cacerts.pem' if item.name == 'tls-ca' else 'ca-additional.pem')) ~ '=' ~ platform_tls_bundle ~ '/root-ca.crt', '--dry-run=client', '-o', 'json'] }}"
+    loop: '{{ tls_public_resources[1:] }}'
+    register: tls_ca_payloads
+    changed_when: false
+  - ansible.builtin.command:
+      argv: "{{ tls_cli + ['create', '-f', '-'] }}"
+      stdin: '{{ item.stdout }}'
+    loop: '{{ tls_ca_payloads.results }}'
+  - ansible.builtin.set_fact:
+      tls_ca_payloads: {}
+      cacheable: false
+  - name: Read back only the created TLS resource under secret redaction
+    ansible.builtin.command:
+      argv: "{{ tls_cli + ['get', 'secret', tls_secret_name, '-n', tls_namespace, '-o', 'json'] }}"
+    register: tls_created_secret
+    changed_when: false
+  - ansible.builtin.assert:
+      that:
+      - (tls_created_secret.stdout | from_json).type == 'kubernetes.io/tls'
+      - (tls_created_secret.stdout | from_json).data['tls.crt'] == (lookup('file', platform_tls_bundle ~ '/' ~ tls_application ~ '/tls.crt', rstrip=false) | b64encode)
+      - (tls_created_secret.stdout | from_json).data['tls.key'] == (lookup('file', platform_tls_bundle ~ '/' ~ tls_application ~ '/tls.key', rstrip=false) | b64encode)
+  - ansible.builtin.set_fact:
+      tls_created_secret: {}
+      cacheable: false

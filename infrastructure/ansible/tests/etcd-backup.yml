@@ -1,0 +1,248 @@
+---
+- name: Validate explicitly approved off-node etcd backup inputs
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [../group_vars/rke2.yml]
+  vars:
+    etcd_backup_apply: false
+    etcd_backup_kubeconfig: /UNCONFIGURED/kubeconfig
+    etcd_backup_kubectl: /UNCONFIGURED/kubectl
+    etcd_backup_expected_cluster_uid: UNCONFIGURED
+    etcd_backup_output_parent: /UNCONFIGURED/backup-output
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Etcd backup apply={{ etcd_backup_apply | bool }}; check={{ ansible_check_mode }}. Defaults/check mode contact no server or API.'
+  - name: Select only a reviewed server and fresh private destination
+    when: etcd_backup_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - groups.get('rke2_servers', []) | length == 1
+        - rke2_cluster_id != 'UNCONFIGURED'
+        - etcd_backup_expected_cluster_uid is match('^[0-9a-f-]{36}$')
+        - etcd_backup_kubeconfig is match('^/') and not etcd_backup_kubeconfig.startswith('/UNCONFIGURED/')
+        - etcd_backup_kubectl is match('^/') and not etcd_backup_kubectl.startswith('/UNCONFIGURED/')
+        - etcd_backup_output_parent is match('^/') and not etcd_backup_output_parent.startswith('/UNCONFIGURED/')
+    - name: Inspect local paths without reading credentials
+      ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+        get_checksum: false
+        get_mime: false
+      loop: ['{{ etcd_backup_kubeconfig }}', '{{ etcd_backup_kubectl }}', '{{ etcd_backup_output_parent }}']
+      register: backup_paths
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - backup_paths.results[0].stat.isreg | default(false)
+        - backup_paths.results[0].stat.mode == '0600'
+        - backup_paths.results[1].stat.isreg | default(false)
+        - backup_paths.results[1].stat.executable | default(false)
+        - backup_paths.results[2].stat.isdir | default(false)
+        - backup_paths.results[2].stat.mode == '0700'
+        - backup_paths.results[2].stat.pw_name == lookup('env', 'USER')
+        - lookup('file', rke2_private_output_dir + '/perkforge-cluster-id') | trim == rke2_cluster_id
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - not (item.stat.islnk | default(false))
+        - item.item | realpath == item.item
+      loop: '{{ backup_paths.results }}'
+      loop_control:
+        label: '{{ item.item }}'
+    - ansible.builtin.set_fact:
+        backup_cli: ['{{ etcd_backup_kubectl }}', --kubeconfig, '{{ etcd_backup_kubeconfig }}', --request-timeout=20s]
+    - name: Verify exact API cluster identity before any server connection
+      ansible.builtin.command:
+        argv: "{{ backup_cli + ['get', 'namespace', 'kube-system', '-o', 'json'] }}"
+      changed_when: false
+      register: backup_identity
+    - ansible.builtin.assert:
+        quiet: true
+        that: (backup_identity.stdout | from_json).metadata.uid == etcd_backup_expected_cluster_uid
+    - name: Verify the API is ready before snapshot creation
+      ansible.builtin.command:
+        argv: "{{ backup_cli + ['get', '--raw=/readyz'] }}"
+      changed_when: false
+    - name: Allocate a fresh protected off-node bundle
+      ansible.builtin.tempfile:
+        state: directory
+        path: '{{ etcd_backup_output_parent }}'
+        prefix: etcd-backup-
+      register: backup_output
+    - ansible.builtin.add_host:
+        name: "{{ groups['rke2_servers'][0] }}"
+        groups: rke2_approved_backup_server
+
+- name: Save one snapshot and copy it with the unchanged server token
+  hosts: rke2_approved_backup_server
+  become: true
+  gather_facts: false
+  vars_files: [../group_vars/rke2.yml]
+  vars:
+    backup_snapshot_directory: /var/lib/rancher/rke2/server/db/snapshots
+    backup_destination: '{{ hostvars.localhost.backup_output.path }}'
+    backup_name: '{{ backup_destination | basename }}'
+  tasks:
+  - name: Run only the explicitly approved snapshot/export step
+    when: etcd_backup_apply | default(false) | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.set_fact:
+        backup_export_passed: false
+        backup_failure: ''
+    - name: Preserve failed exports for review without modifying the cluster
+      block:
+      - name: Verify this server's installation ownership
+        ansible.builtin.slurp:
+          src: /etc/rancher/rke2/perkforge-owner.json
+        register: backup_owner
+      - ansible.builtin.assert:
+          quiet: true
+          that: backup_owner.content | b64decode | from_json == {'owner':'perkforge-infrastructure','cluster':rke2_cluster_id,'role':'server'}
+      - name: Record the installed RKE2 version
+        ansible.builtin.command:
+          argv: [/usr/bin/rke2, --version]
+        register: backup_version
+        changed_when: false
+      - ansible.builtin.assert:
+          quiet: true
+          that: backup_version.stdout.splitlines()[0].split()[2] == rke2_version
+      - name: Require a fresh snapshot name
+        ansible.builtin.find:
+          paths: '{{ backup_snapshot_directory }}'
+          patterns: '{{ backup_name }}-*'
+          file_type: file
+          recurse: false
+        register: backup_before
+      - ansible.builtin.assert:
+          quiet: true
+          that: backup_before.matched == 0
+      - name: Read the recovery token before snapshot creation without logging
+        ansible.builtin.slurp:
+          src: /var/lib/rancher/rke2/server/token
+        register: backup_token_before
+        no_log: true
+      - name: Create one uncompressed on-node snapshot without cloud access
+        ansible.builtin.command:
+          argv: [/usr/bin/rke2, etcd-snapshot, save, --name, '{{ backup_name }}', --dir, '{{ backup_snapshot_directory }}', '--etcd-s3=false', '--etcd-snapshot-compress=false']
+      - name: Find exactly the snapshot created for this run
+        ansible.builtin.find:
+          paths: '{{ backup_snapshot_directory }}'
+          patterns: '{{ backup_name }}-*'
+          file_type: file
+          recurse: false
+        register: backup_after
+      - ansible.builtin.assert:
+          quiet: true
+          that: backup_after.matched == 1
+      - name: Read source size and SHA256 before transfer
+        ansible.builtin.stat:
+          path: '{{ backup_after.files[0].path }}'
+          follow: false
+          checksum_algorithm: sha256
+        register: backup_source
+      - ansible.builtin.assert:
+          quiet: true
+          that:
+          - backup_source.stat.isreg | default(false)
+          - not (backup_source.stat.islnk | default(false))
+          - backup_source.stat.size > 32
+      - name: Require an unchanged complete server token across the snapshot operation
+        no_log: true
+        block:
+        - ansible.builtin.slurp:
+            src: /var/lib/rancher/rke2/server/token
+          register: backup_token_after
+        - ansible.builtin.assert:
+            that:
+            - backup_token_before.content == backup_token_after.content
+            - backup_token_before.content | b64decode | trim is match('^K10[0-9a-f]{64}::')
+        - name: Precreate the private snapshot before transferring sensitive datastore bytes
+          ansible.builtin.copy:
+            content: ''
+            dest: '{{ backup_destination }}/snapshot.db'
+            mode: '0600'
+            force: false
+          delegate_to: localhost
+          become: false
+        - ansible.builtin.fetch:
+            src: '{{ backup_after.files[0].path }}'
+            dest: '{{ backup_destination }}/snapshot.db'
+            flat: true
+        - name: Store this snapshot's exact server token without printing it
+          ansible.builtin.copy:
+            content: '{{ backup_token_before.content | b64decode }}'
+            dest: '{{ backup_destination }}/server-token.secure'
+            mode: '0600'
+            force: false
+          delegate_to: localhost
+          become: false
+        - name: Verify the locally saved token matches the snapshot-time token
+          ansible.builtin.assert:
+            that: lookup('file', backup_destination + '/server-token.secure', rstrip=false) == backup_token_before.content | b64decode
+          delegate_to: localhost
+          become: false
+      - name: Verify the copied snapshot's embedded integrity hash without restoring it
+        ansible.builtin.command:
+          argv: ['{{ ansible_playbook_python }}', '{{ playbook_dir }}/verify_etcd_snapshot.py', '{{ backup_destination }}/snapshot.db']
+        delegate_to: localhost
+        become: false
+        register: backup_integrity
+        changed_when: false
+      - name: Require exact off-node size and transfer checksum
+        ansible.builtin.assert:
+          quiet: true
+          that:
+          - (backup_integrity.stdout | from_json).size == backup_source.stat.size
+          - (backup_integrity.stdout | from_json).sha256 == backup_source.stat.checksum
+          - (backup_integrity.stdout | from_json).integrity_trailer_valid
+      - name: Check final credential and datastore permissions
+        ansible.builtin.file:
+          path: '{{ backup_destination }}/{{ item }}'
+          mode: '0600'
+        loop: [snapshot.db, server-token.secure]
+        delegate_to: localhost
+        become: false
+      - ansible.builtin.set_fact:
+          backup_export_passed: true
+      rescue:
+      - ansible.builtin.set_fact:
+          backup_failure: '{{ ansible_failed_task.name | default("backup stage") }}'
+          backup_export_passed: false
+
+- name: Record backup evidence and verify the cluster remains ready
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [../group_vars/rke2.yml]
+  tasks:
+  - name: Report only a run that explicitly selected the server
+    when: etcd_backup_apply | default(false) | bool and not ansible_check_mode and groups.get('rke2_approved_backup_server', []) | length == 1
+    vars:
+      backup_host: "{{ groups['rke2_approved_backup_server'][0] }}"
+      backup_remote: '{{ hostvars[backup_host] }}'
+    block:
+    - name: Verify all selected nodes remain Ready after the snapshot/export
+      ansible.builtin.command:
+        argv: "{{ backup_cli + ['wait', '--for=condition=Ready', 'node/' + item, '--timeout=30s'] }}"
+      loop: "{{ groups['rke2_servers'] + groups.get('rke2_agents', []) }}"
+      register: backup_readiness
+      failed_when: false
+      changed_when: false
+    - ansible.builtin.set_fact:
+        backup_cluster_ready: '{{ backup_readiness.results | selectattr("rc", "ne", 0) | list | length == 0 }}'
+    - name: Write private evidence without token material or token hashes
+      ansible.builtin.copy:
+        dest: '{{ backup_output.path }}/summary.yml'
+        mode: '0600'
+        content: |
+          {{ {'cluster_id': rke2_cluster_id, 'cluster_uid': etcd_backup_expected_cluster_uid, 'server': backup_host, 'rke2_version': rke2_version, 'snapshot_source': backup_remote.backup_after.files[0].path if backup_remote.backup_after is defined and backup_remote.backup_after.matched | default(0) == 1 else '', 'snapshot_size': backup_remote.backup_source.stat.size | default(0), 'snapshot_sha256': backup_remote.backup_source.stat.checksum | default(''), 'backup_verified': backup_remote.backup_export_passed | default(false), 'cluster_ready': backup_cluster_ready, 'restore_tested': false, 'failed_task': backup_remote.backup_failure | default('')} | to_nice_yaml }}
+    - ansible.builtin.debug:
+        msg: 'Backup verified={{ backup_remote.backup_export_passed | default(false) }}; cluster Ready={{ backup_cluster_ready }}; private bundle={{ backup_output.path }}. No restore performed.'
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - backup_remote.backup_export_passed | default(false) | bool
+        - backup_cluster_ready | bool

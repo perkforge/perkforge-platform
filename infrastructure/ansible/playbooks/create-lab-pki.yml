@@ -1,0 +1,123 @@
+---
+- name: Explicit local-only CA and service certificate issuance
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    lab_pki_apply: false
+    lab_pki_output_parent: /UNCONFIGURED/private-output
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Local PKI apply={{ lab_pki_apply | bool }}; check={{ ansible_check_mode }}. No trust-store, node or cluster changes.'
+  - name: Issue only in a separately approved invocation
+    when: lab_pki_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - lab_pki_output_parent is match('^/')
+        - not lab_pki_output_parent.startswith('/UNCONFIGURED/')
+        - lab_pki_output_parent | realpath == lab_pki_output_parent
+    - ansible.builtin.stat:
+        path: '{{ lab_pki_output_parent }}'
+        follow: false
+      register: lab_pki_parent
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - lab_pki_parent.stat.isdir | default(false)
+        - not (lab_pki_parent.stat.islnk | default(false))
+        - lab_pki_parent.stat.mode == '0700'
+        - lab_pki_parent.stat.pw_name == lookup('env', 'USER')
+    - name: Enter a new CA key passphrase locally
+      ansible.builtin.pause:
+        prompt: 'New lab CA key passphrase (at least 16 characters; store independently)'
+        echo: false
+      register: lab_pki_passphrase
+      no_log: true
+    - name: Confirm the CA key passphrase locally
+      ansible.builtin.pause:
+        prompt: 'Confirm lab CA key passphrase'
+        echo: false
+      register: lab_pki_confirmation
+      no_log: true
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - lab_pki_passphrase.user_input | length >= 16
+        - lab_pki_passphrase.user_input == lab_pki_confirmation.user_input
+        - lab_pki_passphrase.user_input == (lab_pki_passphrase.user_input | trim)
+      no_log: true
+    - name: Allocate a fresh private bundle without overwriting prior keys
+      ansible.builtin.tempfile:
+        state: directory
+        path: '{{ lab_pki_output_parent }}'
+        prefix: lab-pki-
+      register: lab_pki_bundle
+    - name: Create the encrypted ten-year root CA
+      ansible.builtin.command:
+        argv:
+        - openssl
+        - req
+        - -new
+        - -x509
+        - -newkey
+        - rsa:4096
+        - -sha256
+        - -days
+        - '3650'
+        - -subj
+        - /O=PerkForge Home Lab/CN=PerkForge Home Lab Root CA
+        - -keyout
+        - '{{ lab_pki_bundle.path }}/root-ca.key.pem'
+        - -out
+        - '{{ lab_pki_bundle.path }}/root-ca.crt'
+        - -passout
+        - stdin
+        - -addext
+        - basicConstraints=critical,CA:TRUE,pathlen:0
+        - -addext
+        - keyUsage=critical,keyCertSign,cRLSign
+        - -addext
+        - subjectKeyIdentifier=hash
+        stdin: '{{ lab_pki_passphrase.user_input }}'
+      no_log: true
+    - name: Confirm root key encryption without displaying private material
+      ansible.builtin.slurp:
+        src: '{{ lab_pki_bundle.path }}/root-ca.key.pem'
+      register: lab_pki_root_key
+      no_log: true
+    - ansible.builtin.assert:
+        quiet: true
+        that: (lab_pki_root_key.content | b64decode).startswith('-----BEGIN ENCRYPTED PRIVATE KEY-----')
+      no_log: true
+    - ansible.builtin.set_fact:
+        lab_pki_root_key: {}
+        cacheable: false
+      no_log: true
+    - ansible.builtin.include_tasks: ../tasks/issue-lab-certificate.yml
+      loop: [headlamp, keycloak, rancher, openbao]
+      loop_control:
+        loop_var: lab_pki_application
+    - name: Restrict the CA private key explicitly
+      ansible.builtin.file:
+        path: '{{ lab_pki_bundle.path }}/root-ca.key.pem'
+        mode: '0600'
+    - name: Record the public CA fingerprint for later trust comparison
+      ansible.builtin.command:
+        argv: [openssl, x509, -in, '{{ lab_pki_bundle.path }}/root-ca.crt', -noout, -fingerprint, -sha256]
+      changed_when: false
+      register: lab_pki_fingerprint
+    - ansible.builtin.copy:
+        dest: '{{ lab_pki_bundle.path }}/summary.yml'
+        mode: '0600'
+        content: |
+          {{ {'ca_subject': 'PerkForge Home Lab Root CA', 'ca_fingerprint': lab_pki_fingerprint.stdout, 'applications': ['headlamp', 'keycloak', 'rancher', 'openbao'], 'domain': 'perkforge.home.arpa', 'ca_key_encrypted': true, 'trust_installed': false, 'cluster_secrets_created': false} | to_nice_yaml }}
+    - name: Clear passphrase values from subsequent task context
+      ansible.builtin.set_fact:
+        lab_pki_passphrase: {}
+        lab_pki_confirmation: {}
+        cacheable: false
+      no_log: true
+    - ansible.builtin.debug:
+        msg: 'Local certificate bundle created at {{ lab_pki_bundle.path }}. No trust installed or cluster Secrets created. Protect signing key/passphrase independently.'

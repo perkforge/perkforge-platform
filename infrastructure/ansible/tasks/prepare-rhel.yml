@@ -1,0 +1,139 @@
+---
+- name: Gather minimum OS facts for the reviewed physical target
+  ansible.builtin.setup:
+    gather_subset: [min]
+- name: Require reviewed RHEL 10 x86_64 with enforcing SELinux
+  ansible.builtin.assert:
+    that:
+    - ansible_facts.distribution == 'RedHat'
+    - ansible_facts.distribution_major_version == '10'
+    - ansible_facts.architecture == 'x86_64'
+    - ansible_facts.selinux.status == 'enabled'
+    - ansible_facts.selinux.mode == 'enforcing'
+- name: Refuse existing RKE2 state before host network changes
+  ansible.builtin.stat:
+    path: '{{ item }}'
+  loop: [/var/lib/rancher/rke2, /etc/rancher/rke2/config.yaml, /usr/bin/rke2, /usr/local/bin/rke2]
+  register: preparation_existing_rke2
+- ansible.builtin.assert:
+    that: not item.stat.exists
+    fail_msg: 'Existing RKE2 requires separate maintenance review.'
+  loop: '{{ preparation_existing_rke2.results }}'
+- name: Verify registration without exposing account or consumer identity
+  ansible.builtin.command:
+    argv: [subscription-manager, identity]
+  changed_when: false
+  no_log: true
+- name: Require the two approved OS repositories
+  ansible.builtin.command:
+    argv: [dnf, --cacheonly, repolist, --enabled]
+  register: preparation_repositories
+  changed_when: false
+- ansible.builtin.assert:
+    that:
+    - "'rhel-10-for-x86_64-baseos-rpms' in preparation_repositories.stdout"
+    - "'rhel-10-for-x86_64-appstream-rpms' in preparation_repositories.stdout"
+- name: Require no active swap without altering disk or fstab
+  ansible.builtin.command:
+    argv: [swapon, --show, --noheadings]
+  register: preparation_swap
+  changed_when: false
+- ansible.builtin.assert:
+    that: preparation_swap.stdout | trim | length == 0
+- name: Require synchronized time before any writes
+  ansible.builtin.command:
+    argv: [timedatectl, show, -p, NTPSynchronized, --value]
+  register: preparation_time
+  changed_when: false
+- ansible.builtin.assert:
+    that: preparation_time.stdout | trim == 'yes'
+- name: Inspect the managed NetworkManager file before replacing it
+  ansible.builtin.stat:
+    path: /etc/NetworkManager/conf.d/90-perkforge-rke2-canal.conf
+    follow: false
+  register: preparation_nm_file
+- ansible.builtin.assert:
+    that:
+    - not preparation_nm_file.stat.exists or (preparation_nm_file.stat.isreg | default(false) and not (preparation_nm_file.stat.islnk | default(false)))
+- name: Install prerequisites without a general OS upgrade
+  ansible.builtin.dnf:
+    name:
+    - curl
+    - tar
+    - gzip
+    - container-selinux
+    - 'kernel-modules-extra-{{ ansible_facts.kernel }}'
+    state: present
+- name: Persist the required modules across boot
+  ansible.builtin.copy:
+    content: "overlay\nbr_netfilter\nnf_conntrack\n"
+    dest: /etc/modules-load.d/90-perkforge-rke2.conf
+    owner: root
+    group: root
+    mode: '0644'
+- name: Inspect currently loaded kernel modules
+  ansible.builtin.stat:
+    path: '/sys/module/{{ item }}'
+  loop: [overlay, br_netfilter, nf_conntrack]
+  register: preparation_modules
+- name: Load only missing required modules
+  ansible.builtin.command:
+    argv: [modprobe, '{{ item.item }}']
+  when: not item.stat.exists
+  loop: '{{ preparation_modules.results }}'
+- name: Persist forwarding and bridged packet processing
+  ansible.builtin.copy:
+    content: |
+      net.ipv4.ip_forward = 1
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+    dest: /etc/sysctl.d/90-perkforge-rke2.conf
+    owner: root
+    group: root
+    mode: '0644'
+- name: Read only the three managed kernel settings
+  ansible.builtin.command:
+    argv: [sysctl, -n, net.ipv4.ip_forward, net.bridge.bridge-nf-call-iptables, net.bridge.bridge-nf-call-ip6tables]
+  register: preparation_sysctls
+  changed_when: false
+- name: Apply only the managed sysctl file when required
+  ansible.builtin.command:
+    argv: [sysctl, -p, /etc/sysctl.d/90-perkforge-rke2.conf]
+  when: preparation_sysctls.stdout_lines != ['1', '1', '1']
+- name: Leave physical NICs managed and ignore only Canal virtual interfaces
+  ansible.builtin.copy:
+    content: |
+      # Managed by PerkForge physical host preparation.
+      [keyfile]
+      unmanaged-devices=interface-name:flannel*;interface-name:cali*;interface-name:tunl*;interface-name:vxlan.calico;interface-name:vxlan-v6.calico;interface-name:wireguard.cali;interface-name:wg-v6.cali
+    dest: /etc/NetworkManager/conf.d/90-perkforge-rke2-canal.conf
+    owner: root
+    group: root
+    mode: '0644'
+  register: preparation_nm_config
+- name: Reload NetworkManager configuration without restarting physical networking
+  ansible.builtin.systemd_service:
+    name: NetworkManager
+    state: reloaded
+  when: preparation_nm_config.changed
+- name: Inspect optional NetworkManager cloud routing units
+  ansible.builtin.service_facts:
+- name: Disable cloud routing setup only when installed
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    enabled: false
+    state: stopped
+  when: item in ansible_facts.services
+  loop: [nm-cloud-setup.service, nm-cloud-setup.timer]
+- name: Disable firewalld only under the explicitly approved Canal preparation scope
+  ansible.builtin.systemd_service:
+    name: firewalld
+    enabled: false
+    state: stopped
+- name: Confirm SELinux remains enforcing
+  ansible.builtin.command:
+    argv: [getenforce]
+  register: preparation_selinux
+  changed_when: false
+- ansible.builtin.assert:
+    that: preparation_selinux.stdout | trim == 'Enforcing'

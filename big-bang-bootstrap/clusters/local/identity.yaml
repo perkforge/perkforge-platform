@@ -1,8 +1,8 @@
 # Local-only identity contract; consumed by keycloak-realm.yaml.
-identity_url: https://keycloak-local-il2.example.test/auth
+identity_url: https://keycloak.perkforge.home.arpa/auth
 identity_realm: perkforge
 identity_client_id: headlamp-local
-identity_redirect: https://headlamp-local-il2.example.test/oidc-callback
-identity_origin: https://headlamp-local-il2.example.test
-identity_issuer: https://keycloak-local-il2.example.test/auth/realms/perkforge
+identity_redirect: https://headlamp.perkforge.home.arpa/oidc-callback
+identity_origin: https://headlamp.perkforge.home.arpa
+identity_issuer: https://keycloak.perkforge.home.arpa/auth/realms/perkforge
 identity_groups: [/platform/admins, /platform/developers]

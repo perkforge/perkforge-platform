@@ -1,0 +1,114 @@
+---
+- name: Create root-protected config and service-owned state/log subtrees
+  ansible.builtin.file:
+    path: '{{ item.path }}'
+    state: directory
+    owner: '{{ item.owner }}'
+    group: '{{ item.group }}'
+    mode: '{{ item.mode }}'
+  loop:
+    - {path: '{{ pilot_runtime }}', owner: root, group: root, mode: '0711'}
+    - {path: '{{ pilot_runtime }}/config', owner: root, group: root, mode: '0700'}
+    - {path: '{{ pilot_logs }}', owner: root, group: root, mode: '0711'}
+    - {path: '{{ pilot_logs }}/control', owner: root, group: root, mode: '0700'}
+    - {path: '{{ pilot_runtime }}/dnsmasq', owner: dnsmasq, group: nogroup, mode: '0700'}
+    - {path: '{{ pilot_logs }}/dnsmasq', owner: dnsmasq, group: nogroup, mode: '0700'}
+    - {path: '{{ pilot_runtime }}/http', owner: www-data, group: www-data, mode: '0700'}
+    - {path: '{{ pilot_logs }}/http', owner: www-data, group: www-data, mode: '0700'}
+- ansible.builtin.file:
+    path: '{{ pilot_runtime }}/http/{{ item }}'
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0700'
+  loop: [client-body, proxy, fastcgi, uwsgi, scgi]
+- name: Precreate protected log files
+  ansible.builtin.copy:
+    content: ''
+    dest: '{{ pilot_logs }}/{{ item.path }}'
+    owner: '{{ item.owner }}'
+    group: '{{ item.group }}'
+    mode: '0600'
+    force: false
+  loop:
+    - {path: dnsmasq/dnsmasq.log, owner: dnsmasq, group: nogroup}
+    - {path: http/nginx-error.log, owner: www-data, group: www-data}
+    - {path: http/nginx-access.log, owner: www-data, group: www-data}
+- name: Allocate unique root-controlled config session
+  ansible.builtin.tempfile:
+    state: directory
+    path: '{{ pilot_runtime }}/config'
+    prefix: session-
+  register: config_session
+- name: Copy reviewed configuration; never render an unreviewed live replacement
+  ansible.builtin.copy:
+    src: '{{ pilot_review_dir }}/{{ item }}'
+    dest: '{{ config_session.path }}/{{ item }}'
+    owner: root
+    group: root
+    mode: '0600'
+  loop: [dnsmasq.conf, nginx.conf, ingress.nft, grub.cfg]
+- ansible.builtin.include_tasks: verify-activation-copies.yml
+- name: Inspect the reviewed menu before making it served
+  ansible.builtin.slurp:
+    src: '{{ config_session.path }}/grub.cfg'
+  register: new_menu
+- ansible.builtin.assert:
+    that:
+      - "'set timeout=-1\n' in (new_menu.content | b64decode)"
+      - "'set default=0\n' in (new_menu.content | b64decode)"
+      - "'exit\n' in (new_menu.content | b64decode)"
+      - not ((new_menu.content | b64decode) is search('inst\.ks|autopart|clearpart|zerombr'))
+- name: Preserve original TFTP menu outside both served roots
+  ansible.builtin.copy:
+    src: /srv/perkforge-pxe-pilot/tftp/EFI/BOOT/grub.cfg
+    remote_src: true
+    dest: '{{ pilot_logs }}/control/original-grub.cfg'
+    owner: root
+    group: root
+    mode: '0600'
+- name: Atomically replace only TFTP menu; keep HTTP DVD tree untouched
+  ansible.builtin.copy:
+    src: '{{ config_session.path }}/grub.cfg'
+    remote_src: true
+    dest: /srv/perkforge-pxe-pilot/tftp/EFI/BOOT/grub.cfg
+    owner: root
+    group: root
+    mode: '0444'
+- ansible.builtin.stat:
+    path: /srv/perkforge-pxe-pilot/tftp/EFI/BOOT/grub.cfg
+    checksum_algorithm: sha256
+  register: served_menu
+- ansible.builtin.assert:
+    that: served_menu.stat.checksum == pilot_review_hashes['grub.cfg']
+- ansible.builtin.set_fact:
+    pilot_menu_placed: true
+- name: Check final installed dnsmasq, GRUB and guard copies
+  ansible.builtin.command:
+    argv: '{{ item }}'
+  loop:
+    - [/usr/sbin/dnsmasq, --test, '--conf-file={{ config_session.path }}/dnsmasq.conf']
+    - [grub-script-check, /srv/perkforge-pxe-pilot/tftp/EFI/BOOT/grub.cfg]
+    - [/usr/sbin/nft, -c, -f, '{{ config_session.path }}/ingress.nft']
+  changed_when: false
+- name: Prepare exclusive atomic table creation; refuse a concurrent table instead of modifying it
+  ansible.builtin.copy:
+    content: |
+      create table inet perkforge_pxe_pilot
+      include "{{ config_session.path }}/ingress.nft"
+
+    dest: '{{ config_session.path }}/apply-guard.nft'
+    owner: root
+    group: root
+    mode: '0600'
+- ansible.builtin.command:
+    argv: [/usr/sbin/nft, -c, -f, '{{ config_session.path }}/apply-guard.nft']
+  changed_when: false
+- name: Preserve transaction record before any network mutation
+  ansible.builtin.copy:
+    content: '{{ {"config_dir": config_session.path, "units": pilot_units, "hashes": pilot_review_hashes, "dnsmasq_baseline": dnsmasq_before.stdout, "lifetime_seconds": pilot_lifetime_seconds} | to_nice_json }}'
+    dest: '{{ pilot_runtime }}/config/active.json'
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true

@@ -1,0 +1,29 @@
+# {{ workspace_node }} — {{ workspace_run }}
+
+Generated offline from metadata source: {{ workspace_metadata_source }}
+Source checkout: {{ workspace_repo }}
+Shared implementation: pxe/transport/workspace.yml and existing PXE templates/playbooks.
+No live operation or human content review is implied by file/hash generation.
+
+1. Review inputs.yml, discovery/*.conf, grub.cfg, ingress.nft and activation-review.yml.
+   Review the client identity against physical BIOS/router/inventory and media paths.
+   The manifest hashes actual rendered bytes; it is not proof of human approval.
+2. Preserve backup copies of the original input outside this generated tree.
+   To rebuild, use a fresh workspace_run and the tracked workspace.yml command in
+   pxe/README.md. Never delete/overwrite existing runs or private evidence.
+3. Before live start, approve this exact target/service exposure/menu/lifetime.
+   Lifetime is {{ workspace_lifetime_seconds }} seconds (0 = infinity until explicit stop).
+   If prior runtime/log roots exist, start refuses them; stop and separately review
+   preservation using the documented exact previous transaction/manifest first.
+4. If needed, authorized exact stopped-session preservation: bash session.sh preserve approved
+   This refuses UNCONFIGURED previous-state fields. It never resets/stops units.
+5. Authorized workstation-only start: bash session.sh start approved
+6. Authorized identity-checked workstation shutdown: bash session.sh stop approved
+   Keep services while an installer needs the source. Preserve all evidence.
+
+Input snapshots and logs are mode0600; directories0700. Native root transaction,
+service state and shared media remain separate. Existing SSH keys/passwords stay
+in protected custody; the access/ directory is initially empty. Host trust and
+native SSH/sudo evidence cannot be regenerated from these inputs. Restore them
+from protected backups or perform a new approved verification. No AI is needed to
+render these artifacts; operator review and action approval are still required.

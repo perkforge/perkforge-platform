@@ -10,7 +10,7 @@
 
 Configuration/test_optional_enrollment checks a tenant-free root preserves platform objects; bootstrap/test_prerequisites checks package ownership, unique definitions and explicit common-first ordering.
 
-The former Headlamp/identity mixed modules were split case-by-case. Shared rendered package setup has no test cases. Release/seed checks are separate from cross-repo configuration tests; generic findings tests live at repository-root evidence/tests, and infrastructure RKE2/Rancher tests stay with infrastructure/ansible/tests. No test is labelled live integration when it only exercises a fixture.
+The former Headlamp/identity mixed modules were split case-by-case. Shared rendered package setup has no test cases. Release/seed checks are separate from cross-repo configuration tests; generic findings tests live at repository-root evidence/tests, and infrastructure RKE2 tests stay with infrastructure/ansible/tests; Rancher API safety tests live in bootstrap/test_rancher_management.py with the platform operation. No test is labelled live integration when it only exercises a fixture.
 
 ## Offline commands
 
@@ -29,3 +29,8 @@ The first command requires those fixture inputs. RUN_PLATFORM_CONFIG_TESTS=1 and
 No default unittest command performs live cluster integration. Existing identity-verify.yaml requires explicit live approval and external signed test tokens; real browser/session, effective API denials, storage persistence, controller startup, capacity and recovery must be verified against the chosen target after code review. Archived catalog probes require adaptation before use. Do not add empty speculative suites or treat fixture passes as physical readiness/IL authorization.
 
 Resource inventories cover the explicitly selected Big Bang/application charts, not the entire cluster. RKE2/CNI/ingress/storage systems and Rancher-installed management dependencies need separate measured capacity/readiness validation.
+
+`bootstrap/test_platform_tls.py` executes TLS validation/delivery tasks against
+synthetic local certificates and an isolated CLI state fixture. It checks exact
+Secret/CA content, log redaction, existing-resource refusal and mismatched-key
+rejection before any API call. This is offline evidence, not live Secret delivery.

@@ -1,0 +1,20 @@
+{
+  "name": "perkforge-provisioning-architecture",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Source-first interactive provisioning diagrams; no deployment tooling",
+  "engines": {
+    "node": ">=22.22.3"
+  },
+  "scripts": {
+    "prevalidate": "node scripts/prepare-sources.mjs",
+    "validate": "likec4 validate",
+    "prebuild": "node scripts/prepare-sources.mjs",
+    "build": "likec4 build -o dist --base ./ --use-hash-history --public ./public",
+    "prestart": "node scripts/prepare-sources.mjs",
+    "start": "likec4 serve --listen 127.0.0.1 --port 5173 --public ./public"
+  },
+  "devDependencies": {
+    "likec4": "1.60.0"
+  }
+}

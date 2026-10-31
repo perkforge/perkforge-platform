@@ -1,0 +1,100 @@
+---
+- name: Mark only reviewed prepared workers for Longhorn
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    longhorn_worker_labels_apply: false
+    longhorn_worker_labels_reviewed: false
+    longhorn_labels_kubeconfig: /UNCONFIGURED/kubeconfig
+    longhorn_labels_kubectl: /UNCONFIGURED/kubectl
+    longhorn_labels_expected_cluster_uid: UNCONFIGURED
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Worker labels apply={{ longhorn_worker_labels_apply | bool }}; check={{ ansible_check_mode }}. Defaults/check mode never contact Kubernetes.'
+  - name: Run only the explicitly approved worker label operation
+    when: longhorn_worker_labels_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - longhorn_worker_labels_reviewed | bool
+        - longhorn_labels_expected_cluster_uid is match('^[0-9a-f-]{36}$')
+        - longhorn_labels_kubeconfig is match('^/')
+        - not longhorn_labels_kubeconfig.startswith('/UNCONFIGURED/')
+        - longhorn_labels_kubectl is match('^/')
+        - not longhorn_labels_kubectl.startswith('/UNCONFIGURED/')
+    - ansible.builtin.stat:
+        path: '{{ longhorn_labels_kubeconfig }}'
+        follow: false
+        get_checksum: false
+      register: longhorn_labels_config
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - longhorn_labels_config.stat.isreg | default(false)
+        - not (longhorn_labels_config.stat.islnk | default(false))
+        - longhorn_labels_config.stat.mode == '0600'
+        - longhorn_labels_config.stat.pw_name == lookup('env', 'USER')
+    - ansible.builtin.set_fact:
+        longhorn_labels_cli: ['{{ longhorn_labels_kubectl }}', --kubeconfig, '{{ longhorn_labels_kubeconfig }}', --request-timeout=20s]
+    - name: Require matching cluster identity before any mutation
+      ansible.builtin.command:
+        argv: "{{ longhorn_labels_cli + ['get', 'namespace', 'kube-system', '-o', 'jsonpath={.metadata.uid}'] }}"
+      register: longhorn_labels_identity
+      changed_when: false
+    - ansible.builtin.assert:
+        quiet: true
+        that: longhorn_labels_identity.stdout == longhorn_labels_expected_cluster_uid
+    - name: Inspect all node identities and labels before any write
+      ansible.builtin.command:
+        argv: "{{ longhorn_labels_cli + ['get', 'nodes', '-o', 'json'] }}"
+      register: longhorn_labels_nodes
+      changed_when: false
+    - ansible.builtin.set_fact:
+        longhorn_label_nodes: '{{ (longhorn_labels_nodes.stdout | from_json)["items"] }}'
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - longhorn_label_nodes | map(attribute='metadata.name') | sort == ['control-1', 'worker-1', 'worker-2']
+    - name: Refuse identity drift, unhealthy nodes or conflicting worker labels
+      ansible.builtin.assert:
+        quiet: true
+        that:
+        - item.metadata.labels['kubernetes.io/hostname'] == item.metadata.name
+        - item.status.conditions | selectattr('type', 'equalto', 'Ready') | selectattr('status', 'equalto', 'True') | list | length == 1
+        - item.metadata.name == 'control-1' or 'node-role.kubernetes.io/control-plane' not in item.metadata.labels
+        - item.metadata.name == 'control-1' or 'node-role.kubernetes.io/etcd' not in item.metadata.labels
+        - item.metadata.labels.get('storage.perkforge.io/worker', 'absent') in (['absent'] if item.metadata.name == 'control-1' else ['absent', 'true'])
+        - item.metadata.labels.get('node.longhorn.io/create-default-disk', 'absent') in (['absent'] if item.metadata.name == 'control-1' else ['absent', 'true'])
+      loop: '{{ longhorn_label_nodes }}'
+      loop_control:
+        label: '{{ item.metadata.name }}'
+    - name: Add only the reviewed labels with UID and version preconditions
+      ansible.builtin.command:
+        argv: "{{ longhorn_labels_cli + ['patch', 'node', item.metadata.name, '--type=json', '--patch', label_patch | to_json] }}"
+      vars:
+        label_patch:
+        - {op: test, path: /metadata/uid, value: '{{ item.metadata.uid }}'}
+        - {op: test, path: /metadata/resourceVersion, value: '{{ item.metadata.resourceVersion }}'}
+        - {op: add, path: /metadata/labels/storage.perkforge.io~1worker, value: 'true'}
+        - {op: add, path: /metadata/labels/node.longhorn.io~1create-default-disk, value: 'true'}
+      loop: '{{ longhorn_label_nodes }}'
+      loop_control:
+        label: '{{ item.metadata.name }}'
+      when:
+      - item.metadata.name in ['worker-1', 'worker-2']
+      - item.metadata.labels.get('storage.perkforge.io/worker') != 'true' or item.metadata.labels.get('node.longhorn.io/create-default-disk') != 'true'
+    - name: Read back labels after the operation
+      ansible.builtin.command:
+        argv: "{{ longhorn_labels_cli + ['get', 'nodes', '-o', 'json'] }}"
+      register: longhorn_labels_after
+      changed_when: false
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - item.metadata.labels.get('storage.perkforge.io/worker', 'absent') == ('absent' if item.metadata.name == 'control-1' else 'true')
+        - item.metadata.labels.get('node.longhorn.io/create-default-disk', 'absent') == ('absent' if item.metadata.name == 'control-1' else 'true')
+      loop: '{{ (longhorn_labels_after.stdout | from_json)["items"] }}'
+      loop_control:
+        label: '{{ item.metadata.name }}'

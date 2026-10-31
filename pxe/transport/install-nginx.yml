@@ -1,0 +1,127 @@
+---
+- name: Install approved nginx packages without activating any HTTP service
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    nginx_version: 1.26.3-3+deb13u10
+  tasks:
+    - name: Require explicit local invocation and real preflight rather than check mode
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname == 'localhost'
+          - ansible_connection == 'local'
+          - not ansible_check_mode
+          - nginx_version == '1.26.3-3+deb13u10'
+    - name: Inspect initial nginx unit without changing it
+      ansible.builtin.command: systemctl show nginx.service -p LoadState -p ActiveState -p SubState -p UnitFileState
+      register: initial_unit
+      changed_when: false
+    - name: Require the approved absent and inactive initial unit
+      ansible.builtin.assert:
+        that:
+          - "'LoadState=not-found' in initial_unit.stdout_lines"
+          - "'ActiveState=inactive' in initial_unit.stdout_lines"
+          - "'SubState=dead' in initial_unit.stdout_lines"
+          - "'UnitFileState=' in initial_unit.stdout_lines"
+    - name: Inspect policy without following a symlink
+      ansible.builtin.stat:
+        path: /usr/sbin/policy-rc.d
+        follow: false
+      register: initial_policy
+    - name: Stop if administrator policy appeared since review
+      ansible.builtin.assert:
+        that: not initial_policy.stat.exists
+    - name: Require existing Python APT bindings without installing dependencies
+      ansible.builtin.command: /usr/bin/python3 -c 'import apt'
+      changed_when: false
+    - name: Simulate exact approved transaction without refreshing indexes or writing caches
+      ansible.builtin.command:
+        argv:
+          - apt-get
+          - --simulate
+          - -o
+          - Debug::NoLocking=1
+          - -o
+          - Dir::Cache::pkgcache=
+          - -o
+          - Dir::Cache::srcpkgcache=
+          - --no-install-recommends
+          - install
+          - 'nginx={{ nginx_version }}'
+          - 'nginx-common={{ nginx_version }}'
+      environment:
+        LC_ALL: C
+      register: transaction
+      changed_when: false
+    - name: Reject upgrades, removals, extra packages or a changed resolver result
+      ansible.builtin.assert:
+        that:
+          - "'0 upgraded, 2 newly installed, 0 to remove' in transaction.stdout"
+          - transaction.stdout_lines | select('match', '^Inst ') | list | length == 2
+          - transaction.stdout_lines | select('match', '^Inst nginx \\(' ~ (nginx_version | regex_escape) ~ ' ') | list | length == 1
+          - transaction.stdout_lines | select('match', '^Inst nginx-common \\(' ~ (nginx_version | regex_escape) ~ ' ') | list | length == 1
+    - name: Record initial listening sockets without process details
+      ansible.builtin.command: ss -H -lntu
+      register: sockets_before
+      changed_when: false
+    - name: Mask only the absent default nginx unit; do not start or stop anything
+      ansible.builtin.systemd_service:
+        name: nginx.service
+        masked: true
+    - name: Install with supported temporary policy; verify restoration even on failure
+      block:
+        - name: Install only the two approved exact package versions
+          ansible.builtin.apt:
+            name: ['nginx={{ nginx_version }}', 'nginx-common={{ nginx_version }}']
+            state: present
+            update_cache: false
+            install_recommends: false
+            force_apt_get: true
+            fail_on_autoremove: true
+            autoremove: false
+            auto_install_module_deps: false
+            policy_rc_d: 101
+      always:
+        - name: Inspect policy restoration; never delete an unexpected policy
+          ansible.builtin.stat:
+            path: /usr/sbin/policy-rc.d
+            follow: false
+          register: final_policy
+        - name: Require original absent policy restored
+          ansible.builtin.assert:
+            that: not final_policy.stat.exists
+            fail_msg: 'STOP: policy restoration needs inspection. Do not delete policy or rerun blindly.'
+    - name: Read installed package versions
+      ansible.builtin.command:
+        argv: [dpkg-query, -W, '-f=${Package} ${Version} ${db:Status-Status}\n', nginx, nginx-common]
+      register: versions
+      changed_when: false
+    - name: Verify exact installed versions
+      ansible.builtin.assert:
+        that:
+          - "('nginx ' ~ nginx_version ~ ' installed') in versions.stdout_lines"
+          - "('nginx-common ' ~ nginx_version ~ ' installed') in versions.stdout_lines"
+    - name: Inspect final unit without starting it
+      ansible.builtin.command: systemctl show nginx.service -p LoadState -p ActiveState -p SubState -p UnitFileState
+      register: final_unit
+      changed_when: false
+    - name: Verify nginx remains masked and inactive
+      ansible.builtin.assert:
+        that:
+          - "'LoadState=masked' in final_unit.stdout_lines"
+          - "'UnitFileState=masked' in final_unit.stdout_lines"
+          - "'ActiveState=inactive' in final_unit.stdout_lines"
+          - "'SubState=dead' in final_unit.stdout_lines"
+    - name: Read final listening sockets without process details
+      ansible.builtin.command: ss -H -lntu
+      register: sockets_after
+      changed_when: false
+    - name: Stop on any newly observed listener
+      ansible.builtin.assert:
+        that: sockets_after.stdout_lines | difference(sockets_before.stdout_lines) | length == 0
+        fail_msg: 'New listener observed; inspect locally. Do not activate PXE or stop unrelated services.'
+    - ansible.builtin.debug:
+        msg: 'Approved packages installed; nginx masked/inactive; policy restored; no new listeners. STOP. No service activation authorized.'

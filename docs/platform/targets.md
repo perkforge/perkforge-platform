@@ -13,9 +13,11 @@
 
 ## Choose tenant enrollment
 
-For an enrolled target, copy `enrollments/local/` to `enrollments/dev/`, select it in the cluster root, and set its Flux reconciliation path to `./clusters/dev` in the enrollment repository. Prepare matching enrollment/app contexts and publish compatible releases. Dependency order is application → enrollment → platform; advance only to real published tags.
+The shipped local root currently excludes tenant enrollment while core platform services are established. Enrollment prerequisite apply refuses this unselected root before external access. Optional enrolled-chain tests explicitly opt in temporary fixtures; they do not enable the operator root.
 
-For a new tenant-free management/C2 target, omit `../../enrollments/<name>` from the cluster resources and skip `configuration/ansible/enrollment-prerequisites.yaml`. No enrollment source, reconciler or prerequisite RBAC is then required; platform services remain selected independently. An isolated configuration regression verifies omission preserves every other root object and contains no enrollment references. Current cross-repository CI still assumes the shipped local enrollment chain; selecting appropriate validation for an additional tenant-free target remains work before adopting it.
+For a later enrolled target, copy `enrollments/local/` to `enrollments/dev/`, select it in the cluster root, and set its Flux reconciliation path to `./clusters/dev` in the enrollment repository. Prepare matching enrollment/app contexts and publish compatible releases. Dependency order is application → enrollment → platform; advance only to real published tags.
+
+For a new tenant-free management/C2 target, omit `../../enrollments/<name>` from the cluster resources and skip `configuration/ansible/enrollment-prerequisites.yaml`. No enrollment source, reconciler or prerequisite RBAC is then required; platform services remain selected independently. An isolated regression verifies the default root contains no enrollment references and explicit temporary opt-in preserves every other platform object. Cross-repository selection tests retain their opt-in contract fixtures; compatible downstream context/pins still require verification before enabling enrollment.
 
 This is not removal guidance for an already enrolled cluster: prune is false and removing Git references does not revoke existing objects or permissions. Review cleanup separately.
 
@@ -31,3 +33,45 @@ ansible-playbook -i big-bang-bootstrap/configuration/ansible/inventory.yaml big-
 Inspect ordered Helm values and full child renders with the [offline suite](../../big-bang-bootstrap/tests/README.md), including two clusters sharing an environment, context/pin mismatches and enrollment inclusion/omission. Kustomize does not render child charts. Default bootstrap/check mode is no-write; the documented local default walkthrough is not a live installation command for a new target.
 
 After review/release, follow [operation order and containment](../../big-bang-bootstrap/configuration/ansible/README.md). Infrastructure/node access, secrets, trust, security configuration and deployment each require the concrete activation scope. Physical storage/HA/DNS/TLS/backups and comprehensive live tests remain prerequisites, not guarantees supplied by a new directory.
+
+## Authored metadata
+
+Platform-owned selection annotations use `platform.perkforge.io/cluster`,
+`platform.perkforge.io/environment` and `platform.perkforge.io/profile`. The profile
+is a configuration selection, not an authorization or compliance claim. Package
+namespace identity uses `app.kubernetes.io/component`; vendor-owned metadata keeps
+its upstream contract. These selection keys must agree across the platform seed,
+release verification and enrollment/application repositories before activation.
+Changing the prefix requires compatible downstream releases; existing release
+evidence alone does not establish that alignment.
+
+## Local DNS and HTTPS
+
+The selected local suffix is `perkforge.home.arpa`, using the residential
+special-use domain defined by [RFC 8375](https://www.rfc-editor.org/rfc/rfc8375.html).
+The application names are `headlamp.perkforge.home.arpa`,
+`keycloak.perkforge.home.arpa`, `rancher.perkforge.home.arpa` and `openbao.perkforge.home.arpa`. Keycloak retains
+its `/auth` base path and `perkforge` realm; Headlamp retains client ID
+`headlamp-local`. Names, callback/origin, issuer/JWKS and TLS SANs must agree.
+
+The authored values, routes and identity inputs agree on these names. They do not
+create DNS records, choose an ingress address, issue certificates or distribute
+trust. Before activation, select the LAN ingress endpoint and local DNS owner;
+ensure the workstation, node hosts and cluster workloads all resolve the names.
+Private-CA certificates and trust must cover browsers, workloads, API-server OIDC
+and Rancher agents as applicable. Existing reviewed TLS Secret names stay intact.
+Do not bypass certificate validation. DNS, CA/trust and live API-server changes
+remain separate reviewed actions; changing source URLs does not activate them.
+
+Read-only ingress inspection found the RKE2-managed `rke2-traefik` DaemonSet
+healthy on all three nodes, with host ports 80/443 and a ClusterIP service. The
+existing controller can serve a selected worker address without an additional
+load balancer for initial lab use. A single address has a worker availability
+dependency; multi-address DNS is not a health-checked failover mechanism. The selected initial ingress endpoint is worker-1. A separate dnsmasq host service
+is installed and enabled on control-1; direct LAN resolution/forwarding checks
+passed. Workstation split DNS and all three node resolver migrations are complete. The
+approved CoreDNS rolling refresh and service-level DNS checks passed; TLS and
+workload-specific policies remain outstanding. See the infrastructure DNS procedure. The workstation uses
+the router as its resolver; router capabilities must be confirmed before choosing
+local records, forwarding or an independent resolver. Keep actual addresses in the
+ignored topology, not public procedure files.

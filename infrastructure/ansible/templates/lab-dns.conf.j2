@@ -1,0 +1,20 @@
+# Managed by PerkForge lab DNS. DNS only: no DHCP, PXE, TFTP or RA.
+port=53
+listen-address={{ lab_dns_server_ip }}
+bind-dynamic
+no-resolv
+no-hosts
+domain-needed
+bogus-priv
+server={{ lab_dns_server_upstream }}
+# Keep all home.arpa queries local, including unknown names and AAAA queries.
+local=/home.arpa/
+local-ttl=60
+cache-size=150
+user=dnsmasq
+group=dnsmasq
+pid-file=
+host-record=headlamp.perkforge.home.arpa,{{ lab_dns_ingress_ip }}
+host-record=keycloak.perkforge.home.arpa,{{ lab_dns_ingress_ip }}
+host-record=rancher.perkforge.home.arpa,{{ lab_dns_ingress_ip }}
+host-record=openbao.perkforge.home.arpa,{{ lab_dns_ingress_ip }}
