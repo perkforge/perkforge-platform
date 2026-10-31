@@ -31,3 +31,14 @@ ansible-playbook -i big-bang-bootstrap/configuration/ansible/inventory.yaml big-
 Inspect ordered Helm values and full child renders with the [offline suite](../../big-bang-bootstrap/tests/README.md), including two clusters sharing an environment, context/pin mismatches and enrollment inclusion/omission. Kustomize does not render child charts. Default bootstrap/check mode is no-write; the documented local default walkthrough is not a live installation command for a new target.
 
 After review/release, follow [operation order and containment](../../big-bang-bootstrap/configuration/ansible/README.md). Infrastructure/node access, secrets, trust, security configuration and deployment each require the concrete activation scope. Physical storage/HA/DNS/TLS/backups and comprehensive live tests remain prerequisites, not guarantees supplied by a new directory.
+
+## Authored metadata
+
+Platform-owned selection annotations use `platform.perkforge.io/cluster`,
+`platform.perkforge.io/environment` and `platform.perkforge.io/profile`. The profile
+is a configuration selection, not an authorization or compliance claim. Package
+namespace identity uses `app.kubernetes.io/component`; vendor-owned metadata keeps
+its upstream contract. These selection keys must agree across the platform seed,
+release verification and enrollment/application repositories before activation.
+Changing the prefix requires compatible downstream releases; existing release
+evidence alone does not establish that alignment.

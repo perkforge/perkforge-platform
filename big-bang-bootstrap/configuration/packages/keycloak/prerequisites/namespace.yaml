@@ -4,4 +4,4 @@ metadata:
   name: keycloak
   labels:
     app.kubernetes.io/managed-by: Ansible
-    example.perkforge.io/stage: local-identity
+    app.kubernetes.io/component: keycloak

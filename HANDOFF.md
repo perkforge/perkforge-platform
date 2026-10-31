@@ -120,11 +120,26 @@ credentials and reviewed source selection/unpause. No live install is approved. 
 contents need their own backup; the verified etcd snapshot does not contain them.
 
 The operator selected Longhorn for growth and requested this intermediate source
-commit/push before any bootstrap. Next test: read-only Longhorn host compatibility
-preflight (iSCSI/version/module, SELinux policy, mount propagation, capacity and
-worker selection). Actual PVC write/recreate/reattach/replica-health testing must
+commit/push before any bootstrap. The approved read-only Longhorn host audit completed; protected evidence is in
+.rke2-state/longhorn-preflight-jkilmqcb/. Both workers have matching hostnames,
+XFS/shared propagation, six CPUs, about 15GiB RAM and 227GiB free. Both lack
+iSCSI tools/service and a loaded iscsi_tcp module (the module exists on disk).
+NFS/encryption tools, Longhorn directory and worker labels are absent. SELinux
+remains enforcing; active policy/runtime permissions are unverified. This is not
+installation readiness. The reusable command is in the Longhorn package README.
+Node names, hostname labels and RKE2 hostname annotations match control-1,
+worker-1 and worker-2; no custom test annotation keys were observed. Review
+controller-owned metadata before any cleanup. No live metadata was changed. Actual PVC write/recreate/reattach/replica-health testing must
 wait until later approved Longhorn bootstrap. Keep Rancher Helm separate from its
 OIDC API step: DNS/TLS before Helm, ready Keycloak before SSO configuration.
 Restore validation and independent encrypted/off-site custody also remain outstanding. Smoke success does not establish ingress, policy isolation, durable
 storage or recovery. No further live action is authorized by this handoff. Keep architecture and human repeat instructions,
 not session journals, planning archives or duplicate procedure documents.
+
+Authored metadata review replaced the illustrative selection prefix with
+platform.perkforge.io and package stage labels with standard component labels.
+The seed/release verifier now require the same prefix. Downstream enrollment/app
+metadata and release compatibility still require coordinated review before any
+activation. Local example.test URLs and worker selectors remain unresolved inputs;
+choose the actual DNS suffix and scheduling placement consistently across values,
+identity/routing and RKE2 OIDC settings before bootstrap.

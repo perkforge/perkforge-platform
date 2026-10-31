@@ -31,6 +31,8 @@ packages:
         remediation:
           retries: 0
     values:
+      networkPolicies:
+        type: rke2
       global:
         nodeSelector:
           storage.perkforge.io/worker: 'true'

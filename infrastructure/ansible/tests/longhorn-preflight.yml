@@ -1,0 +1,54 @@
+---
+- name: Explicit read-only Longhorn V1 worker prerequisite audit
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    longhorn_preflight_verify: false
+    longhorn_preflight_output_parent: /UNCONFIGURED/output
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Verify={{ longhorn_preflight_verify | bool }}; check={{ ansible_check_mode }}. No installation, module loading, service, label, mount or disk changes.'
+  - name: Inspect only the two explicitly selected workers
+    when: longhorn_preflight_verify | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - groups.get('rke2_agents', []) | length == 2
+        - groups.get('rke2_servers', []) | length == 1
+        - (groups['rke2_agents'] + groups['rke2_servers']) | unique | length == 3
+        - longhorn_preflight_output_parent is match('^/')
+        - not longhorn_preflight_output_parent.startswith('/UNCONFIGURED/')
+        - longhorn_preflight_output_parent | realpath == longhorn_preflight_output_parent
+    - ansible.builtin.stat:
+        path: '{{ longhorn_preflight_output_parent }}'
+        follow: false
+      register: preflight_parent
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - preflight_parent.stat.isdir | default(false)
+        - not (preflight_parent.stat.islnk | default(false))
+        - preflight_parent.stat.mode == '0700'
+        - preflight_parent.stat.pw_name == lookup('env', 'USER')
+    - name: Allocate a protected local report directory
+      ansible.builtin.tempfile:
+        state: directory
+        path: '{{ longhorn_preflight_output_parent }}'
+        prefix: longhorn-preflight-
+      register: preflight_output
+    - ansible.builtin.set_fact:
+        preflight_reports: []
+    - ansible.builtin.include_tasks: longhorn-preflight-node.yml
+      loop: '{{ groups["rke2_agents"] }}'
+      loop_control:
+        loop_var: preflight_node
+    - name: Save full nonsecret observations and unmet prerequisites
+      ansible.builtin.copy:
+        dest: '{{ preflight_output.path }}/summary.yml'
+        mode: '0600'
+        content: |
+          {{ {'mode': 'read-only-host-audit', 'longhorn_pin': '1.13.0', 'nodes': preflight_reports, 'application_io_tested': false, 'selinux_runtime_permissions_verified': false, 'host_changes': false} | to_nice_yaml }}
+    - ansible.builtin.debug:
+        msg: 'Read-only audit completed. See unmet prerequisites and feature-dependent tools in {{ preflight_output.path }}/summary.yml. Completion does not imply readiness to install.'

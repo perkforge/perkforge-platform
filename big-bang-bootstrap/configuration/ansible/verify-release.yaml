@@ -35,8 +35,8 @@
 - name: Require released entrypoint to match selected inventory context
   ansible.builtin.assert:
     that:
-    - released_context['example.perkforge.io/cluster'] == inventory_hostname
-    - released_context['example.perkforge.io/environment'] == deployment_environment
-    - released_context['example.perkforge.io/profile'] == impact_profile
+    - released_context['platform.perkforge.io/cluster'] == inventory_hostname
+    - released_context['platform.perkforge.io/environment'] == deployment_environment
+    - released_context['platform.perkforge.io/profile'] == impact_profile
   vars:
     released_context: "{{ (released_entrypoint.stdout | b64decode | from_yaml).commonAnnotations }}"

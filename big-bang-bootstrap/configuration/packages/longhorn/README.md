@@ -57,3 +57,33 @@ protected copy and tested restore before becoming its only home.
 
 Sources: https://longhorn.io/docs/1.13.0/deploy/install/ and
 https://longhorn.io/docs/1.13.0/best-practices/.
+
+## Repeat the read-only host audit
+
+From the repository root, using the private inventory and protected output directory:
+
+```sh
+ansible-playbook -i infrastructure/ansible/inventory/.topology.yml \
+  infrastructure/ansible/tests/longhorn-preflight.yml \
+  -e longhorn_preflight_verify=true \
+  -e longhorn_preflight_output_parent=/ABSOLUTE/PATH/TO/inventory/.rke2-state
+```
+
+The output parent must already be operator-owned, mode0700 and not a symlink.
+Default/check mode contacts no hosts. Explicit verification reads worker state over
+SSH without sudo and writes a fresh local mode0600 summary; it never prepares hosts.
+Missing probes are recorded rather than treated as installation readiness.
+
+The current audit found matching worker hostnames, XFS/shared mount propagation,
+six CPUs, about 15GiB RAM and 227GiB free per worker. Both lack iSCSI tools/service;
+iscsi_tcp exists on disk but is not loaded. The data directory and storage labels
+remain deliberately absent. NFS tools are needed for RWX/NFS backup and cryptsetup
+for encrypted volumes. Enforcing SELinux has RKE2/container policies, but active
+policy permissions and later runtime behavior remain unverified. No installation
+is ready merely because the audit completed. Chart network policies explicitly
+select the RKE2 distribution; this authored correction has not been applied.
+
+When reviewing cluster metadata, compare node names, hostname labels and RKE2
+hostname annotations with the inventory. Investigate unexpected test values;
+controller-owned annotations require understanding before removal. Keep full
+metadata and physical identifiers out of tracked evidence.

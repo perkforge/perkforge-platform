@@ -1,0 +1,47 @@
+---
+- name: Require explicit host identity without guessing addresses
+  ansible.builtin.assert:
+    quiet: true
+    that:
+    - hostvars[preflight_node].ansible_host | default('UNCONFIGURED') != 'UNCONFIGURED'
+    - hostvars[preflight_node].ansible_user | default('UNCONFIGURED') != 'UNCONFIGURED'
+- name: Gather named read-only worker observations without root
+  ansible.builtin.command:
+    argv: '{{ item.argv }}'
+  delegate_to: '{{ preflight_node }}'
+  vars:
+    ansible_connection: ssh
+  loop:
+  - {name: hostname, argv: [hostname]}
+  - {name: os, argv: [cat, /etc/redhat-release]}
+  - {name: kernel, argv: [uname, -r]}
+  - {name: selinux, argv: [getenforce]}
+  - {name: kubelet_mount, argv: [findmnt, -n, -T, /var/lib/kubelet, -o, 'TARGET,FSTYPE,PROPAGATION']}
+  - {name: free_disk, argv: [df, -B1, '--output=size,avail', /]}
+  - {name: memory, argv: [free, -b]}
+  - {name: cpu, argv: [nproc]}
+  - {name: iscsi_package, argv: [rpm, -q, '--qf', '%{VERSION}-%{RELEASE}', iscsi-initiator-utils]}
+  - {name: iscsi_service, argv: [systemctl, is-active, iscsid]}
+  - {name: iscsi_enabled, argv: [systemctl, is-enabled, iscsid]}
+  - {name: iscsi_module_available, argv: [/usr/sbin/modinfo, -F, filename, iscsi_tcp]}
+  - {name: iscsi_module_loaded, argv: [test, -d, /sys/module/iscsi_tcp]}
+  - {name: nfs_package, argv: [rpm, -q, nfs-utils]}
+  - {name: encryption_package, argv: [rpm, -q, cryptsetup]}
+  - {name: device_mapper, argv: [rpm, -q, device-mapper]}
+  - {name: selinux_packages, argv: [rpm, -q, container-selinux, rke2-selinux, selinux-policy-targeted]}
+  - {name: selinux_query_tool, argv: [rpm, -q, setools-console]}
+  - {name: data_directory_present, argv: [test, -d, /var/lib/longhorn]}
+  register: preflight_observations
+  loop_control:
+    label: '{{ preflight_node }} / {{ item.name }}'
+  failed_when: false
+  changed_when: false
+- name: Refuse misidentified or unreachable worker results
+  ansible.builtin.assert:
+    quiet: true
+    that:
+    - preflight_observations.results[0].rc == 0
+    - preflight_observations.results[0].stdout | trim == preflight_node
+- name: Classify observations without hiding missing packages or claiming runtime compatibility
+  ansible.builtin.set_fact:
+    preflight_reports: "{{ preflight_reports + [{'node': preflight_node, 'observations': preflight_observations.results | map(attribute='item.name') | zip(preflight_observations.results | map(attribute='stdout')) | list, 'unmet_checks': preflight_observations.results | rejectattr('rc', 'equalto', 0) | map(attribute='item.name') | list, 'selinux_runtime_policy': 'unverified; no Longhorn workload exists and no policy-query tool is installed by this audit', 'feature_scope': 'iSCSI service/module are V1 requirements; NFS is for RWX/NFS backup, cryptsetup is for encrypted volumes'}] }}"
