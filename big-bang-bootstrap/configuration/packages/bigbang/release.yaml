@@ -22,9 +22,11 @@ spec:
   - kind: ConfigMap
     name: values-headlamp
     valuesKey: values.yaml
+    optional: true
   - kind: ConfigMap
     name: values-headlamp
     valuesKey: oidc.yaml
+    optional: true
   - kind: ConfigMap
     name: values-rancher
     valuesKey: values.yaml

@@ -2,8 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
 - ../../configuration/defaults
-- ../../configuration/packages/headlamp
-- ../../configuration/packages/keycloak
+- ../../configuration/packages/longhorn
 - ../../providers/rke2
 - ../../profiles/il2
 - ../../configuration/packages/bigbang

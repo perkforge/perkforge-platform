@@ -34,3 +34,5 @@ Resource inventories cover the explicitly selected Big Bang/application charts, 
 synthetic local certificates and an isolated CLI state fixture. It checks exact
 Secret/CA content, log redaction, existing-resource refusal and mismatched-key
 rejection before any API call. This is offline evidence, not live Secret delivery.
+
+The authoritative local-root regression renders only suspended Longhorn and checks identity/tenant packages are absent. Identity and capacity tests explicitly compose their application fixtures; those inventory totals do not describe the initial Longhorn-only rollout. Fixture opt-in never changes operator selection.

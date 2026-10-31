@@ -43,7 +43,7 @@ for personal files, databases and secret-service recovery, with restore checks.
 Pinned Big Bang 3.35.1 has no built-in Longhorn package. Its custom-package mechanism
 can declare an upstream pinned Longhorn chart, reconciled by Flux, ordered before
 stateful applications. Infrastructure Ansible owns host prerequisites. Optional Longhorn 1.13.0 and Rancher 2.15.2 inputs and prerequisites are prepared
-under big-bang-bootstrap/configuration/packages; both remain unselected/suspended.
+under big-bang-bootstrap/configuration/packages; Longhorn is selected but suspended; Rancher remains unselected/suspended.
 Host compatibility, actual scheduling/labels and backup details still need review
 before any installation. The existing static Keycloak PV remains an unconfigured
 specimen until deliberately replaced; no storage implementation has been applied.
