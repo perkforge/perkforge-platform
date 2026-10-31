@@ -123,8 +123,7 @@ The operator selected Longhorn for growth and requested this intermediate source
 commit/push before any bootstrap. The approved read-only Longhorn host audit completed; protected evidence is in
 .rke2-state/longhorn-preflight-jkilmqcb/. Both workers have matching hostnames,
 XFS/shared propagation, six CPUs, about 15GiB RAM and 227GiB free. This initial audit identified missing host prerequisites; the completed maintenance
-and post-preparation audit below supersede those gaps. Worker labels remain
-absent and runtime contexts/I/O remain unverified. SELinux remains enforcing. This is not
+and post-preparation audit below supersede those gaps. Worker label completion is recorded below; runtime contexts/I/O remain unverified. SELinux remains enforcing. This is not
 installation readiness. The reusable command is in the Longhorn package README.
 Node names, hostname labels and RKE2 hostname annotations match control-1,
 worker-1 and worker-2; no custom test annotation keys were observed. Review
@@ -139,9 +138,11 @@ Authored metadata review replaced the illustrative selection prefix with
 platform.perkforge.io and package stage labels with standard component labels.
 The seed/release verifier now require the same prefix. Downstream enrollment/app
 metadata and release compatibility still require coordinated review before any
-activation. Local example.test URLs and worker selectors remain unresolved inputs;
-choose the actual DNS suffix and scheduling placement consistently across values,
-identity/routing and RKE2 OIDC settings before bootstrap.
+activation. The local DNS suffix is now perkforge.home.arpa; Headlamp, Keycloak,
+Rancher and OpenBao use their short application names under it. Authored values,
+identity/routing and RKE2 OIDC issuer agree. Worker placement remains unresolved.
+DNS records/ingress endpoint, TLS issuance and trust are not configured by these
+source changes and must precede bootstrap.
 
 Approved worker-only Longhorn prerequisite maintenance completed sequentially,
 with zero failures. Protected run evidence is in

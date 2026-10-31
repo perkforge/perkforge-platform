@@ -1,5 +1,5 @@
 # Sole physical local root; optional packages are absent until explicitly selected.
-domain: example.test
+domain: perkforge.home.arpa
 addons:
   headlamp:
     values:
@@ -11,24 +11,24 @@ addons:
         inbound:
           headlamp:
             hosts:
-            - headlamp-local-il2.example.test
+            - headlamp.perkforge.home.arpa
       bbtests:
         cypress:
           envs:
-            cypress_url: https://headlamp-local-il2.example.test
+            cypress_url: https://headlamp.perkforge.home.arpa
   keycloak:
     values:
       routes:
         inbound:
           keycloak:
             hosts:
-            - keycloak-local-il2.example.test
+            - keycloak.perkforge.home.arpa
       bbtests:
         cypress:
           envs:
-            cypress_url: https://keycloak-local-il2.example.test
+            cypress_url: https://keycloak.perkforge.home.arpa
       upstream:
-        extraEnv: '- {name: KC_HOSTNAME, value: ''https://keycloak-local-il2.example.test/auth''}
+        extraEnv: '- {name: KC_HOSTNAME, value: ''https://keycloak.perkforge.home.arpa/auth''}
 
           - {name: KC_CACHE, value: local}
 

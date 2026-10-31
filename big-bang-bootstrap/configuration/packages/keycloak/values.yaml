@@ -25,7 +25,7 @@ addons:
         - name: private-registry
         nodeSelector:
           kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE
-        extraEnv: '- {name: KC_HOSTNAME, value: ''https://keycloak-local-il2.example.test/auth''}
+        extraEnv: '- {name: KC_HOSTNAME, value: ''https://keycloak.perkforge.home.arpa/auth''}
 
           - {name: KC_CACHE, value: local}
 

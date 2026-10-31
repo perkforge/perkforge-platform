@@ -28,7 +28,7 @@ packages:
       upgrade:
         remediation: {retries: 0}
     values:
-      hostname: UNCONFIGURED.invalid
+      hostname: rancher.perkforge.home.arpa
       replicas: 1
       features: continuous-delivery=false
       agentTLSMode: strict

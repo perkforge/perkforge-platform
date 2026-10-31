@@ -42,3 +42,21 @@ its upstream contract. These selection keys must agree across the platform seed,
 release verification and enrollment/application repositories before activation.
 Changing the prefix requires compatible downstream releases; existing release
 evidence alone does not establish that alignment.
+
+## Local DNS and HTTPS
+
+The selected local suffix is `perkforge.home.arpa`, using the residential
+special-use domain defined by [RFC 8375](https://www.rfc-editor.org/rfc/rfc8375.html).
+The application names are `headlamp.perkforge.home.arpa`,
+`keycloak.perkforge.home.arpa`, `rancher.perkforge.home.arpa` and `openbao.perkforge.home.arpa`. Keycloak retains
+its `/auth` base path and `perkforge` realm; Headlamp retains client ID
+`headlamp-local`. Names, callback/origin, issuer/JWKS and TLS SANs must agree.
+
+The authored values, routes and identity inputs agree on these names. They do not
+create DNS records, choose an ingress address, issue certificates or distribute
+trust. Before activation, select the LAN ingress endpoint and local DNS owner;
+ensure the workstation, node hosts and cluster workloads all resolve the names.
+Private-CA certificates and trust must cover browsers, workloads, API-server OIDC
+and Rancher agents as applicable. Existing reviewed TLS Secret names stay intact.
+Do not bypass certificate validation. DNS, CA/trust and live API-server changes
+remain separate reviewed actions; changing source URLs does not activate them.

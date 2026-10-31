@@ -4,9 +4,9 @@ rancher_kubectl: kubectl
 rancher_kubeconfig: /UNCONFIGURED/kubeconfig
 rancher_context: UNCONFIGURED
 rancher_cluster_uid: UNCONFIGURED
-rancher_hostname: UNCONFIGURED
+rancher_hostname: rancher.perkforge.home.arpa
 rancher_oidc_client_id: rancher
-rancher_oidc_issuer: https://UNCONFIGURED/realms/UNCONFIGURED
+rancher_oidc_issuer: https://keycloak.perkforge.home.arpa/auth/realms/perkforge
 rancher_oidc_secret_file: /UNCONFIGURED/rancher-oidc-secret
 rancher_management_groups:
 - genericoidc_group:///platform/admins

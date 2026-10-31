@@ -6,9 +6,9 @@ in this optional directory (avoiding shared helmRepositories list collisions).
 The outer post-renderer appends required bigbang/rancher-bootstrap-values,
 values.yaml, to the generated release. That external Secret must contain only the
 reviewed bootstrapPassword value and must be delivered separately without logging.
-No plaintext credential or actual hostname is authored here. Missing Secret blocks
-installation instead of implicitly generating a password. The input hostname is
-UNCONFIGURED.invalid and must be replaced before any activation.
+No plaintext credential is authored here. Missing Secret blocks installation
+instead of implicitly generating a password. The selected local hostname is
+rancher.perkforge.home.arpa; DNS resolution and matching TLS remain prerequisites.
 
 Use existing cattle-system/tls-rancher-ingress with matching reviewed DNS/SANs and
 Traefik ingress. External TLS avoids a second cert-manager installer. Private CA,

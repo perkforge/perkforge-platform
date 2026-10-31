@@ -11,9 +11,9 @@ addons:
               enabled: true
               name: headlamp-oidc
               hasScopes: true
-            callbackURL: https://headlamp-local-il2.example.test/oidc-callback
+            callbackURL: https://headlamp.perkforge.home.arpa/oidc-callback
             validatorClientID: headlamp-local
-            validatorIssuerURL: https://keycloak-local-il2.example.test/auth/realms/perkforge
+            validatorIssuerURL: https://keycloak.perkforge.home.arpa/auth/realms/perkforge
             useAccessToken: false
             usePKCE: true
           extraArgs:
@@ -24,15 +24,15 @@ addons:
         - name: OIDC_CLIENT_ID
           value: headlamp-local
         - name: OIDC_ISSUER_URL
-          value: https://keycloak-local-il2.example.test/auth/realms/perkforge
+          value: https://keycloak.perkforge.home.arpa/auth/realms/perkforge
         - name: OIDC_SCOPES
           value: openid,profile,email
         - name: OIDC_CALLBACK_URL
-          value: https://headlamp-local-il2.example.test/oidc-callback
+          value: https://headlamp.perkforge.home.arpa/oidc-callback
         - name: OIDC_VALIDATOR_CLIENT_ID
           value: headlamp-local
         - name: OIDC_VALIDATOR_ISSUER_URL
-          value: https://keycloak-local-il2.example.test/auth/realms/perkforge
+          value: https://keycloak.perkforge.home.arpa/auth/realms/perkforge
         - name: OIDC_USE_PKCE
           value: 'true'
         volumes:

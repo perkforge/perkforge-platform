@@ -149,7 +149,7 @@ class SelectionContractTests(unittest.TestCase):
         values = yaml.safe_load((EXAMPLES / 'clusters/local/values.yaml').read_text())
         for name in ('headlamp', 'keycloak'):
             self.assertEqual(values['addons'][name]['values']['routes']['inbound'][name]['hosts'],
-                             [f'{name}-local-il2.example.test'])
+                             [f'{name}.perkforge.home.arpa'])
         inventory = yaml.safe_load((EXAMPLES / 'configuration/ansible/inventory.yaml').read_text())
         defaults = inventory['all']['children']['bootstrap_clusters']['vars']
         self.assertEqual(defaults['target_kubeconfig'], '/UNCONFIGURED/kubeconfig')

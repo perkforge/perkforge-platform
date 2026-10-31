@@ -1,7 +1,7 @@
 # REVIEWED INPUT, not installed automatically. Append; never replace base RKE2 config.
 # /etc/rancher/rke2/config.yaml.d/90-local-oidc.yaml on REPLACE_WITH_CONTROL_NODE only.
 kube-apiserver-arg+:
-- oidc-issuer-url=https://keycloak-local-il2.example.test/auth/realms/perkforge
+- oidc-issuer-url=https://keycloak.perkforge.home.arpa/auth/realms/perkforge
 - oidc-client-id=headlamp-local
 - oidc-username-claim=sub
 - 'oidc-username-prefix=oidc:'

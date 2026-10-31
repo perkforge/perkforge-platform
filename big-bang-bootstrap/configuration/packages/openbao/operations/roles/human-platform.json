@@ -9,7 +9,7 @@
     "profile"
   ],
   "allowed_redirect_uris": [
-    "https://openbao.example.test/ui/vault/auth/oidc/oidc/callback",
+    "https://openbao.perkforge.home.arpa/ui/vault/auth/oidc/oidc/callback",
     "http://localhost:8250/oidc/callback"
   ],
   "token_ttl": 900,
