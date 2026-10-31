@@ -5,6 +5,18 @@ import yaml
 from fixtures.selection import EXAMPLES,context
 
 class ReleaseSeedTests(unittest.TestCase):
+    def test_active_storage_source_does_not_remove_initial_seed_or_execution_gates(self):
+        inventory=yaml.safe_load((EXAMPLES/'configuration/ansible/inventory.yaml').read_text())['all']['children']['bootstrap_clusters']['vars']
+        self.assertFalse(inventory['bootstrap_apply'])
+        self.assertFalse(inventory['bootstrap_verify_release'])
+        self.assertEqual(inventory['config_tag'],'UNCONFIGURED')
+        seed=(EXAMPLES/'configuration/ansible/seed.yaml.j2').read_text()
+        self.assertEqual(seed.count('suspend: true'),2)
+        self.assertIn('tag: {{ config_tag | to_json }}',seed)
+        self.assertNotIn('branch:',seed)
+        root=yaml.safe_load((EXAMPLES/'clusters/local/kustomization.yaml').read_text())
+        self.assertEqual(set(root['resources']),{'../../configuration/defaults','../../configuration/packages/longhorn','../../providers/rke2','../../profiles/il2','../../configuration/packages/bigbang'})
+
     def test_bootstrap_rejects_bad_tags_or_evidence_before_api_work(self):
         for tag in ("main", "v99.0.0"):
             with self.subTest(tag=tag), tempfile.TemporaryDirectory() as directory:

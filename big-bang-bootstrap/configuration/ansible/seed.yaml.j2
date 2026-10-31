@@ -1,4 +1,7 @@
 # Rendered by Ansible's standard template lookup; no credentials included.
+# Initial bootstrap/containment gate, not a continuously reconciled child.
+# Keep paused even when the selected release authors active HelmReleases.
+# Resume only after exact release selection, installer prerequisites and approval.
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: GitRepository
 metadata:

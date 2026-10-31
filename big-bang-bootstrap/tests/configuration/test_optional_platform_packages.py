@@ -25,15 +25,15 @@ class OptionalPlatformPackages(unittest.TestCase):
             values=next(x for x in cls.outer if x['kind']=='Secret' and x['metadata']['name']==name+'-values')['stringData']['values.yaml']
             cls.children[name]=helm(cls.sources/name,name,namespace,[values])
 
-    def test_current_root_selects_only_longhorn_and_stays_paused(self):
-        self.assertTrue(self.parent['spec']['suspend'])
+    def test_current_root_selects_only_active_longhorn_behind_paused_seed(self):
+        self.assertFalse(self.parent['spec']['suspend'])
         names={x['metadata']['name'] for x in self.root}
         self.assertIn('values-longhorn', names)
         self.assertFalse({'values-headlamp','values-keycloak','values-rancher','values-openbao','rancher-official','tenant-enrollments'} & names)
         outer=helm(self.sources/'bigbang/chart','bigbang','bigbang',ordered_values(self.root,self.parent))
         releases={x['metadata']['name']:x for x in outer if x['kind']=='HelmRelease'}
         self.assertEqual(set(releases), {'longhorn'})
-        self.assertTrue(releases['longhorn']['spec']['suspend'])
+        self.assertFalse(releases['longhorn']['spec']['suspend'])
         self.assertEqual({x['metadata']['name'] for x in outer if x['kind']=='GitRepository'}, {'longhorn','bigbang-wrapper'})
         self.assertFalse(any(x['kind'] in ['Deployment','StatefulSet','PersistentVolumeClaim','Namespace','ClusterRole','ClusterRoleBinding'] for x in outer))
         self.assertFalse(any(x['kind']=='Kustomization' for x in self.root))
@@ -41,7 +41,7 @@ class OptionalPlatformPackages(unittest.TestCase):
     def test_opt_in_graph_and_external_rancher_credential(self):
         releases={x['metadata']['name']:x for x in self.outer if x['kind']=='HelmRelease'}
         for name in ['longhorn','rancher']:
-            self.assertTrue(releases[name]['spec']['suspend'])
+            self.assertEqual(releases[name]['spec']['suspend'], name != 'longhorn')
             self.assertEqual(releases[name]['spec']['serviceAccountName'],name+'-installer')
         self.assertIn({'name':'longhorn','namespace':'bigbang'},releases['keycloak']['spec']['dependsOn'])
         self.assertFalse(releases['rancher']['spec'].get('dependsOn'))
@@ -55,6 +55,7 @@ class OptionalPlatformPackages(unittest.TestCase):
 
     def test_longhorn_render_has_worker_placement_and_retained_two_replica_class(self):
         objects=self.children['longhorn']
+        self.assertFalse(any(obj['kind']=='Ingress' for obj in objects))
         for obj in objects:
             if obj['kind'] in ['DaemonSet','Deployment']:
                 self.assertEqual(obj['spec']['template']['spec']['nodeSelector'],{'storage.perkforge.io/worker':'true'})

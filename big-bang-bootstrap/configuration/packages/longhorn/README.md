@@ -1,7 +1,8 @@
 # Longhorn storage package
 
 Selected in clusters/local for the initial storage stage, not installed;
-the outer Big Bang release/seed and this package's Flux HelmRelease stay paused.
+the outer Big Bang release and this package author active Helm desired state,
+while the release-pinned seed remains paused until explicit activation approval.
 Big Bang 3.35.1 generates the single child release/source from the official charts
 Git tag longhorn-1.13.0 (charts/longhorn). The checksummed official chart artifact
 is a test fixture, never vendored deployment source. Git sourcing avoids the shared
@@ -37,7 +38,7 @@ still single-server. Add dedicated worker SSDs as actual growth requires.
    rendered upstream runtime RBAC as well as the installer before granting it.
 3. Select ../../configuration/packages/longhorn in the authoritative local root,
    review source/version/values and prerequisites, and explicitly clear the child
-   suspend flag only as part of the later reviewed activation. No standalone Helm
+   suspension state only through reviewed source; the active child remains behind the paused seed. No standalone Helm
    install, Rancher Marketplace or competing Longhorn release is permitted.
 4. Separately approved longhorn-prerequisites.yaml applies common Big Bang then
    this package's namespace/RBAC from a clean published release, with expected
@@ -143,3 +144,7 @@ metadata and do not overwrite conflicting values. Reruns skip matching labels;
 concurrent changes cause failure for review rather than a blind overwrite. A failed
 second-worker patch may leave the first worker labeled; inspect before retrying.
 The operation does not install Longhorn, create disks/claims or unpause Flux.
+
+The local root now authors active outer/Longhorn releases behind a paused,
+release-pinned seed. Use the [release/seed procedure](../../ansible/README.md#longhorn-only-release-and-seed-activation); v0.10.0 is the suspended staging input.
+Do not manually resume a child while its selected Git release still suspends it.

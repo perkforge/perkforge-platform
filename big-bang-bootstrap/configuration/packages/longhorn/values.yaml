@@ -1,4 +1,4 @@
-# Optional Big Bang custom-package input. Not selected by clusters/local.
+# Initial package selected by clusters/local; activation is gated by the paused seed.
 # Infrastructure Ansible must prepare/label the two workers before activation.
 packages:
   longhorn:
@@ -19,7 +19,7 @@ packages:
     bbCommonValues: false
     passBigBangValues: false
     flux:
-      suspend: true
+      suspend: false
       serviceAccountName: longhorn-installer
       storageNamespace: bigbang
       timeout: 10m
