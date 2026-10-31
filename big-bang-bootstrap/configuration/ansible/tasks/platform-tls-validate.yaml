@@ -1,0 +1,56 @@
+- ansible.builtin.stat:
+    path: '{{ platform_tls_bundle }}/{{ tls_application }}'
+    follow: false
+  register: tls_application_directory
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - tls_application_directory.stat.isdir | default(false)
+    - not (tls_application_directory.stat.islnk | default(false))
+    - tls_application_directory.stat.mode == '0700'
+    - tls_application_directory.stat.pw_name == lookup('env', 'USER')
+    - (platform_tls_bundle ~ '/' ~ tls_application) | realpath == platform_tls_bundle ~ '/' ~ tls_application
+  no_log: true
+- name: Inspect certificate and private key without following symlinks
+  ansible.builtin.stat:
+    path: '{{ platform_tls_bundle }}/{{ tls_application }}/{{ item }}'
+    follow: false
+  loop: [tls.crt, tls.key]
+  register: tls_files
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - item.stat.isreg | default(false)
+    - not (item.stat.islnk | default(false))
+    - item.stat.pw_name == lookup('env', 'USER')
+    - item.item != 'tls.key' or item.stat.mode == '0600'
+  loop: '{{ tls_files.results }}'
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - lookup('file', platform_tls_bundle ~ '/' ~ tls_application ~ '/tls.key').startswith('-----BEGIN PRIVATE KEY-----')
+    - lookup('file', platform_tls_bundle ~ '/' ~ tls_application ~ '/tls.crt').count('-----BEGIN CERTIFICATE-----') == 1
+    - "'PRIVATE KEY' not in lookup('file', platform_tls_bundle ~ '/' ~ tls_application ~ '/tls.crt')"
+  no_log: true
+- name: Validate hostname, server purpose, chain and remaining certificate lifetime
+  ansible.builtin.command:
+    argv: [openssl, verify, -CAfile, '{{ platform_tls_bundle }}/root-ca.crt', -verify_hostname, '{{ tls_application }}.perkforge.home.arpa', -purpose, sslserver, '{{ platform_tls_bundle }}/{{ tls_application }}/tls.crt']
+  changed_when: false
+  no_log: true
+- ansible.builtin.command:
+    argv: [openssl, x509, -in, '{{ platform_tls_bundle }}/{{ tls_application }}/tls.crt', -checkend, '2592000', -noout]
+  changed_when: false
+  no_log: true
+- ansible.builtin.command:
+    argv: [openssl, x509, -in, '{{ platform_tls_bundle }}/{{ tls_application }}/tls.crt', -pubkey, -noout]
+  register: tls_certificate_public_key
+  changed_when: false
+  no_log: true
+- ansible.builtin.command:
+    argv: [openssl, pkey, -in, '{{ platform_tls_bundle }}/{{ tls_application }}/tls.key', -pubout]
+  register: tls_private_key_public_part
+  changed_when: false
+  no_log: true
+- ansible.builtin.assert:
+    that: tls_certificate_public_key.stdout == tls_private_key_public_part.stdout
+  no_log: true

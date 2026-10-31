@@ -11,8 +11,11 @@ instead of implicitly generating a password. The selected local hostname is
 rancher.perkforge.home.arpa; DNS resolution and matching TLS remain prerequisites.
 
 Use existing cattle-system/tls-rancher-ingress with matching reviewed DNS/SANs and
-Traefik ingress. External TLS avoids a second cert-manager installer. Private CA,
-agent/browser trust and extra trust bundles require explicit review. The package
+Traefik ingress. External TLS avoids a second cert-manager installer. The selected private CA requires cattle-system/tls-ca (cacerts.pem) for the
+privateCA:true setting and tls-ca-additional (ca-additional.pem) for the
+additionalTrustedCAs:true outbound Keycloak trust mount. Deliver only the public
+root into these Secrets, never its signing key. Agent/browser trust and Secret
+delivery remain separately reviewed actions. The package
 has one lab replica, strict agent TLS, no Flux dependency on Longhorn and disables
 Continuous Delivery without disabling Rancher's internal Fleet provisioning dependency.
 Rancher stores management resources in the Kubernetes datastore, so its Helm
@@ -54,3 +57,9 @@ Offline tests execute real Ansible against synthetic CLI state, covering safe de
 API fields are checked against [Generic OIDC](https://github.com/rancher/rancher/blob/v2.15.2/pkg/apis/management.cattle.io/v3/authn_types.go) and [GlobalRoleBinding](https://github.com/rancher/rancher/blob/v2.15.2/pkg/apis/management.cattle.io/v3/authz_types.go) definitions.
 
 OIDC defaults are in `configuration/ansible/vars/rancher-oidc.yml`.
+
+The namespace-only TLS stage uses prerequisites/namespace.yaml without applying
+installer.yaml. Installer privileges remain separately approved. The gated
+platform-tls.yaml creates the leaf Secret and public CA Secrets only after reviewed
+release/target checks and explicit namespace/delivery approval; it never unpauses
+this optional package.

@@ -12,6 +12,8 @@ The operator uses PXE and interactive Anaconda to install RHEL. Infrastructure A
 | `tests/coredns-resolution.yml` | read-only lab/internal/public DNS queries through CoreDNS from control-1 | no cluster access |
 | `playbooks/refresh-coredns.yml` | separately approved CoreDNS rolling resolver refresh | no cluster access |
 | `playbooks/configure-lab-dns.yml` | separately approved DNS-only first installation on control-1 | no connections |
+| `playbooks/install-lab-ca-trust.yml` | approved public CA installation on workstation/nodes and Firefox certificate policy | no connections/changes |
+| `playbooks/create-lab-pki.yml` | approved local encrypted CA and four hostname certificate bundles | no prompts or key creation |
 | `playbooks/configure-hosts.yml` | reviewed RHEL/Canal prerequisites | no connections |
 | `playbooks/install-rke2.yml` | pinned single-server RKE2 installation/join/readiness | no connections |
 | `tests/reboot-verification.yml` | bootstrap-only worker-first reboots and persistence/Ready checks | no connections |

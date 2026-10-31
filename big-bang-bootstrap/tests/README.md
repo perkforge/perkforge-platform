@@ -29,3 +29,8 @@ The first command requires those fixture inputs. RUN_PLATFORM_CONFIG_TESTS=1 and
 No default unittest command performs live cluster integration. Existing identity-verify.yaml requires explicit live approval and external signed test tokens; real browser/session, effective API denials, storage persistence, controller startup, capacity and recovery must be verified against the chosen target after code review. Archived catalog probes require adaptation before use. Do not add empty speculative suites or treat fixture passes as physical readiness/IL authorization.
 
 Resource inventories cover the explicitly selected Big Bang/application charts, not the entire cluster. RKE2/CNI/ingress/storage systems and Rancher-installed management dependencies need separate measured capacity/readiness validation.
+
+`bootstrap/test_platform_tls.py` executes TLS validation/delivery tasks against
+synthetic local certificates and an isolated CLI state fixture. It checks exact
+Secret/CA content, log redaction, existing-resource refusal and mismatched-key
+rejection before any API call. This is offline evidence, not live Secret delivery.

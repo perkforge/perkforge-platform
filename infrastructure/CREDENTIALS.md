@@ -27,3 +27,9 @@ credential ZIP ignored and mode0600. A ZIP is not encrypted and is not an etcd
 backup. Independent custody and restore testing remain separate requirements. Removing an obsolete local
 file does not revoke credentials on a node or at an issuer; that is a separate
 security operation.
+
+- **Lab PKI:** approved local issuance keeps the root signing key passphrase-encrypted,
+  with private output under ignored protected custody. Keep an independent encrypted
+  backup and separate passphrase custody; distribute only the public root for trust.
+  Application tls.key files are unencrypted service credentials and remain mode0600.
+  CA issuance, trust installation and cluster TLS delivery are distinct approvals.

@@ -25,3 +25,52 @@ explicit private inputs overriding `vars/rancher-oidc.yml`. It is default-off,
 contacts no cluster in check mode, and requires separate security-change approval
 after Rancher and Keycloak readiness. See the Rancher package README. Infrastructure
 contains no direct Rancher installer or Rancher API operations.
+
+## TLS prerequisites before application activation
+
+`platform-tls.yaml` prepares only explicitly named Headlamp/Keycloak/Rancher inputs.
+Both platform_tls_namespaces_apply and platform_tls_apply default false; check
+mode never reads key files or contacts Kubernetes. The first flag creates only
+missing authored Namespace objects. It does not select charts, grant installer
+RBAC, create PVCs or apply routes. Headlamp/Keycloak retain their standard namespace
+labels; cattle-system retains the explicitly privileged PSA label required by its
+separate reviewed package namespace. Rancher's Namespace file is split from
+installer.yaml so namespace preparation cannot accidentally grant cluster-admin.
+
+The delivery flag validates all selected leaf/key pairs and the recorded CA
+fingerprint before writes, then creates (never overwrites) these exact resources:
+
+| Namespace | Resource | Material |
+|---|---|---|
+| headlamp | Secret/headlamp-local-tls | Headlamp leaf and service key |
+| headlamp | ConfigMap/identity-ca, ca.crt | Public root only; existing OIDC mount |
+| keycloak | Secret/keycloak-local-tls | Keycloak leaf and service key |
+| cattle-system | Secret/tls-rancher-ingress | Rancher leaf and service key |
+| cattle-system | Secret/tls-ca, cacerts.pem | Public root for strict agent trust |
+| cattle-system | Secret/tls-ca-additional, ca-additional.pem | Public root for outbound Keycloak trust |
+
+Select an explicit nonempty platform_tls_applications list from headlamp, keycloak
+and rancher; default is empty. OpenBao is rejected until its listener/localhost/
+internal TLS contract is resolved. No root signing key is read or delivered.
+Use the normal local platform inventory plus protected external vars for reviewed
+config_tag/config_release_evidence, target_kubeconfig/target_context,
+expected_cluster_uid, platform_tls_bundle and platform_tls_expected_ca_fingerprint.
+All normal release checks apply: published immutable source, matching selection
+annotations, exact clean checkout and exact cluster. Uncommitted work cannot be applied through this gate. Review/publish a compatible release first.
+
+After release review and action-specific approval, invoke platform-tls.yaml with
+platform_tls_applications set explicitly and the separately approved namespace/
+delivery flags. Public CA identity and certificate chain/hostname/server purpose,
+minimum30-day lifetime, matching keys, private directory/key modes and symlinks are
+checked. Existing namespaces must match authored ownership/PSA labels. Existing
+TLS/CA objects cause refusal, not implicit adoption/rotation. Creates use JSON over
+stdin under no_log; no rendered credential manifest is written to disk or Git.
+TLS readback verifies the exact stored certificate/key under redaction. Credentials
+in transient facts are cleared. Partial failures can leave earlier objects created;
+inspect metadata and plan resume/rotation explicitly rather than deleting them or
+bypassing guards. There is no automatic credential rollback or prune.
+
+This prepares inputs only. Routes, Headlamp/Keycloak deployment, Rancher selection,
+API-server CA path/OIDC activation and live HTTPS still need separate operations.
+Do not enable the legacy Keycloak local-PV path just to create its namespace: this
+namespace-only stage has no storage dependency and does not bypass Longhorn checks.

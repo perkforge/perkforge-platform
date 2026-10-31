@@ -1,0 +1,90 @@
+- name: Separately reviewed platform TLS namespace and credential delivery
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars:
+    platform_tls_namespaces_apply: false
+    platform_tls_apply: false
+    platform_tls_applications: []
+    platform_tls_bundle: /UNCONFIGURED/pki
+    platform_tls_expected_ca_fingerprint: UNCONFIGURED
+    gitops_path: ./big-bang-bootstrap/clusters/local
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'TLS namespaces={{ platform_tls_namespaces_apply | bool }}; delivery={{ platform_tls_apply | bool }}; check={{ ansible_check_mode }}. No chart, RBAC, storage, routes or API auth activation.'
+  - name: Operate only within an explicitly approved published local stage
+    when: (platform_tls_namespaces_apply | bool or platform_tls_apply | bool) and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - ansible_play_hosts_all == ['local']
+        - deployment_environment == 'local'
+        - impact_profile == 'il2'
+        - platform_tls_applications | length > 0
+        - platform_tls_applications | unique | length == platform_tls_applications | length
+        - platform_tls_applications | difference(['headlamp', 'keycloak', 'rancher']) | length == 0
+    - ansible.builtin.include_tasks: verify-release.yaml
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', rev-parse, HEAD]
+      register: tls_checkout
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', status, --porcelain]
+      register: tls_dirty
+      changed_when: false
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - tls_checkout.stdout == config_release.resolvedCommit
+        - tls_dirty.stdout | length == 0
+        - target_kubeconfig != '/UNCONFIGURED/kubeconfig'
+        - target_context != 'UNCONFIGURED'
+        - expected_cluster_uid != 'UNCONFIGURED'
+    - ansible.builtin.set_fact:
+        tls_cli: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', --request-timeout=20s]
+    - ansible.builtin.command:
+        argv: "{{ tls_cli + ['get', 'namespace', 'kube-system', '-o', 'jsonpath={.metadata.uid}'] }}"
+      register: tls_cluster
+      changed_when: false
+    - ansible.builtin.assert:
+        quiet: true
+        that: tls_cluster.stdout == expected_cluster_uid
+    - name: Validate every credential locally before any namespace or Secret writes
+      when: platform_tls_apply | bool
+      no_log: true
+      block:
+      - ansible.builtin.assert:
+          that:
+          - platform_tls_bundle is match('^/')
+          - not platform_tls_bundle.startswith('/UNCONFIGURED/')
+          - platform_tls_bundle | realpath == platform_tls_bundle
+          - platform_tls_expected_ca_fingerprint != 'UNCONFIGURED'
+      - ansible.builtin.stat:
+          path: '{{ platform_tls_bundle }}'
+          follow: false
+        register: tls_bundle_stat
+      - ansible.builtin.assert:
+          that:
+          - tls_bundle_stat.stat.isdir | default(false)
+          - not (tls_bundle_stat.stat.islnk | default(false))
+          - tls_bundle_stat.stat.mode == '0700'
+          - tls_bundle_stat.stat.pw_name == lookup('env', 'USER')
+      - ansible.builtin.assert:
+          that:
+          - lookup('file', platform_tls_bundle ~ '/root-ca.crt').count('-----BEGIN CERTIFICATE-----') == 1
+          - "'PRIVATE KEY' not in lookup('file', platform_tls_bundle ~ '/root-ca.crt')"
+      - ansible.builtin.command:
+          argv: [openssl, x509, -in, '{{ platform_tls_bundle }}/root-ca.crt', -noout, -fingerprint, -sha256]
+        register: tls_ca_fingerprint
+        changed_when: false
+      - ansible.builtin.assert:
+          that: tls_ca_fingerprint.stdout == platform_tls_expected_ca_fingerprint
+      - ansible.builtin.include_tasks: tasks/platform-tls-validate.yaml
+        loop: '{{ platform_tls_applications }}'
+        loop_control:
+          loop_var: tls_application
+    - name: Prepare only approved namespaces and then deliver credentials
+      ansible.builtin.include_tasks: tasks/platform-tls-application.yaml
+      loop: '{{ platform_tls_applications }}'
+      loop_control:
+        loop_var: tls_application

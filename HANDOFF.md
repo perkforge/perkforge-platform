@@ -227,3 +227,56 @@ remain .rke2-state/coredns-refresh.yml. No disposable pod, static/API pod restar
 RKE2 restart or API-authentication change was performed. Workload-specific and
 host-network DNS policies, API OIDC, node reboot persistence and TLS remain
 separate validation. Source and repeat verification commands are retained in the repository.
+
+Approved local CA/certificate issuance completed with zero failures using
+infrastructure/ansible/playbooks/create-lab-pki.yml. The protected bundle is
+.rke2-state/lab-pki-issuance-zvxj1r56/lab-pki-995bzln4/ with encrypted RSA4096
+root key, public root certificate and four RSA3072 exact-hostname one-year service
+certificate/key pairs. Passphrase entry was local/hidden and not saved. Independent
+verification passed root-key encryption, mode0700 directories/mode0600 keys,
+unique leaf serials, hostname/chain/server-purpose checks, expiry and matching keys.
+Synthetic offline tests separately covered issuance/default refusal and wrong-host
+rejection. Public summary/fingerprint and private verification are in the bundle;
+no credential contents belong in tracked configuration. The root remains encrypted
+on the workstation; independent/offline backup and passphrase custody are not
+confirmed. The earlier RKE2 ZIP has not been refreshed and contains no PKI assets.
+
+Local issuance itself installed no trust or Secrets. The later approved OS trust
+installation is recorded below; no API authentication or application was activated. Rancher source selects privateCA:true and
+additionalTrustedCAs:true; required public CA Secrets are documented but absent.
+Headlamp/API trust and OpenBao internal/localhost TLS remain separate delivery and
+validation steps. Public CA OS trust has since been installed as recorded below;
+leaf/key Secret delivery still requires its own concrete approval. CA issuance approval
+does not authorize further security changes. Source and repeat procedures are retained in the repository.
+
+Approved public CA trust installation completed on the workstation and all three
+nodes. The recorded issuance fingerprint matched every installed anchor; all four
+service certificates verified through each default OS trust store (16 checks).
+The first node run stopped on missing OpenSSL CLI after copying worker-1's public
+anchor; the corrected resume installed verification tooling, required its matching
+fingerprint and completed all three nodes without failures. Protected inputs/logs
+and verification are in .rke2-state/lab-ca-trust-buz_1qnr/.
+
+Firefox ESR has a public-certificate Install policy at
+/etc/firefox/policies/policies.json; the user reopened Firefox and confirmed the
+Certificates Install entry under active policies. Live browser HTTPS is not yet verified. All three nodes remain
+Ready. No signing/service private key was distributed, no cluster Secret or API
+OIDC change was made, and no RKE2/browser restart was performed. OS trust does not
+populate application/container CA stores. Next is reviewed leaf/key Secret and
+application CA delivery, preserving paused bootstrap. Independent CA backup and
+passphrase custody remain unconfirmed. Source and repeat procedures are retained in the repository.
+
+TLS resource delivery is prepared, not applied, in
+big-bang-bootstrap/configuration/ansible/platform-tls.yaml. Explicit independent
+flags gate namespace-only preparation and credential delivery, with the normal
+published-release/clean-checkout/exact-cluster guards. Supported delivery is three
+TLS Secrets (Headlamp/Keycloak/Rancher), Headlamp identity-ca ConfigMap and Rancher
+tls-ca/tls-ca-additional public CA Secrets. No application namespace currently exists;
+Rancher's Namespace manifest was split from installer RBAC so TLS preparation grants
+no installer authority. OpenBao is excluded pending listener/internal TLS review.
+All selected certificates/keys are validated before writes; existing objects are
+refused and runtime payloads are redacted/in-memory. Synthetic delivery, key mismatch
+and overwrite-refusal tests passed. No namespace, Secret, ConfigMap, route, storage
+or bootstrap change occurred. Next prerequisites are committing/reviewing/publishing
+compatible release inputs, then explicit namespace/TLS delivery approval. Do not
+bypass the release guards with dirty source or older incompatible context metadata.

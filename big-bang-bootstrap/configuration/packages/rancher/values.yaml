@@ -32,8 +32,8 @@ packages:
       replicas: 1
       features: continuous-delivery=false
       agentTLSMode: strict
-      privateCA: false
-      additionalTrustedCAs: false
+      privateCA: true
+      additionalTrustedCAs: true
       ingress:
         ingressClassName: traefik
         tls:

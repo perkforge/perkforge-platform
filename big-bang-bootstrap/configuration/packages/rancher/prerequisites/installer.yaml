@@ -1,13 +1,4 @@
-# Privileged management installer: Rancher's chart binds its runtime SA to
-# cluster-admin. This authority requires explicit platform-admin approval.
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: cattle-system
-  labels:
-    pod-security.kubernetes.io/enforce: privileged
-    pod-security.kubernetes.io/enforce-version: v1.36
----
+# Privileged installer: binding cluster-admin is effectively administrative authority.
 apiVersion: v1
 kind: ServiceAccount
 metadata: {name: rancher-installer, namespace: bigbang}

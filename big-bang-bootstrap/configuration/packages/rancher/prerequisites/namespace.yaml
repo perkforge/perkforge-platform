@@ -1,0 +1,8 @@
+# Namespace-only preparation grants no installer RBAC.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cattle-system
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: v1.36

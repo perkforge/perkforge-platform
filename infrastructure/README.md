@@ -171,3 +171,104 @@ The live verification passed eight lab A queries over UDP/TCP, Kubernetes intern
 service discovery and public forwarding from control-1 through the actual CoreDNS
 service address. It creates no workload and does not validate every pod/host-network
 DNS policy or API OIDC. No static/API pod or RKE2 restart was performed.
+
+## Private CA and application TLS
+
+`ansible/playbooks/create-lab-pki.yml` performs local issuance only after
+separate approval. The lab uses one RSA4096 ten-year root named PerkForge Home Lab
+Root CA, encrypted with a locally entered/confirmed passphrase (minimum16 characters),
+and independent RSA3072 one-year server certificates for Headlamp, Keycloak,
+Rancher and OpenBao under perkforge.home.arpa. Each leaf has only its exact DNS SAN,
+CA:false and serverAuth purpose; no wildcard, IP or localhost SAN is added. Root
+pathlen0 prevents intermediate CA issuance. This small lab uses direct root signing;
+no continuously online CA, ACME or automatic renewal service is introduced.
+
+After explicit local credential-creation approval, run:
+
+```sh
+ansible-playbook -i localhost, infrastructure/ansible/playbooks/create-lab-pki.yml \
+  -e lab_pki_apply=true \
+  -e lab_pki_output_parent=/ABSOLUTE/PATH/TO/inventory/.rke2-state
+```
+
+The output parent must exist, be operator-owned mode0700, canonical and not a
+symlink. Default/check mode neither prompts nor issues keys. Each run creates a
+fresh private directory and never overwrites an existing key. Enter the passphrase
+locally, never in chat, command arguments or tracked input files. It is passed to
+OpenSSL over stdin under no_log, not saved to disk, then cleared from subsequent
+task facts. Output contains encrypted root-ca.key.pem, public root-ca.crt, four
+application subdirectories with tls.key/tls.crt and a fingerprint/status summary.
+Leaf keys are unencrypted for server use, mode0600 inside private directories.
+Temporary requests/extension copies are removed after chain/hostname/purpose checks.
+Renewal, expiry monitoring and CA compromise/revocation recovery remain explicit
+operator procedures to design before long-term personal-data use; rerunning the
+first-issuance play creates a new CA, not a renewal under the existing trust root.
+
+Keep the encrypted signing key offline between issuance operations, with independent
+protected backup and passphrase custody. The earlier RKE2 token ZIP contains none
+of these new assets. Do not distribute the signing key to nodes or Kubernetes.
+Only public CA certificates and each service's own leaf/key pair belong in their
+respective trust/TLS destinations. Creating certificates does not authorize trust
+installation or cluster Secret writes.
+
+| Consumer | Prepared contract / later delivery |
+|---|---|
+| Workstation and nodes | Public root certificate in reviewed OS/browser trust; browser-specific stores need verification |
+| Headlamp ingress | headlamp/headlamp-local-tls with its leaf/key |
+| Keycloak ingress | keycloak/keycloak-local-tls with its leaf/key |
+| Headlamp OIDC | headlamp/identity-ca ConfigMap, ca.crt, mounted by existing values |
+| RKE2 API OIDC | Public CA at /etc/rancher/rke2/identity/ca.crt; activation/restart separately approved |
+| Rancher ingress/agents | cattle-system/tls-rancher-ingress leaf/key and tls-ca with cacerts.pem; staged privateCA:true |
+| Rancher outbound trust | cattle-system/tls-ca-additional with ca-additional.pem; staged additionalTrustedCAs:true for Keycloak |
+| OpenBao | Hostname certificate is prepared, but ingress/backend/internal TLS and delivery remain unresolved |
+
+OpenBao's current localhost HTTPS port-forward setting is not covered by its DNS-only
+certificate. Do not disable verification or assume ingress TLS also secures Raft/
+internal listeners. Review its selected chart/listener configuration before delivery.
+Rancher still uses strict agent TLS. No CA key is generated in a cluster Secret,
+no certificate controller is installed and neither private CA flag activates Helm.
+The issuance playbook installs no OS trust, files on nodes, ingress routes or Secrets.
+
+Current issuance completed with all four hostname/chain/purpose and matching-key
+checks passed. The encrypted root and leaf keys remain in protected workstation
+storage; independent/offline custody is unconfirmed. OS trust installation is now complete as described below; cluster Secrets remain
+absent. See the handoff for the ignored bundle location. Trust and
+leaf delivery remain separately reviewed actions; the prior token ZIP is unchanged.
+
+### Public CA trust installation
+
+`ansible/playbooks/install-lab-ca-trust.yml` is default-off/check-mode inert. Supply
+protected external vars lab_ca_public_file, lab_ca_expected_fingerprint,
+lab_ca_leaf_bundle and lab_ca_expected_workstation_hostname. After action-specific
+approval, use the private physical inventory, --ask-become-pass and
+lab_ca_trust_apply=true with either lab_ca_trust_workstation=true or
+lab_ca_trust_nodes=true. Separate invocations allow different sudo credentials.
+The recorded root fingerprint and CA constraint are checked before target selection.
+Only the public root and public service certificates are read for distribution/
+verification; no signing or service private key is sent to a node.
+
+The Debian workstation anchor is
+/usr/local/share/ca-certificates/perkforge-home-lab-root.crt, activated with
+update-ca-certificates. RHEL anchors are
+/etc/pki/ca-trust/source/anchors/perkforge-home-lab-root.crt, activated with
+update-ca-trust extract. RHEL's openssl CLI is installed for verification; it is
+not present in the original minimal node image. Existing anchors are accepted only
+when root-owned, regular and fingerprint-identical; a different CA requires rotation
+review. Each target verifies all four leaves using its default OS trust bundle.
+The approved run passed all16 leaf checks and matching fingerprints; nodes stayed
+Ready. No services or browsers were restarted.
+
+Firefox ESR on this Linux workstation has an explicit Certificates.Install policy
+in /etc/firefox/policies/policies.json referencing the public anchor. The playbook
+refuses existing policy files for merge review, preserving unrelated settings.
+The policy takes effect on Firefox restart; the user closed Firefox during this
+operation. Reopen it and inspect about:policies, then verify real HTTPS once leaf
+certificates/routes are delivered. Policy presence alone is not live browser TLS
+verification. ImportEnterpriseRoots is not used as Linux trust configuration.
+See [Mozilla Certificates policy](https://firefox-admin-docs.mozilla.org/reference/policies/certificates/).
+
+OS trust does not automatically configure containers, Headlamp's identity-ca mount,
+Rancher CA Secrets or API-server OIDC's explicit CA path. Those deliveries and
+OpenBao listener/TLS still require separate reviewed actions. Independent encrypted
+CA backup/passphrase custody is still unconfirmed; no private key backup or token
+ZIP update was performed by trust installation.
