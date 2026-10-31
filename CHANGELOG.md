@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/perkforge/perkforge-platform/compare/v0.8.0...v0.9.0) (2026-10-31)
+
+
+### Features
+
+* **platform:** establish physical RKE2 foundations and staged Big Bang bootstrap ([#84](https://github.com/perkforge/perkforge-platform/issues/84)) ([036f1ec](https://github.com/perkforge/perkforge-platform/commit/036f1ecbdac4a25f32aabdd24a2e5cc0c992180f))
+
+
+### Bug Fixes
+
+* **ci:** align published selection chain and reject incompatible releases ([#85](https://github.com/perkforge/perkforge-platform/issues/85)) ([3da9ad3](https://github.com/perkforge/perkforge-platform/commit/3da9ad3f9088f4fc25dba51405bc67f27eaa8287))
+
 ## [0.8.0](https://github.com/perkforge/perkforge-platform/compare/v0.7.0...v0.8.0) (2026-10-30)
 
 
