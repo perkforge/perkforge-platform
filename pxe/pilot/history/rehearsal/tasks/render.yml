@@ -1,0 +1,164 @@
+---
+- name: Read only generated fixture public keys; keep private values outside serving tree
+  ansible.builtin.slurp:
+    src: '{{ rehearsal_root }}/credentials/rehearsal-{{ item }}.pub'
+  loop: [bootstrap, human]
+  register: rehearsal_public_keys
+- ansible.builtin.set_fact:
+    hostname: rehearsal.invalid
+    boot_nic_mac: '02:00:00:00:00:11'
+    bootstrap_user: bootstrap
+    bootstrap_username: bootstrap
+    bootstrap_public_key: '{{ rehearsal_public_keys.results[0].content | b64decode | trim }}'
+    bootstrap_controller_address: 192.0.2.10
+    credential_mode: TEMPORARY_KEY_ONLY_BOOTSTRAP
+    storage_layout: UEFI_XFS_LVM_UNENCRYPTED
+    disk_stable_id: disk/by-id/virtio-PERKFORGE_TARGET
+    disk_serial: '{{ "WRONG_TARGET" if rehearsal_scenario == "wrong_serial" else "PERKFORGE_TARGET" }}'
+    disk_capacity_bytes: '{{ 68719476737 if rehearsal_scenario == "wrong_capacity" else 68719476736 }}'
+    pxe_interface: fixture0
+    pxe_server_ip: 192.0.2.10
+    pxe_pilot_ip: 192.0.2.11
+    pxe_pilot_mac: '02:00:00:00:00:11'
+    pxe_network: 192.0.2.0
+    pxe_netmask: 255.255.255.0
+    pxe_service_user: dnsmasq
+    pxe_service_group: nogroup
+    pxe_http_user: www-data
+    pxe_http_group: www-data
+    pxe_http_port: 8080
+    pxe_tftp_first_port: 20000
+    pxe_tftp_last_port: 20009
+    pxe_csa: 7
+    pxe_efi_entry: EFI/BOOT/BOOTX64.EFI
+    pxe_runtime_dir: '{{ rehearsal_root }}/state'
+    pxe_log_dir: '{{ rehearsal_root }}/logs'
+    pxe_http_root: '{{ rehearsal_root }}/media/http'
+    pxe_tftp_root: '{{ rehearsal_root }}/media/tftp'
+- ansible.builtin.set_fact:
+    bootstrap_initial_ssh_policy: "{{ lookup('ansible.builtin.template', playbook_dir + '/../bootstrap/templates/key-only.conf.j2') }}"
+    bootstrap_initial_sudo_policy: "{{ lookup('ansible.builtin.template', playbook_dir + '/../bootstrap/templates/sudoers.j2') }}"
+- ansible.builtin.set_fact:
+    bootstrap_initial_post_fragment: "{{ lookup('ansible.builtin.template', playbook_dir + '/../kickstart/bootstrap-post.ks.j2') }}"
+    bootstrap_storage_fragment: "{{ lookup('ansible.builtin.template', playbook_dir + '/../kickstart/storage.ks.j2') }}"
+- name: Require synthetic target identifiers, never physical inventory
+  ansible.builtin.assert:
+    that:
+      - disk_stable_id == 'disk/by-id/virtio-PERKFORGE_TARGET'
+      - boot_nic_mac == '02:00:00:00:00:11'
+      - pxe_server_ip == '192.0.2.10' and pxe_pilot_ip == '192.0.2.11'
+- ansible.builtin.file:
+    path: '{{ rehearsal_root }}/media/http/rhel-10.2/perkforge-rehearsal'
+    state: directory
+    mode: '0700'
+- ansible.builtin.template:
+    src: rehearsal.ks.j2
+    dest: '{{ rehearsal_root }}/media/http/rhel-10.2/perkforge-rehearsal/install.ks'
+    owner: root
+    group: root
+    mode: '0444'
+- name: Reuse proven proxy/TFTP/HTTP/guard templates unchanged with isolated inputs
+  ansible.builtin.template:
+    src: '{{ playbook_dir }}/../pilot/templates/{{ item }}.j2'
+    dest: '{{ rehearsal_root }}/config/{{ item }}'
+    owner: root
+    group: root
+    mode: '0600'
+  loop: [dnsmasq.conf, nginx.conf, ingress.nft]
+- ansible.builtin.template:
+    src: rehearsal-router.conf.j2
+    dest: '{{ rehearsal_root }}/config/router.conf'
+    mode: '0600'
+- ansible.builtin.template:
+    src: rehearsal-grub.cfg.j2
+    dest: '{{ rehearsal_root }}/media/tftp/EFI/BOOT/grub.cfg'
+    mode: '0444'
+- ansible.builtin.template:
+    src: rehearsal-ssh.sh.j2
+    dest: '{{ rehearsal_root }}/config/namespace-ssh'
+    mode: '0700'
+- name: Parse both dnsmasq files before network service activation
+  ansible.builtin.command:
+    argv: [/usr/sbin/dnsmasq, --test, '--conf-file={{ rehearsal_root }}/config/{{ item }}']
+  loop: [router.conf, dnsmasq.conf]
+  changed_when: false
+- ansible.builtin.copy:
+    dest: '{{ rehearsal_root }}/config/ansible.cfg'
+    mode: '0600'
+    content: |
+      [defaults]
+      fact_caching = memory
+      retry_files_enabled = False
+      host_key_checking = True
+      [ssh_connection]
+      pipelining = True
+- name: Define exact isolated foreground service invocations
+  ansible.builtin.set_fact:
+    rehearsal_launches:
+      - name: '{{ rehearsal_units[0] }}'
+        argv: [/usr/bin/systemd-run, --quiet, '--unit={{ rehearsal_units[0] }}', --property=Type=exec, --property=Restart=no, --property=RuntimeMaxSec=infinity, --property=KillMode=control-group, '--property=NetworkNamespacePath=/run/netns/{{ rehearsal_guest_namespace }}', --, /usr/sbin/dnsmasq, --keep-in-foreground, '--conf-file={{ rehearsal_root }}/config/router.conf']
+      - name: '{{ rehearsal_units[1] }}'
+        argv: [/usr/bin/systemd-run, --quiet, '--unit={{ rehearsal_units[1] }}', --property=Type=exec, --property=Restart=no, --property=RuntimeMaxSec=infinity, --property=KillMode=control-group, '--property=NetworkNamespacePath=/run/netns/{{ rehearsal_server_namespace }}', --, /usr/sbin/dnsmasq, --keep-in-foreground, '--conf-file={{ rehearsal_root }}/config/dnsmasq.conf']
+      - name: '{{ rehearsal_units[2] }}'
+        argv: [/usr/bin/systemd-run, --quiet, '--unit={{ rehearsal_units[2] }}', --property=Type=exec, --property=Restart=no, --property=RuntimeMaxSec=infinity, --property=KillMode=control-group, '--property=NetworkNamespacePath=/run/netns/{{ rehearsal_server_namespace }}', --, /usr/sbin/nginx, -p, '{{ rehearsal_root }}/', -e, stderr, -c, '{{ rehearsal_root }}/config/nginx.conf', -g, 'daemon off;']
+      - name: '{{ rehearsal_units[3] }}'
+        argv:
+          - /usr/bin/systemd-run
+          - --quiet
+          - '--unit={{ rehearsal_units[3] }}'
+          - --property=Type=exec
+          - --property=Restart=no
+          - --property=RuntimeMaxSec=infinity
+          - --property=KillMode=control-group
+          - '--property=NetworkNamespacePath=/run/netns/{{ rehearsal_guest_namespace }}'
+          - --property=User=libvirt-qemu
+          - --property=Group=kvm
+          - --property=ProtectSystem=strict
+          - --property=ProtectHome=yes
+          - '--property=ReadWritePaths={{ rehearsal_root }}/vm {{ rehearsal_root }}/logs/vm'
+          - --property=MemoryMax=5G
+          - --property=CPUQuota=400%
+          - --property=Nice=10
+          - --
+          - /usr/bin/qemu-system-x86_64
+          - -name
+          - 'perkforge-rehearsal-{{ rehearsal_run_id }}'
+          - -no-user-config
+          - -nodefaults
+          - -machine
+          - 'q35,smm=on,accel={{ rehearsal_accel }}'
+          - -cpu
+          - '{{ "host" if rehearsal_accel == "kvm" else "max" }}'
+          - -m
+          - '4096'
+          - -smp
+          - '4'
+          - -display
+          - none
+          - -monitor
+          - none
+          - -serial
+          - 'file:{{ rehearsal_root }}/logs/vm/console.log'
+          - -qmp
+          - 'unix:{{ rehearsal_root }}/vm/qmp.sock,server=on,wait=off'
+          - -no-shutdown
+          - -boot
+          - order=c,once=n,menu=off
+          - -global
+          - driver=cfi.pflash01,property=secure,value=on
+          - -drive
+          - 'if=pflash,format=raw,unit=0,readonly=on,file={{ rehearsal_root }}/firmware/CODE.fd'
+          - -drive
+          - 'if=pflash,format=raw,unit=1,file={{ rehearsal_root }}/vm/VARS.fd'
+          - -netdev
+          - tap,id=pxe,ifname=tap0,script=no,downscript=no
+          - -device
+          - e1000e,netdev=pxe,mac=02:00:00:00:00:11
+          - -drive
+          - 'if=none,id=target,format=qcow2,file={{ rehearsal_root }}/vm/target.qcow2,discard=ignore,detect-zeroes=off'
+          - -device
+          - virtio-blk-pci,drive=target,serial=PERKFORGE_TARGET
+          - -drive
+          - 'if=none,id=canary,format=raw,file={{ rehearsal_root }}/vm/canary.raw,discard=ignore,detect-zeroes=off'
+          - -device
+          - virtio-blk-pci,drive=canary,serial=PERKFORGE_CANARY

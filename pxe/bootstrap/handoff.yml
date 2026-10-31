@@ -1,0 +1,150 @@
+---
+# Controller orchestration only, not an installer. No contact until explicit gate.
+- name: Review controller inputs and collect runtime secret privately
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [access.example.yml]
+  tasks:
+    - name: Require separately reviewed access transition execution
+      ansible.builtin.assert:
+        that:
+          - bootstrap_handoff_apply | bool
+          - not ansible_check_mode
+          - bootstrap_target_host != 'UNCONFIGURED'
+          - bootstrap_target_host is match('^[A-Za-z0-9][A-Za-z0-9_.:-]*$')
+          - bootstrap_controller_address is match('^[0-9A-Fa-f:.]+$')
+          - bootstrap_user is match('^[a-z][a-z0-9_-]{0,30}$')
+          - bootstrap_human_user is match('^[a-z][a-z0-9_-]{0,30}$')
+          - bootstrap_user not in ['root', bootstrap_human_user]
+          - bootstrap_human_user != 'root'
+        fail_msg: 'STOP: access caller default off. Approve exact installed target/identities/trust/credential transition first; this is not install approval.'
+    - name: Inspect only explicit credential references; never read private keys
+      ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop: ['{{ bootstrap_public_key_file }}', '{{ bootstrap_human_public_key_file }}', '{{ bootstrap_identity_file }}', '{{ bootstrap_human_identity_file }}', '{{ bootstrap_known_hosts_file }}']
+      register: access_files
+      no_log: true
+    - ansible.builtin.assert:
+        that:
+          - item.stat.exists and item.stat.isreg and not item.stat.islnk
+          - item.stat.mode in ['0600', '0644']
+        fail_msg: 'Missing/nonregular/symlink/unsafe credential reference; no key contents inspected.'
+      loop: '{{ access_files.results }}'
+      no_log: true
+    - ansible.builtin.assert:
+        that:
+          - bootstrap_public_key_file.endswith('.pub') and bootstrap_human_public_key_file.endswith('.pub')
+          - bootstrap_identity_file.startswith('/') and bootstrap_human_identity_file.startswith('/') and bootstrap_known_hosts_file.startswith('/')
+          - access_files.results[2].stat.mode == '0600' and access_files.results[3].stat.mode == '0600'
+    - name: Read only public-key inputs after path checks
+      ansible.builtin.set_fact:
+        access_bootstrap_public: "{{ lookup('ansible.builtin.file', bootstrap_public_key_file) }}"
+        access_human_public: "{{ lookup('ansible.builtin.file', bootstrap_human_public_key_file) }}"
+        access_ssh_args: '-F /dev/null -oControlMaster=no -oControlPath=none -oBatchMode=yes -oIdentitiesOnly=yes -oPreferredAuthentications=publickey -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oStrictHostKeyChecking=yes -oUserKnownHostsFile={{ bootstrap_known_hosts_file | quote }} -oForwardAgent=no -oConnectTimeout=10 -oConnectionAttempts=1'
+    - name: Read optional disposable rehearsal password through protected root custody only
+      when: bootstrap_runtime_password_file | default('UNCONFIGURED') != 'UNCONFIGURED'
+      no_log: true
+      block:
+        - ansible.builtin.assert:
+            that: bootstrap_runtime_password_file is match('^/var/lib/perkforge-pxe-rehearsal/[a-z0-9][a-z0-9-]{7,23}/credentials/human[.]password$')
+        - ansible.builtin.stat:
+            path: '{{ bootstrap_runtime_password_file }}'
+            follow: false
+          register: access_password_stat
+        - ansible.builtin.assert:
+            that: access_password_stat.stat.isreg and not access_password_stat.stat.islnk and access_password_stat.stat.uid == 0 and access_password_stat.stat.mode == '0600'
+        - ansible.builtin.slurp:
+            src: '{{ bootstrap_runtime_password_file }}'
+          register: access_password_file
+        - ansible.builtin.set_fact:
+            access_password_entry:
+              user_input: '{{ access_password_file.content | b64decode | trim }}'
+            cacheable: false
+    - name: Enter approved human account password locally; never save in metadata
+      ansible.builtin.pause:
+        prompt: 'Enter the approved human console/sudo password from protected custody (hidden; not an SSH password)'
+        echo: false
+      register: access_password_prompt
+      when: bootstrap_runtime_password_file | default('UNCONFIGURED') == 'UNCONFIGURED'
+      no_log: true
+    - name: Keep runtime secret in memory only; no facts cache or CLI argument
+      ansible.builtin.set_fact:
+        access_runtime_password: '{{ access_password_prompt.user_input if bootstrap_runtime_password_file | default("UNCONFIGURED") == "UNCONFIGURED" else access_password_entry.user_input }}'
+        cacheable: false
+      no_log: true
+    - name: Add separate temporary bootstrap administration alias
+      ansible.builtin.add_host:
+        name: perkforge_bootstrap_access
+        groups: perkforge_bootstrap_transition
+        ansible_host: '{{ bootstrap_target_host }}'
+        ansible_connection: ssh
+        ansible_user: '{{ bootstrap_user }}'
+        ansible_become: true
+        ansible_become_user: root
+        ansible_ssh_private_key_file: '{{ bootstrap_identity_file }}'
+        ansible_ssh_args: '{{ access_ssh_args }}'
+      no_log: true
+
+- name: Configure human account through installed bootstrap access
+  hosts: perkforge_bootstrap_transition
+  gather_facts: false
+  tasks:
+    - ansible.builtin.include_role:
+        name: '{{ playbook_dir }}'
+      vars:
+        bootstrap_component_apply: true
+        bootstrap_action: handoff
+        bootstrap_public_key: '{{ hostvars.localhost.access_bootstrap_public }}'
+        bootstrap_human_public_key: '{{ hostvars.localhost.access_human_public }}'
+        bootstrap_human_sudo_password: '{{ hostvars.localhost.access_runtime_password }}'
+    - ansible.builtin.set_fact:
+        access_human_configured: true
+
+- name: Switch management identity only after human account configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - ansible.builtin.assert:
+        that: hostvars.perkforge_bootstrap_access.access_human_configured | default(false)
+        fail_msg: 'Human setup incomplete; retain bootstrap/console recovery. No revoke attempted.'
+    - name: Add a distinct human administration alias with protected become input
+      ansible.builtin.add_host:
+        name: perkforge_human_access
+        groups: perkforge_human_transition
+        ansible_host: '{{ bootstrap_target_host }}'
+        ansible_connection: ssh
+        ansible_user: '{{ bootstrap_human_user }}'
+        ansible_become: true
+        ansible_become_user: root
+        ansible_become_password: '{{ access_runtime_password }}'
+        ansible_ssh_private_key_file: '{{ bootstrap_human_identity_file }}'
+        ansible_ssh_args: '{{ access_ssh_args }}'
+      no_log: true
+
+- name: Verify then revoke using human administration, not bootstrap sudo
+  hosts: perkforge_human_transition
+  gather_facts: false
+  tasks:
+    - ansible.builtin.include_role:
+        name: '{{ playbook_dir }}'
+      vars:
+        bootstrap_component_apply: true
+        bootstrap_action: revoke
+        bootstrap_public_key: '{{ hostvars.localhost.access_bootstrap_public }}'
+        bootstrap_human_sudo_password: '{{ hostvars.localhost.access_runtime_password }}'
+    - ansible.builtin.set_fact:
+        access_handoff_complete: true
+
+- name: Report verified access transition only after full completion
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - ansible.builtin.assert:
+        that: hostvars.perkforge_human_access.access_handoff_complete | default(false)
+        fail_msg: 'Transition incomplete; inspect retained ledger/console. Do not assume bootstrap access was revoked.'
+    - ansible.builtin.debug:
+        msg: 'Human key/password-sudo verified; bootstrap authentication rejected and owned authorization removed. OS readiness/RKE2 are separate stages.'

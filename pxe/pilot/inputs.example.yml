@@ -10,7 +10,7 @@ pxe_service_group: UNCONFIGURED
 # HTTP workers use a separate existing identity; never a new shared group.
 pxe_http_user: UNCONFIGURED
 pxe_http_group: UNCONFIGURED
-# Explicit review choice: root-readonly, or remain blocked. See STAGING-PROPOSAL.md.
+# Explicit review choice: root-readonly, or remain blocked. See history/STAGING-PROPOSAL.md.
 pxe_tftp_ownership_policy: UNCONFIGURED
 # New private output directory only; never an auto-loaded host configuration path.
 pxe_output_dir: UNCONFIGURED

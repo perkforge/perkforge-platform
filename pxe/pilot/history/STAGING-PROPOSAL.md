@@ -1,3 +1,6 @@
+> HISTORICAL execution proposal; not current operating instructions.
+> Start at [PXE README](../../README.md). Commands below are retained evidence.
+
 # Native-host staging reference — completed, do not rerun
 
 Operator completed BatchA at22:22:38UTC and standalone BatchB at22:33:05UTC.

@@ -18,7 +18,7 @@ model {
     link /runbook.html#boot 'Boot roles'
   }
   workstation = system 'Engineer workstation' {
-    description 'Debian controller. Existing nginx/dnsmasq pilot; new offline Ansible preparation. Automated installation is not implemented.'
+    description 'Debian controller. Existing nginx/dnsmasq pilot; new offline Ansible preparation. Controlled physical pilot chosen; exact worker file/service batch still needs review and approval.'
     link /runbook.html 'Ordered runbook'
     prepare = implemented 'Offline Ansible preparation' {
       description 'Implemented/tested: two private review files only. Kickstart always aborts; no native apply path.'
@@ -26,7 +26,7 @@ model {
       link /sources/prepare.yml 'Actual Ansible source'
     }
     controller = planned 'Install / verify / cleanup' {
-      description 'Proposed standard Ansible lifecycle, not a new service/framework. No node connection or install approval follows from this model.'
+      description 'Use short reviewed workstation batches and manual host-trust/password checkpoint. Custom session/VM framework deferred; this model grants no live authority.'
       link /runbook.html#verify '6. Verify first boot'
       link /runbook.html#cleanup '7. Disarm and cleanup'
     }
@@ -53,7 +53,7 @@ model {
     }
   }
   node = system 'Selected physical node' {
-    description 'Pilot OS/access observed. Next candidate could be a worker or control-1; no reinstall is approved. No private hardware identifiers in this model.'
+    description 'Pilot OS/access observed. Current target is worker-1; no installation is approved. Preserve control-1. No private hardware identifiers in this model.'
     link /runbook.html#observed 'Observed versus planned'
     firmware = observed 'UEFI + vendor shim/GRUB' {
       description 'Pilot reached GRUB/installer with Secure Boot previously reported enabled. Not full attestation; UEFI HTTP capability unproven.'
@@ -69,7 +69,7 @@ model {
       link /runbook.html#approve '2. Exact disk approval'
     }
     os = observed 'Installed RHEL / OpenSSH / sudo' {
-      description 'Pilot first disk boot and key-only SSH/password-sudo passed. Automatic first-boot verification and bootstrap removal are future work.'
+      description 'Pilot first disk boot and key-only SSH/password-sudo passed. Access caller has offline fixtures; real first-boot verification/removal remains unproven.'
       link /runbook.html#firstboot '5. First disk boot'
     }
   }
@@ -77,17 +77,47 @@ model {
     description 'New node or control-1 reinstall requires a reviewed exact-disk/data-loss plan. Network and credential privileges must be explicit.'
     link /runbook.html#approve '2. Review and approve'
   }
-  credential = gate 'STOP: credential mode undecided' {
-    description 'No password/hash/private key in HTTP/TFTP. Protected sudo/bootstrap choice and actual PAM/key behavior need approval and rehearsal.'
+  credential = gate 'STOP: exact worker scope / approval' {
+    description 'No password/hash/private key in HTTP/TFTP. Temporary root-equivalent design approved for preparation. Actual credentials/access/install need scoped approval; native behavior is untested and will be checked in the controlled pilot, not a mandatory VM rehearsal.'
     link /runbook.html#credentials 'Credential decision'
   }
   custody = system 'Approved credential custody / recovery' {
     description 'Private key and recovery material remain protected off cluster. No automatic secret delivery configured by this model.'
     link /runbook.html#credentials 'Public key versus secret'
   }
-  bootstrap = planned 'Protected bootstrap handoff' {
-    description 'Choice pending: protected temporary privileges or controlled media. Never pretend the public-key Kickstart creates a usable sudo credential.'
-    link /runbook.html#credentials 'Pending handoff choice'
+  bootstrap = system 'Ansible bootstrap components — offline fixtures' {
+    description 'Actual Kickstart adapters and role task bodies have temporary fixtures. Physical draft stays blocked pending exact worker inputs/review. Custom runner deferred; native proof belongs to the controlled physical pilot.'
+    link /sources/bootstrap.md 'Component contract and limits'
+    access = implemented 'Controller handoff.yml — default off' {
+      description 'Workstation prompts for existing runtime password, validates references, uses bootstrap administration then distinct human SSH/become alias. No password/hash in inventory/HTTP/arguments. Native connections mocked; no installer/session runner.'
+      link /sources/bootstrap-controller.yml 'Actual access controller playbook'
+      link /sources/bootstrap-access.example.yml 'Nonsecret reference schema'
+    }
+    adapter = implemented 'Initial policy — Kickstart post script' {
+      description 'Ansible renders shared SSH/sudo templates into standard Anaconda installed-root post script. Checks account/key, writes ledger/policy, validates and enables SSH offline only after success. No Ansible/systemd manager inside installer; future host-key creation mocked.'
+      link /sources/bootstrap-post.ks.j2 'Actual initial policy adapter'
+    }
+    storage = implemented 'Storage — exact persistent disk draft' {
+      description 'Ansible-rendered standard single-disk storage plus read-only type/serial/capacity check. Unknown input emits abort. Candidate unconditional abort still precedes all mutation; real disk install untested.'
+      link /sources/storage.ks.j2 'Actual storage adapter'
+    }
+    setup = implemented '1. setup.yml — target-side' {
+      description 'On installed target: dedicated locked account/public key, key-only SSH and root-equivalent sudo, syntax/effective policy, protected ledger. Never starts SSH. Standalone target reference fixture; normal initial install uses Kickstart post adapter instead.'
+      link /sources/bootstrap-setup.yml 'Actual setup tasks'
+      link /sources/bootstrap-main.yml 'Role gating and failed-run ledger'
+    }
+    handoff = implemented '2. handoff.yml — target-side' {
+      description 'On target through bootstrap administration: human key/account and runtime password through encrypted SSH stdin to target PAM. No secrets in HTTP. No revocation yet.'
+      link /sources/bootstrap-handoff.yml 'Actual human handoff tasks'
+    }
+    verify = implemented '3. verify-human.yml — controller' {
+      description 'Fresh controller SSH, pinned known-host file, no multiplex reuse; require key login and password-sudo. Secret via stdin/no_log. Native SSH mocked in fixtures.'
+      link /sources/bootstrap-verify.yml 'Actual fresh-access verification'
+    }
+    revoke = implemented '4. revoke.yml — human-admin target channel' {
+      description 'Require fresh human access, remove matching bootstrap key/sudo only, expire account/terminate its processes; verify rejected bootstrap plus retained human access. Failure ledger stays outstanding/unknown.'
+      link /sources/bootstrap-revoke.yml 'Actual revocation tasks'
+    }
   }
   platform = planned 'Host readiness then RKE2 / platform' {
     description 'Separate approved stage. Working OS/access does not establish kernel, repository, networking or RKE2 readiness.'

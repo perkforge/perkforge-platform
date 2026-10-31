@@ -1,5 +1,6 @@
-# Nonsecret offline plan inputs only; copy to an ignored private inventory location.
+# Nonsecret offline plan inputs only; copy to pxe/local/TARGET/inputs.yml (ignored, mode0600).
 # This is NOT an installation inventory or authorization. No password/hash/token.
+# Absolute worktree path: pxe/local/TARGET/runs/UNIQUE_RUN (must not exist).
 output_dir: UNCONFIGURED
 hostname: UNCONFIGURED
 boot_nic_mac: UNCONFIGURED
@@ -9,7 +10,12 @@ timezone: UNCONFIGURED
 ntp_server: UNCONFIGURED
 bootstrap_username: UNCONFIGURED
 bootstrap_public_key: UNCONFIGURED
+# Design-only alternative: TEMPORARY_KEY_ONLY_BOOTSTRAP; never arms installer.
 credential_mode: UNDECIDED
 disk_stable_id: UNCONFIGURED
 disk_serial: UNCONFIGURED
 disk_capacity_bytes: UNCONFIGURED
+# Exact controller connection context for effective SSH policy; not a secret.
+bootstrap_controller_address: UNCONFIGURED
+# Design choice only; unknown never becomes a default. Exact target approval later.
+storage_layout: UNDECIDED

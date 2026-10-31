@@ -25,7 +25,7 @@ class StagingProposalTests(unittest.TestCase):
         self.env = {**os.environ, 'PATH': str(self.bin) + ':' + os.environ['PATH'],
                     'MOCK_LOG': str(self.log), 'BASH_ENV': '/dev/null'}
         self.env.pop('PXE_ISO', None)
-        self.blocks = re.findall(r'```sh\n(.*?)```', (ROOT / 'STAGING-PROPOSAL.md').read_text(), re.S)
+        self.blocks = re.findall(r'```sh\n(.*?)```', (ROOT / 'history/STAGING-PROPOSAL.md').read_text(), re.S)
         self.assertEqual(len(self.blocks), 2)
         scripts = {
             'stat': '#!/bin/sh\nprintf "0:0:755\\n"\n',

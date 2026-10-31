@@ -64,7 +64,11 @@ class Preparation(unittest.TestCase):
                {'installation_source_url':'http://192.0.2.10/source?token=bad'},
                {'hostname':'host\nrootpw injected'},
                {'bootstrap_public_key':'-----BEGIN OPENSSH PRIVATE KEY-----'},
-               {'credential_mode':'passwordless-sudo'}]
+               {'credential_mode':'passwordless-sudo'},
+               {'disk_stable_id':'/dev/sda'},
+               {'disk_stable_id':'disk/by-id/virtio-*'},
+               {'disk_capacity_bytes':1},
+               {'storage_layout':'AUTOMATIC_ERASE'}]
         with tempfile.TemporaryDirectory(prefix='perkforge-pxe-plan-fixture-') as folder:
             root=Path(folder);out=Path(folder+'-output')
             for case in cases:
@@ -73,6 +77,59 @@ class Preparation(unittest.TestCase):
                     self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
                     self.assertFalse(out.exists())
                     self.assertNotIn('user:password',result.stdout+result.stderr)
+
+    def test_selected_bootstrap_design_local_output_remains_inert(self):
+        import shutil
+        import uuid
+        target='fixture-'+uuid.uuid4().hex
+        parent=ROOT/'local'/target
+        output=parent/'runs'/'test'
+        try:
+            with tempfile.TemporaryDirectory(prefix='perkforge-pxe-plan-fixture-') as folder:
+                result=self.run_plan(Path(folder),dict(hostname=target,output_dir=str(output),
+                    credential_mode='TEMPORARY_KEY_ONLY_BOOTSTRAP'))
+                self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                plan=(output/'plan.md').read_text()
+                self.assertIn('root-equivalent',plan)
+                self.assertIn('No fixed automatic expiry',plan)
+                self.assertIn('TEMPORARY_KEY_ONLY_BOOTSTRAP',plan)
+                ks=(output/'install.ks.BLOCKED').read_text()
+                self.assertIn('exit 1',ks)
+                self.assertNotIn('NOPASSWD',ks)
+                self.assertEqual(output.stat().st_mode&0o777,0o700)
+                self.assertEqual(parent.stat().st_mode&0o777,0o700)
+                self.assertEqual((parent/'runs').stat().st_mode&0o777,0o700)
+                # Another target's output and symlink traversal must fail.
+                result=self.run_plan(Path(folder),dict(hostname='other',output_dir=str(parent/'runs'/'bad')))
+                self.assertNotEqual(result.returncode,0)
+                link=parent/'runs'/'linked';link.symlink_to(output, target_is_directory=True)
+                result=self.run_plan(Path(folder),dict(hostname=target,output_dir=str(link/'new')))
+                self.assertNotEqual(result.returncode,0)
+                self.assertFalse((output/'new').exists())
+        finally:
+            if parent.exists():shutil.rmtree(parent)
+
+    def test_filled_bootstrap_adapter_renders_behind_unconditional_abort(self):
+        with tempfile.TemporaryDirectory(prefix='perkforge-pxe-plan-fixture-') as folder:
+            root=Path(folder);out=Path(folder+'-output')
+            try:
+                result=self.run_plan(root,dict(output_dir=str(out),credential_mode='TEMPORARY_KEY_ONLY_BOOTSTRAP',
+                    bootstrap_username='fixture',bootstrap_public_key='ssh-ed25519 AAAA fixture-only',
+                    bootstrap_controller_address='192.0.2.1',storage_layout='UEFI_XFS_LVM_UNENCRYPTED',
+                    disk_stable_id='disk/by-id/virtio-SYNTHETIC',disk_serial='SYNTHETIC',disk_capacity_bytes=68719476736))
+                self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                ks=(out/'install.ks.BLOCKED').read_text()
+                self.assertIn('%post --erroronfail',ks)
+                self.assertIn('fixture ALL=(root) NOPASSWD: ALL',ks)
+                self.assertIn('services --disabled=sshd',ks)
+                self.assertIn('clearpart --all --initlabel --drives=disk/by-id/virtio-SYNTHETIC',ks)
+                pre=ks.split('%pre --erroronfail',1)[1].split('%end',1)[0]
+                self.assertRegex(pre,r'(?m)^exit 1$')
+                self.assertNotIn('systemctl start',ks)
+            finally:
+                if out.exists():
+                    for path in out.iterdir():path.unlink()
+                    out.rmdir()
 
     def test_playbook_has_no_native_apply_or_network_operations(self):
         text=(ROOT/'ansible/prepare.yml').read_text()

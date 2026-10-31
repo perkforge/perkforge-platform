@@ -1,0 +1,84 @@
+---
+- name: Require explicit component invocation; never infer install approval
+  ansible.builtin.assert:
+    that:
+      - bootstrap_component_apply | bool
+      - not ansible_check_mode
+      - bootstrap_action in ['setup', 'handoff', 'revoke']
+      - bootstrap_user is match('^[a-z][a-z0-9_-]{0,30}$')
+      - bootstrap_user not in ['root', 'UNCONFIGURED']
+      - bootstrap_controller_address is match('^[0-9A-Fa-f:.]+$')
+      - bootstrap_root == '' or bootstrap_root is match('^/tmp/perkforge-bootstrap-fixture-[A-Za-z0-9_-]+$')
+    fail_msg: 'Components are gated and not an installer. Explicit reviewed integration is required.'
+- name: Define owned component paths
+  ansible.builtin.set_fact:
+    bootstrap_home: '{{ bootstrap_root }}/home/{{ bootstrap_user }}'
+    bootstrap_state_dir: '{{ bootstrap_root }}/var/lib/perkforge-bootstrap'
+    bootstrap_sudo_file: '{{ bootstrap_root }}/etc/sudoers.d/90-perkforge-bootstrap'
+    bootstrap_ssh_file: '{{ bootstrap_root }}/etc/ssh/sshd_config.d/00-perkforge-bootstrap.conf'
+- name: Inspect ledger directory without following symlinks
+  ansible.builtin.stat:
+    path: '{{ bootstrap_state_dir }}'
+    follow: false
+  register: bootstrap_state_stat
+- ansible.builtin.assert:
+    that:
+      - not bootstrap_state_stat.stat.islnk | default(false)
+      - not bootstrap_state_stat.stat.exists or (bootstrap_state_stat.stat.isdir and bootstrap_state_stat.stat.uid == bootstrap_owner_uid | int and bootstrap_state_stat.stat.mode == '0700')
+- name: Inspect component ledger without following symlinks
+  ansible.builtin.stat:
+    path: '{{ bootstrap_state_dir }}/state.yml'
+    follow: false
+  register: bootstrap_ledger_stat
+- name: Never overwrite existing setup evidence or follow ledger symlinks
+  ansible.builtin.assert:
+    that:
+      - not bootstrap_ledger_stat.stat.islnk | default(false)
+      - not bootstrap_ledger_stat.stat.exists or (bootstrap_ledger_stat.stat.isreg and bootstrap_ledger_stat.stat.uid == bootstrap_owner_uid | int and bootstrap_ledger_stat.stat.mode == '0600')
+      - bootstrap_action != 'setup' or not bootstrap_ledger_stat.stat.exists
+      - bootstrap_action == 'setup' or bootstrap_ledger_stat.stat.exists
+- name: Load only the protected component ledger
+  ansible.builtin.slurp:
+    src: '{{ bootstrap_state_dir }}/state.yml'
+  register: bootstrap_ledger_raw
+  when: bootstrap_action != 'setup'
+- name: Require matching account ownership and outstanding access
+  ansible.builtin.assert:
+    that:
+      - (bootstrap_ledger_raw.content | b64decode | from_yaml).account == bootstrap_user
+      - (bootstrap_ledger_raw.content | b64decode | from_yaml).access != 'revoked'
+  when: bootstrap_action != 'setup'
+- name: Account for every mutation attempt, including interruption
+  block:
+    - ansible.builtin.file:
+        path: '{{ bootstrap_state_dir }}'
+        state: directory
+        owner: '{{ bootstrap_uid }}'
+        group: '{{ bootstrap_gid }}'
+        mode: '0700'
+    - name: Record intent BEFORE any account or privilege operation
+      ansible.builtin.copy:
+        dest: '{{ bootstrap_state_dir }}/state.yml'
+        content: |
+          account: {{ bootstrap_user }}
+          action: {{ bootstrap_action }}
+          access: outstanding_or_unknown
+          result: in_progress
+        owner: '{{ bootstrap_uid }}'
+        group: '{{ bootstrap_gid }}'
+        mode: '0600'
+    - ansible.builtin.include_tasks: '{{ bootstrap_action }}.yml'
+  rescue:
+    - name: Preserve conservative access accounting on failure; never claim revoked
+      ansible.builtin.copy:
+        dest: '{{ bootstrap_state_dir }}/state.yml'
+        content: |
+          account: {{ bootstrap_user }}
+          action: {{ bootstrap_action }}
+          access: outstanding_or_unknown
+          result: failed_requires_review
+        owner: '{{ bootstrap_uid }}'
+        group: '{{ bootstrap_gid }}'
+        mode: '0600'
+    - ansible.builtin.fail:
+        msg: 'Bootstrap component failed. Access is outstanding/unknown; preserve console/human recovery and protected ledger. No automatic retry or last-access removal.'

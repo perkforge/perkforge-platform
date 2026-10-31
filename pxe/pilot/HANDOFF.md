@@ -54,7 +54,7 @@ Any further reset/rearm/start requires its own reviewed purpose and authorizatio
 ## Access workflow and unresolved preparation defects
 
 The successful path was standard ssh-copy-id, a separate key-only login, then the
-reviewed [standalone hardening file](console/harden-ssh.sh) transferred over the
+reviewed [standalone hardening file](history/console/harden-ssh.sh) transferred over the
 host-verified SSH connection. It refuses an existing managed drop-in. Do not rerun
 it blindly. Keep existing access until any future authentication change is tested.
 
@@ -85,7 +85,7 @@ Source: https://docs.rke2.io/install/requirements . No prerequisite install yet.
 ## Evidence and local verification
 
 [Chronological journal](../../infrastructure/EXECUTION-JOURNAL.md) distinguishes
-user execution from offline tests and pending results. [Activation contract](ACTIVATION-PROPOSAL.md)
+user execution from offline tests and pending results. [Activation contract](history/ACTIVATION-PROPOSAL.md)
 contains lifecycle/rollback details. No credentials, personal fingerprints, private
 addresses, raw native logs or ignored inventory belong in tracked documentation.
 

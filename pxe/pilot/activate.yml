@@ -7,6 +7,7 @@
   vars:
     ansible_python_interpreter: /usr/bin/python3
     pilot_activation_approved: false
+    pilot_manual_stop_session_approved: false
     pilot_retry_reviewed_menu: false
     pilot_runtime: /run/perkforge-pxe-pilot
     pilot_logs: /var/log/perkforge-pxe-pilot
@@ -19,7 +20,7 @@
           - inventory_hostname == 'localhost' and ansible_connection == 'local'
           - pilot_review_dir is match('^/tmp/perkforge-pxe-review-[A-Za-z0-9-]+$')
           - pilot_interface is match('^[A-Za-z0-9][A-Za-z0-9_.-]{0,14}$') and pilot_interface != 'lo'
-          - pilot_lifetime_seconds == 1800
+          - pilot_lifetime_seconds == 1800 or (pilot_lifetime_seconds == 0 and pilot_manual_stop_session_approved | bool)
           - pilot_runtime == '/run/perkforge-pxe-pilot'
           - pilot_logs == '/var/log/perkforge-pxe-pilot'
         fail_msg: 'STOP: exact reviewed inputs and specific activation approval required.'
@@ -188,18 +189,19 @@
           ansible.builtin.command:
             argv: '{{ item }}'
           loop:
-            - [systemd-run, --quiet, --unit=perkforge-pxe-pilot-dnsmasq.service, --property=Type=exec, --property=Restart=no, '--property=RuntimeMaxSec={{ pilot_lifetime_seconds }}', --property=KillMode=control-group, --, /usr/sbin/dnsmasq, --keep-in-foreground, '--conf-file={{ config_session.path }}/dnsmasq.conf']
-            - [systemd-run, --quiet, --unit=perkforge-pxe-pilot-http.service, --property=Type=exec, --property=Restart=no, '--property=RuntimeMaxSec={{ pilot_lifetime_seconds }}', --property=KillMode=control-group, --, /usr/sbin/nginx, -p, '{{ pilot_runtime }}/http/', -e, stderr, -c, '{{ config_session.path }}/nginx.conf', -g, 'daemon off;']
+            - [systemd-run, --quiet, --unit=perkforge-pxe-pilot-dnsmasq.service, --property=Type=exec, --property=Restart=no, "--property=RuntimeMaxSec={{ 'infinity' if pilot_lifetime_seconds | int == 0 else pilot_lifetime_seconds }}", --property=KillMode=control-group, --, /usr/sbin/dnsmasq, --keep-in-foreground, '--conf-file={{ config_session.path }}/dnsmasq.conf']
+            - [systemd-run, --quiet, --unit=perkforge-pxe-pilot-http.service, --property=Type=exec, --property=Restart=no, "--property=RuntimeMaxSec={{ 'infinity' if pilot_lifetime_seconds | int == 0 else pilot_lifetime_seconds }}", --property=KillMode=control-group, --, /usr/sbin/nginx, -p, '{{ pilot_runtime }}/http/', -e, stderr, -c, '{{ config_session.path }}/nginx.conf', -g, 'daemon off;']
           changed_when: true
         - name: Capture dedicated invocation identities
           ansible.builtin.command:
-            argv: [systemctl, show, '{{ item }}', '-p', InvocationID, '-p', MainPID, '-p', ExecStart, '-p', ActiveState]
+            argv: [systemctl, show, '{{ item }}', '-p', InvocationID, '-p', MainPID, '-p', ExecStart, '-p', ActiveState, '-p', RuntimeMaxUSec]
           loop: '{{ pilot_units }}'
           register: launched_units
           changed_when: false
         - ansible.builtin.assert:
             that:
               - "'ActiveState=active' in item.stdout"
+              - "('RuntimeMaxUSec=infinity' if pilot_lifetime_seconds | int == 0 else 'RuntimeMaxUSec=30min') in item.stdout_lines"
               - config_session.path in item.stdout
               - item.stdout is search('InvocationID=[0-9a-f]{32}')
               - item.stdout is search('MainPID=[1-9][0-9]*')
@@ -239,7 +241,7 @@
               - active_sockets.stdout is search(':69\s')
               - active_sockets.stdout is search(':4011\s')
         - ansible.builtin.debug:
-            msg: 'Workstation pilot active at most1800seconds; session {{ config_session.path }}. STOP: no node boot authorized. Use reviewed shutdown.yml before leaving session.'
+            msg: 'Workstation pilot active; lifetime={{ "manual stop (infinity)" if pilot_lifetime_seconds | int == 0 else "30 minutes" }}; session {{ config_session.path }}. STOP: no node boot authorized. Use reviewed shutdown.yml before leaving session.'
       rescue:
         - name: Save safe failure checkpoint without module arguments or output
           ansible.builtin.set_fact:

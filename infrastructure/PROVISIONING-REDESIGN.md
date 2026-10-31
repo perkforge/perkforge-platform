@@ -1,5 +1,11 @@
 # Physical provisioning: boot, install, verify
 
+> Earlier design proposal, retained as review history. The agreed active approach
+> is now the [controlled physical worker pilot](TOMORROW-READINESS.md), without a
+> mandatory full VM rehearsal or general session/recovery framework. Requirements
+> below describe that earlier proposal; they are not additional current gates.
+
+
 **Proposal only, 2026-10-31.** No implementation or live approval follows from this
 file. Tonight installed one RHEL10.2 host and verified key-only SSH/sudo, but the
 operator had to help build and debug the installer workflow. That is not the

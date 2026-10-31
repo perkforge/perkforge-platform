@@ -1,0 +1,11 @@
+---
+- ansible.builtin.slurp:
+    src: '{{ rehearsal_root }}/config/canary.sha256'
+  register: rehearsal_expected_canary
+- ansible.builtin.stat:
+    path: '{{ rehearsal_root }}/vm/canary.raw'
+    checksum_algorithm: sha256
+  register: rehearsal_current_canary
+- ansible.builtin.assert:
+    that: rehearsal_current_canary.stat.checksum == rehearsal_expected_canary.content | b64decode | trim
+    fail_msg: 'Canary disk changed. No success claim; retain all images/evidence.'

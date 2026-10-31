@@ -9,8 +9,8 @@ Publication cleanup normalized trailing whitespace in the repository enrollment
 copy and updated its source-checksum assertion. Journal hashes describe the
 bytes actually transferred during the historical attempts; live files were not
 modified and these retired helpers are not a new install path.
-For tomorrow use the [readiness report](../../../infrastructure/TOMORROW-READINESS.md)
-and [redesign](../../../infrastructure/PROVISIONING-REDESIGN.md), not the historical
+For tomorrow use the [readiness report](../../../../infrastructure/TOMORROW-READINESS.md)
+and [redesign](../../../../infrastructure/PROVISIONING-REDESIGN.md), not the historical
 procedure below. Neither replacement nor unattended install is approved by this note.
 
 This narrowly scoped console bootstrap is for the approved physical pilot. Host

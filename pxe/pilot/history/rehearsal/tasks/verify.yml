@@ -1,0 +1,207 @@
+---
+- name: Verify resources still belong to this session before any guest traffic
+  ansible.builtin.include_tasks: status.yml
+- name: Require all four owned service invocations active for install/resume
+  ansible.builtin.assert:
+    that:
+      - rehearsal_owned_units | length == 4
+      - "'ActiveState=active' in item.stdout"
+  loop: '{{ rehearsal_status_units.results }}'
+- name: Wait for an explicit installed-policy or disk-rejection marker, not a timeout inference
+  ansible.builtin.wait_for:
+    path: '{{ rehearsal_root }}/logs/vm/console.log'
+    search_regex: 'PERKFORGE_(INITIAL_POLICY_READY|INITIAL_POLICY_FAILED|DISK_IDENTITY_REJECTED)'
+    timeout: '{{ rehearsal_wait_seconds | int }}'
+- ansible.builtin.slurp:
+    src: '{{ rehearsal_root }}/logs/vm/console.log'
+  register: rehearsal_console
+- name: Handle negative scenarios only from explicit guard evidence
+  when: rehearsal_scenario != 'install'
+  block:
+    - ansible.builtin.assert:
+        that:
+          - "'PERKFORGE_DISK_IDENTITY_REJECTED' in rehearsal_console.content | b64decode"
+          - "'PERKFORGE_INITIAL_POLICY_READY' not in rehearsal_console.content | b64decode"
+    - ansible.builtin.include_tasks: stop.yml
+    - name: Compare stopped target to its exact preboot baseline; allocation differences fail too
+      ansible.builtin.command:
+        argv: [/usr/bin/qemu-img, compare, -s, -f, qcow2, -F, qcow2, '{{ rehearsal_root }}/vm/target.qcow2', '{{ rehearsal_root }}/vm/baseline.qcow2']
+      changed_when: false
+    - ansible.builtin.include_tasks: canary.yml
+    - ansible.builtin.set_fact:
+        rehearsal_phase: negative_verified_stopped
+        rehearsal_outcome: disk_guard_rejected_unchanged_disks
+    - ansible.builtin.include_tasks: save.yml
+- name: Full installed OS/access/reboot verification only after positive install marker
+  when: rehearsal_scenario == 'install'
+  block:
+    - ansible.builtin.assert:
+        that:
+          - "'PERKFORGE_INITIAL_POLICY_READY' in rehearsal_console.content | b64decode"
+          - "'PERKFORGE_INITIAL_POLICY_FAILED' not in rehearsal_console.content | b64decode"
+          - "'PERKFORGE_DISK_IDENTITY_REJECTED' not in rehearsal_console.content | b64decode"
+    - name: Disarm only this VM's TFTP menu before any further reboot
+      ansible.builtin.copy:
+        dest: '{{ rehearsal_root }}/media/tftp/EFI/BOOT/grub.cfg'
+        content: |
+          set timeout=-1
+          menuentry 'Installation disarmed; boot local disk' { exit; }
+        owner: root
+        group: root
+        mode: '0444'
+    - name: Read public host key from owned trusted serial channel, never ssh-keyscan trust
+      ansible.builtin.set_fact:
+        rehearsal_host_keys: '{{ rehearsal_console.content | b64decode | regex_findall("(?m)^PERKFORGE_HOSTKEY (ssh-ed25519 [A-Za-z0-9+/=]+)(?: [^\\r\\n]*)?\\r?$") | unique }}'
+    - ansible.builtin.assert:
+        that: rehearsal_host_keys | length == 1
+        fail_msg: 'No unique trusted fixture host key in serial; never auto-accept an SSH key.'
+    - ansible.builtin.copy:
+        content: '192.0.2.11 {{ rehearsal_host_keys[0] }}
+
+          '
+        dest: '{{ rehearsal_root }}/credentials/known_hosts'
+        owner: root
+        group: root
+        mode: '0600'
+    - ansible.builtin.slurp:
+        src: '{{ rehearsal_root }}/credentials/human.password'
+      register: rehearsal_password_file
+      no_log: true
+    - ansible.builtin.set_fact:
+        rehearsal_test_password: '{{ rehearsal_password_file.content | b64decode | trim }}'
+        rehearsal_ssh_base: [/usr/bin/timeout, 40s, '{{ rehearsal_root }}/config/namespace-ssh', -F, /dev/null, -T, -o, ControlMaster=no, -o, ControlPath=none, -o, BatchMode=yes, -o, IdentitiesOnly=yes, -o, PreferredAuthentications=publickey, -o, StrictHostKeyChecking=yes, -o, 'UserKnownHostsFile={{ rehearsal_root }}/credentials/known_hosts', -o, ConnectTimeout=5, -o, ConnectionAttempts=1]
+      no_log: true
+    - ansible.builtin.set_fact:
+        rehearsal_human_ssh: '{{ rehearsal_ssh_base + ["-i", rehearsal_root + "/credentials/rehearsal-human", "operator@192.0.2.11"] }}'
+        rehearsal_access_already_verified: false
+    - name: Probe for already-completed handoff before resume; do not recreate accounts
+      ansible.builtin.command:
+        argv: '{{ rehearsal_human_ssh + ["sudo -k; sudo -S -p \"\" cat /var/lib/perkforge-bootstrap/state.yml"] }}'
+        stdin: '{{ rehearsal_test_password }}'
+      register: rehearsal_prior_access
+      changed_when: false
+      failed_when: false
+      no_log: true
+    - name: Recover only explicit revoked ledger plus fresh human administration proof
+      when: rehearsal_prior_access.rc == 0
+      block:
+        - ansible.builtin.assert:
+            that:
+              - (rehearsal_prior_access.stdout | from_yaml).account == 'bootstrap'
+              - (rehearsal_prior_access.stdout | from_yaml).access == 'revoked'
+            fail_msg: 'Partial/unrecognized prior human handoff: preserve recovery and review; never overwrite existing accounts.'
+        - ansible.builtin.command:
+            argv: '{{ rehearsal_ssh_base + ["-i", rehearsal_root + "/credentials/rehearsal-bootstrap", "bootstrap@192.0.2.11", "/usr/bin/true"] }}'
+          register: rehearsal_prior_rejection
+          failed_when: false
+          changed_when: false
+        - ansible.builtin.assert:
+            that: rehearsal_prior_rejection.rc == 255 and 'Permission denied' in rehearsal_prior_rejection.stderr
+        - ansible.builtin.set_fact:
+            rehearsal_access_already_verified: true
+    - name: Complete a new handoff only when no verified completed one exists
+      when: not rehearsal_access_already_verified | bool
+      block:
+        - name: Wait for installed SSH using only this VM's bootstrap key
+          ansible.builtin.command:
+            argv: '{{ rehearsal_ssh_base + ["-i", rehearsal_root + "/credentials/rehearsal-bootstrap", "bootstrap@192.0.2.11", "/usr/bin/true"] }}'
+          register: rehearsal_bootstrap_ready
+          changed_when: false
+          failed_when: false
+          until: rehearsal_bootstrap_ready.rc == 0
+          retries: 60
+          delay: 5
+        - ansible.builtin.assert:
+            that: rehearsal_bootstrap_ready.rc == 0
+            fail_msg: 'Installed bootstrap SSH never became available; preserve diagnostics, no password bridge.'
+        - name: Write nonsecret access references only; runtime password remains elsewhere
+          ansible.builtin.copy:
+            dest: '{{ rehearsal_root }}/config/access.yml'
+            mode: '0600'
+            content: |
+              bootstrap_handoff_apply: true
+              bootstrap_target_host: 192.0.2.11
+              bootstrap_controller_address: 192.0.2.10
+              bootstrap_user: bootstrap
+              bootstrap_human_user: operator
+              bootstrap_public_key_file: {{ rehearsal_root }}/credentials/rehearsal-bootstrap.pub
+              bootstrap_human_public_key_file: {{ rehearsal_root }}/credentials/rehearsal-human.pub
+              bootstrap_identity_file: {{ rehearsal_root }}/credentials/rehearsal-bootstrap
+              bootstrap_human_identity_file: {{ rehearsal_root }}/credentials/rehearsal-human
+              bootstrap_known_hosts_file: {{ rehearsal_root }}/credentials/known_hosts
+              bootstrap_runtime_password_file: {{ rehearsal_root }}/credentials/human.password
+              bootstrap_ssh: {{ rehearsal_root }}/config/namespace-ssh
+              ansible_ssh_executable: {{ rehearsal_root }}/config/namespace-ssh
+        - name: Run the standard installed-host handoff caller using references, not secret arguments
+          ansible.builtin.command:
+            argv: [/usr/bin/ansible-playbook, -i, 'localhost,', -c, local, '{{ playbook_dir }}/../bootstrap/handoff.yml', -e, '@{{ rehearsal_root }}/config/access.yml']
+          environment:
+            ANSIBLE_CONFIG: '{{ rehearsal_root }}/config/ansible.cfg'
+            ANSIBLE_LOCAL_TEMP: '{{ rehearsal_root }}/config/ansible-local'
+          register: rehearsal_access_result
+          no_log: true
+    - ansible.builtin.set_fact:
+        rehearsal_phase: access_verified
+    - ansible.builtin.include_tasks: save.yml
+    - ansible.builtin.set_fact:
+        rehearsal_human_ssh: '{{ rehearsal_ssh_base + ["-i", rehearsal_root + "/credentials/rehearsal-human", "operator@192.0.2.11"] }}'
+    - name: Verify installed version, hostname and root filesystem without RKE2/platform work
+      ansible.builtin.command:
+        argv: '{{ rehearsal_human_ssh + [". /etc/os-release; test \"$VERSION_ID\" = 10.2 && test \"$(hostname)\" = rehearsal.invalid && test \"$(findmnt -n -o FSTYPE /)\" = xfs"] }}'
+      changed_when: false
+    - ansible.builtin.command:
+        argv: '{{ rehearsal_human_ssh + ["cat /proc/sys/kernel/random/boot_id"] }}'
+      register: rehearsal_boot_before
+      changed_when: false
+    - name: Reboot the disposable guest through verified human sudo only
+      ansible.builtin.command:
+        argv: '{{ rehearsal_human_ssh + ["sudo -k; sudo -S -p \"\" /usr/bin/systemctl reboot"] }}'
+        stdin: '{{ rehearsal_test_password }}'
+      register: rehearsal_reboot
+      failed_when: rehearsal_reboot.rc not in [0, 255]
+      no_log: true
+    - name: Verify new local-disk boot, not merely the previous open SSH session
+      ansible.builtin.command:
+        argv: '{{ rehearsal_human_ssh + ["cat /proc/sys/kernel/random/boot_id"] }}'
+      register: rehearsal_boot_after
+      changed_when: false
+      failed_when: false
+      until: rehearsal_boot_after.rc == 0 and rehearsal_boot_after.stdout | trim != rehearsal_boot_before.stdout | trim
+      retries: 60
+      delay: 5
+    - ansible.builtin.assert:
+        that:
+          - rehearsal_boot_after.rc == 0
+          - rehearsal_boot_after.stdout | trim is match('^[0-9a-f-]{36}$')
+          - rehearsal_boot_after.stdout | trim != rehearsal_boot_before.stdout | trim
+    - name: Reverify password-required sudo after guest reboot
+      ansible.builtin.command:
+        argv: '{{ rehearsal_human_ssh + ["sudo -k; if sudo -n -v 2>/dev/null; then exit 40; fi; sudo -S -p \"\" /usr/bin/id -u"] }}'
+        stdin: '{{ rehearsal_test_password }}'
+      register: rehearsal_sudo_after
+      no_log: true
+    - ansible.builtin.assert:
+        that: rehearsal_sudo_after.rc == 0 and rehearsal_sudo_after.stdout | trim == '0'
+    - name: Power off the disposable guest cleanly before stopping its VM process
+      ansible.builtin.command:
+        argv: '{{ rehearsal_human_ssh + ["sudo -k; sudo -S -p \"\" /usr/bin/systemctl poweroff"] }}'
+        stdin: '{{ rehearsal_test_password }}'
+      register: rehearsal_poweroff
+      failed_when: rehearsal_poweroff.rc not in [0, 255]
+      no_log: true
+    - name: Require QMP shutdown state, not a timeout or disconnected SSH inference
+      ansible.builtin.command:
+        argv: [/usr/bin/python3, '{{ playbook_dir }}/rehearsal/qmp_status.py', '{{ rehearsal_root }}/vm/qmp.sock']
+      register: rehearsal_qmp
+      changed_when: false
+      until: rehearsal_qmp.rc == 0 and (rehearsal_qmp.stdout | from_json).status == 'shutdown'
+      retries: 30
+      delay: 2
+    - ansible.builtin.include_tasks: stop.yml
+    - ansible.builtin.include_tasks: canary.yml
+    - ansible.builtin.set_fact:
+        rehearsal_phase: verified_stopped
+        rehearsal_outcome: installed_human_access_revocation_reboot_cleanup_verified
+    - ansible.builtin.include_tasks: save.yml
+    - ansible.builtin.debug:
+        msg: 'Disposable install/access/reboot/canary/owned cleanup assertions passed. Physical worker installation is still separately gated; RKE2/Rancher excluded.'

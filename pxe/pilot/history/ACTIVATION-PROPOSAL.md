@@ -1,3 +1,6 @@
+> HISTORICAL execution proposal; not current operating instructions.
+> Start at [PXE README](../../README.md). Commands below are retained evidence.
+
 # Workstation pilot activation — operator evidence and pause contract
 
 Corrected operator native retry succeeded at23:53UTC (ok78 changed12 failed0

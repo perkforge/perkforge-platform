@@ -1,0 +1,40 @@
+# Draft standard storage adapter; never independently authorizes erasure.
+# Main physical candidate's unconditional %pre abort is never removed here.
+{% if storage_layout != 'UEFI_XFS_LVM_UNENCRYPTED' or disk_stable_id == 'UNCONFIGURED' or disk_serial == 'UNCONFIGURED' or disk_capacity_bytes == 'UNCONFIGURED' %}
+%pre --erroronfail --interpreter=/usr/bin/bash --log=/tmp/perkforge-disk-pre.log
+printf '%s\n' 'BLOCKED: exact disk identity/capacity or explicit storage layout missing.' >&2
+exit 1
+%end
+{% else %}
+%pre --erroronfail --interpreter=/usr/bin/bash --log=/tmp/perkforge-disk-pre.log
+set -Eeuo pipefail
+failed_disk_guard() {
+    rc=$?
+    trap - ERR
+    printf '%s\n' 'PERKFORGE_DISK_IDENTITY_REJECTED' >&2
+    printf '%s\n' 'PERKFORGE_DISK_IDENTITY_REJECTED' >> /dev/console || true
+    exit "$rc"
+}
+trap failed_disk_guard ERR
+# Read-only checks before Anaconda storage changes; no partitioning in this script.
+readonly disk='/dev/{{ disk_stable_id }}'
+resolved=$(/usr/bin/readlink -e -- "$disk")
+test -b "$resolved"
+[[ $(/usr/bin/lsblk -dn -o TYPE -- "$resolved") == disk ]]
+[[ $(/usr/bin/lsblk -dn -o SERIAL -- "$resolved") == '{{ disk_serial }}' ]]
+[[ $(/usr/sbin/blockdev --getsize64 "$resolved") == '{{ disk_capacity_bytes }}' ]]
+# Detect selector changes during the metadata checks. Standard directives below
+# still use the persistent selector, never an inferred sdX/nvme number.
+[[ $(/usr/bin/readlink -e -- "$disk") == "$resolved" ]]
+printf '%s\n' 'Exact persistent disk identity/capacity matched; standard scoped storage directives follow.'
+%end
+ignoredisk --only-use={{ disk_stable_id }}
+clearpart --all --initlabel --drives={{ disk_stable_id }}
+bootloader --boot-drive={{ disk_stable_id }}
+part /boot/efi --fstype=efi --size=600 --ondisk={{ disk_stable_id }}
+part /boot --fstype=xfs --size=2048 --ondisk={{ disk_stable_id }}
+part pv.01 --fstype=lvmpv --size=1 --grow --ondisk={{ disk_stable_id }}
+volgroup perkforge pv.01
+logvol / --fstype=xfs --vgname=perkforge --name=root --size=1 --grow
+# Explicitly unencrypted ordinary LVM; no swap or separate /home. Not a default.
+{% endif %}

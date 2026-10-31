@@ -1,6 +1,6 @@
 # DESIGN CANDIDATE ONLY — NOT DEPLOYABLE, NOT SERVED, NO INSTALL APPROVAL.
-# Always aborts in %pre; intentionally contains no active disk-erasure/layout
-# commands, credential hash or bootstrap sudo policy. Do not wire into GRUB.
+# Always aborts in %pre. Draft storage/bootstrap adapters, when supplied, remain
+# unreachable behind that abort. No credential hash/private key. Do not wire into GRUB.
 # Required inputs are supplied only by synthetic offline tests for now.
 # Vendor baseline: infrastructure/RHEL-PROVISIONING-GUIDANCE.md (RHEL10/10.2).
 # Standard directives are candidates, not a ksvalidator/rehearsal pass.
@@ -13,14 +13,14 @@ timezone {{ timezone }} --utc
 timesource --ntp-server {{ ntp_server }}
 network --bootproto=dhcp --device={{ boot_nic_mac }} --activate --hostname={{ hostname }}
 rootpw --lock
-user --name={{ bootstrap_username }} --groups=wheel --lock
+user --name={{ bootstrap_username }} --shell=/bin/bash --lock
 sshkey --username={{ bootstrap_username }} "{{ bootstrap_public_key }}"
 selinux --enforcing
 firewall --enabled --service=ssh
-services --enabled=sshd
+services --disabled=sshd
 
 %pre --erroronfail --log=/tmp/perkforge-candidate-pre.log
-printf '%s\n' 'BLOCKED: non-deployable design candidate; disk identity and credential mode unresolved.' >&2
+printf '%s\n' 'BLOCKED: non-deployable design candidate; disk identity and credential implementation unvalidated.' >&2
 exit 1
 %end
 
@@ -53,3 +53,8 @@ kernel-modules-extra
 #   behavior; do not copy a generated anaconda-ks.cfg containing password hashes.
 # - Validate with ksvalidator -v RHEL10 AND perform an authorized real rehearsal.
 # - Remove this unconditional abort only in a separately reviewed implementation.
+
+# Initial policy is unreachable while unconditional %pre abort remains above.
+{{ bootstrap_initial_post_fragment | default('# Initial bootstrap adapter not supplied; never an installer.') }}
+
+{{ bootstrap_storage_fragment | default('# No storage adapter supplied; never an installer.') }}

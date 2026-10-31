@@ -3,20 +3,23 @@
 ## Step index
 
 1. [Prepare offline draft](../../pxe/ansible/README.md) — Render the private plan and blocked Kickstart draft.
-2. [Review exact plan; STOP before approval](../../infrastructure/PROVISIONING-REDESIGN.md#operator-journey-and-approval-contract) — Confirm the exact target, disk, access and exposure.
+2. [Review exact plan; STOP before approval](../../infrastructure/TOMORROW-READINESS.md#pilot-approval) — Confirm the exact target, disk, access and exposure.
 3. [Power / BIOS / select network boot](../../pxe/README.md#red-hat-solution-and-nginx) — Select the approved node and boot path.
 4. [Kickstart installation](../../pxe/kickstart/README.md) — Install only after validation and approval gates pass.
-5. [Reboot to local disk](../../infrastructure/PROVISIONING-REDESIGN.md#lifecycle-trust-and-readiness) — Start the installed OS without repeating installation.
-6. [Verify identity, key login, sudo, readiness](../../pxe/pilot/HANDOFF.md) — Confirm trusted access and OS readiness.
-7. [Disarm / stop / report](../../pxe/pilot/HANDOFF.md#immediate-pause-checkpoint) — Stop owned temporary resources and retain the result.
+5. [Reboot to local disk](../../infrastructure/TOMORROW-READINESS.md#installation-and-access) — Start the installed OS without repeating installation.
+6. [Verify identity, key login, sudo, readiness](../../infrastructure/TOMORROW-READINESS.md#installation-and-access) — Confirm trusted access and OS readiness.
+7. [Disarm / stop / report](../../infrastructure/TOMORROW-READINESS.md#finish) — Stop owned temporary resources and retain the result.
 
-Only step 1 is implemented in the normal workflow; later stages remain planned and blocked.
+Active strategy: controlled physical worker pilot. Full VM rehearsal/custom
+session runner is deferred, not a gate. Step1 produces the blocked draft; final
+worker inputs, actual target-file validation and explicit live approval remain.
+Keep one workstation host-fingerprint/private-password checkpoint.
 
 LikeC41.60.0 is pinned locally in this documentation project; the lockfile pins its
 dependencies. No global tool or system package is required. It is documentation,
 not a deployment controller or the parked portal project.
 
-## View tomorrow
+## Open the walkthrough
 
 Prerequisite: Node **22.22.3 or newer** and npm on PATH. Tested with Node24.22.2.
 Dependencies are already present in this working directory; for a fresh checkout:
@@ -55,24 +58,25 @@ unpublished GitHub branch URL is required.
 | operations | **Ordered1–7 proposed journey**: prepare → review/approve → network boot → Kickstart install → first disk boot → verify → disarm/cleanup |
 | boot_protocol | Client-initiated DHCP/proxy/TFTP/HTTP **sequence**, reference flow rather than a packet capture |
 | installation | Proposed install gates; candidate currently always aborts |
-| security_handoff | Public key versus protected secret delivery; credential choice pending |
+| security_handoff | Actual Ansible bootstrap task order, controller/target execution, evidence and revocation; integration blocked |
 | observed_pilot | Actual operator-reported interactive pilot checkpoint and limits |
 
-Green elements are implemented preparation; blue are observed pilot roles (not
+Green elements are implemented preparation/bootstrap component code; blue are observed pilot roles (not
 proof services are currently running); amber are proposed; red are unresolved
 stop gates. Titles/descriptions preserve status even without color.
 
 The human handles power/BIOS/network boot and a trusted identity/fingerprint check
 when needed. Normal provisioning otherwise belongs on the workstation, without
 node command transcription or interactive installer. Considering control-1 again
-does not approve its wipe. Current automated installation remains **not ready**.
+does not approve its wipe. The exact worker install remains **blocked pending inputs/review/approval**; native
+Kickstart/PAM/package behavior will be learned in the controlled physical pilot.
 
 ## Sources and validation
 
 - [model.c4](model.c4) and [views.c4](views.c4) are the editable model.
 - [Runbook HTML](public/runbook.html) is the actual linked source with anchors for
   steps1–7, operator boundary, credential gate and observed evidence.
-- `scripts/prepare-sources.mjs` copies only seven explicit nonsecret source files
+- `scripts/prepare-sources.mjs` copies only eighteen explicit nonsecret source files
   into ignored `public/sources/`, so links open the actual current runbook/code
   without depending on GitHub publication. It never recursively copies the repo,
   private inventory, raw journal, credentials or evidence.
@@ -95,3 +99,10 @@ Follow [vendor guidance](../../infrastructure/RHEL-PROVISIONING-GUIDANCE.md),
 [PXE preparation](../../pxe/README.md). [LikeC4 CLI](https://likec4.dev/tooling/cli/)
 and [dynamic-view syntax](https://likec4.dev/dsl/views/dynamic/) are upstream
 references, not provisioning instructions.
+
+## Final documentation direction
+
+During work, keep planned versus implemented versus observed explicit. After
+proven rehearsal/installation, consolidate to the tested operator runbook and
+matching current-state C4, retiring superseded planning while preserving useful
+execution evidence separately. No planning is deleted or marked completed now.

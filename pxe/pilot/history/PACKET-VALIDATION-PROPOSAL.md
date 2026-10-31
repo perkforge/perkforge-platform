@@ -1,3 +1,6 @@
+> HISTORICAL execution proposal; not current operating instructions.
+> Start at [PXE README](../../README.md). Commands below are retained evidence.
+
 # Bounded isolated packet check — native evidence recorded
 
 Purpose: test the installed dnsmasq2.91 proxy behavior and rendered ingress/HTTP

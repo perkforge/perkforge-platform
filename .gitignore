@@ -12,3 +12,6 @@ ansible/vault-password.txt
 **/__pycache__/
 infrastructure/ansible/.vault-pass
 infrastructure/ansible/vault-password.txt
+
+# Generated private provisioning review output, never source or install media.
+/pxe/local/

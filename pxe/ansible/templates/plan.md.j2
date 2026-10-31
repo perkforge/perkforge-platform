@@ -1,30 +1,39 @@
-# Offline installation review — BLOCKED / NOT DEPLOYABLE
+# {{ hostname }} pilot plan — BLOCKED / NOT DEPLOYABLE
 
-Target: {{ hostname }}; NIC: {{ boot_nic_mac }}; boot preference: {{ boot_method }}.
-Source: {{ installation_source_url }}; timezone: {{ timezone }}; NTP: {{ ntp_server }}.
-Disk stable ID: {{ disk_stable_id }}; serial: {{ disk_serial }}; bytes: {{ disk_capacity_bytes }}.
-Account proposal: {{ bootstrap_username }}; credential mode: UNDECIDED.
-Public-key input: {{ 'missing' if bootstrap_public_key == 'UNCONFIGURED' else 'present (not cryptographically validated by this preparation)' }}.
+Active strategy: controlled physical pilot, standard Kickstart and proven PXE.
+Full VM rehearsal is not a prerequisite. No live action is approved by this plan.
 
-No hardware or media was inspected. No connection, host configuration, service,
-firewall, credential, disk write, package installation or VM operation occurred.
-UNCONFIGURED means missing information, never an automatic default.
+| Item | Current input |
+|---|---|
+| Target / boot | {{ hostname }} / {{ boot_method }} |
+| NIC | {{ boot_nic_mac }} |
+| Source | {{ installation_source_url }} |
+| Timezone / NTP | {{ timezone }} / {{ ntp_server }} |
+| Exact disk | {{ disk_stable_id }} |
+| Serial / bytes | {{ disk_serial }} / {{ disk_capacity_bytes }} |
+| Layout | {{ storage_layout }} |
+| Initial account / mode | {{ bootstrap_username }} / {{ credential_mode }} |
+| Initial public key | {{ 'UNCONFIGURED' if bootstrap_public_key == 'UNCONFIGURED' else 'present; final cryptographic/identity check still required' }} |
 
-install.ks.BLOCKED always aborts and contains no active storage mutation. It is
-not a complete install, validated Kickstart or a file to serve. The installed
-control node is preserved; no reinstall or unattended operation is authorized.
+UNCONFIGURED/UNDECIDED are missing inputs, never defaults. Hardware was not
+inspected by this render. Existing control-1 and worker-2 are preserved.
 
-Before install: complete private disk identity and credential/trust decisions,
-RHEL10 ksvalidator tooling, source/package/first-boot details and authorized real
-install/reboot/key/sudo/recovery rehearsal. UEFI HTTP preference is not firmware
-support evidence. Physical boot changes and exact-disk erase require a new plan.
+Before launch: obtain exact worker disk/layout/data-loss approval, complete account
+and public-key references plus time choices, validate the ACTUAL target-specific
+Kickstart with RHEL10 ksvalidator, then review one worker-only service/install/access
+batch. The local validator is available; its earlier synthetic pass is not this
+missing-input draft's validation. No real credentials have been created.
 
-Use current Red Hat workflow as mapped in infrastructure/RHEL-PROVISIONING-GUIDANCE.md.
-Ansible preparation is implemented; the proposed install/status/stop lifecycle is
-not. Existing native pilot shutdown remains pxe/pilot/pilot.sh shutdown and must
-only be used under its existing reviewed authorization, never by this preparation.
+`install.ks.BLOCKED` always aborts before its storage/post-install adapters. It is
+not served or deployable. Source/working files and prior run evidence are retained.
 
-Future human steps: power/BIOS/network-boot selection and trusted physical
-identity/fingerprint confirmation when needed. No node command transcription or
-interactive installer belongs in the normal workstation-operated workflow.
-None of those live steps is authorized by this offline draft.
+One workstation checkpoint after installation: compare the physical console host
+fingerprint and enter the human password privately into the Ansible handoff. The
+approved temporary bootstrap grant is **root-equivalent**, handoff-lifetime only;
+verify fresh human key login/password-sudo before revocation. No fixed automatic expiry
+is implemented. Failure means access
+outstanding/unknown until inspected, never automatically revoked. No password/hash
+or private key in HTTP, URLs or logs. See pxe/bootstrap/README.md.
+
+Then confirm disk boot, explicitly stop reviewed temporary PXE resources and retain
+evidence. RKE2/Rancher are separate. Custom VM/session framework is deferred.

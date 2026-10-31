@@ -1,0 +1,15 @@
+---
+- name: Persist only nonsecret resource ownership and current phase
+  ansible.builtin.copy:
+    dest: '{{ rehearsal_root }}/state.yml'
+    owner: root
+    group: root
+    mode: '0600'
+    content: |
+      version: 1
+      run_id: {{ rehearsal_run_id }}
+      root: {{ rehearsal_root }}
+      phase: {{ rehearsal_phase }}
+      outcome: {{ rehearsal_outcome }}
+      namespaces: {{ rehearsal_owned_namespaces | to_json }}
+      units: {{ rehearsal_owned_units | to_json }}

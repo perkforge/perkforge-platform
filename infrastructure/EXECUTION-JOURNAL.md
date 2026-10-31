@@ -1825,6 +1825,337 @@ Publication validation passed87 offline tests:33 pilot,4 new preparation,17 cons
 
 Remote read through the supported permissioned Git path found no existing feature ref. Commit/push verification is reported separately after execution; this entry does not presume remote success or installer readiness. No main push, PR, merge, service or node action is authorized by publication.
 
+## 2026-10-31 12:36:21–12:36:23 UTC — Step1: worker-1 offline draft completed
+
+Operator confirms worker-1 as the next target and reports all nodes off. This is user-reported power state, not a network/power probe. Authorized scope is documented step1 only: ignored nonsecret inputs and a fresh private draft; no live changes. Existing physical inventory's selected nonsecret worker reservation matches confirmed input. Selected controller/interface/HTTP-root/port fields in prior nonsecret pilot inputs match known context. Neither original file was modified or dumped, and no credential file was read.
+
+Created a new ignored mode0600 input under $REPO_ROOT/.secrets/provisioning/worker-1-step1-<RUN_ID>.yml and a fresh /tmp/perkforge-pxe-plan-worker-1-<RUN_ID> output. Target hostname/NIC and prior reviewed HTTP source endpoint populate the private draft; source availability was not probed or activated. DHCP reservation/workstation reference values are private input comments, not new live configuration. Boot method and credential mode remain UNDECIDED. Exact disk stable ID/serial/capacity, bootstrap account/public key and unverified time inputs remain UNCONFIGURED; no privileged mode or credential identity selected.
+
+Actual command, normalized from absolute workstation paths:
+
+```sh
+ansible-playbook -i localhost, -c local "$REPO_ROOT/pxe/ansible/prepare.yml" -e @"$REPO_ROOT/.secrets/provisioning/worker-1-step1-<RUN_ID>.yml"
+```
+
+Controller temporary files used a new private temporary directory and were cleaned automatically. Actual exit0; recap localhost ok10 changed3 unreachable0 failed0 skipped0 rescued0 ignored0. The three changes are only the output directory and two review files, not node changes. Output directory0700; plan.md and install.ks.BLOCKED regular files0600; input0600 and Git-ignore status verified. Exactly those two output files exist. Plan is BLOCKED / NOT DEPLOYABLE; candidate retains unconditional pre-exit1 and has no active storage/erase/reboot commands. This is not ksvalidator or real installation evidence.
+
+Step1 completion gate PASSED: both private review files and their blocked status are available for operator review. Next exact index/C4 heading is "2. Review exact plan; STOP before approval". Missing disk/credential/trust/rehearsal gates block progression, not creation of the draft. No node/network/service/firewall/VM/credential/disk operation, commit or push. Existing input/output/evidence files preserved.
+
+Operator hard stop:09:30CT on2026-10-31 (14:30UTC), with wrap-up14:15UTC. Current clock checked12:36:32UTC; this bounded offline operation finished in approximately2seconds. Do not start later work that cannot finish safely before the stop, and do not use a mid-install service cutoff as a substitute for scheduling.
+
+## 2026-10-31 12:43:38 UTC — Step1 local working-directory review copy
+
+Operator asks for the plan to be discoverable in the local working directory. Created a new ignored .secrets/provisioning/worker-1-review directory in this feature worktree; preserved the original input and canonical /tmp outputs. Copied plan.md and install.ks.BLOCKED byte-for-byte and added a private README recording source run, canonical output path, copy time and SHA256 values. Directory0700, all3files0600, regular/non-symlink and Git-ignore checks passed; both source/copy byte comparisons passed. No existing review directory or file overwritten.
+
+Canonical generated output remains /tmp/perkforge-pxe-plan-worker-1-<RUN_ID>; local plan is .secrets/provisioning/worker-1-review/plan.md. This is a static review snapshot, not an automatic refresh or an input/installation path. New inputs require a new render and reviewed snapshot with provenance; do not confuse an old copy with a newer run. Updated preparation documentation to explain that distinction without changing renderer/deployment semantics or adding a helper framework.
+
+Step1 remains BLOCKED / NOT DEPLOYABLE, with original candidate abort and unknown decisions intact. No node/network/service/firewall/VM/credential/disk operation, commit or push. Hard-stop timing remains unchanged.
+
+## 2026-10-31 12:46:00 UTC — Review discoverability corrected to pxe/local
+
+Operator wants generated PXE review files beside the PXE work, without jumping to a folder named secrets. Checked pxe/local and pxe/local/worker-1 absent, then added /pxe/local/ ignore rule before copying. Created protected pxe/local/worker-1/plan.md and install.ks.BLOCKED from the original canonical run, plus a provenance README with source run/path/time/hashes and separate private-input pointer. Plan/candidate byte comparisons passed; directories0700, files0600, regular/non-symlink and all Git-ignored. Original /tmp outputs, private input and earlier review copies remain untouched.
+
+The current preferred review path is pxe/local/worker-1/plan.md; the previous .secrets review location is historical, not the user workflow. Updated preparation docs to use only the preferred local path and explain canonical render versus static review snapshot, with no renderer or deployment change. Status remains BLOCKED / NOT DEPLOYABLE. No node/network/service/firewall/VM/credential/disk action, commit or push. Existing timing/approval boundaries remain in force.
+
+## 2026-10-31 12:51:56 UTC — Redundant review folder moved to recoverable Trash; recovery gap recorded
+
+Scoped cleanup only: verified .secrets/provisioning/worker-1-review contained exactly plan.md, install.ks.BLOCKED and README.md, all regular/non-symlink. Its plan/candidate matched preferred pxe/local/worker-1 byte-for-byte. Preserved the exact earlier README as preferred-location earlier-review-provenance.md, mode0600/Git-ignored, retaining the original copy timestamp as well as run/path/hashes.
+
+Used supported native gio trash for that exact duplicate directory only. Exit0; old path absent. Matching desktop Trash origin metadata and retained payload were verified; plan/candidate in Trash match the preferred copies. No permanent deletion, broad cleanup, private-input move or unrelated secret-value inspection. Every other .secrets content remains untouched; the per-run input remains needed for regeneration and existing private controller inputs/evidence were not removed. Preferred review path stays pxe/local/worker-1/plan.md.
+
+Operator asks how regeneration works without committing generated plans. Existing tracked artifacts are pxe/ansible/prepare.yml, pxe/inputs.example.yml and pxe/kickstart/rhel10.ks.j2; actual per-run inputs are private, while current local provenance records output hashes/run/path. LikeC4 has a package lock, not a full provisioning-toolchain pin. Explicitly recorded unverified backup of the new worker input, incomplete revision/tool/input manifest capture and missing restore/regeneration exercise as readiness/recovery follow-ups. Earlier SSH-key backup must not be extrapolated to this new input. No backup/upload, restore, regeneration test or credential action performed; no deterministic-reproduction claim. No live provisioning, commit or push; hard stop remains09:30CT.
+
+## 2026-10-31 — Step 2 bootstrap design and canonical local workspace
+
+Operator accepted draft content and approved temporary key-only bootstrap DESIGN
+for offline implementation/rehearsal planning only. This is not installation,
+erasure, actual credential creation or root privilege execution approval. Design
+explicitly proposes root-equivalent NOPASSWD sudo during handoff, fresh verified
+human key login/password-sudo before revocation, and outstanding-access reporting
+on failure. No grant/key/account created. Installed-host transition remains
+unimplemented and untested; planner selection is not a security implementation.
+
+Operator requested working files under pxe/local, not .secrets. Canonical current
+nonsecret worker input is pxe/local/worker-1/inputs.yml; new run output goes to
+runs/<RUN_ID>/ with protected plan/candidate snapshots at the node directory top.
+Shared nonsecret work belongs under pxe/local/. All ignored, directories0700,
+files0600. Earlier snapshots/input preserved byte-for-byte in initial-run evidence;
+original /tmp outputs preserved. Only the now-obsolete task-created .secrets worker
+input was moved using supported gio trash after exact historical preservation and
+unchanged metadata comparison. Existing pilot inputs and hash-review record stay
+in .secrets for reviewed recovery/shutdown; no credentials migrated or deleted.
+
+Actual offline render at13:00:02UTC used:
+
+```sh
+ansible-playbook -i localhost, -c local pxe/ansible/prepare.yml -e @pxe/local/worker-1/inputs.yml
+```
+
+Exit0; ok11 changed3 unreachable0 failed0 skipped0 rescued0 ignored0. Changes were
+new run directory and two inert files. Plan now records selected bootstrap design;
+disk/identity/credential material unresolved, candidate always exits1, no active
+storage directives. Local run evidence records tool versions and dirty-source
+checksums plus input/output hashes; snapshots match. Earlier metadata version query
+attempted default home Ansible temp and failed read-only after successful render;
+completed metadata with protected local temp without repeating that render.
+
+Added bounded isolated installer rehearsal proposal:4vCPU/8GiB,64GiB target plus
+1GiB canary, no uplink or preserved trial, disposable test credentials requiring
+separate approval, complete handoff/revocation/failure/cleanup proof. Not executable
+or rehearsed yet;2–3hour allowance unmeasured and unsuitable before today's hard
+stop. No VM, service, socket, firewall, node or actual security action occurred.
+New input backup/restore-regeneration remains unverified.
+
+## 2026-10-31 13:16 UTC — Bootstrap Ansible component checkpoint
+
+Operator reviewed bootstrap README/rehearsal proposal and accepted their content;
+no VM/credential/security execution approval inferred. Continued offline code work
+under prior authorization. Added standard Ansible role defaults, SSH/sudo templates
+and setup/handoff/fresh-controller-verification/revocation task components under
+pxe/bootstrap/. No deploy playbook/installer adapter invokes them; apply defaults
+false. The physical Kickstart remains unconditionally blocked.
+
+Setup requires stopped exact SSH service/socket, rejects enabled exact socket,
+existing account/home/policy and existing setup ledger; validates public key,
+visudo fragment, SSH syntax/effective account+root context and SELinux labeling.
+Handoff configures separate human key/password-sudo using protected runtime inputs.
+Revoke requires human administration channel and fresh human key/password-sudo
+proof before removing only matching key/grant, expiring account and checking its
+remaining processes. Negative bootstrap authentication plus positive retained
+human access are required before revoked state. Generic timeout never proves
+revocation. Intent ledger precedes privileges; failures/interruption remain
+outstanding/unknown. No password/hash written into served artifacts or plans.
+
+Executed actual Ansible task bodies in temporary fixtures only; account/getent,
+service/SSH/syntax/SELinux/process tools mocked.11 tests passed in160.089seconds.
+Includes full positive sequence and failures for policy/sudo/public key, existing
+account, active/enabled SSH, unavailable/passwordless human access, modified grant,
+timeout, residual process, controller interruption and final access failure.
+Tests exposed/corrected a residual-process failure-condition bug: explicit final
+assertion now prevents falsely marking cleanup complete. Remote sudo shell command
+also executed against a fixture sudo for quoting/password-required behavior.
+No real credentials/accounts, SSH/network/service/firewall or VM actions occurred.
+Role syntax/YAML,6 documentation tests, link/privacy checks and diff checks passed.
+
+Updated LikeC4 security_handoff and ordered-operation notes with actual task links,
+controller versus target locations, order/verification/revocation and integration
+limits. Model and static build validated without starting viewer. Shared local
+readiness report is pxe/local/readiness.md (ignored0600). Canonical worker inputs,
+plan and preserved runs remain under pxe/local/worker-1; no credential migration.
+
+Ready-to-start verdict remains NO. Initial Kickstart policy adapter, disk/install/
+service lifecycle, runtime secret/controller handoff, RHEL validator and native
+rehearsal are missing. Role setup is not a working Anaconda chroot hook; do not
+send it to a node console. No honest promise of complete rehearsal readiness in
+one hour.2–3hour rehearsal allowance is unmeasured and follows implementation and
+separate approval.14:15UTC wrap/14:30UTC stop unchanged; no commit/push performed.
+
+## 2026-10-31 13:50 UTC — Initial adapters and workstation access caller
+
+Continued authorized offline engineering. Added Ansible-owned standard Kickstart
+bootstrap-post.ks.j2 and storage.ks.j2, rendered behind unchanged unconditional
+physical pre-abort. Post adapter checks standard user/sshkey results, shared SSH/
+sudo policy, intent ledger, public key, labels and SSH/sudo syntax/effective
+policy. Default sshd disabled; successful final enable uses systemctl --root=/
+offline unit links only. Host-key creation exists as future target code, mocked
+in tests; no real keys generated. Error path attempts disable, halts installer
+and retains outstanding/unknown state, never assumes rollback succeeded.
+
+Storage adapter uses one exact disk/by-id selector plus read-only disk type,
+serial and exact byte-capacity checks, then standard scoped Anaconda directives.
+Unresolved identity/layout instead emits abort/no storage directives. Synthetic
+file tests leave target/canary hashes unchanged; not real block-device proof.
+Physical erasure remains unapproved and impossible through current pre-abort.
+
+Added default-off pxe/bootstrap/handoff.yml workstation caller and nonsecret
+access.example.yml. It stops before prompt/lookups/node contact without explicit
+reviewed access flag. Future execution prompts privately on workstation, uses
+bootstrap SSH then a separate human SSH/become alias; target PAM chpasswd gets
+password via protected stdin/no_log rather than controller hash/dependency or
+HTTP/CLI values. Known-host trust is independently supplied, never auto-accepted.
+Nothing contacted nodes or read real credential values during this engineering.
+
+23 component/adapter/storage/controller fixture tests passed in179.086seconds,
+including actual post-adapter output bridged into human handoff/revocation and
+complete controller connection-transition flow. Accounts/security tools/SSH/PAM/
+unit links/host keys are mocked; temp files only. Subsequent adapter simplification
+removed external cmp dependency in favor of Bash comparison;5 adapter tests and
+full controller-caller positive test passed again.6 preparation tests and4 base
+candidate tests passed, plus Ansible syntax/YAML/Python,6 architecture checks and
+LikeC4 model/build. Viewing/network servers were not started.
+
+Actual current private render at13:49:40UTC: ok12 changed3 unreachable0 failed0
+skipped0 rescued0 ignored0, exit0, new directory plus two inert files only:
+
+```sh
+ansible-playbook -i localhost, -c local pxe/ansible/prepare.yml -e @pxe/local/worker-1/inputs.yml
+```
+
+Current plan snapshots match preserved pxe/local/worker-1/runs/<RUN_ID>; exact
+inputs and8recipe source/input/output hashes are protected beside the run. Added
+known source-controller address from existing reviewed nonsecret input; storage
+layout/disk/credential material remain unresolved. Older runs/inputs preserved;
+new input backup and restore/regeneration remain unverified.
+
+User removed the earlier hard stop and reiterated worker OS+SSH/sudo only, with
+RKE2/Rancher separate. No live permission inferred. User declined optional activity
+log; no separate activity log added. This remains the standing execution journal.
+Next pending tooling authorization: hash-pinned upstream pykickstart3.78 source
+under pxe/local/tools (RHEL10 handler verified upstream; requests already present),
+no system package/global changes needed. No archive download/setup/tool execution
+attempted. Install/session/reboot/disarm/resume/cleanup runner and real isolated
+rehearsal remain engineering/validation blockers; worker disk/erasure/trust and
+actual test credentials/VM/network execution require separate approval. No commit
+or push. Existing control node, pilot state/evidence and unrelated files preserved.
+
+## 2026-10-31 — Simplified worker pilot and focused directory consolidation
+
+Operator agreed controlled physical worker-1 pilot instead of mandatory full VM
+rehearsal, then explicitly requested focused cleanup/status updates. No live node,
+network service, credential generation or disk action authorized. Keep standard
+Kickstart, proven PXE and short access handoff with physical host-fingerprint/private
+workstation-password checkpoint. Broad provisioning refactor is deferred until
+worker-1 RHEL/access succeeds; RKE2/Rancher remain separate.
+
+Active entry is pxe/README.md and current private folder pxe/local/worker-1/.
+Moved superseded staging/activation/packet proposals, retired console helper/test
+directory and unfinished custom VM runner into tracked pxe/pilot/history/.
+Public archived code contains no private inputs or credentials. Proven pilot
+activation/shutdown/rearm/packet executable code stayed in place and is unchanged
+against HEAD; retired console shell scripts remain byte-for-byte identical.
+Relative documentation links and staging-test source reference were updated.
+Original command paths in historical records were retained as execution provenance.
+The failed runner fixture is explicitly parked/skipped, not a passed rehearsal.
+Its original failure was memory-parsing before resource creation; no resources ran.
+
+Private old worker runs, synthetic validator artifacts and controller temporary
+folders moved only into ignored pxe/local/history/. One current run remains in
+worker-1/runs/ with the canonical input/current plan/candidate at the folder top.
+No private file moved into tracked history. No permanent evidence deletion,
+credential migration, .secrets recovery-snapshot deletion, commit or push.
+Local directories0700/files0600 and Git-ignore checks passed.
+
+Current worker render at14:38:15UTC: exit0, ok12 changed3 unreachable0 failed0,
+skipped0 rescued0 ignored0. Only new run directory and two inert review files
+were generated; snapshots match that preserved run. Exact disk/layout, initial
+account/public key and time/boot fields remain unresolved. Actual target-specific
+install file/service scope still needs review; default candidate always aborts.
+
+Validation:6 preparation,33 proven pilot and17 retained console tests passed;
+23 bootstrap/adapter/access tests passed in181.603seconds. Current fully populated
+synthetic candidate again passed the approved local pykickstart RHEL10 validator,
+exit0.6 architecture checks, model/build, active links, source identity and diff
+checks passed. These are offline/parser/fixture results, not native worker install
+or VM success. All physical nodes remain off per prior operator report.
+
+Next gate is approved read-only worker disk discovery and remaining metadata,
+then actual file checks and one exact worker service/install/access approval.
+No install-duration promise is made before that evidence. Cleanup/check work is
+complete; avoid inventing further framework prerequisites.
+
+Focused cleanup completion:5 ignored, regenerable Python cache directories under
+PXE source/tests were verified to contain only owned .pyc files, then moved with
+supported gio trash to recoverable desktop Trash (exit0; source absence verified).
+No source, credentials or unique execution evidence were trashed. No live action.
+
+## Worker-1 firmware observation — user report, timestamp not captured
+
+The operator reports the Primary Boot Sequence lists the local drive first and
+Automatic Boot Sequence lists network first. The instruction was to leave both
+unchanged. No firmware settings were changed by the assistant. Which sequence
+will govern the next boot is unverified; no firmware semantics are inferred.
+Before installation, review disk-first boot and disarm installation delivery
+before reboot so either boot path cannot silently repeat installation. This is
+an observation, not worker boot, service, installation or wipe approval.
+Worker-only discovery activation and proposed manual-stop lifetime remain pending.
+
+## Worker-1 discovery activation authorized — execution result pending
+
+The operator explicitly approved worker-only discovery services with no runtime
+limit, followed by explicit manual shutdown. The parent supplied this command to
+run from the worktree:
+
+```bash
+bash pxe/local/worker-1/discovery/start.sh approved
+```
+
+This is authorization and a supplied command, not an execution record. Native
+output is pending. The assistant did not execute a second copy. Scope is the
+reviewed worker-only temporary PXE/file services and evidence preservation;
+installer selection, installation and disk erasure are not approved by this
+activation. The indefinite interactive menu has no Kickstart. Existing control-1
+and worker-2 are excluded. Approval timestamp was not independently captured.
+
+## Discovery output lookup — partial filesystem evidence only
+
+Read-only inspection found both exact held-worker-discovery runtime/log directories
+present and original runtime/log paths absent. No Ansible process was visible in
+the execution environment. These observations show retained roots were moved, but
+do not establish native activation success, failure cause or complete resource
+state. The launcher had no output-file capture; no current transcript was found
+in its private working directory. Terminal history and credentials were not read.
+
+A prospective launcher change now sets a unique mode0600 private Ansible log
+under the ignored discovery directory. It was syntax checked, not executed. This
+cannot recover the previous terminal output and does not authorize a retry.
+Native terminal output still needs a bounded export to an accessible private file
+for the assistant to inspect; no activation rerun is appropriate merely for logs.
+
+## Worker discovery attempt stopped at media read-only preflight
+
+Operator supplied one final terminal excerpt: media_checks found the old public
+console directory writable; recap ok35 changed1 unreachable0 failed1 rescued0.
+The failure is before activation placement/guard/start tasks, not a failed node
+installation. Read-only inspection confirms the directory mode0755, two regular
+mode0444 files setup.sh and key.pub, and no other writable entry in the serving
+tree. File hashes match known public delivery artifacts. Projected ownership is
+nobody:nogroup; native owner identity must be checked by the launcher, not inferred.
+Original runtime/log roots are absent; exact held-worker-discovery roots exist.
+
+Prepared, not executed: an explicit opt-in correction of only that directory to
+0555, preserving file bytes/owners and the read-only assertion. Retry recognizes
+only the fully fresh or fully already-held state; partial/mixed states stop.
+Future runs automatically save private Ansible output and an exit-status summary;
+password input is not recorded. Permission correction/retry approval remains
+pending. Offline syntax,16 state combinations and a temporary-directory Ansible
+permission fixture passed. No native chmod, service start, firewall or node action.
+
+## Approved console mode correction and discovery retry — failed, rollback passed
+
+Operator approved only the known public console directory0755 to0555 correction
+and the previously reviewed worker-only discovery retry, with manual-stop service
+lifetime. Assistant read the automatically saved private Ansible log and summary;
+no second activation was executed or terminal output requested.
+
+Captured summary exit2; recap ok115 changed14 unreachable0 failed1 skipped6
+rescued1 ignored0. Read-only media checks passed after correction. Both transient
+units were launched with RuntimeMaxSec=0, then reported failed/MainPID0 and SIGTERM
+at their start times; the active-state assertion failed. The intended unlimited
+lifetime was not achieved. This differs from the existing rearm's explicit
+infinity value; investigate this launch-argument defect before retry.
+
+Rollback completed its assertions: pilot units/processes/listeners gone, recorded
+guard absent, original system/libvirt/default nginx preserved within those checks.
+Runtime/log records remain. This is captured native playbook evidence, not an
+independent current-state probe or proof of all host state. No worker boot,
+installer selection or disk write occurred through this command. No retry made.
+
+## Unlimited launch correction prepared — no native retry executed
+
+Corrected activation argv to use explicit RuntimeMaxSec=infinity for the approved
+manual-stop choice; the default1800-second path remains unchanged and unlimited
+still requires explicit approval. Activation now captures and checks the actual
+RuntimeMaxUSec property. A regression renders both actual systemd-run argv arrays
+for bounded/unlimited inputs and exercises the approval matrix.
+
+Prepared next retry preserves the exact failed transaction only after protected
+record config-path/unit/hash verification, stopped-unit/listener/guard checks,
+non-symlink root ownership and non-mountpoint checks. New held destinations use
+an attempt2 suffix and must not exist. Previous held roots and private output
+logs are not overwritten. Native protected transaction inspection was denied to
+the assistant; verification is performed by the approved native Ansible launcher,
+not bypassed. No native retry occurred during preparation.
+
 ## Reusable entry template — not an execution record
 
 Copy this structure for the next approved step; replace placeholders only with

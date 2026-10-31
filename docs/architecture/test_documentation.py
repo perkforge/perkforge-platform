@@ -71,7 +71,13 @@ class Documentation(unittest.TestCase):
         copies={'prepare.yml':'pxe/ansible/prepare.yml','preparation.md':'pxe/ansible/README.md',
             'rhel10.ks.j2':'pxe/kickstart/rhel10.ks.j2','redesign.md':'infrastructure/PROVISIONING-REDESIGN.md',
             'readiness.md':'infrastructure/TOMORROW-READINESS.md','vendor-guidance.md':'infrastructure/RHEL-PROVISIONING-GUIDANCE.md',
-            'handoff.md':'pxe/pilot/HANDOFF.md'}
+            'handoff.md':'pxe/pilot/HANDOFF.md',
+            'bootstrap.md':'pxe/bootstrap/README.md','bootstrap-rehearsal.md':'pxe/bootstrap/REHEARSAL.md',
+            'bootstrap-main.yml':'pxe/bootstrap/tasks/main.yml','bootstrap-setup.yml':'pxe/bootstrap/tasks/setup.yml',
+            'bootstrap-handoff.yml':'pxe/bootstrap/tasks/handoff.yml','bootstrap-verify.yml':'pxe/bootstrap/tasks/verify-human.yml',
+            'bootstrap-revoke.yml':'pxe/bootstrap/tasks/revoke.yml',
+            'bootstrap-post.ks.j2':'pxe/kickstart/bootstrap-post.ks.j2','storage.ks.j2':'pxe/kickstart/storage.ks.j2',
+            'bootstrap-controller.yml':'pxe/bootstrap/handoff.yml','bootstrap-access.example.yml':'pxe/bootstrap/access.example.yml'}
         output=ROOT/'public/sources'
         self.assertEqual({p.name for p in output.iterdir()},set(copies))
         for name,source in copies.items():
@@ -84,6 +90,9 @@ class Documentation(unittest.TestCase):
         text='\n'.join((ROOT/name).read_text() for name in ['model.c4','views.c4','public/runbook.html'])
         self.assertIn('OBSERVED pilot checkpoint',text)
         self.assertIn('PLANNED ordered operations',text)
-        self.assertIn('credential mode undecided',text)
+        self.assertIn('exact worker scope / approval',text)
+        self.assertIn('BOOTSTRAP Ansible code',text)
+        for name in ['setup.yml','handoff.yml','verify-human.yml','revoke.yml']:
+            self.assertIn(name,text)
         self.assertIn('not a packet trace',text)
         self.assertNotRegex(text,r'192\.168\.|/home/corey|(?:[0-9a-f]{2}:){5}[0-9a-f]{2}|SHA256:[A-Za-z0-9+/]{20}')

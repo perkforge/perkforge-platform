@@ -69,9 +69,9 @@ is a larger managed solution; using it for three nodes is not required here.
   scripting when standard network/disk selection suffices. A minimal extra guard
   is justified only by a demonstrated gap, not by a growing list of booleans.
 - **Credentials:** sshkey carries a public key, not a usable sudo password. We
-  exclude passwords/hashes/tokens/private keys from served content. Protected
-  bootstrap privileges versus controlled private media remains an operator
-  decision; vendor examples do not authorize a new passwordless-sudo identity.
+  exclude passwords/hashes/tokens/private keys from served content. Temporary key-only bootstrap design was approved for preparation; actual
+  credentials/grants still need scoped execution approval. Vendor examples do not
+  authorize new privileges.
 - **Lifecycle:** no installer cutoff or manual quarantine dance. Use standard
   systemd ownership/Ansible idempotence plus a compact status/report; preserve
   evidence and prevent accidental reinstallation. No new transaction service,
@@ -79,8 +79,11 @@ is a larger managed solution; using it for three nodes is not required here.
 
 ## Current gate
 
-The [candidate](../pxe/kickstart/rhel10.ks.j2) intentionally aborts and has no active
-disk layout/erase commands. Tools and a complete authorized rehearsal are still
-missing; neither this map nor a generator example is deployment approval. See
-[readiness](TOMORROW-READINESS.md) and [design](PROVISIONING-REDESIGN.md). Disposable
-UEFI rehearsal is a separately approved installer test, not VM-cluster support.
+The default [candidate](../pxe/kickstart/rhel10.ks.j2) always aborts before any
+storage/post-install work. RHEL10 validator tooling is now local and a fully
+populated synthetic candidate passed; the exact worker file still needs checking.
+The operator selected a controlled physical pilot, not mandatory VM rehearsal.
+Native package/PAM/install behavior is untested and may need bounded corrections.
+Complete exact disk/access inputs and approve one concrete service/install scope.
+[Current readiness](TOMORROW-READINESS.md) is authoritative; the earlier
+[design](PROVISIONING-REDESIGN.md) remains history, not extra gates.

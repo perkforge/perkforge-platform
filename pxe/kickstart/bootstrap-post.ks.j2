@@ -1,0 +1,119 @@
+# Initial installed-root adapter, not a complete installer or execution approval.
+# Owned by Ansible; physical rhel10.ks candidate still always aborts in %pre.
+%post --erroronfail --interpreter=/usr/bin/bash --log=/root/perkforge-bootstrap-post.log
+set -Eeuo pipefail
+umask 077
+{% if credential_mode != 'TEMPORARY_KEY_ONLY_BOOTSTRAP' or bootstrap_username == 'UNCONFIGURED' or bootstrap_public_key == 'UNCONFIGURED' or bootstrap_controller_address == 'UNCONFIGURED' %}
+printf '%s\n' 'BLOCKED: initial bootstrap identity/public key/design is missing.' >&2
+exit 1
+{% else %}
+readonly account='{{ bootstrap_username }}'
+readonly home="/home/$account"
+readonly state_dir=/var/lib/perkforge-bootstrap
+readonly ssh_file=/etc/ssh/sshd_config.d/00-perkforge-bootstrap.conf
+readonly sudo_file=/etc/sudoers.d/90-perkforge-bootstrap
+ledger_owned=false
+step='initial preconditions'
+write_state() {
+    printf 'account: %s\naction: initial_policy\naccess: %s\nresult: %s\n' \
+        "$account" "$1" "$2" > "$state_dir/state.yml.tmp"
+    chmod 0600 "$state_dir/state.yml.tmp"
+    chown 0:0 "$state_dir/state.yml.tmp"
+    mv -T -- "$state_dir/state.yml.tmp" "$state_dir/state.yml"
+}
+failed() {
+    rc=$?
+    trap - ERR
+    # Offline symlink changes only; no running systemd manager in this chroot.
+    /usr/bin/systemctl --root=/ disable sshd.service >/dev/null 2>&1 || true
+    if $ledger_owned; then
+        write_state outstanding_or_unknown failed_requires_review || true
+    fi
+    printf 'STOP: initial bootstrap policy failed at [%s], status %s; preserve installer/ledger and do not force reboot.\n' "$step" "$rc" >&2
+    printf 'PERKFORGE_INITIAL_POLICY_FAILED %s\n' "$step" >> /dev/console || true
+    exit "$rc"
+}
+trap failed ERR
+# No account/key creation here: standard user/sshkey directives precede %post.
+# Check actual installed results; never silently create a replacement identity.
+[[ "$account" =~ ^[a-z][a-z0-9_-]{0,30}$ ]]
+[[ "$account" != root ]]
+for program in /usr/sbin/sshd /usr/sbin/visudo /usr/sbin/restorecon /usr/bin/ssh-keygen /usr/bin/systemctl /usr/bin/getent; do
+    test -x "$program"
+done
+for path in "$state_dir" "$ssh_file" "$sudo_file"; do
+    test ! -e "$path"
+    test ! -L "$path"
+done
+for path in /etc/ssh/sshd_config.d /etc/sudoers.d "$home" "$home/.ssh"; do
+    test -d "$path"
+    test ! -L "$path"
+done
+test -f "$home/.ssh/authorized_keys"
+test ! -L "$home/.ssh/authorized_keys"
+entry=$(/usr/bin/getent passwd "$account")
+IFS=: read -r actual _ uid gid _ actual_home _ <<< "$entry"
+[[ "$actual" == "$account" && "$actual_home" == "$home" ]]
+[[ "$uid" =~ ^[0-9]+$ && "$gid" =~ ^[0-9]+$ ]]
+[[ "$uid" -gt 0 && "$gid" -gt 0 ]]
+expected_key=$(cat <<'PERKFORGE_EXPECTED_PUBLIC_KEY'
+{{ bootstrap_public_key }}
+PERKFORGE_EXPECTED_PUBLIC_KEY
+)
+actual_key=$(< "$home/.ssh/authorized_keys")
+[[ "$actual_key" == "$expected_key" ]]
+/usr/bin/ssh-keygen -lf "$home/.ssh/authorized_keys" >/dev/null
+step='record intent before root-equivalent grant'
+install -d -o0 -g0 -m0700 "$state_dir"
+ledger_owned=true
+write_state outstanding_or_unknown in_progress
+step='disable installer-created SSH activation offline'
+/usr/bin/systemctl --root=/ disable sshd.service
+/usr/bin/systemctl --root=/ mask sshd.socket
+step='install key-only policy'
+cat > "$ssh_file" <<'PERKFORGE_KEY_ONLY_POLICY'
+{{ bootstrap_initial_ssh_policy | trim }}
+PERKFORGE_KEY_ONLY_POLICY
+chown 0:0 "$ssh_file"
+chmod 0600 "$ssh_file"
+chmod 0700 "$home" "$home/.ssh"
+chmod 0600 "$home/.ssh/authorized_keys"
+chown "$uid:$gid" "$home" "$home/.ssh" "$home/.ssh/authorized_keys"
+step='validate and install temporary root-equivalent sudoers'
+cat > "$state_dir/sudoers.pending" <<'PERKFORGE_TEMPORARY_SUDO'
+{{ bootstrap_initial_sudo_policy | trim }}
+PERKFORGE_TEMPORARY_SUDO
+chmod 0440 "$state_dir/sudoers.pending"
+/usr/sbin/visudo -cf "$state_dir/sudoers.pending"
+install -o0 -g0 -m0440 "$state_dir/sudoers.pending" "$sudo_file"
+rm -- "$state_dir/sudoers.pending"
+step='host keys and installed configuration validation'
+# Standard OpenSSH host-key creation on this NEW target only. Never controller keys.
+# No private key material is in Kickstart. This is future install code, not run in preparation.
+/usr/bin/ssh-keygen -A
+/usr/sbin/restorecon -RF "$home" "$ssh_file" "$sudo_file" "$state_dir" /etc/ssh
+/usr/sbin/sshd -t
+for context_user in "$account" root; do
+    /usr/sbin/sshd -T -C "user=$context_user,addr={{ bootstrap_controller_address }},host={{ bootstrap_controller_address }}" > "$state_dir/effective-policy.tmp"
+    for required in 'pubkeyauthentication yes' 'authenticationmethods publickey' 'passwordauthentication no' 'kbdinteractiveauthentication no' 'permitrootlogin no' 'usepam yes' 'usedns no'; do
+        grep -Fxq -- "$required" "$state_dir/effective-policy.tmp"
+    done
+done
+rm -- "$state_dir/effective-policy.tmp"
+write_state outstanding_root_equivalent configured_not_login_verified
+step='publish public host identity through trusted console only'
+test -s /etc/ssh/ssh_host_ed25519_key.pub
+install -d -o0 -g0 -m0755 /etc/issue.d
+{
+    printf '\nPerkForge installed host ED25519 fingerprint:\n'
+    /usr/bin/ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+} > /etc/issue.d/90-perkforge-host-key.issue
+chmod 0644 /etc/issue.d/90-perkforge-host-key.issue
+chown 0:0 /etc/issue.d/90-perkforge-host-key.issue
+printf '\nPERKFORGE_HOSTKEY %s\n' "$(cat /etc/ssh/ssh_host_ed25519_key.pub)" >> /dev/console
+printf '\n%s\n' 'PERKFORGE_INITIAL_POLICY_READY' >> /dev/console
+step='enable SSH for first disk boot only after validated policy'
+# enable alters installed unit links, never starts a service or contacts PID1.
+/usr/bin/systemctl --root=/ enable sshd.service
+{% endif %}
+%end

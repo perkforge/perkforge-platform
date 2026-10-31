@@ -12,6 +12,27 @@ import yaml
 ROOT=Path(__file__).resolve().parents[1]
 
 class ActivationTests(unittest.TestCase):
+    def test_unlimited_lifetime_requires_explicit_manual_stop_approval(self):
+        play=yaml.safe_load((ROOT/'activate.yml').read_text())[0]
+        self.assertFalse(play['vars']['pilot_manual_stop_session_approved'])
+        gate=play['tasks'][0]['ansible.builtin.assert']['that']
+        self.assertIn('pilot_lifetime_seconds == 1800 or (pilot_lifetime_seconds == 0 and pilot_manual_stop_session_approved | bool)',gate)
+
+    def test_actual_launch_argv_maps_unlimited_to_infinity_and_preserves_default(self):
+        from jinja2 import Environment
+        play=yaml.safe_load((ROOT/'activate.yml').read_text())[0]
+        task=next(t for t in play['tasks'][-1]['block'] if t.get('name','').startswith('Launch bounded'))
+        env=Environment()
+        env.filters['bool']=bool
+        gate=next(g for g in play['tasks'][0]['ansible.builtin.assert']['that'] if 'pilot_lifetime_seconds ==' in g)
+        for seconds,approved,expected in [(1800,False,True),(1800,True,True),(0,False,False),(0,True,True),(3600,True,False)]:
+            self.assertEqual(bool(env.compile_expression(gate)(pilot_lifetime_seconds=seconds,pilot_manual_stop_session_approved=approved)),expected)
+        for seconds,wanted in [(1800,'--property=RuntimeMaxSec=1800'),(0,'--property=RuntimeMaxSec=infinity')]:
+            for argv in task['loop']:
+                actual=[env.from_string(str(a)).render(pilot_lifetime_seconds=seconds,config_session={'path':'/fixture/session'}) for a in argv]
+                self.assertIn(wanted,actual)
+                self.assertNotIn('--property=RuntimeMaxSec=0',actual)
+
     def test_activation_guard_order_and_narrow_mutations(self):
         play=yaml.safe_load((ROOT/'activate.yml').read_text())[0]
         self.assertFalse(play['vars']['pilot_activation_approved'])

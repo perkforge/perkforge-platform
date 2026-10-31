@@ -1,0 +1,102 @@
+---
+- name: Require human administration channel before removing bootstrap sudo
+  ansible.builtin.assert:
+    that:
+      - bootstrap_root != '' or (ansible_user == bootstrap_human_user and ansible_become | default(false) | bool)
+    fail_msg: 'Revoke must run through verified human SSH/become, never the bootstrap connection.'
+- name: Require protected controller references and runtime-only sudo password
+  ansible.builtin.assert:
+    that:
+      - bootstrap_human_user is match('^[a-z][a-z0-9_-]{0,30}$')
+      - bootstrap_human_user not in ['root', bootstrap_user, 'UNCONFIGURED']
+      - bootstrap_target_host is match('^[A-Za-z0-9][A-Za-z0-9_.:-]*$')
+      - bootstrap_known_hosts_file.startswith('/')
+      - bootstrap_human_identity_file.startswith('/')
+      - bootstrap_identity_file.startswith('/')
+      - bootstrap_human_sudo_password | length > 0
+      - "'\n' not in bootstrap_human_sudo_password"
+  no_log: true
+- name: Disable multiplexing/agents forwarding and require preverified known-host identity
+  ansible.builtin.set_fact:
+    bootstrap_ssh_base: ['{{ bootstrap_timeout }}', 40s, '{{ bootstrap_ssh }}', -F, /dev/null, -T, -o, BatchMode=yes, -o, ControlMaster=no, -o, ControlPath=none, -o, ForwardAgent=no, -o, StrictHostKeyChecking=yes, -o, 'UserKnownHostsFile={{ bootstrap_known_hosts_file }}', -o, PasswordAuthentication=no, -o, KbdInteractiveAuthentication=no, -o, PreferredAuthentications=publickey, -o, IdentitiesOnly=yes, -o, ConnectTimeout=10, -o, ConnectionAttempts=1]
+- ansible.builtin.set_fact:
+    bootstrap_human_ssh_argv: '{{ bootstrap_ssh_base + ["-i", bootstrap_human_identity_file, "-l", bootstrap_human_user, bootstrap_target_host] }}'
+- ansible.builtin.include_tasks: verify-human.yml
+- name: Inspect exactly the owned authorization and sudo paths before removal
+  ansible.builtin.stat:
+    path: '{{ item }}'
+    follow: false
+  loop: ['{{ bootstrap_home }}/.ssh/authorized_keys', '{{ bootstrap_sudo_file }}']
+  register: bootstrap_revoke_paths
+- ansible.builtin.assert:
+    that:
+      - item.stat.exists and item.stat.isreg and not item.stat.islnk
+  loop: '{{ bootstrap_revoke_paths.results }}'
+- ansible.builtin.slurp:
+    src: '{{ bootstrap_home }}/.ssh/authorized_keys'
+  register: bootstrap_key_before_revoke
+- ansible.builtin.slurp:
+    src: '{{ bootstrap_sudo_file }}'
+  register: bootstrap_sudo_before_revoke
+- name: Never remove unrelated or modified authorization/grants
+  ansible.builtin.assert:
+    that:
+      - bootstrap_key_before_revoke.content | b64decode | trim == bootstrap_public_key | trim
+      - bootstrap_sudo_before_revoke.content | b64decode == lookup('template', 'sudoers.j2')
+- name: Remove only this account's key authorization and this component's sudo grant
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: absent
+  loop: ['{{ bootstrap_home }}/.ssh/authorized_keys', '{{ bootstrap_sudo_file }}']
+- name: Disable bootstrap account without deleting home/evidence
+  ansible.builtin.user:
+    name: '{{ bootstrap_user }}'
+    password_lock: true
+    expires: 1
+    shell: /usr/sbin/nologin
+  no_log: true
+- name: Terminate remaining processes owned by the temporary account only
+  ansible.builtin.command:
+    argv: ['{{ bootstrap_pkill }}', -TERM, -u, '{{ bootstrap_user }}']
+  register: bootstrap_terminate
+  failed_when: bootstrap_terminate.rc not in [0, 1]
+  changed_when: bootstrap_terminate.rc == 0
+- name: Require no remaining temporary-account processes
+  ansible.builtin.command:
+    argv: ['{{ bootstrap_pgrep }}', -u, '{{ bootstrap_user }}']
+  register: bootstrap_processes
+  changed_when: false
+  failed_when: bootstrap_processes.rc not in [0, 1]
+  until: bootstrap_processes.rc == 1
+  retries: 3
+  delay: 1
+- name: Fail closed if any bootstrap-account process remains after bounded wait
+  ansible.builtin.assert:
+    that: bootstrap_processes.rc == 1
+    fail_msg: 'Bootstrap processes remain; account cleanup is incomplete.'
+- name: Require fresh bootstrap authentication rejection, not a generic timeout
+  ansible.builtin.command:
+    argv: '{{ bootstrap_ssh_base + ["-i", bootstrap_identity_file, "-l", bootstrap_user, bootstrap_target_host, "/usr/bin/true"] }}'
+  delegate_to: localhost
+  become: false
+  register: bootstrap_rejected
+  failed_when: false
+  changed_when: false
+  no_log: true
+- ansible.builtin.assert:
+    that:
+      - bootstrap_rejected.rc == 255
+      - "'Permission denied' in bootstrap_rejected.stderr"
+    fail_msg: 'Bootstrap rejection not proven. Access remains outstanding/unknown.'
+- ansible.builtin.include_tasks: verify-human.yml
+- name: Record revoked only after rejection and retained human access checks
+  ansible.builtin.copy:
+    dest: '{{ bootstrap_state_dir }}/state.yml'
+    content: |
+      account: {{ bootstrap_user }}
+      action: revoke
+      access: revoked
+      result: human_access_verified_bootstrap_rejected
+    owner: '{{ bootstrap_uid }}'
+    group: '{{ bootstrap_gid }}'
+    mode: '0600'

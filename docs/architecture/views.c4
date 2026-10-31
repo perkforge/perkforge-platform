@@ -16,14 +16,14 @@ views {
     include firmware, installer, disk, os
   }
   dynamic view operations {
-    title 'PLANNED ordered operations 1–7 — only preparation implemented'
-    description 'The future workstation-owned journey. Numbered steps link to matching runbook sections. Stop at missing disk/credential/approval; do not use this view as permission to install.'
+    title 'PLANNED ordered operations 1–7 — controlled physical pilot'
+    description 'The agreed minimal workstation-owned pilot journey; no mandatory full VM rehearsal. Numbered steps link to matching runbook sections. Stop at missing disk/credential/approval; do not use this view as permission to install.'
     link /runbook.html '1–7 runbook'
     engineer -> workstation.prepare '1. Prepare offline draft' {
       notes 'Implemented [1. Prepare](/runbook.html#prepare). Operator: supply/review nonsecret workstation inputs. Automation: local Ansible writes two private review files only. Evidence / stop: plan plus BLOCKED candidate; no live action.'
     }
     workstation.prepare -> engineer '2. Review exact plan; STOP before approval' {
-      notes 'Planned [2. Review/approve](/runbook.html#approve). Operator: approve exact node/disk/data loss, exposure and privileges. Automation: report missing inputs and stay unarmed. Evidence / stop: currently STOP for unresolved choices and installation rehearsal; changed scope needs new approval.'
+      notes 'Planned [2. Review/approve](/runbook.html#approve). Operator: approve exact node/disk/data loss, exposure and privileges. Automation: report missing inputs and stay unarmed. Evidence / stop: currently STOP for exact worker inputs, target-file validation and scoped live approval; changed scope needs new approval.'
     }
     engineer -> node.firmware '3. Power / BIOS / select network boot' {
       navigateTo boot_protocol
@@ -31,14 +31,14 @@ views {
     }
     node.firmware -> node.installer '4. Kickstart installation' {
       navigateTo installation
-      notes 'NOT READY [4. Install](/runbook.html#install). Operator: observe, no GUI or node typing. Automation: proposed approved Kickstart disk/packages/key-only policy. Evidence / stop: current candidate always aborts; real validation, rehearsal, approval and completed installation required.'
+      notes 'NOT READY [4. Install](/runbook.html#install). Operator: observe, no GUI or node typing. Automation: proposed approved Kickstart disk/packages/key-only policy. Evidence / stop: current candidate always aborts; actual target-file checks, exact approval and observed installation required; full VM rehearsal is deferred.'
     }
     node.installer -> node.os '5. Reboot to local disk' {
       notes 'Planned [5. First boot](/runbook.html#firstboot). Operator: observe disk boot, BIOS choice if reviewed. Automation: withdraw reinstall offer and reboot installed disk. Evidence / stop: completed install and OS boot without repeated erase; preserve recovery on failure.'
     }
     workstation.controller -> node.os '6. Verify identity, key login, sudo, readiness' {
       navigateTo security_handoff
-      notes 'Planned [6. Verify](/runbook.html#verify). Operator: trusted physical fingerprint comparison and local credential entry. Automation: fresh key-only SSH/sudo, OS checks and bootstrap removal. Evidence / stop: successful identity/access/readiness report; no automatic RKE2 approval.'
+      notes 'Planned [6. Verify](/runbook.html#verify). Operator: trusted physical fingerprint comparison and local credential entry. Automation: bootstrap Ansible task bodies have offline fixtures; controller/installer integration and OS checks remain planned. Evidence / stop: successful identity/access/readiness report; no automatic RKE2 approval.'
     }
     workstation.controller -> workstation.report '7. Disarm / stop / report' {
       notes 'Planned [7. Cleanup](/runbook.html#cleanup). Operator: read final report, review mismatch. Automation: disarm, stop only owned services/rules and retain logs. Evidence / stop: scoped resource absence and original services preserved, otherwise incomplete; no active-install cutoff.'
@@ -65,34 +65,44 @@ views {
   }
   dynamic view installation {
     title 'PLANNED install detail — current Kickstart always aborts'
-    description 'Standard RHEL Kickstart, not a custom installer. This flow is not implemented or approved. No active disk erase exists in the candidate.'
+    description 'Standard RHEL Kickstart, not a custom installer. Adapters are implemented with offline fixtures. Filled drafts contain scoped storage commands, unreachable behind unconditional abort. Native installation is not approved/proven.'
     link /runbook.html#install '4. Install runbook'
     node.installer -> workstation.http '4.1 Fetch nonsecret Kickstart + package source'
     node.installer -> approval '4.2 STOP unless exact node/disk plan approved' {
       notes '[Disk approval](/runbook.html#approve). Standard persistent disk targeting first; add only necessary checks.'
     }
-    node.installer -> credential '4.3 STOP while protected credential mode undecided' {
+    node.installer -> credential '4.3 STOP before worker credential / install approval' {
       notes '[Credential gate](/runbook.html#credentials). No passwords/hashes/private keys in HTTP. Candidate currently aborts regardless of input.'
     }
-    node.installer -> node.disk '4.4 Install approved layout/packages ONLY AFTER gates'
-    node.installer -> node.os '4.5 Enroll public key + key-only SSH before first boot'
+    node.installer -> bootstrap.storage '4.4 Rendered exact disk adapter; physical candidate still aborts' {
+      notes '[Storage code](/sources/storage.ks.j2). Standard directives plus read-only identity check have fixtures, not real disk proof.'
+    }
+    bootstrap.storage -> node.disk '4.5 Install approved layout ONLY AFTER all gates'
+    node.installer -> bootstrap.adapter '4.6 Standard user/sshkey then installed-root post policy'
+    bootstrap.adapter -> node.os '4.7 Enable SSH offline for first boot only after validated policy'
   }
   dynamic view security_handoff {
-    title 'PLANNED trust / credential handoff — choice still pending'
-    description 'Public key may be in Kickstart; private keys and sudo/recovery secrets may not. Protected bootstrap privileges are a new undecided choice, not an existing feature.'
-    link /runbook.html#credentials 'Credential and trust boundary'
-    engineer -> approval '1. Approve scope and exact disk; no blanket full-access grant'
-    workstation.prepare -> node.installer '2. Future public key only in nonsecret configuration'
-    engineer -> credential '3. Resolve protected bootstrap mode; STOP if undecided'
-    custody -> bootstrap '4. Future protected secret delivery, never HTTP/TFTP'
-    bootstrap -> node.os '5. Proposed human credential setup / temporary authorization removal'
-    engineer -> workstation.ssh '6. Compare trusted physical host fingerprint'
-    workstation.ssh -> node.os '7. Verify key-only login and password-sudo'
-    node.os -> platform '8. Separate host/RKE2 stage; not automatic'
+    title 'BOOTSTRAP Ansible code — implemented task bodies, integration NOT READY'
+    description 'Green means offline-tested component code, not a deployed feature. Target-side tasks execute on the node; verify-human delegates fresh SSH to controller. Initial adapter is rendered but unarmed. Short access caller has fixtures. Native worker behavior is untested; use manual workstation trust/password checkpoint. Custom VM/session framework deferred.'
+    link /runbook.html#credentials 'Bootstrap code, order and stop gates'
+    engineer -> workstation.prepare '1. Review nonsecret local inputs and BLOCKED plan'
+    engineer -> credential '2. Design accepted; STOP before credentials / exact worker install approval'
+    workstation.prepare -> bootstrap.adapter '3. Ansible renders standard initial post adapter with shared policy' {
+      notes '[Actual adapter](/sources/bootstrap-post.ks.j2). It is inside BLOCKED candidate. Normal initial install does not run Ansible inside the chroot.'
+    }
+    bootstrap.adapter -> node.os '4. FUTURE install: write/validate policy and ledger, enable SSH offline'
+    custody -> bootstrap.access '5. Controller privately prompts for existing runtime human password'
+    bootstrap.access -> bootstrap.handoff '6. Bootstrap SSH alias invokes handoff role task'
+    bootstrap.handoff -> node.os '7. handoff.yml sets human account/key/password-sudo; preserves bootstrap'
+    bootstrap.verify -> node.os '8. Controller verify-human.yml: fresh key SSH + password-sudo'
+    bootstrap.revoke -> node.os '9. Human-admin channel revoke.yml: remove owned grant/key, disable account'
+    bootstrap.verify -> node.os '10. Controller positive human check + negative bootstrap authentication'
+    bootstrap.revoke -> workstation.controller '11. Revoked only on proof; failure = outstanding / unknown'
+    node.os -> platform '12. Separate host readiness / RKE2 approval'
   }
   dynamic view observed_pilot {
     title 'OBSERVED pilot checkpoint — not unattended install evidence'
-    description 'Operator reports: interactive RHEL installed, local disk boot, standard SSH recovery, temporary password window ended, key-only policy/sudo verified and PXE shutdown successful. Native socket cause unresolved; power-off unconfirmed.'
+    description 'Operator reports: interactive RHEL installed, local disk boot, standard SSH recovery, temporary password window ended, key-only policy/sudo verified and PXE shutdown successful. Native socket cause unresolved; all nodes now operator-reported off.'
     link /runbook.html#observed 'Observed evidence and limits'
     engineer -> node.firmware '1. Pilot booted vendor chain; installer GUI reached'
     engineer -> node.installer '2. Interactive layout/account installation completed'

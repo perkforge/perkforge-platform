@@ -5,16 +5,23 @@
   gather_facts: false
   become: false
   vars_files: [../inputs.example.yml]
+  vars:
+    bootstrap_user: '{{ bootstrap_username }}'
+    bootstrap_initial_ssh_policy: "{{ lookup('ansible.builtin.template', playbook_dir + '/../bootstrap/templates/key-only.conf.j2') }}"
+    bootstrap_initial_sudo_policy: "{{ lookup('ansible.builtin.template', playbook_dir + '/../bootstrap/templates/sudoers.j2') }}"
+    bootstrap_initial_post_fragment: "{{ lookup('ansible.builtin.template', playbook_dir + '/../kickstart/bootstrap-post.ks.j2') }}"
+    bootstrap_storage_fragment: "{{ lookup('ansible.builtin.template', playbook_dir + '/../kickstart/storage.ks.j2') }}"
   tasks:
-    - name: Require local nonprivileged preparation and a new private temporary output
+    - name: Require local nonprivileged preparation and a new protected local output
       ansible.builtin.assert:
         that:
           - inventory_hostname == 'localhost' and ansible_connection == 'local'
-          - output_dir is match('^/tmp/perkforge-pxe-plan-[A-Za-z0-9_-]+\Z')
+          - output_dir is match('^/tmp/perkforge-pxe-plan-[A-Za-z0-9_-]+\Z') or output_dir is match('^' + (playbook_dir | dirname | regex_escape) + '/local/' + (hostname | regex_escape) + '/runs/[A-Za-z0-9_-]+\Z')
           - output_dir | realpath == output_dir
-          - credential_mode == 'UNDECIDED'
+          - credential_mode in ['UNDECIDED', 'TEMPORARY_KEY_ONLY_BOOTSTRAP']
           - boot_method in ['UNDECIDED', 'PXE_TFTP', 'UEFI_HTTP']
-        fail_msg: 'Offline preparation only: choose a new /tmp/perkforge-pxe-plan-NAME directory; credential workflow is not implemented.'
+          - storage_layout in ['UNDECIDED', 'UEFI_XFS_LVM_UNENCRYPTED']
+        fail_msg: 'Offline preparation only: choose a new protected pxe/local/TARGET/runs/RUN directory. Design selection never enables installation.'
     - name: Require single-line nonsecret metadata before rendering any files
       ansible.builtin.assert:
         that:
@@ -22,7 +29,7 @@
           - "'..' not in item | string"
         quiet: true
         fail_msg: 'Invalid metadata: use nonsecret single-line values or UNCONFIGURED.'
-      loop: ['{{ hostname }}', '{{ boot_nic_mac }}', '{{ timezone }}', '{{ ntp_server }}', '{{ bootstrap_username }}', '{{ disk_stable_id }}', '{{ disk_serial }}', '{{ disk_capacity_bytes }}']
+      loop: ['{{ hostname }}', '{{ boot_nic_mac }}', '{{ timezone }}', '{{ ntp_server }}', '{{ bootstrap_username }}', '{{ disk_stable_id }}', '{{ disk_serial }}', '{{ disk_capacity_bytes }}', '{{ bootstrap_controller_address }}']
       no_log: true
     - name: Require a credential-free installation URL or explicit missing input
       ansible.builtin.assert:
@@ -38,6 +45,14 @@
         fail_msg: 'Expected a single public key or UNCONFIGURED. No private key or authorized-key command options.'
         quiet: true
       no_log: true
+    - name: Reject ambiguous configured persistent disk selectors or capacities
+      ansible.builtin.assert:
+        that:
+          - disk_stable_id == 'UNCONFIGURED' or disk_stable_id is match('^disk/by-id/[A-Za-z0-9][A-Za-z0-9_.:+-]+\Z')
+          - disk_capacity_bytes == 'UNCONFIGURED' or (disk_capacity_bytes | string is match('^[0-9]+\Z') and disk_capacity_bytes | int >= 68719476736)
+        quiet: true
+        fail_msg: 'Use one exact persistent disk/by-id selector and at least64GiB exact capacity, or UNCONFIGURED. No glob, list or device-number fallback.'
+      no_log: true
     - name: Inspect output without following symlinks; never overwrite operator files
       ansible.builtin.stat:
         path: '{{ output_dir }}'
@@ -48,6 +63,16 @@
           - not output.stat.exists
           - not output.stat.islnk | default(false)
         fail_msg: 'Output exists; preserve it and choose a new private plan directory.'
+    - name: Protect local working directories before writing a new run
+      ansible.builtin.file:
+        path: '{{ item }}'
+        state: directory
+        mode: '0700'
+      loop:
+        - '{{ playbook_dir | dirname }}/local'
+        - '{{ playbook_dir | dirname }}/local/{{ hostname }}'
+        - '{{ playbook_dir | dirname }}/local/{{ hostname }}/runs'
+      when: not ansible_check_mode and not output_dir.startswith('/tmp/')
     - name: Write two inert review files only
       when: not ansible_check_mode
       block:

@@ -1,0 +1,26 @@
+---
+- name: Inspect all proposed unit names, including an unrecorded partial launch
+  ansible.builtin.command:
+    argv: [/usr/bin/systemctl, show, '{{ item }}', '-p', LoadState, '-p', ActiveState, '-p', MainPID, '-p', InvocationID, '-p', ExecStart]
+  loop: '{{ rehearsal_units }}'
+  register: rehearsal_status_units
+  changed_when: false
+- name: Refuse any existing unit without exact recorded invocation and run root
+  ansible.builtin.assert:
+    that:
+      - "'LoadState=not-found' in item.stdout or (item.item in rehearsal_owned_units and ('InvocationID=' + rehearsal_owned_units[item.item]) in item.stdout and rehearsal_root in item.stdout)"
+    fail_msg: 'Unrecorded/replaced unit; preserve evidence and inspect before any stop or resume.'
+  loop: '{{ rehearsal_status_units.results }}'
+- name: Inspect namespace inode identities, never rely only on a reused name
+  ansible.builtin.stat:
+    path: '/run/netns/{{ item }}'
+    follow: false
+    get_checksum: false
+  loop: ['{{ rehearsal_server_namespace }}', '{{ rehearsal_guest_namespace }}']
+  register: rehearsal_status_namespaces
+- ansible.builtin.assert:
+    that: not item.stat.exists or (item.item in rehearsal_owned_namespaces and item.stat.inode == rehearsal_owned_namespaces[item.item])
+    fail_msg: 'Namespace ownership mismatch. No deletion or adoption.'
+  loop: '{{ rehearsal_status_namespaces.results }}'
+- ansible.builtin.debug:
+    msg: 'Owned rehearsal state phase={{ rehearsal_phase }}. status is not install/access success. No physical interfaces or existing cluster resources are part of this run.'
