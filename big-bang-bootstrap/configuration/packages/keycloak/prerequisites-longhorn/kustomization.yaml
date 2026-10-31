@@ -1,0 +1,33 @@
+# Alternate Ansible-owned prerequisite render; never apply alongside the static PV.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../prerequisites
+patches:
+- target:
+    kind: StorageClass
+    name: local-identity
+  patch: |-
+    $patch: delete
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: local-identity
+- target:
+    kind: PersistentVolume
+    name: local-keycloak-postgres
+  patch: |-
+    $patch: delete
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: local-keycloak-postgres
+- target:
+    kind: PersistentVolumeClaim
+    name: keycloak-postgres
+  patch: |-
+    - op: replace
+      path: /spec/storageClassName
+      value: longhorn
+    - op: remove
+      path: /spec/volumeName

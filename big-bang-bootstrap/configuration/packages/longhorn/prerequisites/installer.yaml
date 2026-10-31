@@ -1,0 +1,107 @@
+# Privileged storage installer, applied only through separate prerequisite approval.
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: longhorn-installer, namespace: bigbang}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: longhorn-chart-installer, namespace: longhorn-system}
+rules:
+- apiGroups: ['']
+  resources: [configmaps, secrets, serviceaccounts, services, pods]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [apps]
+  resources: [deployments, daemonsets, replicasets]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [batch]
+  resources: [jobs]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [networking.k8s.io]
+  resources: [networkpolicies]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [roles, rolebindings]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [roles]
+  resourceNames: [longhorn, longhorn-csi-role]
+  verbs: [bind, escalate]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: longhorn-chart-installer, namespace: longhorn-system}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: longhorn-chart-installer}
+subjects: [{kind: ServiceAccount, name: longhorn-installer, namespace: bigbang}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: longhorn-release-storage, namespace: bigbang}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: headlamp-release-storage}
+subjects: [{kind: ServiceAccount, name: longhorn-installer, namespace: bigbang}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: longhorn-chart-installer}
+rules:
+# Kubernetes RBAC cannot restrict create by resourceNames. Review these privileged
+# creation permissions explicitly; named bind/escalate cannot grant cluster-admin.
+- apiGroups: [apiextensions.k8s.io]
+  resources: [customresourcedefinitions]
+  verbs: [create]
+- apiGroups: [apiextensions.k8s.io]
+  resources: [customresourcedefinitions]
+  resourceNames:
+  - backingimagedatasources.longhorn.io
+  - backingimagemanagers.longhorn.io
+  - backingimages.longhorn.io
+  - backupbackingimages.longhorn.io
+  - backups.longhorn.io
+  - backuptargets.longhorn.io
+  - backupvolumes.longhorn.io
+  - enginefrontends.longhorn.io
+  - engineimages.longhorn.io
+  - engines.longhorn.io
+  - instancemanagers.longhorn.io
+  - instancemanagerupgradecontrols.longhorn.io
+  - instancemanagerupgrades.longhorn.io
+  - nodes.longhorn.io
+  - orphans.longhorn.io
+  - recurringjobs.longhorn.io
+  - replicas.longhorn.io
+  - settings.longhorn.io
+  - shardgroups.longhorn.io
+  - shards.longhorn.io
+  - sharemanagers.longhorn.io
+  - snapshotgroups.longhorn.io
+  - snapshots.longhorn.io
+  - supportbundles.longhorn.io
+  - systembackups.longhorn.io
+  - systemrestores.longhorn.io
+  - volumeattachments.longhorn.io
+  - volumes.longhorn.io
+  verbs: [get, list, watch, update, patch, delete]
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [clusterroles, clusterrolebindings]
+  verbs: [create]
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [clusterroles]
+  resourceNames: [longhorn-role, longhorn-csi-role, longhorn-csi-secret-role]
+  verbs: [get, list, watch, update, patch, delete, bind, escalate]
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [clusterrolebindings]
+  resourceNames: [longhorn-bind, longhorn-support-bundle, longhorn-csi-bind, longhorn-csi-secret-bind]
+  verbs: [get, list, watch, update, patch, delete]
+- apiGroups: [scheduling.k8s.io]
+  resources: [priorityclasses]
+  verbs: [create]
+- apiGroups: [scheduling.k8s.io]
+  resources: [priorityclasses]
+  resourceNames: [longhorn-critical]
+  verbs: [get, list, watch, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: longhorn-chart-installer}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: longhorn-chart-installer}
+subjects: [{kind: ServiceAccount, name: longhorn-installer, namespace: bigbang}]

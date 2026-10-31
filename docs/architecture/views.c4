@@ -135,13 +135,20 @@ views {
     title 'Platform boundary — readiness and ownership'
     description 'Separate operating scope after OS/access. Infrastructure Ansible owns host/RKE2/Rancher configuration; Rancher owns platform-admin cluster lifecycle, Flux owns GitOps and Big Bang supplies curated packages. Enrollment and application repositories retain their respective ownership.'
     link /runbook.html#platform 'Platform readiness and responsibilities'
-    include readiness, rke2, rancher, flux, bigbang, enrollment, applications
+    include readiness, rke2, storage, rancher, flux, bigbang, enrollment, applications
   }
   view rke2_detail of platform.rke2 {
     title 'RKE2 — server, workers, networking, access and recovery'
     description 'One server and two agents, without HA. Readiness is separate from workload/network, reboot and recovery validation. Application storage is a separate decision. Actual topology and all credentials stay private.'
     link /runbook.html#rke2 'Architecture and human repeat process'
     include server, agents, networking, operator_access, recovery
+  }
+
+  view storage_detail of platform.storage {
+    title 'Storage — application claims, worker replicas and independent backups'
+    description 'Prepared design, not installed. Storage-first rollout supports stateful apps; Rancher Helm has no storage dependency. Read-only host compatibility precedes installation, then disposable PVC persistence/reattach tests. No live bootstrap is authorized by this diagram.'
+    link /runbook.html#storage 'Storage rollout and next tests'
+    include volumes, replica_pair, backups
   }
 
 }

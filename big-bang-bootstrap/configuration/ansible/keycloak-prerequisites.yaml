@@ -3,6 +3,7 @@
   gather_facts: false
   vars:
     identity_foundation_apply: false
+    keycloak_storage_backend: longhorn
     identity_routing_apply: false
     identity_access_apply: false
     gitops_path: ./big-bang-bootstrap/clusters/local
@@ -44,12 +45,32 @@
         - identity_dirty.stdout | length == 0
         - expected_cluster_uid != 'UNCONFIGURED'
         - identity_uid.stdout == expected_cluster_uid
+    - name: Validate the selected storage contract before applying a claim
+      ansible.builtin.assert:
+        that: keycloak_storage_backend in ['longhorn', 'local']
+    - name: Require Longhorn readiness before the dynamic Keycloak claim
+      when: keycloak_storage_backend == 'longhorn'
+      block:
+      - ansible.builtin.assert:
+          that: "'../../configuration/packages/longhorn' in (lookup('file', playbook_dir + '/../../clusters/local/kustomization.yaml') | from_yaml).resources"
+      - ansible.builtin.command:
+          argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', -n, bigbang, wait, --for=condition=Ready, helmrelease/longhorn, --timeout=5m]
+        changed_when: false
+      - ansible.builtin.command:
+          argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, storageclass, longhorn, -o, json]
+        register: keycloak_storage_class
+        changed_when: false
+      - ansible.builtin.assert:
+          that:
+          - (keycloak_storage_class.stdout | from_json).provisioner == 'driver.longhorn.io'
+          - (keycloak_storage_class.stdout | from_json).reclaimPolicy == 'Retain'
+          - (keycloak_storage_class.stdout | from_json).parameters.numberOfReplicas == '2'
     - name: Apply common Big Bang then Keycloak prerequisites and selected identity configuration
       ansible.builtin.command:
         argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', apply, -k, '{{ playbook_dir }}/../{{ item.path }}']
       loop:
       - {path: packages/bigbang/prerequisites, enabled: true}
-      - {path: packages/keycloak/prerequisites, enabled: true}
+      - {path: 'packages/keycloak/prerequisites{{ "-longhorn" if keycloak_storage_backend == "longhorn" else "" }}', enabled: true}
       - {path: identity/routing, enabled: '{{ identity_routing_apply | bool }}'}
       - {path: identity/kubernetes, enabled: '{{ identity_access_apply | bool }}'}
       when: item.enabled | bool

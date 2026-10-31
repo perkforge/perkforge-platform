@@ -114,7 +114,7 @@ class Documentation(unittest.TestCase):
         text='\n'.join([model,views,page])
         for view in ['index','workstation_detail','node_detail','operations','boot_protocol',
                      'installation','security_handoff','service_lifecycle','platform_detail',
-                     'workspace_detail','workspace_construction','topology','rke2_detail']:
+                     'workspace_detail','workspace_construction','topology','rke2_detail','storage_detail']:
             self.assertRegex(views,r'view '+view+r'\b')
         for obsolete in ['observed_pilot','worker_discovery','worker_interactive_review','discovery_recovery']:
             self.assertNotRegex(views,r'view '+obsolete+r'\b')

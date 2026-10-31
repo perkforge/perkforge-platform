@@ -94,7 +94,37 @@ under infrastructure/ansible. Offline mocks separately verify default/check mode
 wrong-target refusal, worker-first ordering and stopping after first-node failure
 or a stale API boot ID. These are distinct from the successful live checks.
 
-Before platform activation, separately approve a persistent-storage choice.
+Read-only storage assessment: no StorageClasses, PVs or PVCs exist. Each node has
+one roughly 256GB NVMe with XFS root shared by OS/RKE2; about 226–227GiB remains
+free, six CPUs and about 15GiB RAM. Links report 1 Gbps; no NAS is available.
+iscsi-initiator-utils/nfs-utils are absent. Current selected packages are Headlamp
+and Keycloak; the authored Keycloak database claim is 4GiB on a retained static
+local-identity PV, with worker/path still placeholders. Its advertised capacity is
+not a filesystem quota. No storage backend, directory, quota, package or disk was
+changed. The later growth scope includes Harbor image retention, portal PostgreSQL,
+Nextcloud personal files/photos and OpenBao. Proposed storage baseline is Longhorn
+with two worker replicas and an initial 80–100GiB logical budget, with independent
+backups and later dedicated worker SSDs as growth requires; see infrastructure/README.md.
+Longhorn and Rancher are now prepared as optional unselected Big Bang packages.
+Their child HelmReleases and the outer release/seed remain suspended. No bootstrap,
+labels, prerequisites, storage directory, host packages or live resources changed.
+Longhorn is pinned 1.13.0 with worker-only placement, two hard-separated replicas,
+Retain/nondefault StorageClass and disk headroom settings. Keycloak has an alternate
+Longhorn PVC overlay and readiness dependency. Rancher is pinned 2.15.2, strictly
+TLS, required external bootstrap-values Secret, no fabricated storage dependency.
+Its direct Ansible installer refuses under the selected Big Bang deployment owner;
+gated API/OIDC administration remains Ansible. Privileged installer RBAC and
+namespace prerequisites are staged separately for review. Activation requires
+read-only host compatibility checks, explicit host/disk/label preparation, DNS/TLS/
+credentials and reviewed source selection/unpause. No live install is approved. Application PV
+contents need their own backup; the verified etcd snapshot does not contain them.
+
+The operator selected Longhorn for growth and requested this intermediate source
+commit/push before any bootstrap. Next test: read-only Longhorn host compatibility
+preflight (iSCSI/version/module, SELinux policy, mount propagation, capacity and
+worker selection). Actual PVC write/recreate/reattach/replica-health testing must
+wait until later approved Longhorn bootstrap. Keep Rancher Helm separate from its
+OIDC API step: DNS/TLS before Helm, ready Keycloak before SSO configuration.
 Restore validation and independent encrypted/off-site custody also remain outstanding. Smoke success does not establish ingress, policy isolation, durable
 storage or recovery. No further live action is authorized by this handoff. Keep architecture and human repeat instructions,
 not session journals, planning archives or duplicate procedure documents.

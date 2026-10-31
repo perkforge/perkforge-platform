@@ -1,5 +1,8 @@
 # Controller-side management inputs; override with reviewed external vars.
 rancher_install_apply: false
+# Big Bang/Flux is the selected Helm deployment owner. Legacy direct installation
+# requires an explicit separately reviewed owner override and must never coexist.
+rancher_deployment_owner: bigbang
 rancher_oidc_apply: false
 rancher_kubectl: kubectl
 rancher_helm: helm

@@ -18,7 +18,7 @@ class RancherManagementTests(unittest.TestCase):
         self.secret = self.work / 'secret'
         self.secret.write_text('synthetic-fixture-only')
         self.secret.chmod(384)
-        self.vars = {'rancher_kubectl': str(self.work / 'kubectl-fixture'), 'rancher_helm': str(self.work / 'helm-fixture'), 'rancher_kubeconfig': '/fixture/kubeconfig', 'rancher_context': 'fixture', 'rancher_cluster_uid': 'fixture-cluster', 'rancher_hostname': 'rancher.ops.example', 'rancher_ingress_class': 'reviewed-ingress', 'rancher_oidc_issuer': 'https://identity.ops.example/realms/platform', 'rancher_oidc_secret_file': str(self.secret), 'rancher_bootstrap_password_file': str(self.secret)}
+        self.vars = {'rancher_deployment_owner': 'ansible', 'rancher_kubectl': str(self.work / 'kubectl-fixture'), 'rancher_helm': str(self.work / 'helm-fixture'), 'rancher_kubeconfig': '/fixture/kubeconfig', 'rancher_context': 'fixture', 'rancher_cluster_uid': 'fixture-cluster', 'rancher_hostname': 'rancher.ops.example', 'rancher_ingress_class': 'reviewed-ingress', 'rancher_oidc_issuer': 'https://identity.ops.example/realms/platform', 'rancher_oidc_secret_file': str(self.secret), 'rancher_bootstrap_password_file': str(self.secret)}
 
     def run_play(self, name='configure-rancher-oidc', **overrides):
         check = overrides.pop('check', False)
@@ -38,6 +38,11 @@ class RancherManagementTests(unittest.TestCase):
                 p = self.run_play(name, **values)
                 self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertEqual(self.data().get('events', []), [])
+
+    def test_bigbang_owner_refuses_direct_installer_before_any_cluster_call(self):
+        p=self.run_play('install-rancher',rancher_install_apply=True,rancher_deployment_owner='bigbang')
+        self.assertNotEqual(p.returncode,0)
+        self.assertEqual(self.data().get('events',[]),[])
 
     def test_pinned_install_disables_application_cd_and_keeps_explicit_tls_target(self):
         p = self.run_play('install-rancher', rancher_install_apply=True)

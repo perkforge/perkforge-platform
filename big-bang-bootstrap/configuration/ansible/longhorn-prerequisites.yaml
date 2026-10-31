@@ -1,0 +1,56 @@
+- name: Prepare only the separately approved local Longhorn prerequisites
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars:
+    longhorn_foundation_apply: false
+    gitops_path: ./big-bang-bootstrap/clusters/local
+  tasks:
+  - name: Refuse another target or stage
+    ansible.builtin.assert:
+      that:
+      - inventory_hostname == 'local'
+      - deployment_environment == 'local'
+      - ansible_play_hosts_all | length == 1
+      - gitops_path == './big-bang-bootstrap/clusters/local'
+  - name: Report safe default without credentials or Kubernetes access
+    ansible.builtin.debug:
+      msg: "local Longhorn prerequisites apply={{ longhorn_foundation_apply | bool }}"
+  - name: Apply requires separate approval and a published reviewed checkout
+    when: longhorn_foundation_apply | bool and not ansible_check_mode
+    block:
+    - name: Verify released stage context before any API mutation
+      ansible.builtin.include_tasks: verify-release.yaml
+    - name: Check executing checkout matches reviewed release
+      ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', rev-parse, HEAD]
+      register: foundation_checkout
+      changed_when: false
+    - name: Refuse unversioned code or placeholder cluster inputs
+      ansible.builtin.assert:
+        that:
+        - foundation_checkout.stdout == config_release.resolvedCommit
+        - target_kubeconfig != '/UNCONFIGURED/kubeconfig'
+        - target_context != 'UNCONFIGURED'
+        - expected_cluster_uid != 'UNCONFIGURED'
+    - name: Require a clean reviewed checkout
+      ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', status, --porcelain]
+      register: foundation_changes
+      changed_when: false
+    - name: Refuse unpublished local changes
+      ansible.builtin.assert:
+        that: foundation_changes.stdout | length == 0
+    - name: Verify actual target before mutation
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: foundation_cluster
+      changed_when: false
+    - name: Refuse a different cluster
+      ansible.builtin.assert:
+        that: foundation_cluster.stdout == expected_cluster_uid
+    - name: Apply common Big Bang then selected Longhorn prerequisites
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', apply, -k, '{{ playbook_dir }}/../packages/{{ item }}/prerequisites']
+      loop: [bigbang, longhorn]
+      register: foundation_result
+      changed_when: "'created' in foundation_result.stdout or 'configured' in foundation_result.stdout"

@@ -1,10 +1,16 @@
 # Rancher: platform cluster management
 
-Rancher remains active infrastructure Ansible, separate from Big Bang application reconciliation. Archiving its entire capability in the initial restructuring was a mistake; this correction restores the installer and ports the useful Generic OIDC ownership/conflict/secret checks from the legacy Python code to native Ansible. Tenant catalog, Project bindings and Python configuration machinery remain archived.
+Rancher Helm deployment now belongs to the optional Big Bang custom package,
+reconciled by Flux. It is prepared, unselected and suspended; nothing is installed.
+Infrastructure Ansible retains host/RKE2 operations and the separately gated OIDC/
+platform-admin API configuration. See [package procedure](../../../big-bang-bootstrap/configuration/packages/rancher/README.md).
 
 ## Ownership and dependencies
 
-Use `playbooks/install-rancher.yml`, `group_vars/rancher.yml` and `values.yaml.j2`. The operator supplies existing kubectl/Helm, exact kubeconfig/context/cluster UID, hostname/ingress class, protected exact/nonblank bootstrap-password file (no accidental trailing newline) and ingress TLS prerequisites. Versions remain Rancher2.15.2 and optional cert-manager1.21.2. No client binary, password, CA or TLS key is silently generated. Helm uses direct official --repo URLs without changing or refreshing the operator's unrelated cached repositories.
+The direct `playbooks/install-rancher.yml` is a legacy recovery path, blocked by default
+under `rancher_deployment_owner: bigbang`; an explicit separately reviewed Ansible
+owner override must never coexist with Flux. Its offline fixture tests are retained.
+Legacy inputs use `group_vars/rancher.yml` and `values.yaml.j2`. The operator supplies existing kubectl/Helm, exact kubeconfig/context/cluster UID, hostname/ingress class, protected exact/nonblank bootstrap-password file (no accidental trailing newline) and ingress TLS prerequisites. Versions remain Rancher 2.15.2 and optional cert-manager 1.21.2. No client binary, password, CA or TLS key is silently generated. Helm uses direct official --repo URLs without changing or refreshing the operator's unrelated cached repositories.
 
 Ingress uses the existing `cattle-system/tls-rancher-ingress` Secret. Private-CA deployments also require reviewed Rancher CA trust (`tls-ca`/additional trusted CA configuration as appropriate) and browser/agent trust. No TLS verification bypass is allowed. cert-manager installation defaults off: choose one lifecycle owner and do not compete with Big Bang or another installer.
 

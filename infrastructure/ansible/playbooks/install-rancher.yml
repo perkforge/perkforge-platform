@@ -11,5 +11,9 @@
   - name: Run only the separately approved management operation
     when: rancher_install_apply | bool and not ansible_check_mode
     block:
+    - name: Refuse competing direct Helm installation under Big Bang ownership
+      ansible.builtin.assert:
+        that: rancher_deployment_owner == 'ansible'
+        fail_msg: 'Rancher deployment belongs to Big Bang/Flux. Do not run two Helm owners.'
     - ansible.builtin.include_tasks: ../tasks/rancher-target.yml
     - ansible.builtin.include_tasks: ../tasks/rancher-install.yml

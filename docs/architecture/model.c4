@@ -117,7 +117,7 @@ model {
     }
   }
   platform = system 'Host readiness and platform ownership' {
-    description 'Separate from OS installation. Infrastructure Ansible owns host/RKE2/Rancher configuration. Flux owns GitOps and Big Bang supplies curated platform packages.'
+    description 'Separate from OS installation. Infrastructure Ansible owns host/RKE2 and gated Rancher API configuration. Flux owns optional Big Bang Longhorn/Rancher Helm deployments and GitOps and Big Bang supplies curated platform packages.'
     link /runbook.html#platform 'Platform responsibilities'
     readiness = boundary 'Host readiness / separate approval' {
       description 'Review repositories, Python, time, kernel prerequisites, networking/CNI, firewall, SELinux and capacity before cluster changes. Installed OS and working SSH alone are insufficient.'
@@ -138,10 +138,25 @@ model {
         description 'Mode0600 credentials with the reviewed API endpoint. Use the protected bundled client; default kubeconfig replacement requires an explicit operator request.'
       }
       recovery = component 'Server token and matching etcd snapshots' {
-        description 'Keep protected off-node copies together for recovery. The explicit backup check creates a named snapshot, requires an unchanged server token, compares transfer size/SHA256 and validates the embedded integrity trailer without restart/restore. Exported tokens or their ZIP alone do not back up etcd. Byte integrity is separate from database consistency, restore validation and application storage.'
+        description 'Keep protected off-node copies together for recovery. The explicit backup check creates a named snapshot, requires an unchanged server token, compares transfer size/SHA256 and validates the embedded integrity trailer without restart/restore. Exported tokens or their ZIP alone do not back up etcd. Byte integrity is separate from database consistency and restore validation. Etcd snapshots do not contain application PV data; that requires its own backup. The existing Keycloak specification uses a retained 4Gi local PV with unset worker/path and no enforced quota. Prepared optional Big Bang Longhorn 1.13.0 package proposes two Longhorn replicas on distinct workers, initially around 80–100Gi logical capacity, no data replicas on control-1, bounded retention, independent backups and later dedicated worker disks. Not installed or a claim of HA; version/host compatibility and actual claims still require review.'
       }
     }
-    rancher = component 'Rancher cluster lifecycle administration'
+    storage = component 'Longhorn application storage' {
+      description 'Prepared optional Big Bang custom package; Flux reconciles its pinned upstream chart only after explicit selection/unpause. No storage is installed. Host prerequisites and labels remain separately approved infrastructure work.'
+      link /runbook.html#storage 'Storage ownership, rollout and testing'
+      volumes = component 'Retained expandable application volumes' {
+        description 'Nondefault StorageClass, two replicas, WaitForFirstConsumer. Keycloak depends on Longhorn and its alternate PVC overlay removes the old static PV binding. Future Harbor, portal, Nextcloud and OpenBao claims need explicit sizing.'
+      }
+      replica_pair = component 'Replicas on two distinct workers' {
+        description 'Worker-only placement and disk labels exclude control-1 from application-data replicas. V1 engine, no overprovisioning, root-disk headroom and bounded snapshots; add dedicated disks as measured growth requires. One worker outage leaves a single surviving copy until rebuild.'
+      }
+      backups = component 'Independent application-data backups' {
+        description 'Protect personal files, databases and secret recovery separately. Replication/Retain do not protect against deletion or corruption, and etcd snapshots do not contain PV contents. Independent custody and restore tests are required before relying on personal-data storage.'
+      }
+    }
+    rancher = component 'Rancher cluster lifecycle administration' {
+      description 'Optional Big Bang custom package, reconciled by Flux; unselected/suspended until reviewed DNS/TLS and external bootstrap credentials. No Longhorn/PVC prerequisite for the server Helm deployment. Ansible handles gated OIDC/admin API configuration after Keycloak is ready; host/RKE2 recovery remains independent.'
+    }
     flux = component 'Flux GitOps reconciliation'
     bigbang = component 'Big Bang platform packages'
     enrollment = component 'Tenant enrollment repository' {
@@ -184,6 +199,11 @@ model {
   platform.rke2.agents -> platform.rke2.networking 'Run per-node networking'
   platform.rke2.operator_access -> platform.rke2.server 'TLS-authenticated Kubernetes API'
   platform.rke2.server -> platform.rke2.recovery 'Preserve datastore and bootstrap recovery material'
+  platform.storage.volumes -> platform.storage.replica_pair 'Persist two copies on distinct workers'
+  platform.storage.replica_pair -> platform.storage.backups 'Separate protected backup and restore process'
+  platform.bigbang -> platform.storage 'Declares optional chart and dependencies'
+  platform.bigbang -> platform.rancher 'Declares optional management chart'
+  platform.flux -> platform.storage 'Reconciles approved Helm deployment'
   platform.rancher -> platform.rke2 'Platform-admin lifecycle'
   platform.flux -> platform.bigbang 'Reconcile platform packages'
   platform.flux -> platform.enrollment 'Reconcile tenant foundations'

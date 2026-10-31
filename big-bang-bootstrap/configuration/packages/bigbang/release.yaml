@@ -26,6 +26,14 @@ spec:
     name: values-headlamp
     valuesKey: oidc.yaml
   - kind: ConfigMap
+    name: values-rancher
+    valuesKey: values.yaml
+    optional: true
+  - kind: ConfigMap
+    name: values-longhorn
+    valuesKey: values.yaml
+    optional: true
+  - kind: ConfigMap
     name: values-openbao
     valuesKey: values.yaml
     optional: true
@@ -78,3 +86,16 @@ spec:
           kind: Namespace
 
           metadata: {name: keycloak}'
+      - target:
+          group: helm.toolkit.fluxcd.io
+          version: v2
+          kind: HelmRelease
+          name: rancher
+        patch: |-
+          - op: add
+            path: /spec/valuesFrom/-
+            value:
+              kind: Secret
+              name: rancher-bootstrap-values
+              valuesKey: values.yaml
+              optional: false

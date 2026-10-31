@@ -1,0 +1,74 @@
+# Optional Big Bang custom-package input. Not selected by clusters/local.
+# Infrastructure Ansible must prepare/label the two workers before activation.
+packages:
+  longhorn:
+    enabled: true
+    sourceType: git
+    namespace:
+      name: longhorn-system
+      create: false
+    helmRelease:
+      namespace: bigbang
+    git:
+      repo: https://github.com/longhorn/charts.git
+      path: charts/longhorn
+      tag: longhorn-1.13.0
+    includeDefaultDependsOn: false
+    wrapper:
+      enabled: false
+    bbCommonValues: false
+    passBigBangValues: false
+    flux:
+      suspend: true
+      serviceAccountName: longhorn-installer
+      storageNamespace: bigbang
+      timeout: 10m
+      install:
+        createNamespace: false
+        remediation:
+          retries: 0
+      upgrade:
+        remediation:
+          retries: 0
+    values:
+      global:
+        nodeSelector:
+          storage.perkforge.io/worker: 'true'
+      persistence:
+        defaultClass: false
+        defaultClassReplicaCount: 2
+        reclaimPolicy: Retain
+        volumeBindingMode: WaitForFirstConsumer
+        defaultDataLocality: best-effort
+      defaultSettings:
+        v1DataEngine: true
+        v2DataEngine: false
+        defaultReplicaCount: {v1: '2', v2: '2'}
+        defaultDataPath: /var/lib/longhorn
+        createDefaultDiskLabeledNodes: true
+        replicaSoftAntiAffinity: false
+        replicaDiskSoftAntiAffinity: false
+        allowVolumeCreationWithDegradedAvailability: false
+        storageOverProvisioningPercentage: 100
+        storageMinimalAvailablePercentage: 25
+        storageReservedPercentageForDefaultDisk: 30
+        systemManagedComponentsNodeSelector: 'storage.perkforge.io/worker:true'
+        snapshotMaxCount: 10
+      csi:
+        kubeletRootDir: /var/lib/kubelet
+        attacherReplicaCount: 2
+        provisionerReplicaCount: 2
+        resizerReplicaCount: 2
+        snapshotterReplicaCount: 2
+      longhornGlobalManager:
+        replicas: 2
+      longhornUI:
+        replicas: 1
+      ingress:
+        enabled: false
+# Built-in Keycloak uses this additive dependency only when this input is selected.
+addons:
+  keycloak:
+    dependsOn:
+    - name: longhorn
+      namespace: bigbang
