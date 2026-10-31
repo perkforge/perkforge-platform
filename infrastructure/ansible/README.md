@@ -8,6 +8,9 @@ The operator uses PXE and interactive Anaconda to install RHEL. Infrastructure A
 | `playbooks/prepare-longhorn-hosts.yml` | separately approved worker-only V1 storage prerequisites | no connections |
 | `tests/longhorn-preflight.yml` | read-only worker storage prerequisite audit | no connections |
 | `playbooks/configure-workstation-dns.yml` | approved first-time workstation split DNS using its existing resolver | no changes |
+| `playbooks/configure-node-dns.yml` | reviewed worker-first node resolver migration with rollback | no connections |
+| `tests/coredns-resolution.yml` | read-only lab/internal/public DNS queries through CoreDNS from control-1 | no cluster access |
+| `playbooks/refresh-coredns.yml` | separately approved CoreDNS rolling resolver refresh | no cluster access |
 | `playbooks/configure-lab-dns.yml` | separately approved DNS-only first installation on control-1 | no connections |
 | `playbooks/configure-hosts.yml` | reviewed RHEL/Canal prerequisites | no connections |
 | `playbooks/install-rke2.yml` | pinned single-server RKE2 installation/join/readiness | no connections |

@@ -67,7 +67,9 @@ existing controller can serve a selected worker address without an additional
 load balancer for initial lab use. A single address has a worker availability
 dependency; multi-address DNS is not a health-checked failover mechanism. The selected initial ingress endpoint is worker-1. A separate dnsmasq host service
 is installed and enabled on control-1; direct LAN resolution/forwarding checks
-passed. Client resolver migration remains separately gated. See the infrastructure DNS procedure. The workstation uses
+passed. Workstation split DNS and all three node resolver migrations are complete. The
+approved CoreDNS rolling refresh and service-level DNS checks passed; TLS and
+workload-specific policies remain outstanding. See the infrastructure DNS procedure. The workstation uses
 the router as its resolver; router capabilities must be confirmed before choosing
 local records, forwarding or an independent resolver. Keep actual addresses in the
 ignored topology, not public procedure files.

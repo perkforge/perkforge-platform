@@ -207,3 +207,23 @@ and OS lookup; ordinary internet lookup passed. Protected inputs/logs/verificati
 are in .rke2-state/workstation-dns-doxbigdu/. No node/router resolver, DHCP or
 libvirt change was made. Workstation reboot recovery/browser DoH are untested.
 Repeat/rollback source is configure-workstation-dns.yml under infrastructure/ansible/playbooks.
+
+Approved node DNS migration completed worker-1, worker-2, control-1 with no failures.
+Each node now has only control-1's LAN address in resolv.conf, with persistent
+NetworkManager DNS properties, automatic DNS ignored and priority -50. All four lab
+names and public lookup passed on every host, RKE2 stayed active and all nodes
+remained Ready. Protected original properties and run evidence are in
+.rke2-state/node-dns-vj1_v5ix/. IPv6 networking, router and workstation settings were
+not changed in this operation. Node reboot recovery has not been tested for DNS.
+
+The separately approved CoreDNS rolling refresh completed using
+infrastructure/ansible/playbooks/refresh-coredns.yml. Both replacement replicas are
+updated, Ready and available, and all three nodes remain Ready. Read-only
+infrastructure/ansible/tests/coredns-resolution.yml passed eight lab UDP/TCP
+queries, internal Kubernetes service discovery and public forwarding through the
+CoreDNS service from control-1. Private results are in
+.rke2-state/node-dns-vj1_v5ix/coredns-after-refresh.yml. Protected repeat inputs
+remain .rke2-state/coredns-refresh.yml. No disposable pod, static/API pod restart,
+RKE2 restart or API-authentication change was performed. Workload-specific and
+host-network DNS policies, API OIDC, node reboot persistence and TLS remain
+separate validation. Source and repeat verification commands are retained in the repository.

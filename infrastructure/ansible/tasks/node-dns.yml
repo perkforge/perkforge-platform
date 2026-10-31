@@ -1,0 +1,91 @@
+---
+- ansible.builtin.command:
+    argv: [hostname]
+  changed_when: false
+  register: node_dns_hostname
+- ansible.builtin.assert:
+    quiet: true
+    that: node_dns_hostname.stdout | trim == inventory_hostname
+- ansible.builtin.setup:
+    gather_subset: [min, network]
+- ansible.builtin.assert:
+    quiet: true
+    that:
+    - ansible_facts.distribution == 'RedHat'
+    - ansible_facts.distribution_version == '10.2'
+    - ansible_facts.selinux.mode == 'enforcing'
+- ansible.builtin.command:
+    argv: [nmcli, -t, -f, 'UUID,TYPE,DEVICE', connection, show, --active]
+  register: node_dns_connections
+  changed_when: false
+- ansible.builtin.set_fact:
+    node_dns_wired: '{{ node_dns_connections.stdout_lines | select("search", ":802-3-ethernet:") | list }}'
+- ansible.builtin.assert:
+    quiet: true
+    that: node_dns_wired | length == 1
+- ansible.builtin.set_fact:
+    node_dns_profile: '{{ node_dns_wired[0].split(":")[0] }}'
+    node_dns_device: '{{ node_dns_wired[0].split(":")[-1] }}'
+- ansible.builtin.assert:
+    quiet: true
+    that: node_dns_device == ansible_facts.default_ipv4.interface
+- name: Require the enabled RKE2 service to be running before DNS changes
+  ansible.builtin.command:
+    argv: [systemctl, is-active, '{{ "rke2-server" if inventory_hostname == "control-1" else "rke2-agent" }}']
+  changed_when: false
+- name: Capture only the five DNS profile properties for rollback
+  ansible.builtin.command:
+    argv: [nmcli, -g, '{{ item }}', connection, show, '{{ node_dns_profile }}']
+  loop: [ipv4.dns, ipv4.ignore-auto-dns, ipv6.dns, ipv6.ignore-auto-dns, ipv4.dns-priority]
+  register: node_dns_original
+  changed_when: false
+- name: Preserve protected rollback properties on the workstation
+  ansible.builtin.copy:
+    dest: '{{ node_dns_evidence_dir }}/{{ inventory_hostname }}-previous.yml'
+    mode: '0600'
+    force: false
+    content: "{{ {'node': inventory_hostname, 'profile': node_dns_profile, 'device': node_dns_device, 'properties': node_dns_original.results | map(attribute='stdout') | list} | to_nice_yaml }}"
+  delegate_to: localhost
+  become: false
+  no_log: true
+- name: Reapply only DNS properties and verify before proceeding
+  block:
+  - ansible.builtin.command:
+      argv: [nmcli, connection, modify, '{{ node_dns_profile }}', ipv4.dns, '{{ node_dns_server }}', ipv4.ignore-auto-dns, 'yes', ipv4.dns-priority, '-50', ipv6.dns, '', ipv6.ignore-auto-dns, 'yes']
+  - ansible.builtin.command:
+      argv: [nmcli, device, reapply, '{{ node_dns_device }}']
+  - ansible.builtin.command:
+      argv: [nmcli, general, reload, dns-rc]
+  - ansible.builtin.slurp:
+      src: /etc/resolv.conf
+    register: node_dns_resolver
+  - name: Require only the selected DNS server in the active resolver file
+    ansible.builtin.assert:
+      quiet: true
+      that: (node_dns_resolver.content | b64decode).splitlines() | select('match', '^nameserver ') | list == ['nameserver ' ~ node_dns_server]
+  - name: Verify each application through normal OS resolution
+    ansible.builtin.command:
+      argv: [getent, ahostsv4, '{{ item }}.perkforge.home.arpa']
+    loop: [headlamp, keycloak, rancher, openbao]
+    changed_when: false
+    register: node_dns_answer
+    retries: 3
+    delay: 2
+    until: node_dns_answer.rc == 0 and node_dns_answer.stdout.split()[0] == node_dns_ingress
+  - name: Require ordinary DNS and RKE2 service health after reapply
+    ansible.builtin.command:
+      argv: [getent, ahostsv4, att.com]
+    changed_when: false
+  - ansible.builtin.command:
+      argv: [systemctl, is-active, '{{ "rke2-server" if inventory_hostname == "control-1" else "rke2-agent" }}']
+    changed_when: false
+  rescue:
+  - name: Restore only the original DNS profile properties
+    ansible.builtin.command:
+      argv: [nmcli, connection, modify, '{{ node_dns_profile }}', ipv4.dns, '{{ node_dns_original.results[0].stdout | trim }}', ipv4.ignore-auto-dns, '{{ node_dns_original.results[1].stdout | trim }}', ipv6.dns, '{{ node_dns_original.results[2].stdout | trim }}', ipv6.ignore-auto-dns, '{{ node_dns_original.results[3].stdout | trim }}', ipv4.dns-priority, '{{ node_dns_original.results[4].stdout | trim }}']
+  - ansible.builtin.command:
+      argv: [nmcli, device, reapply, '{{ node_dns_device }}']
+  - ansible.builtin.command:
+      argv: [nmcli, general, reload, dns-rc]
+  - ansible.builtin.fail:
+      msg: 'Node DNS verification failed; original DNS properties restored and the sequence stopped.'

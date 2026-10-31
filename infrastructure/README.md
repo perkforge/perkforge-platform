@@ -125,5 +125,49 @@ after successful installation: review maintenance rather than rerunning blindly.
 The live workstation checks passed normal DNS plus OS name resolution for all four
 names and ordinary internet DNS. Configuration is persistent, but workstation
 reboot recovery and browser-specific secure-DNS overrides have not been tested.
-Nodes still use their original resolver settings. DNS resolution alone does not
+All three nodes now use control-1 directly, as described below. DNS resolution alone does not
 create application routes, install the platform or issue trusted certificates.
+
+### Node DNS and CoreDNS resolver inheritance
+
+`ansible/playbooks/configure-node-dns.yml` migrates worker-1, worker-2, then
+control-1, serially. Defaults/check mode contact no hosts. After action-specific
+approval, use the private inventory, --ask-become-pass, node_dns_apply=true,
+node_dns_reviewed=true and an explicit fresh mode0700 node_dns_evidence_dir.
+The playbook checks the responding DNS endpoint, exact node/OS identity, one wired
+default-route profile and active RKE2 before saving only original DNS properties
+(mode0600) into private workstation evidence. It sets the control-1 LAN address as
+the sole IPv4 resolver, ignores automatic DNS from both families and uses priority
+-50 to prevent gateway bypass without disabling IPv6 networking. Device reapply
+and DNS refresh do not reconnect physical networking or restart RKE2. Each node
+must resolve all four application names and public DNS; failure restores that
+node's DNS properties and stops the sequence. Already completed nodes remain
+migrated; their saved properties support deliberate rollback if required.
+
+The completed live migration passed all host checks and all three nodes remained
+Ready. CoreDNS uses dnsPolicy Default and forwards to its pod's /etc/resolv.conf;
+existing pods required a separately approved rolling refresh to acquire the
+changed host resolver. Before refresh a direct service query returned no lab A
+answer; after refresh all service-level DNS checks passed. New host-network
+pods can inherit updated host DNS, but existing static/API pods have not been
+restarted or verified; API OIDC activation remains separate.
+
+A separately gated `ansible/playbooks/refresh-coredns.yml` checks explicit
+kubeconfig/client paths and expected kube-system UID, then requires the current
+healthy two-replica RollingUpdate deployment (maxUnavailable=1). After separate
+approval, set coredns_refresh_apply=true with protected vars for
+coredns_refresh_kubeconfig, coredns_refresh_kubectl and
+coredns_refresh_expected_cluster_uid. It rolls only the existing CoreDNS deployment
+and waits up to 180 seconds for completion. It does not change the chart/Corefile,
+node services, application deployment or API authentication. Verify lab and public
+lookups through the CoreDNS service and from workloads afterward; rollout success
+alone does not prove DNS resolution. The approved refresh completed with two updated/Ready/available replicas and all
+three nodes Ready.
+
+Repeat read-only service verification with `ansible/tests/coredns-resolution.yml`,
+the private physical inventory, protected coredns_refresh_* inputs and
+coredns_resolution_verify=true. Default/check mode contacts no cluster/hosts.
+The live verification passed eight lab A queries over UDP/TCP, Kubernetes internal
+service discovery and public forwarding from control-1 through the actual CoreDNS
+service address. It creates no workload and does not validate every pod/host-network
+DNS policy or API OIDC. No static/API pod or RKE2 restart was performed.

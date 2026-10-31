@@ -1,0 +1,74 @@
+---
+- name: Read-only DNS verification through the CoreDNS service
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    coredns_resolution_verify: false
+    coredns_refresh_kubeconfig: /UNCONFIGURED/kubeconfig
+    coredns_refresh_kubectl: /UNCONFIGURED/kubectl
+    coredns_refresh_expected_cluster_uid: UNCONFIGURED
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'CoreDNS resolution verify={{ coredns_resolution_verify | bool }}; check={{ ansible_check_mode }}. No writes to the cluster.'
+  - name: Query only the explicit cluster and inventory
+    when: coredns_resolution_verify | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - coredns_refresh_kubeconfig is match('^/')
+        - not coredns_refresh_kubeconfig.startswith('/UNCONFIGURED/')
+        - coredns_refresh_kubectl is match('^/')
+        - not coredns_refresh_kubectl.startswith('/UNCONFIGURED/')
+        - coredns_refresh_expected_cluster_uid is match('^[0-9a-f-]{36}$')
+        - groups.get('rke2_servers', []) == ['control-1']
+        - groups.get('rke2_agents', []) | sort == ['worker-1', 'worker-2']
+    - ansible.builtin.set_fact:
+        dns_probe_cli: ['{{ coredns_refresh_kubectl }}', --kubeconfig, '{{ coredns_refresh_kubeconfig }}', --request-timeout=20s]
+    - ansible.builtin.command:
+        argv: "{{ dns_probe_cli + ['get', 'namespace', 'kube-system', '-o', 'jsonpath={.metadata.uid}'] }}"
+      register: dns_probe_identity
+      changed_when: false
+    - ansible.builtin.assert:
+        quiet: true
+        that: dns_probe_identity.stdout == coredns_refresh_expected_cluster_uid
+    - name: Discover the actual DNS and Kubernetes service addresses
+      ansible.builtin.command:
+        argv: "{{ dns_probe_cli + ['get', 'service', item.name, '-n', item.namespace, '-o', 'jsonpath={.spec.clusterIP}'] }}"
+      loop:
+      - {name: rke2-coredns-rke2-coredns, namespace: kube-system}
+      - {name: kubernetes, namespace: default}
+      changed_when: false
+      register: dns_probe_services
+    - name: Check lab records over UDP and TCP through the cluster DNS service
+      ansible.builtin.command:
+        argv: [dig, '@{{ dns_probe_services.results[0].stdout }}', '{{ item.0 }}.perkforge.home.arpa', A, +short, +time=3, +tries=1, '{{ item.1 }}']
+      loop: "{{ ['headlamp', 'keycloak', 'rancher', 'openbao'] | product(['+notcp', '+tcp']) | list }}"
+      delegate_to: control-1
+      vars:
+        ansible_connection: ssh
+      changed_when: false
+      register: dns_probe_lab
+    - ansible.builtin.assert:
+        quiet: true
+        that: item.stdout | trim == hostvars['worker-1'].ansible_host
+      loop: '{{ dns_probe_lab.results }}'
+      loop_control:
+        label: '{{ item.item }}'
+    - name: Check internal service discovery and external forwarding
+      ansible.builtin.command:
+        argv: [dig, '@{{ dns_probe_services.results[0].stdout }}', '{{ item }}', A, +short, +time=3, +tries=1]
+      loop: [kubernetes.default.svc.cluster.local, att.com]
+      delegate_to: control-1
+      vars:
+        ansible_connection: ssh
+      changed_when: false
+      register: dns_probe_other
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - dns_probe_other.results[0].stdout | trim == dns_probe_services.results[1].stdout
+        - dns_probe_other.results[1].stdout | trim | length > 0
+    - ansible.builtin.debug:
+        msg: 'Passed 8 lab UDP/TCP checks, internal service discovery and external forwarding through CoreDNS. No disposable pod or host-network workload was created.'
