@@ -174,3 +174,52 @@ cluster:
 ```sh
 python3 -m unittest discover -s infrastructure/ansible/tests -p test_workload_smoke.py
 ```
+
+## On-demand etcd backup and off-node integrity check
+
+`tests/etcd-backup.yml` creates one uncompressed named snapshot on the selected
+single server and copies it with the snapshot-time complete server token into a
+fresh mode0700 etcd-backup-* directory under the protected workstation output
+parent. It does not stop/restart RKE2, restore data, rotate tokens, prune/delete
+snapshots, change the snapshot schedule or contact cloud storage.
+
+Use the reviewed private inventory and existing install.yml. Author ignored
+`.rke2-state/backup-inputs.yml` with explicit absolute `etcd_backup_kubeconfig`,
+`etcd_backup_kubectl`, `etcd_backup_output_parent` and the reviewed
+`etcd_backup_expected_cluster_uid` (the kube-system namespace UID). The kubeconfig
+must be mode0600 and the output parent operator-owned mode0700. The playbook
+verifies API identity/readiness before connecting to the server, checks matching
+local/remote installation ownership and the pinned version, and refuses a reused
+snapshot name. Default/check mode contacts no server or API.
+
+For the separately approved live run, from the repository root:
+
+```sh
+ansible-playbook -i infrastructure/ansible/inventory/.topology.yml infrastructure/ansible/tests/etcd-backup.yml --ask-become-pass -e @infrastructure/ansible/inventory/.rke2-state/install.yml -e @infrastructure/ansible/inventory/.rke2-state/backup-inputs.yml -e etcd_backup_apply=true
+```
+
+Enter sudo locally. The run requires the complete server token to remain unchanged
+across snapshot creation, saves it without logging, compares source/copy size and
+SHA256, verifies the uncompressed snapshot's embedded SHA256 trailer, and checks
+all selected nodes remain Ready. Files are mode0600:
+
+- `snapshot.db`: datastore copy; may contain cluster secrets.
+- `server-token.secure`: matching recovery token; never print/commit it.
+- `summary.yml`: private checksums, identity, verification status and explicit
+  `restore_tested: false`. A partial/failed run is retained with failure status.
+
+Keep snapshot and token together in independent protected storage. This proves
+snapshot capture, off-node transfer and byte integrity; the Python verifier follows
+[etcd's integrity trailer rule](https://github.com/etcd-io/etcd/blob/main/etcdutl/snapshot/v3_snapshot.go),
+not bbolt database consistency or a successful restore. The workstation copy is
+not an encrypted/off-site disaster-recovery service, and the earlier credential ZIP
+is not automatically refreshed with new snapshots. A restore drill needs separate
+explicit authorization because this cluster has only one control-plane server.
+See [RKE2 backup/restore](https://docs.rke2.io/datastore/backup_restore).
+
+Offline guard/transfer/token-change and corrupt-file checks use temporary local
+fixtures, never a live cluster:
+
+```sh
+python3 -m unittest discover -s infrastructure/ansible/tests -p test_etcd_backup.py
+```

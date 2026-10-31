@@ -1,7 +1,7 @@
 # Current operator handoff
 
 Provisioning remains paused; the operator separately approved the disposable
-workload smoke test described below. Use this existing feature
+workload smoke and off-node snapshot checks described below. Use this existing feature
 worktree; never push main or merge. Publish changes only when explicitly requested.
 
 ## Current state
@@ -42,8 +42,9 @@ been confirmed. The default workstation `~/.kube/config` was explicitly replaced
 with the RKE2 configuration and verified; it is mode0600.
 
 The server token must accompany matching etcd snapshots for recovery. The token
-ZIP is not an etcd backup. No off-node snapshot backup or restore test has been
-performed. Keep local credentials until independent custody is confirmed.
+ZIP is not an etcd backup. A separate verified off-node snapshot/token bundle now
+exists on the workstation as recorded below; no restore test or encrypted/off-site
+copy has been performed. Keep local credentials until independent custody is confirmed.
 
 ## Repeat and resume
 
@@ -61,8 +62,21 @@ mock checks separately cover default/check refusal, wrong cluster, existing
 namespace, failed probes and foreign-namespace cleanup refusal. The test source is
 in infrastructure/ansible/tests/workload-smoke.yml and fixtures/workload-smoke.yaml.
 
-Before platform activation, separately approve off-node snapshot/token custody,
-sequential reboot verification and a persistent-storage choice. These checks remain
-outstanding. Smoke success does not establish ingress, policy isolation, durable
+The approved etcd backup check completed with zero failures. A fresh uncompressed
+snapshot and its unchanged matching server token are in ignored
+.rke2-state/etcd-backup-fryzm4_n/ (snapshot.db, server-token.secure, summary.yml).
+Source/copy size and SHA256 matched; the embedded SHA256 trailer passed. Bundle
+mode0700 and file modes0600 were verified. All three nodes remained Ready. This
+proves snapshot capture, protected off-node transfer and byte integrity, not bbolt
+consistency or restore success. No service restart, token rotation, cloud upload,
+snapshot pruning or configuration change was performed. The earlier ZIP was not
+refreshed and does not contain this new snapshot. Source and repeat commands are
+in tests/etcd-backup.yml and RKE2.md under infrastructure/ansible. Offline tests
+separately cover default/check refusal, wrong-cluster refusal, token change during
+snapshot, protected exports and corrupt/missing/truncated integrity hashes.
+
+Before platform activation, separately approve sequential reboot verification and
+a persistent-storage choice. Restore validation and independent encrypted/off-site
+custody also remain outstanding. Smoke success does not establish ingress, policy isolation, durable
 storage or recovery. No further live action is authorized by this handoff. Keep architecture and human repeat instructions,
 not session journals, planning archives or duplicate procedure documents.

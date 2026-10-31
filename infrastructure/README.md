@@ -20,6 +20,6 @@ supplies curated platform packages. No repository maintenance command changes no
 workstation services or a running cluster.
 
 [RKE2 operator procedure](ansible/RKE2.md) covers reviewed host preparation, pinned
-installation, token export and private local custody. A running cluster still needs
-workload/network tests, off-node recovery material, reboot checks and a persistent-
-storage decision before platform activation; see the current handoff.
+installation, token export and private local custody. Before platform activation, verify
+workload networking, off-node recovery material, reboot behavior and a persistent-
+storage decision; see the current handoff for completed checks and remaining scope.

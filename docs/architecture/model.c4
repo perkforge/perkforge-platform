@@ -138,7 +138,7 @@ model {
         description 'Mode0600 credentials with the reviewed API endpoint. Use the protected bundled client; default kubeconfig replacement requires an explicit operator request.'
       }
       recovery = component 'Server token and matching etcd snapshots' {
-        description 'Keep protected off-node copies together for recovery. Exported tokens or their ZIP alone do not back up etcd. Restore validation and application storage remain separate work.'
+        description 'Keep protected off-node copies together for recovery. The explicit backup check creates a named snapshot, requires an unchanged server token, compares transfer size/SHA256 and validates the embedded integrity trailer without restart/restore. Exported tokens or their ZIP alone do not back up etcd. Byte integrity is separate from database consistency, restore validation and application storage.'
       }
     }
     rancher = component 'Rancher cluster lifecycle administration'
