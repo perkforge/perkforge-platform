@@ -89,14 +89,22 @@ class Documentation(unittest.TestCase):
 
     def test_openbao_lan_flow_keeps_tls_and_activation_boundaries(self):
         flow=(ROOT/'views.c4').read_text().split('dynamic view openbao_lan_https {',1)[1].split('\n  dynamic view',1)[0]
-        for term in ['proposed','namespaced IngressRouteTCP CRUD','other apps remain off','no automatic token login','OpenBao alone terminates TLS','Rancher route']:
+        for term in ['observed v0.14.0','namespaced IngressRouteTCP CRUD','no additional app selection','no automatic token login','OpenBao alone terminates TLS','Rancher route']:
             self.assertIn(term,flow)
         page=(ROOT/'public/runbook.html').read_text().split('<section id="openbao-lan">',1)[1]
-        self.assertIn('not activated',page)
+        self.assertIn('accepted',page)
         self.assertIn('not runtime routing',page)
+
+    def test_headlamp_observed_access_flow_links_real_code_and_revocation(self):
+        flow=(ROOT/'views.c4').read_text().split('dynamic view headlamp_initial_admin {',1)[1].split('\n  dynamic view',1)[0]
+        for term in ['observed v0.14.0','headlamp-access-smoke.yaml','3600s','Always UID-check/delete','old token denied','personal browser']:
+            self.assertIn(term,flow)
 
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
         copies={
+         'headlamp-access-smoke.yaml': 'big-bang-bootstrap/configuration/ansible/headlamp-access-smoke.yaml',
+         'headlamp-access-cleanup.yaml': 'big-bang-bootstrap/configuration/ansible/headlamp-access-cleanup.yaml',
+         'verify-headlamp-access.py': 'big-bang-bootstrap/configuration/ansible/files/verify-headlamp-access.py',
          'openbao-initialize.yaml': 'big-bang-bootstrap/configuration/ansible/openbao-initialize.yaml',
          'longhorn-storage-smoke.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-storage-smoke.yaml',
          'longhorn-smoke-stage.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-smoke-stage.yaml',

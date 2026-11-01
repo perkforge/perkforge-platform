@@ -221,4 +221,16 @@ TLS terminates at Bao; possession of a valid CA/hostname is not user authorizati
 The existing root token remains bootstrap-only, not ordinary platform-admin SSO.
 The chart installer gains only namespaced IngressRouteTCP CRUD; no cluster/Secret
 rights. No token is passed by routing config or automatically entered in a browser.
-Current v0.13.0 remains unexposed; see the separately approved activation gates.
+Historical v0.13.0 was unexposed; separately approved v0.14.0 passthrough acceptance is recorded below.
+
+### Observed initial Headlamp access and OpenBao routing
+
+v0.14.0 exact-SNI OpenBao LAN passthrough is accepted with native token auth and
+end-to-end client TLS verification; no root-token browser login or OIDC mapping.
+Headlamp's separately approved one-hour bootstrap SA/cluster-admin binding passed
+cookie-backed login/API identity and safe capability reviews, then was deleted
+with UID guards; the old token was denied. Personal browser login is unobserved.
+This temporary exception is **not** a standing platform role, runtime SA privilege
+or six-role integration. Ordinary runtime remains unprivileged. See the default-off
+[Ansible operation](../ansible/headlamp-access-smoke.yaml), cleanup/verifier and
+focused positive/negative tests. New ongoing access remains separately gated.

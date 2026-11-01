@@ -2,7 +2,7 @@
 
 ## Current checkpoint — 2026-11-01
 
-OpenBao initial administration, Rancher installation and the first Longhorn storage test passed. **No further live
+OpenBao LAN HTTPS, Headlamp temporary-admin acceptance, Rancher installation and the first Longhorn storage test passed. **No further live
 action is authorized by this handoff.** Never push main or merge for the operator;
 preserve protected evidence, retained test data and other worktrees.
 
@@ -10,10 +10,11 @@ preserve protected evidence, retained test data and other worktrees.
   conservative scheduling headroom passed the Rancher preflight. One control-plane/
   embedded-etcd server means no control-plane HA. Previous key-only SSH/password-
   sudo, networking and sequential connected OS reboot checks passed.
-- Flux source and root now select **v0.13.0**, exact commit
-  `9bf49bb7421d49610ff9cc125b01cc18caa438ac`, default OpenBao-only app stage
-  (retaining Longhorn/Rancher). Publication/CI and exact artifact were verified.
-  Root/umbrella/OpenBao/Rancher/Longhorn fresh Ready at **15:29:57Z**.
+- Flux source and root now select **v0.14.0**, exact commit
+  `1ac80591d63c45105a5110182a3fdc4bf7ded7d2`, path
+  `./big-bang-bootstrap/clusters/local-headlamp` (retaining OpenBao/Longhorn/Rancher). Publication/CI and exact artifact were verified.
+  Root/umbrella/Headlamp/OpenBao/Rancher/Longhorn fresh Ready at **17:11:21Z**.
+  Historical OpenBao initial administration passed at 15:29:57Z.
   Historical first Rancher installation: Rancher Ready at **03:23:32Z**, Big Bang
   at **03:23:35Z**, root Ready/Healthy at **03:23:39Z**. Longhorn stayed Ready.
 - Rancher **2.15.2** server, webhook, fleet-controller and helmops deployments were
@@ -34,8 +35,15 @@ preserve protected evidence, retained test data and other worktrees.
   10 GiB Longhorn/PebbleDB claim with two healthy replicas. The approved one-time
   operation proved an uninitialized store, initialized with **3 Shamir shares /
   threshold 2**, unsealed and verified initial root-token administration through
-  trusted loopback TLS. Temporary port-forward closed; no ingress/OIDC/Kubernetes
-  auth or policy mappings enabled. Headlamp/Keycloak remain disabled and undeployed.
+  trusted loopback TLS. Separately approved v0.14.0 exact-SNI LAN passthrough
+  passed trusted UI/health/leaf verification at **16:51:36Z**. No new keys, init,
+  unseal, root-token browser login or OIDC/policy changes during routing.
+- Headlamp **0.45.0**, chart **0.45.0-bb.1**, is Ready with no ingress or OIDC.
+  Approved one-hour dedicated bootstrap admin passed actual cookie-login/proxy,
+  identity and safe capability reviews. Its SA/binding were UID-checked/deleted
+  and the cached token denied afterward; loopback forwarding closed. This proves
+  the authentication/API path, **not Corey's personal browser login**. Keycloak
+  remains disabled/undeployed; no other apps were activated.
 
 The Rancher/RKE2 matrix includes our Kubernetes/OS versions, but lists Longhorn
 1.12 rather than independent 1.13. This lab combination is not claimed fully
@@ -62,28 +70,65 @@ the operator's password manager and requires a tested emergency path. Bootstrap
 credentials are not automatically permanent recovery identities. No SSO, account
 creation, credential rotation or deletion was performed for this custody move.
 
-## OpenBao LAN HTTPS — draft, not live
+## OpenBao LAN HTTPS — passed 16:51:36 UTC
 
-Candidate adds a Helm-owned exact-SNI TCP passthrough route on existing Traefik
-443 to `openbao:8200`; current live v0.13.0 still has **no ingress**. Only its
-installer's namespaced IngressRouteTCP CRUD rule changes. No extra TLS key delivery,
-TLS termination at Traefik, root-token browser login or shared HTTP route changes.
-Read-only capability check found installed Traefik v3.7.13, served passthrough CRD
-and matching `traefik` provider filter, with no existing TCP routes. This is not
-runtime routing proof. After reviewed publication, separate activation approval
-must cover prerequisite delta, exposure/source promotion, end-to-end trusted TLS
-and existing Rancher route checks. See the [precise procedure](big-bang-bootstrap/configuration/packages/openbao/README.md#lan-https-candidate--not-activated).
+Helm owns the exact-SNI TCP passthrough on existing Traefik 443 to `openbao:8200`.
+TLS terminates only at Bao; trusted CA/hostname/exact served leaf, unauthenticated
+UI/health and Rancher HTTPS ping passed. Existing HTTP routes and Bao pod unchanged.
+Only namespaced IngressRouteTCP CRUD was added; no keys or human grants changed.
+Private `openbao-lan-v0140-<run>/` evidence preserves both the original stopped
+checker and later `acceptance-summary.txt` exit 0. The initial checker mistook
+old Ready conditions for new values consumption and failed an early route lookup.
+Normal parent/child reconciliation then consumed new configuration digests; no
+force/reset was used. This was a readiness-validation bug, not an app failure.
+Future checks must verify expected child resources/configuration consumption,
+not only root revision or unchanged-generation Ready conditions. See the
+[procedure](big-bang-bootstrap/configuration/packages/openbao/README.md#lan-https-candidate--not-activated).
 
-## Next app selection — Headlamp requires separate approval
+## Headlamp acceptance — passed 17:11:21 UTC
+
+Reviewed prerequisites and existing Registry1 credential were delivered without
+replacing a conflicting Secret. Only the root path advanced; v0.14.0 stayed pinned.
+One worker pod requests 100m CPU/128Mi, limits 500m/256Mi, no PVC. Runtime SA remains
+without application RBAC; no Secret/exec/RBAC permissions were added to it.
+The separately approved [Ansible test](big-bang-bootstrap/configuration/ansible/headlamp-access-smoke.yaml)
+created a unique dedicated SA/binding to existing cluster-admin, requested 3600s,
+verified actual expiry and cookie-backed UI API identity with read-only operations
+and nonpersistent capability reviews. No Secret values were read and no destructive
+operation demonstrated. [Cleanup](big-bang-bootstrap/configuration/ansible/headlamp-access-cleanup.yaml)
+verified recorded UIDs and absence; the [verifier](big-bang-bootstrap/configuration/ansible/files/verify-headlamp-access.py)
+proved the old token no longer authorizes namespace reads. No persistent token Secret.
+Personal browser login remains unobserved; the completed test is not an ongoing
+access session. A future session or SSO requires approval; Headlamp has no native
+admin username/password. The revoked token/metadata remains owner-only under
+`~/src/perkforge-tmp-secrets/headlamp-bootstrap-admin-<run>/` for operator cleanup;
+it is not a durable break-glass credential. Temporary localhost forwarding closed.
+Private `headlamp-v0140-<run>/summary.txt` records exit 0/complete and automatic safe
+output/resources. Registry pull Secret stays for app operation; no other credentials
+were changed. OpenBao LAN/Rancher checks still passed after Headlamp.
+
+All nodes Ready/no pressure; 53 Running pods, zero Pending/Failed, nine completed
+jobs. Actual CPU/RAM: control-1 0.604/4.955GiB, worker-1 0.310/1.843GiB,
+worker-2 0.145/1.675GiB. CPU requests/finite limits: 2.085/0.8, 2.12/1.8,
+2.22/1.9 cores. RAM requests/finite limits: 3.656/5.039, 1.586/3.328,
+1.25/2.125GiB. Each node has 6 CPU/~15.201GiB allocatable; unrequested headroom
+3.915/11.544, 3.88/13.615, 3.78/13.951 CPU/GiB. Some containers lack limits;
+finite sums are not node-wide ceilings. Immediate RAM delta +0.127/+0.062/+0.033GiB
+is a short sample, not all attributable to Headlamp. Its declared request adds
+0.1 CPU/0.125GiB on worker-1. Longhorn logical scheduled stays 11GiB each worker;
+physical available ~221.19/222.56GiB with 70.73GiB reserve each. No backup/HA or
+new storage acceptance claimed, and the retained test volume was not deleted.
+
+## Next app selection — Keycloak remains separately gated
 
 OpenBao initial administration acceptance passed; independent custody transfer,
 root-token retirement/scoped recovery design and backup/restore remain pending.
-Headlamp and Keycloak are merged source stages, not live deployments. A combined
+Headlamp is accepted above; Keycloak is a merged source stage, not deployed. A combined
 release must use the [ordered app stage roots](big-bang-bootstrap/configuration/ansible/README.md#ordered-app-stages):
 OpenBao-only default (retaining Rancher/Longhorn), then Headlamp, then Keycloak/database.
 Each forward root-path promotion requires separate approval and successful access,
 custody and health/capacity acceptance. The immutable source stays identical;
-publication does not activate apps. The OpenBao stage was separately approved and completed; later stages are not authorized.
+publication does not activate apps. OpenBao and Headlamp stages were separately approved and completed; Keycloak and further stages are not authorized.
 
 ## OpenBao acceptance evidence — 2026-11-01 15:29:57 UTC
 
@@ -164,14 +209,11 @@ audit/backup and restore testing need separate approval. Existing proven role/AP
 configuration stays retained for later review, not applied automatically. See the
 [OpenBao procedure](big-bang-bootstrap/configuration/packages/openbao/README.md).
 
-## Queued Headlamp candidate
+## Headlamp source and future access
 
-Stacked after OpenBao: selects Headlamp 0.45.0-bb.1 in token mode with worker
-placement, no ingress or Keycloak client settings. Existing OIDC files and proven
-group/RBAC tests are preserved as explicit historical fixtures. Admin-login
-acceptance needs a separately approved Kubernetes token identity and lifetime;
-no native password or permanent cluster-admin account is invented. See the
-[Headlamp procedure](big-bang-bootstrap/configuration/packages/headlamp/README.md).
+Deployment and temporary-admin acceptance are recorded above. OIDC/group mappings,
+LAN ingress and ongoing user access remain separate approvals. Existing useful
+historical OIDC/RBAC tests are retained; no competing installer is introduced.
 
 ## Queued Keycloak candidate
 

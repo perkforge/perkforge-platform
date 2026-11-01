@@ -1,0 +1,106 @@
+- name: Separately approved temporary full-admin Headlamp access test
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars:
+    headlamp_access_apply: false
+    headlamp_access_name: UNCONFIGURED
+    headlamp_access_root: /home/corey/src/perkforge-tmp-secrets
+    headlamp_access_cleanup_failed: false
+  tasks:
+  - name: Safe default does not create credentials or contact cluster
+    ansible.builtin.debug:
+      msg: 'Temporary full-admin test apply={{ headlamp_access_apply | bool }}; disabled by default'
+  - name: Execute only the explicitly approved one-hour administrator test
+    when: headlamp_access_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - inventory_hostname == 'local'
+        - deployment_environment == 'local'
+        - ansible_play_hosts_all | length == 1
+        - headlamp_access_name is match('^headlamp-bootstrap-admin-[a-z0-9]+$')
+        - headlamp_access_root == '/home/corey/src/perkforge-tmp-secrets'
+        - expected_cluster_uid != 'UNCONFIGURED'
+    - ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: access_cluster
+      changed_when: false
+    - ansible.builtin.assert:
+        that: access_cluster.stdout == expected_cluster_uid
+    - ansible.builtin.stat:
+        path: '{{ headlamp_access_root }}'
+      register: access_root
+    - ansible.builtin.stat:
+        path: '{{ headlamp_access_root }}/{{ headlamp_access_name }}'
+      register: access_folder
+    - ansible.builtin.assert:
+        that:
+        - access_root.stat.isdir and not access_root.stat.islnk
+        - access_root.stat.mode == '0700'
+        - access_root.stat.uid == lookup('pipe', 'id -u') | int
+        - not access_folder.stat.exists
+    - name: Refuse existing temporary identity names
+      ansible.builtin.command:
+        argv: '{{ ["kubectl", "--kubeconfig", target_kubeconfig, "--context", target_context, "get", item, headlamp_access_name, "--ignore-not-found", "-o", "name"] + (["-n", "headlamp"] if item == "serviceaccount" else []) }}'
+      loop: [serviceaccount, clusterrolebinding]
+      register: existing_access
+      changed_when: false
+      failed_when: existing_access.rc != 0 or existing_access.stdout | length != 0
+    - ansible.builtin.file:
+        path: '{{ headlamp_access_root }}/{{ headlamp_access_name }}'
+        state: directory
+        mode: '0700'
+    - name: Create and test identity; always revoke recorded objects afterward
+      block:
+      - name: Create dedicated temporary account without automatic token mounting
+        ansible.builtin.command:
+          argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', create, -f, '-', -o, json]
+          stdin: '{{ {"apiVersion":"v1","kind":"ServiceAccount","metadata":{"name":headlamp_access_name,"namespace":"headlamp"},"automountServiceAccountToken":false} | to_json }}'
+        register: access_sa
+      - name: Bind only this explicitly approved temporary account to existing cluster-admin
+        ansible.builtin.command:
+          argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', create, -f, '-', -o, json]
+          stdin: '{{ {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"ClusterRoleBinding","metadata":{"name":headlamp_access_name},"roleRef":{"apiGroup":"rbac.authorization.k8s.io","kind":"ClusterRole","name":"cluster-admin"},"subjects":[{"kind":"ServiceAccount","name":headlamp_access_name,"namespace":"headlamp"}]} | to_json }}'
+        register: access_binding
+      - name: Request exactly one hour; no persistent token Secret
+        ansible.builtin.command:
+          argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', create, --raw, '/api/v1/namespaces/headlamp/serviceaccounts/{{ headlamp_access_name }}/token', -f, '-']
+          stdin: '{"apiVersion":"authentication.k8s.io/v1","kind":"TokenRequest","spec":{"expirationSeconds":3600}}'
+        register: access_token
+        no_log: true
+      - name: Cache only this temporary bearer token privately
+        ansible.builtin.copy:
+          content: '{{ (access_token.stdout | from_json).status.token }}'
+          dest: '{{ headlamp_access_root }}/{{ headlamp_access_name }}/token.txt'
+          mode: '0600'
+          force: false
+        no_log: true
+      - name: Record nonsecret identity and actual expiry
+        ansible.builtin.copy:
+          content: '{{ {"principal":"system:serviceaccount:headlamp:" ~ headlamp_access_name,"sa_uid":(access_sa.stdout | from_json).metadata.uid,"binding_uid":(access_binding.stdout | from_json).metadata.uid,"expires":(access_token.stdout | from_json).status.expirationTimestamp,"revoked":false} | to_json }}'
+          dest: '{{ headlamp_access_root }}/{{ headlamp_access_name }}/metadata.json'
+          mode: '0600'
+          force: false
+        no_log: true
+      - name: Verify actual expiry, cookie login and safe administrative API behavior
+        ansible.builtin.command:
+          argv: [python3, '{{ playbook_dir }}/files/verify-headlamp-access.py', '{{ headlamp_access_root }}/{{ headlamp_access_name }}', access]
+        changed_when: false
+      always:
+      - name: Revoke recorded temporary binding
+        when: access_binding is defined and access_binding.rc | default(1) == 0
+        ansible.builtin.include_tasks: headlamp-access-cleanup.yaml
+        vars:
+          access_cleanup: {kind: clusterrolebinding, uid: '{{ (access_binding.stdout | from_json).metadata.uid }}'}
+      - name: Remove recorded temporary account
+        when: access_sa is defined and access_sa.rc | default(1) == 0
+        ansible.builtin.include_tasks: headlamp-access-cleanup.yaml
+        vars:
+          access_cleanup: {kind: serviceaccount, uid: '{{ (access_sa.stdout | from_json).metadata.uid }}'}
+      - name: Refuse unverified cleanup
+        ansible.builtin.assert:
+          that: not headlamp_access_cleanup_failed
+    - name: Verify cached token cannot retain administrator access
+      ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/files/verify-headlamp-access.py', '{{ headlamp_access_root }}/{{ headlamp_access_name }}', revoked]
+      changed_when: false

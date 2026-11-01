@@ -285,21 +285,30 @@ model {
         description 'External Secret-backed initial identity; first-start only, no fabricated live password. Master realm recovery/admin does not automatically imply PerkForge platform-admin membership or vice versa. Removal requires verified permanent recovery and separate approval.'
       }
     }
-    headlamp = component 'Headlamp Kubernetes identity UI — candidate' {
-      description 'PLANNED: token-login UI only, no Keycloak configuration or human authorization change. No native admin password or persistent cluster-admin SA. Ingress stays off; separately approved authenticated loopback forwarding and token identity/expiry are required before admin login acceptance.'
-      link https://github.com/perkforge/perkforge-platform/blob/feat/headlamp-bootstrap/big-bang-bootstrap/configuration/packages/headlamp/README.md 'Token-mode procedure and identity decision'
+    headlamp = component 'Headlamp Kubernetes identity UI — observed' {
+      description 'OBSERVED v0.14.0: Ready, cookie login/proxy verified using approved dedicated one-hour admin identity, then SA/binding deleted and token denied. Personal browser login not observed. Runtime remains unprivileged; no native admin password, persistent admin SA, ingress or OIDC. New access needs approval.'
+      link /runbook.html#headlamp-access 'Token-mode procedure and identity decision'
       installer = component 'headlamp-installer — delegated Helm identity' {
         description 'Ansible installs namespaced chart and Helm-storage permissions, separately gated Registry1 delivery. Installer can create Deployment/Service/runtime SA, not human or cluster RBAC.'
+      }
+      access_test = component 'Workstation gated Ansible access test' {
+        description 'Observed: default-off headlamp-access-smoke.yaml created unique temporary admin identity, verified real cookie login/API safely and always UID-guarded cleanup. Runtime/installer are separate; no workload writes or Secret value reads. Operator runner supplied/closed loopback forwarding.'
+        link /sources/headlamp-access-smoke.yaml 'Actual Ansible operation'
+        link /sources/headlamp-access-cleanup.yaml 'UID-guarded cleanup'
+        link /sources/verify-headlamp-access.py 'Actual identity, expiry, API and revocation verifier'
+      }
+      temporary_admin = component 'One-hour bootstrap SA/token — revoked' {
+        description 'Observed exception approved separately: dedicated SA binding to existing cluster-admin; TokenRequest actual lifetime checked and custody owner-only. Both objects removed, old token denied. Not persistent access, a native password, a six-role mapping or proof of personal browser login.'
       }
       runtime = component 'Headlamp runtime SA — no application RBAC' {
         description 'UI forwards the human token; Kubernetes authenticates/authorizes it. Unsafe service-account token use and chart cluster-role binding are disabled. Prior proven OIDC group mappings are retained only for later review.'
       }
     }
     openbao = component 'OpenBao initial token administration — observed' {
-      description 'OBSERVED v0.13.0: official chart 0.30.6/OpenBao 2.7.2, initialized once 3 shares / threshold 2, unsealed and initial root-token access verified. One TLS-required worker server, Longhorn-backed 10Gi PebbleDB, no ingress/injector/Kubernetes auth delegation or automatic init/unseal. No HA. Preserved pilot OIDC policies are not activated. Sealed/uninitialized is NotReady, not accepted.'
+      description 'OBSERVED v0.13.0: official chart 0.30.6/OpenBao 2.7.2, initialized once 3 shares / threshold 2, unsealed and initial root-token access verified. One TLS-required worker server, Longhorn-backed 10Gi PebbleDB; separately approved v0.14.0 LAN passthrough accepted, no injector/Kubernetes auth delegation or automatic init/unseal. No HA. Preserved pilot OIDC policies are not activated. Sealed/uninitialized is NotReady, not accepted.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/openbao-bootstrap/big-bang-bootstrap/configuration/packages/openbao/README.md 'OpenBao source and activation gates'
-      lan_route = component 'Exact-SNI TCP passthrough — candidate only' {
-        description 'PLANNED: Helm extraObjects owns one IngressRouteTCP for openbao.perkforge.home.arpa on existing websecure to openbao:8200. Browser TLS terminates only at OpenBao, verifies current CA/name; no extra key copy or Traefik token/TLS termination. Other SNI falls through to existing HTTP routers. Not live; no root-token browser login or human/OIDC role grant.'
+      lan_route = component 'Exact-SNI TCP passthrough — observed v0.14.0' {
+        description 'OBSERVED: Helm extraObjects owns one IngressRouteTCP for openbao.perkforge.home.arpa on existing websecure to openbao:8200. Browser TLS terminates only at OpenBao, verifies current CA/name; no extra key copy or Traefik token/TLS termination. Other SNI falls through to existing HTTP routers. Trusted LAN UI/health/leaf and unchanged Rancher route passed; no root-token browser login or human/OIDC role grant.'
         link https://github.com/perkforge/perkforge-platform/blob/feat/openbao-lan-tls/big-bang-bootstrap/configuration/packages/openbao/values.yaml 'Chart-owned route values'
       }
       initialization = component 'Workstation one-time Ansible initialization' {

@@ -2,7 +2,8 @@
 
 Stacked after OpenBao; chart **0.45.0-bb.1**, application **0.45.0**, existing
 immutable source/checksum pins retained. The `clusters/local-headlamp` stage selects a single worker-hosted
-Headlamp with bounded requests. This is a candidate, not a live deployment.
+Headlamp with bounded requests. Observed v0.14.0: deployment and temporary-admin authentication-path test passed
+2026-11-01 17:11:21 UTC. Headlamp remains localhost-only, without ingress/SSO.
 
 The active ConfigMap no longer imports `oidc.yaml`. That file and the prior proven
 Headlamp/Keycloak group-to-Kubernetes-RBAC fixtures remain for the separate
@@ -54,3 +55,31 @@ Existing useful API/identity configuration and tests are preserved; no competing
 direct Headlamp deployment installer remained to delete.
 
 Use the [ordered app stages](../../ansible/README.md#ordered-app-stages); the default local root leaves Headlamp off until its separately approved stage.
+
+## Executed temporary-admin acceptance
+
+The separately approved [Ansible operation](../../ansible/headlamp-access-smoke.yaml)
+is disabled by default. The operator establishes localhost-only forwarding after
+exact-stage/deployment readiness. It creates a unique SA (automount false) and
+binding to existing cluster-admin, requests exactly 3600s via TokenRequest, records
+actual expiry and caches the token owner-only outside Git. This is powerful temporary
+bootstrap authority, not a platform role or runtime/installer permission.
+
+The [verification script](../../ansible/files/verify-headlamp-access.py) checks
+subject/UID/lifetime, then exercises the real pinned Headlamp cookie-login and API
+proxy. SelfSubjectReview proves the dedicated identity; access reviews prove admin
+capability without reading Secret values or modifying workloads. Anonymous access
+is denied. The actual test passed; **personal browser login was not observed**.
+
+Ansible always invokes [UID-guarded cleanup](../../ansible/headlamp-access-cleanup.yaml)
+for recorded successful creations, binding first then SA, refusing replacement UIDs.
+Absence and denial of the old token passed. Forwarding was closed by the operator
+runner. No token Secret or persistent cluster-admin account remains. Cached token
+metadata is marked revoked; this is not a reusable login or break-glass credential.
+Operator owns temporary-file cleanup. Another access session, permanent access or
+OIDC requires approval. Never reuse runtime/installer tokens as human credentials.
+
+[Offline tests](../../../tests/security/test_headlamp_access_smoke.py) cover the
+verifier's cookie/revocation path, wrong identity/excess lifetime rejection, actual
+Ansible cleanup success/replacement refusal and the no-action default. They do not
+replace the recorded live API test or prove a user's browser rendering.
