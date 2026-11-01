@@ -178,6 +178,18 @@ views {
     platform.storage.acceptance -> engineer '7. Retain test claim/PV/volume, final pod and evidence; cleanup needs separate approval'
   }
 
+  dynamic view metrics_provisioning {
+    title 'Metrics/Grafana provisioning — implemented candidate, inactive'
+    description 'No live approval or root selection. Current-network policy must be tested; future Istio/Gateway direction is not implemented here.'
+    engineer -> platform.prerequisite_applier '1. Review exact release/target, operator/CRD compatibility, budgets and protected inputs'
+    platform.prerequisite_applier -> platform.observability.metrics_installer '2. Default-off Ansible validates exact API /32s and applies scoped namespace/roles/policies/six dashboards'
+    engineer -> platform.flux '3. Future reviewed selection only after credentials/policy and privileged grants are approved'
+    platform.bigbang -> platform.observability.metrics_installer '4. Helm-controller uses separate child identities; source writer cannot self-grant'
+    platform.observability.metrics_installer -> platform.observability.stores '5. Native CRDs/operator/Prometheus/Alertmanager; supported certificate patch jobs keep webhooks enabled'
+    platform.observability.metrics_installer -> platform.observability.grafana '6. Native Grafana files plus namespace ConfigMap-only runtime reader; no cross-namespace Secrets'
+    platform.observability.grafana -> engineer '7. Verify real scrapes/admin/dashboards, no duplicate pipeline, resource/retention and network deny behavior'
+  }
+
   dynamic view observability_review {
     title 'Observability collection and notification — proposed, inactive'
     description 'Architecture review before deployment. Installer/collector/store/query/human roles remain distinct; source exists only as disabled/paused native candidates. No live validation or tenant isolation claim.'

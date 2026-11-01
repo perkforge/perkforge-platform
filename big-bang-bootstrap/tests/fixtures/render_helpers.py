@@ -7,6 +7,13 @@ import tempfile
 import yaml
 
 
+class RenderLoader(yaml.SafeLoader):
+    """Kubernetes CRD enum '=' is a string, not YAML 1.1's special value tag."""
+
+
+RenderLoader.add_constructor('tag:yaml.org,2002:value', lambda loader, node: loader.construct_scalar(node))
+
+
 def build(path):
     return [obj for obj in yaml.safe_load_all(subprocess.check_output(
         ['kubectl', 'kustomize', str(path)], text=True,
@@ -29,7 +36,7 @@ def helm(chart, release, namespace, values, overrides=()):
             raise RuntimeError('Pinned Helm render failed: ' + details)
         # Helm warns when null removes this package's default credential table.
         # Tests inspect rendered objects for credential leakage; never log that table.
-        return [obj for obj in yaml.safe_load_all(result.stdout) if obj]
+        return [obj for obj in yaml.load_all(result.stdout, Loader=RenderLoader) if obj]
 
 
 def ordered_values(objects, release):

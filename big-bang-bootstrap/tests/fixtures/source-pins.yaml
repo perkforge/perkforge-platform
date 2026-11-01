@@ -1,4 +1,3 @@
-# Public, pinned test artifacts; no chart vendoring or image pulls.
 bigbang:
   url: https://repo1.dso.mil/big-bang/bigbang/-/archive/3.35.1/bigbang-3.35.1.tar.gz
   sha256: 77d6b856e0761de200c565ff960d490f61de650ca4bedbd6e009021b4be48209
@@ -23,3 +22,15 @@ rancher:
   url: https://releases.rancher.com/server-charts/stable/rancher-2.15.2.tgz
   sha256: 855cb9be954f65a31b9a8c77f7aebce125c2d7797425257d21d35e3380816ac8
   chart: .
+monitoring:
+  url: https://repo1.dso.mil/big-bang/product/packages/monitoring/-/archive/91.4.1-bb.1/monitoring-91.4.1-bb.1.tar.gz
+  sha256: 30120b8ff249e5bdd51f27851c7e2132a68e56e38ad649a303a01470c0483fd4
+  chart: chart
+grafana:
+  url: https://repo1.dso.mil/big-bang/product/packages/grafana/-/archive/13.2.4-bb.0/grafana-13.2.4-bb.0.tar.gz
+  sha256: 55f3add40c1557fe2d5ef44337d28fb2b4633cf1713a0dd0729b8217f354fcf9
+  chart: chart
+prometheus-operator-crds:
+  url: https://repo1.dso.mil/big-bang/product/packages/prometheus-operator-crds/-/archive/31.0.1-bb.0/prometheus-operator-crds-31.0.1-bb.0.tar.gz
+  sha256: 26b734c697a34148e771405f093f21a5a4cdb7be57c9f949e8dd5dd759c08cb5
+  chart: chart
