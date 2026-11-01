@@ -1,16 +1,11 @@
-# Big Bang values input, not a standalone HelmRepository or HelmRelease.
-# Big Bang generates both; this folder introduces no second release owner.
-helmRepositories:
-- name: openbao-official
-  existingSecret: ''
-  repository: https://openbao.github.io/openbao-helm
-  type: default
+# First-install token administration only; initialization/unseal require separate approval.
 packages:
   openbao:
     enabled: true
     sourceType: helmRepo
     namespace:
       name: openbao
+      create: false
     helmRelease:
       namespace: bigbang
     helmRepo:
@@ -22,8 +17,78 @@ packages:
     bbCommonValues: false
     passBigBangValues: false
     values:
+      global:
+        tlsDisable: false
+      injector:
+        enabled: false
+      csi:
+        enabled: false
       server:
         dev:
           enabled: false
-      injector:
+        standalone:
+          enabled: true
+          config: "ui = true\ndisable_mlock = true\nlistener \"tcp\" {\n  address\
+            \ = \"[::]:8200\"\n  cluster_address = \"[::]:8201\"\n  tls_cert_file\
+            \ = \"/openbao/userconfig/openbao-server-tls/tls.crt\"\n  tls_key_file\
+            \ = \"/openbao/userconfig/openbao-server-tls/tls.key\"\n}\nstorage \"\
+            pebbledb\" {\n  path = \"/openbao/data/pebbledb\"\n}\n"
+        ha:
+          enabled: false
+        authDelegator:
+          enabled: false
+        serviceAccount:
+          createSecret: false
+          serviceDiscovery:
+            enabled: false
+        dataStorage:
+          enabled: true
+          storageClass: longhorn
+          size: 10Gi
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+        nodeSelector:
+          storage.perkforge.io/worker: 'true'
+        ingress:
+          enabled: false
+        readinessProbe:
+          enabled: true
+          path: /v1/sys/health?standbyok=true
+        extraEnvironmentVars:
+          BAO_CACERT: /openbao/userconfig/openbao-server-tls/ca.crt
+          BAO_TLS_SERVER_NAME: openbao.perkforge.home.arpa
+        volumes:
+        - name: server-tls
+          secret:
+            secretName: openbao-server-tls
+            defaultMode: 288
+        volumeMounts:
+        - name: server-tls
+          mountPath: /openbao/userconfig/openbao-server-tls
+          readOnly: true
+        statefulSet:
+          securityContext:
+            container:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+      ui:
         enabled: false
+    includeDefaultDependsOn: false
+    flux:
+      suspend: false
+      serviceAccountName: openbao-installer
+      storageNamespace: bigbang
+      timeout: 10m
+      install:
+        createNamespace: false
+        remediation:
+          retries: 0
+      upgrade:
+        remediation:
+          retries: 0

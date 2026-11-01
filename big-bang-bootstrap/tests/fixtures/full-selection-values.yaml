@@ -16,6 +16,7 @@ packages:
   openbao:
     values:
       server:
+        authDelegator: {enabled: true}
         resources:
           requests:
             cpu: 100m

@@ -153,7 +153,7 @@ views {
 
   dynamic view bootstrap_installer_flow {
     title 'Big Bang bootstrap — release, prerequisites and delegated package installation'
-    description 'General bootstrap ownership with Longhorn as the current concrete package. Each package needs its own reviewed installer contract; Longhorn diagnostic cluster-admin is an accepted lab exception, not a global default. Rancher is a separately reviewed candidate; live v0.11.3 is storage-only and identity/tenants remain unselected. This is a procedure model, not live approval.'
+    description 'General bootstrap ownership with Longhorn as the current concrete package. Each package needs its own reviewed installer contract; Longhorn diagnostic cluster-admin is an accepted lab exception, not a global default. Rancher is Ready at live v0.12.0 with first login pending and identity/tenants remain unselected. This is a procedure model, not live approval.'
     link /runbook.html#longhorn-rbac 'Bootstrap ownership, code and Longhorn trust example'
     engineer -> platform.prerequisite_applier '1. Review exact published release, target and shared/per-package prerequisites'
     platform.prerequisite_applier -> platform.longhorn_installer '2. Approved Ansible applies shared and selected package RBAC; Longhorn example'
@@ -178,9 +178,22 @@ views {
     platform.storage.acceptance -> engineer '7. Retain test claim/PV/volume, final pod and evidence; cleanup needs separate approval'
   }
 
+  dynamic view openbao_initial_admin {
+    title 'OpenBao initial token administration — proposed'
+    description 'Who does what and why: separate reviewed prerequisites, Helm runtime identity and human token custody. No deployment or initialization approval is conveyed.'
+    engineer -> platform.prerequisite_applier '1. Review published release, target, capacity and current physical PKI; approve scoped actions'
+    platform.prerequisite_applier -> platform.openbao.installer '2. Ansible applies namespaced installer/release-storage delegation, no cluster grants'
+    engineer -> platform.flux '3. Deliver separately approved backend TLS Secret, then promote exact release'
+    platform.flux -> platform.bigbang '4. Reconcile selected package; existing storage and Rancher unchanged'
+    platform.bigbang -> platform.openbao.installer '5. HelmRelease selects delegated installer before rendering'
+    platform.openbao.installer -> platform.openbao.runtime '6. Helm creates TLS server/SA and retained Longhorn claim; sealed state stays NotReady'
+    engineer -> platform.openbao.runtime '7. Separately approved verified-TLS loopback access, new-store init, separate share/token custody and unseal'
+    platform.openbao.runtime -> engineer '8. Verify readiness and private admin login; stop before OIDC/policy changes'
+  }
+
   dynamic view rancher_local_admin {
-    title 'Rancher local-admin stage — planned, not activated'
-    description 'Candidate source only. Big Bang/Flux owns installation; Ansible applies approved prerequisites/TLS, not a competing Helm deployment. Vendor matrix covers RKE2 1.36 but lists Longhorn 1.12, not the separately managed 1.13 lab combination. One replica/control-plane is not HA. No SSO or test-volume cleanup.'
+    title 'Rancher installation observed — first login pending'
+    description 'Observed at v0.12.0: root/umbrella/Rancher Ready, runtime controllers available and trusted HTTPS ping passed; no first login. Big Bang/Flux owns installation; Ansible applies approved prerequisites/TLS, not a competing Helm deployment. Vendor matrix covers RKE2 1.36 but lists Longhorn 1.12, not the separately managed 1.13 lab combination. One replica/control-plane is not HA. No SSO or test-volume cleanup.'
     link /runbook.html#rancher-stage 'Source, necessary inputs and acceptance gates'
     engineer -> platform.prerequisite_applier '1. Review new release, target/capacity, vendor gaps and privileged action scope'
     platform.prerequisite_applier -> platform.rancher.inputs '2. Separately approve namespace, checked TLS/public CA and bootstrap Secret delivery'

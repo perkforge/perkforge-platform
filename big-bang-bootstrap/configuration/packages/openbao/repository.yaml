@@ -1,0 +1,6 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata: {name: openbao-official, namespace: bigbang}
+spec:
+  interval: 1h
+  url: https://openbao.github.io/openbao-helm
