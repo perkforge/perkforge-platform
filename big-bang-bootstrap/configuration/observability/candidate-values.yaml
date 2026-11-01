@@ -1,0 +1,128 @@
+# INACTIVE architecture review; not included by any root/valuesFrom. Not install-ready.
+monitoring:
+  enabled: false
+  git:
+    repo: https://repo1.dso.mil/big-bang/product/packages/monitoring.git
+    path: ./chart
+    tag: 91.4.1-bb.1
+  flux:
+    suspend: true
+    install:
+      remediation:
+        retries: 0
+    upgrade:
+      remediation:
+        retries: 0
+  values:
+    upstream:
+      grafana:
+        enabled: false
+      alertmanager:
+        enabled: true
+        alertmanagerSpec:
+          replicas: 1
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          storage:
+            volumeClaimTemplate:
+              spec:
+                storageClassName: longhorn
+                accessModes:
+                - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 1Gi
+      prometheus:
+        prometheusSpec:
+          replicas: 1
+          retention: 7d
+          retentionSize: 8GB
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              memory: 2Gi
+          storageSpec:
+            volumeClaimTemplate:
+              spec:
+                storageClassName: longhorn
+                accessModes:
+                - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 10Gi
+grafana:
+  enabled: false
+  git:
+    repo: https://repo1.dso.mil/big-bang/product/packages/grafana.git
+    path: ./chart
+    tag: 13.2.4-bb.0
+  flux:
+    suspend: true
+    install:
+      remediation:
+        retries: 0
+    upgrade:
+      remediation:
+        retries: 0
+  values:
+    sso:
+      enabled: false
+    upstream:
+      replicas: 1
+      admin:
+        existingSecret: grafana-admin
+        userKey: admin-user
+        passwordKey: admin-password
+      persistence:
+        enabled: true
+        storageClassName: longhorn
+        size: 1Gi
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 512Mi
+      ingress:
+        enabled: false
+      grafana.ini:
+        auth.anonymous:
+          enabled: false
+        auth.generic_oauth:
+          enabled: false
+prometheusOperatorCRDs:
+  enabled: false
+  git:
+    repo: https://repo1.dso.mil/big-bang/product/packages/prometheus-operator-crds.git
+    path: ./chart
+    tag: 31.0.1-bb.0
+  flux:
+    suspend: true
+    install:
+      remediation:
+        retries: 0
+    upgrade:
+      remediation:
+        retries: 0
+alloy:
+  enabled: false
+  git:
+    repo: https://repo1.dso.mil/big-bang/product/packages/alloy.git
+    path: ./chart
+    tag: 4.3.2-bb.2
+  flux:
+    suspend: true
+loki:
+  enabled: false
+  git:
+    repo: https://repo1.dso.mil/big-bang/product/packages/loki.git
+    path: ./chart
+    tag: 6.55.0-bb.9
+  flux:
+    suspend: true

@@ -178,6 +178,18 @@ views {
     platform.storage.acceptance -> engineer '7. Retain test claim/PV/volume, final pod and evidence; cleanup needs separate approval'
   }
 
+  dynamic view observability_review {
+    title 'Observability collection and notification — proposed, inactive'
+    description 'Architecture review before deployment. Installer/collector/store/query/human roles remain distinct; source exists only as disabled/paused native candidates. No live validation or tenant isolation claim.'
+    engineer -> platform.observability.collectors '1. Review source pins, scoped collector identity, no duplicates and sensitive-log exclusions'
+    platform.observability.collectors -> platform.observability.stores '2. Proposed metrics/log ingestion; enforce bounded labels, tenant auth and reviewed capacity'
+    platform.observability.stores -> platform.observability.grafana '3. Proposed Git-owned datasources/six dashboards; no tenant access via mere filters'
+    platform.observability.stores -> platform.observability.alerts '4. Preserve native PrometheusRules and bundled Alertmanager evaluation/routing'
+    platform.observability.grafana -> platform.observability.alerts '5. Optional Grafana-managed alerts to same external manager; prove no duplicate path'
+    platform.observability.alerts -> platform.observability.notification '6. Future compatible authenticated TLS ntfy path, grouping/silences/firing/resolved/failure tests'
+    platform.observability.notification -> engineer '7. Verify intended client, disk/ingest impact, isolation and isolated restore; whole-cluster blind spot remains'
+  }
+
   dynamic view authorization_review {
     title 'Who does what and why — proposed human authorization'
     description 'Disabled configuration, not observed grants. Installer/runtime accounts stay distinct from human role groups. Every live migration needs review, credentials, admission and separate approval.'
