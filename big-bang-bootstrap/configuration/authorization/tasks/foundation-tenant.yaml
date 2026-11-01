@@ -1,0 +1,7 @@
+- name: Add only explicit tenant-qualified paths, with no memberships
+  ansible.builtin.set_fact:
+    foundation_groups: "{{ foundation_groups + [
+      {'path':'/tenants/' ~ foundation_tenant, 'parent':'/tenants', 'name':foundation_tenant, 'role':''},
+      {'path':'/tenants/' ~ foundation_tenant ~ '/admins', 'parent':'/tenants/' ~ foundation_tenant, 'name':'admins', 'role':'tenant-admin'},
+      {'path':'/tenants/' ~ foundation_tenant ~ '/developers', 'parent':'/tenants/' ~ foundation_tenant, 'name':'developers', 'role':'tenant-developer'},
+      {'path':'/tenants/' ~ foundation_tenant ~ '/viewers', 'parent':'/tenants/' ~ foundation_tenant, 'name':'viewers', 'role':'tenant-viewer'}] }}"

@@ -1,0 +1,42 @@
+- name: Resolve the full path without truncated group-search pagination
+  ansible.builtin.uri:
+    url: '{{ foundation_api }}/group-by-path{{ foundation_group.path }}'
+    headers: '{{ foundation_headers }}'
+    status_code: [200, 404]
+  register: foundation_current
+- name: Refuse wrong identity, ownership, attributes or representation grants
+  ansible.builtin.assert:
+    that:
+    - foundation_current.json.path == foundation_group.path
+    - foundation_current.json.name == foundation_group.name
+    - foundation_current.json.id is match('^[A-Za-z0-9-]+$')
+    - foundation_current.json.id == foundation_group_ids.get(foundation_group.path, foundation_current.json.id)
+    - foundation_current.json.attributes == foundation_attributes
+    - foundation_current.json.realmRoles | default([]) | length == 0
+    - foundation_current.json.clientRoles | default({}) | length == 0
+  vars:
+    foundation_attributes: "{{ {'perkforge-managed':['true'], 'perkforge-foundation':['v1']} | combine({'perkforge-role':[foundation_group.role]} if foundation_group.role else {}) }}"
+  when: foundation_current.status == 200
+- name: Inspect direct mappings, including parent inheritance surface
+  ansible.builtin.uri:
+    url: '{{ foundation_api }}/groups/{{ foundation_current.json.id }}/role-mappings'
+    headers: '{{ foundation_headers }}'
+  register: foundation_mappings
+  when: foundation_current.status == 200
+- ansible.builtin.assert:
+    that:
+    - foundation_mappings.json.realmMappings | default([]) | length == 0
+    - foundation_mappings.json.clientMappings | default({}) | length == 0
+  when: foundation_current.status == 200
+- ansible.builtin.set_fact:
+    foundation_missing: '{{ (foundation_missing + [foundation_group.path]) | unique | list }}'
+  when: foundation_current.status == 404
+- name: A post-create missing path is failure, never silent acceptance
+  ansible.builtin.assert:
+    that: foundation_current.status == 200
+  when: foundation_verify_after | default(false) | bool
+
+- name: Retain identities so a rerun phase cannot silently adopt a replacement
+  ansible.builtin.set_fact:
+    foundation_group_ids: '{{ foundation_group_ids | combine({foundation_group.path: foundation_current.json.id}) }}'
+  when: foundation_current.status == 200

@@ -279,3 +279,10 @@ conditional patch and observed result automatically. Never substitute arbitrary
 paths or move backward as automatic rollback: disabling a package can uninstall it.
 On a failed stage retain its path, objects, data and diagnostics; decide recovery
 explicitly. Do not prune a previous app to make capacity appear adequate.
+
+## Realm/group foundation after Keycloak acceptance
+
+Use the separately gated [authorization foundation](../authorization/foundation.yaml)
+and [reviewed operation/approval scope](../authorization/README.md#realmgroup-foundation--implemented-not-applied).
+It creates only an owned realm and empty canonical groups. It does not run the
+older trial user/client bootstrap, assign memberships or activate app SSO.

@@ -8,8 +8,7 @@ review rendering, existing pilot evidence and unimplemented integration mechanic
 
 **Merging does not configure a realm, create users/credentials, apply Kubernetes
 or OpenBao grants, enable clients, or extend SSO.** Nothing in this folder is
-selected by the platform root or existing API configurators. Live realm/tenant
-migration and new app integration wiring remain incomplete.
+selected by the platform root or existing API configurators. The separately gated realm/group foundation below is now implemented but not live-tested; tenant migration and new app integration wiring remain incomplete.
 
 ## Review contract and current implementation
 
@@ -111,3 +110,86 @@ Offline tests render two synthetic tenants and model exact allow/deny rules;
 preserved synthetic API tests cover create/idempotence/conflict/redaction. They
 are not live authorizer, admission, OpenBao capability, app-login or data-isolation
 acceptance. See matrix [primary guidance](MATRIX.md#primary-guidance-used-for-this-review).
+
+## Realm/group foundation — implemented, not applied
+
+[foundation.yaml](foundation.yaml) is the first operational step, separate from
+`preview.yaml`. Big Bang still owns deployment; Ansible owns this Admin API state.
+It reuses the established TLS/private-login, ownership-marker, exact-group and
+empty-role-mapping patterns from the earlier Ansible API owners. It deliberately
+**does not invoke** the older `keycloak-realm.yaml` trial bootstrap, which creates
+trial users and an app client, or import the review renderer's disabled clients.
+
+### Who does what and why
+
+1. Review this code, target UID, CA/HTTPS URL and explicit tenant IDs. Keep tested
+   master recovery access and its independent protected custody intact. No new
+   administrator, service account, credentials, user or membership is created.
+2. Default/check mode performs no API calls or credential reads. Explicit
+   `realm_foundation_inspect=true` authenticates/read-compares without writes;
+   `realm_foundation_apply=true` separately permits the bounded writes below.
+3. Verify the physical Kubernetes target UID, then authenticate the existing master
+   administrator through verified HTTPS using owner-only username/password files.
+   No redirects/proxy/netrc, token persistence or credential output. The existing
+   master credential is powerful; the playbook's scope is not a narrower credential.
+4. Create only a missing owned `perkforge` realm (display name PerkForge; registration
+   and password reset off, brute-force protection and bounded sessions on). An
+   existing realm must match declared security settings and ownership purpose;
+   unknown/legacy realms are refused, never adopted, PUT, deleted or reimported.
+   Keycloak supplies its normal built-in clients/roles; this playbook adds no app
+   clients or privileged role mappings and assigns none to users.
+5. Read all desired exact group paths and direct role mappings before group writes.
+   Create only missing parent-first groups without IDs, moves, updates or grants.
+   `/platform/{admins,engineers,viewers}` and `/tenants` are always defined. Only
+   explicitly supplied tenants get `/tenants/<id>/{admins,developers,viewers}`.
+   Empty tenant input creates no fictional tenant. The six role **families** are
+   not six globally privileged realm roles. Parent groups and leaves have no
+   Keycloak role mappings; merely belonging to one does not authorize an app.
+6. Reread paths/mappings. A rerun makes no writes when owned state matches. Partial
+   successful creates survive a later failure; a reviewed rerun adds missing paths
+   only. Conflicts/default groups/unexpected mappings/concurrent appearance stop
+   the run. No rollback, pruning, password reset or membership cleanup occurs.
+
+The playbook intentionally does not enumerate/change shared users, assign members,
+reset passwords, delete identities, enable delegated administration/FGAP, create
+client claims, or apply Kubernetes/OpenBao/app permissions. Multi-tenant identity
+membership stays unchanged: tenant-admin membership management needs a separately
+reviewed allowlist/API owner; no tenant may reset/delete a shared user or grant a
+role in another tenant. Platform-engineer remains an empty group with unsettled
+diagnostics/secret/live-write scope, never inherited administrator authority.
+
+### Proposed live approval and inputs
+
+An action-time approval would permit authenticating the existing master admin,
+creating the missing realm and canonical empty groups for the **explicitly reviewed
+tenant list**, and readback. It grants no human/app permissions. Required private
+inputs: target kubeconfig/context/expected UID; exact HTTPS URL and public CA;
+`realm_foundation_username_file`/`realm_foundation_password_file` (regular owner-only
+0600 files); `realm_foundation_recovery_preserved=true`; `authorization_tenants`.
+Default URL is `https://keycloak.perkforge.home.arpa/auth`. No new credential or
+Secret delivery, release promotion, chart change or cluster RBAC is needed. Keep
+safe output automatically in the operator's existing protected evidence directory;
+never log API bodies/tokens. Check mode is offline validation, **not** a live diff.
+The explicit inspect mode supplies the authenticated read-only comparison.
+
+Future approved apply uses the existing bootstrap inventory and a protected vars
+file with [foundation.yaml](foundation.yaml), not the review artifacts. No runnable
+live command or private target inputs are embedded here. Bootstrap retirement and
+permanent recovery remain separate approvals. A foundation group is not proof of
+working six-role authorization: each subsequent app/membership MR needs allowed/
+denied tests, token/session revocation and multi-tenant isolation acceptance.
+
+### Tests and limits
+
+Real Ansible runs against a synthetic localhost HTTPS Keycloak-shaped API cover
+create, idempotence, read-only inspection, interrupted creation/resume, canonical
+multi-tenant paths, unchanged shared memberships, refusal of ownership/role/default
+inheritance conflicts, wrong target/CA and denied access, and credential redaction.
+These are offline protocol/safety tests, not actual Keycloak authorizer or human
+login evidence. Live 26.8.1 creation/readback, second-run zero-write acceptance,
+permission denial and recovery checks remain unexecuted. No integration is enabled.
+
+Versioned API contract: [Keycloak 26.8.1 Admin REST API](https://www.keycloak.org/docs-api/26.8.1/rest-api/index.html)
+(realm create/read, exact group-by-path, child creation, role mappings). Group-create
+requests carry no existing ID and accept only Created; concurrent conflicts stop.
+The API is not transactional; inspect state after any uncertain request outcome.
