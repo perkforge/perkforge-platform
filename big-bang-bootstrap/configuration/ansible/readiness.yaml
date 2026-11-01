@@ -15,7 +15,7 @@
     block:
     - ansible.builtin.assert:
         that:
-        - platform_readiness_phase in ['storage', 'packages', 'identity', 'enrollment']
+        - platform_readiness_phase in ['storage', 'rancher', 'packages', 'identity', 'enrollment']
         - target_kubeconfig != '/UNCONFIGURED/kubeconfig'
         - target_context != 'UNCONFIGURED'
         - expected_cluster_uid != 'UNCONFIGURED'
@@ -35,6 +35,15 @@
       - ansible.builtin.command:
           argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', -n, longhorn-system, rollout, status, '{{ item }}', --timeout=5m]
         loop: [daemonset/longhorn-manager, daemonset/longhorn-csi-plugin]
+        changed_when: false
+    - name: Check initial Rancher local-admin server without configuring authentication
+      when: platform_readiness_phase == 'rancher'
+      block:
+      - ansible.builtin.command:
+          argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', -n, bigbang, wait, --for=condition=Ready, helmrelease/rancher, --timeout=10m]
+        changed_when: false
+      - ansible.builtin.command:
+          argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', -n, cattle-system, rollout, status, deployment/rancher, --timeout=5m]
         changed_when: false
     - name: Wait database then identity application then Headlamp, without changing replicas
       when: platform_readiness_phase == 'packages'

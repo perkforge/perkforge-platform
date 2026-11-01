@@ -142,7 +142,7 @@ model {
       }
     }
     storage = component 'Longhorn application storage' {
-      description 'OBSERVED: Longhorn 1.13.0, Big Bang and the root are Ready at v0.11.3. The first approved 1Gi persistence, recreation and cross-worker reattachment test passed with two healthy replicas. UI ingress stays absent; Rancher/identity/tenants remain deferred. Recovery, backup/restore and cleanup need separate approval. A diagram authorizes no live action.'
+      description 'OBSERVED: Longhorn 1.13.0, Big Bang and the root are Ready at v0.11.3. The first approved 1Gi persistence, recreation and cross-worker reattachment test passed with two healthy replicas. UI ingress stays absent; Rancher activation still needs separate approval; identity/tenants remain deferred. Recovery, backup/restore and cleanup need separate approval. A diagram authorizes no live action.'
       link /runbook.html#storage 'Storage ownership, rollout and testing'
       volumes = component 'Retained expandable application volumes' {
         description 'Nondefault StorageClass, two replicas, WaitForFirstConsumer. Keycloak depends on Longhorn and its alternate PVC overlay removes the old static PV binding. Future Harbor, portal, Nextcloud and OpenBao claims need explicit sizing.'
@@ -159,7 +159,18 @@ model {
       }
     }
     rancher = component 'Rancher cluster lifecycle administration' {
-      description 'Optional Big Bang custom package, reconciled by Flux; unselected/suspended until reviewed DNS/TLS and external bootstrap credentials. No Longhorn/PVC prerequisite for the server Helm deployment. Ansible handles gated OIDC/admin API configuration after Keycloak is ready; host/RKE2 recovery remains independent.'
+      description 'PLANNED: candidate selects Rancher 2.15.2 local admin only; live v0.11.3 has not deployed it. Big Bang/Flux owns Helm. One replica, strict private-CA TLS, no application PVC. Reviewed release, capacity, TLS/bootstrap inputs and privileged installer approval precede promotion. No Keycloak/SSO/groups/roles changes; direct RKE2 recovery remains independent.'
+      link /runbook.html#rancher-stage 'Rancher local-admin stage and approval gates'
+      runtime = component 'Rancher local-admin server and core controllers' {
+        description 'PLANNED: server/Ingress and required internal management controllers, not Fleet application delivery. Verify readiness and trusted HTTPS before local-admin login; no real browser login is established by source rendering.'
+      }
+      inputs = component 'Protected TLS and bootstrap references' {
+        description 'Future approved delivery: cattle-system leaf/key TLS Secret and public CA Secrets; bigbang rancher-bootstrap-values contains only nonempty bootstrapPassword. No signing key, plaintext Git value or credential URL. These inputs are not created by this candidate.'
+      }
+      installer = component 'Delegated Rancher installer and runtime trust' {
+        description 'Ansible applies reviewed prerequisites; helm-controller uses bigbang:rancher-installer. Chart binds cattle-system:rancher to cluster-admin and uses a named pre-upgrade hook role. This is administrative trust, not least privilege. Optional destructive post-delete hook is off; uninstall is separately reviewed.'
+        link https://github.com/perkforge/perkforge-platform/blob/main/big-bang-bootstrap/configuration/packages/rancher/prerequisites/installer.yaml 'Rancher installer prerequisite source'
+      }
     }
     flux = component 'Flux GitOps reconciliation' {
       description 'CURRENT: reconciles the explicitly selected immutable configuration tag. Publishing a release does not promote the running source or approve activation. The ordinary application root has no direct RBAC-management authority. DEFERRED: evaluate a separately bootstrapped, scoped foundation and release/promotion simplification after cluster stability; issues #95 and #14. No self-grant by the application root.'
@@ -170,7 +181,7 @@ model {
       link /runbook.html#bootstrap-ownership 'Pre-render prerequisite boundary'
     }
     prerequisite_applier = component 'Approved prerequisite Ansible actor' {
-      description 'Operator-approved longhorn-prerequisites.yaml applies versioned Kubernetes RBAC using protected external target access. This actor applies grants; it is not their recipient. No live apply is authorized by this model.'
+      description 'Operator-approved shared and per-package prerequisite playbooks apply versioned Kubernetes RBAC using protected external target access. This actor applies grants; it is not their recipient. No live apply is authorized by this model.'
       link https://github.com/perkforge/perkforge-platform/blob/main/big-bang-bootstrap/configuration/ansible/longhorn-prerequisites.yaml 'Prerequisite playbook'
     }
     longhorn_installer = component 'Helm installer identity' {

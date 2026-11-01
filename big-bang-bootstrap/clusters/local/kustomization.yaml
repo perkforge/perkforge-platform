@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
 - ../../configuration/defaults
 - ../../configuration/packages/longhorn
+- ../../configuration/packages/rancher
 - ../../providers/rke2
 - ../../profiles/il2
 - ../../configuration/packages/bigbang

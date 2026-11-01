@@ -25,17 +25,27 @@ the operator's behalf; preserve protected runtime evidence and other worktrees.
   powerful RBAC-management rights. The installer has a reviewed **named bind**
   grant, not its own general cluster-admin binding. This is not least privilege.
   [Trust decision and procedure](big-bang-bootstrap/configuration/packages/longhorn/README.md).
-- UI ingress remains absent. Rancher, Headlamp, Keycloak, OpenBao and tenant
-  enrollment remain unselected. No application authentication was extended.
+- Longhorn UI ingress remains absent. Live v0.11.3 has no Rancher deployment;
+  Headlamp, Keycloak, OpenBao and tenants remain unselected. This source candidate
+  selects Rancher for a later local-admin-only stage; no authentication is extended live.
 - Dedicated workstation PXE services/listeners/guard remain stopped as previously
   verified. This work performed no host/network/firmware change or node reboot.
 
-## Review branch versus deployed release
+## Reviewed source versus deployed release
 
-[Draft MR #99](https://github.com/perkforge/perkforge-platform/pull/99), branch
-`test/longhorn-storage-acceptance`, commits the reusable test, current handoff and
-C4. It is separate from the deployed v0.11.3 configuration. Review/merge or another
-release does not promote the running source or authorize another live operation.
+Merged MR #99 records the completed storage test and commits its repeatable code.
+The `feat/rancher-local-admin` candidate now selects Rancher 2.15.2 alongside
+Longhorn, with local admin only and the optional destructive post-delete hook off.
+Its reviewed installer must delegate cluster-admin to Rancher's runtime account;
+that live grant is not approved by this document. The current source tag remains
+v0.11.3, so feature publication or a new release alone cannot activate Rancher.
+
+The vendor matrix includes RKE2 1.36/RHEL 10.2, but lists Longhorn 1.12 rather than
+our independently Flux-owned 1.13. Do not claim full-stack certification. No
+Longhorn downgrade, Rancher-managed second storage installation or live probe was
+performed while preparing this source. The one-replica/one-control-plane lab is
+not HA. Actual capacity, TLS/browser behavior and Rancher controllers remain
+activation-time acceptance work; see the [Rancher procedure](big-bang-bootstrap/configuration/packages/rancher/README.md).
 
 ## First storage test — passed, resources retained
 
@@ -71,8 +81,11 @@ The [C4 storage flow](docs/architecture/README.md) links the actual Ansible code
 
 ## Next decisions
 
-1. Review MR #99 and the retained test evidence; separately approve exact resource cleanup
-   or further storage tests. No automatic teardown or data-volume deletion.
+1. Review/publish the Rancher local-admin candidate. Before live activation, approve
+   exact released source/target, privileged prerequisites, checked TLS/public-CA and
+   bootstrap inputs, then source promotion. No SSO/group/role changes are included.
+   Separately approve exact retained-test cleanup or additional storage tests; no
+   automatic teardown or data-volume deletion.
 2. Plan recovery tests appropriate to this lab: replica loss/rebuild and independent
    application backup/restore are still untested. Replication is not backup.
 3. Rancher is the next platform stage, through a reviewed Big Bang package selection

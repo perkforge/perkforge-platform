@@ -28,8 +28,11 @@ def clusterrole_list_allowed(role):
 
 
 @contextmanager
-def lookup_server(role, clusterrole_lookup=False):
+def lookup_server(role, clusterrole_lookup=False, secrets=None):
     requests = []
+    if secrets is None:
+        secrets = {(role['metadata'].get('namespace', ''), 'keycloak-database-existing'): {
+            'postgres-password': base64.b64encode(b'synthetic-test-password').decode()}}
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -70,10 +73,10 @@ def lookup_server(role, clusterrole_lookup=False):
             elif path.startswith('/api/v1/namespaces/') and '/secrets/' in path:
                 parts = path.split('/')
                 namespace, name = parts[4], parts[6]
-                if secret_allowed(role, namespace, name, 'get') and name == 'keycloak-database-existing':
+                if secret_allowed(role, namespace, name, 'get') and (namespace, name) in secrets:
                     body = {'apiVersion': 'v1', 'kind': 'Secret',
                             'metadata': {'name': name, 'namespace': namespace},
-                            'data': {'postgres-password': base64.b64encode(b'synthetic-test-password').decode()}}
+                            'data': secrets[namespace, name]}
                 elif secret_allowed(role, namespace, name, 'get'):
                     status = 404
                     body = {'apiVersion': 'v1', 'kind': 'Status', 'status': 'Failure', 'reason': 'NotFound', 'code': status}

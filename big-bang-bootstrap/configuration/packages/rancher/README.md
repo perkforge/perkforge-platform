@@ -1,46 +1,114 @@
-# Optional Rancher management package
+# Rancher local-admin management stage
 
-Prepared, unselected and suspended. Big Bang generates Rancher 2.15.2's HelmRelease;
-Flux owns Helm reconciliation. The official stable HelmRepository is declared once
-in this optional directory (avoiding shared helmRepositories list collisions).
-The outer post-renderer appends required bigbang/rancher-bootstrap-values,
-values.yaml, to the generated release. That external Secret must contain only the
-reviewed bootstrapPassword value and must be delivered separately without logging.
-No plaintext credential is authored here. Missing Secret blocks installation
-instead of implicitly generating a password. The selected local hostname is
-rancher.perkforge.home.arpa; DNS resolution and matching TLS remain prerequisites.
+This source candidate selects Rancher alongside Longhorn in `clusters/local` and
+authors an active child HelmRelease. **The live source is still pinned to
+v0.11.3, where Rancher is not selected.** Merging/publishing this candidate does not
+promote that source, apply prerequisites, deliver credentials or install Rancher.
+Local administrator login only: no Keycloak/SSO, group/role mapping or tenants.
 
-Use existing cattle-system/tls-rancher-ingress with matching reviewed DNS/SANs and
-Traefik ingress. External TLS avoids a second cert-manager installer. The selected private CA requires cattle-system/tls-ca (cacerts.pem) for the
-privateCA:true setting and tls-ca-additional (ca-additional.pem) for the
-additionalTrustedCAs:true outbound Keycloak trust mount. Deliver only the public
-root into these Secrets, never its signing key. Agent/browser trust and Secret
-delivery remain separately reviewed actions. The package
-has one lab replica, strict agent TLS, no Flux dependency on Longhorn and disables
-Continuous Delivery without disabling Rancher's internal Fleet provisioning dependency.
-Rancher stores management resources in the Kubernetes datastore, so its Helm
-installation needs no application PVC; installing it is separate from storage.
+Big Bang generates Rancher 2.15.2 from the official stable HelmRepository; Flux
+owns reconciliation. Keep Longhorn 1.13.0 unchanged and its UI ingress disabled.
+Rancher is platform-admin cluster lifecycle management, not another application
+installer. Continuous Delivery is disabled; Rancher's required internal Fleet
+controllers remain available. Do not install a second Longhorn through Rancher.
 
-prerequisites/ contains the namespace and privileged installer/source RBAC. The
-upstream chart binds Rancher's runtime service account to cluster-admin; granting
-the installer named cluster-admin bind rights is effectively administrative authority,
-not tenant access. Review this and actual chart hooks before separate approval.
-rancher-prerequisites.yaml is default-off, verifies published clean source and exact
-cluster identity, and applies only common/package prerequisites. It neither starts
-Rancher nor delivers TLS/bootstrap credentials nor activates Big Bang.
+## Compatibility, capacity and trust
 
-RKE2/host creation and recovery remain infrastructure Ansible. Rancher installation
-has one owner: Big Bang/Flux. There is no direct infrastructure Helm installer.
-Platform OIDC configuration is a separately gated API operation under
-configuration/ansible/configure-rancher-oidc.yaml, after Rancher and Keycloak readiness.
+Checked against current vendor guidance on 2026-11-01:
 
-For later activation select this directory in the authoritative cluster root,
-review hostname/TLS/credentials, source permissions and resource capacity, then
-explicitly clear the child suspend flag under approved bootstrap. Storage-first is
-a useful rollout checkpoint, but Rancher has no fabricated Longhorn dependency.
-OIDC configuration depends on a ready Keycloak, not the initial Rancher Helm release.
+- [Rancher 2.15.2 matrix](https://www.suse.com/suse-rancher/support-matrix/all-supported-versions/rancher-v2-15-2/)
+  includes RKE2 1.34–1.36. The [RKE2 1.36 matrix](https://www.suse.com/suse-rke2/support-matrix/all-supported-versions/rke2-v1-36/)
+  lists v1.36.5+rke2r1 and RHEL 10.2. The Rancher table lists Longhorn 1.12, not
+  our independently Flux-managed 1.13; this custom combination is not claimed
+  vendor-certified. Its Rancher coexistence remains a live acceptance question.
+- [Installation requirements](https://documentation.suse.com/cloudnative/rancher-manager/latest/en/installation-and-upgrade/requirements/requirements.html)
+  give 4 CPUs/16 GB per node as the small RKE2 management starting point and require
+  HA for production. The recorded physical lab has six CPUs/16 GB installed RAM
+  per node, but one control-plane/etcd server and **one Rancher replica**: no HA.
+  Rancher requests 500m CPU/1Gi memory, with a 4Gi memory limit and CPU bursting.
+  This is a provisional lab budget, not a measured load guarantee; check actual
+  allocatable/usage and scheduling headroom before activation.
+- The pinned official archive SHA256 is verified by the test fixture downloader.
+  The selected render has 14 resources, including bootstrap/pre-upgrade hooks.
+  Installer object permissions, every roleRef/bind and named escalation are tested.
+  The chart gives `cattle-system:rancher` cluster-admin. Granting its installer
+  named cluster-admin bind is effectively administrative delegation, not least
+  privilege or tenant authority. Source-writer permission for the application root
+  is only namespaced HelmRepository access, not RBAC self-grant.
+- The optional broad post-delete cleanup hook is explicitly disabled; its unused
+  named installer permissions are removed. Uninstall and data/controller cleanup
+  need a separate reviewed action. The pre-upgrade hook remains authorized.
+  The umbrella timeout is 15m, longer than the 10m child window, avoiding the
+  earlier parent-timeout problem while retaining zero automatic remediation retries.
 
-## Platform-only OIDC
+## Inputs and separately approved activation
+
+The recorded DNS/private-CA design is retained: `rancher.perkforge.home.arpa`,
+Traefik ingress, existing-Secret TLS, privateCA true, additionalTrustedCAs true,
+and strict agent TLS. Existing-Secret TLS needs no second cert-manager installer.
+Browser HTTPS, runtime controllers and real local-admin login are **not tested**.
+
+| Protected input/reference | Purpose |
+|---|---|
+| Reviewed released tag/commit, kubeconfig/context/kube-system UID | Exact source and target; never substitute dirty/main/feature execution for gated prerequisite delivery |
+| `cattle-system/tls-rancher-ingress`, tls.crt/tls.key | Existing issued leaf/chain and service key for the exact hostname |
+| `cattle-system/tls-ca`, cacerts.pem | Public private-CA chain for agents; never the CA signing key |
+| `cattle-system/tls-ca-additional`, ca-additional.pem | Public outbound CA trust; this does not configure SSO |
+| `bigbang/rancher-bootstrap-values`, values.yaml | Required external Secret containing only a nonempty bootstrapPassword string |
+
+The outer post-renderer appends that required bootstrap Secret to the child.
+A missing Secret blocks Flux input resolution. Presence alone does not validate
+its content: separately approved delivery must check the exact single key/type
+and nonempty password before creation. No password is authored/generated here.
+Use the approved credential store for durable custody; protected temporary files,
+no_log/redacted delivery and cleanup are runtime concerns, not public Git values.
+Helm/controller memory, the external Secret, the chart's retained bootstrap-secret
+and Helm release-history Secrets are trusted runtime copies. Do not print them,
+put passwords in CLI arguments/URLs, or use chart NOTES setup-URL convenience
+commands. Changing values is not rotation: the chart preserves an existing
+bootstrap-secret, which the real Helm lookup regression tests with dummy data.
+
+After a new release and explicit action approval:
+
+1. Verify exact target, published artifact, current Longhorn readiness and capacity;
+   preserve existing storage/test resources and compare prerequisites for drift.
+2. Use namespace-only `platform-tls.yaml` staging and separately approved TLS/public
+   CA delivery. Validate SAN/chain/expiry/key matches first. Deliver the checked
+   bootstrap values Secret separately without reading its contents into logs.
+3. Apply reviewed common/Rancher prerequisites through default-off
+   `rancher-prerequisites.yaml`, `rancher_foundation_apply=true`, from the clean
+   published checkout. This grants the privileged namespace/installer and scoped
+   source-writer access; it neither deploys Rancher nor delivers credentials.
+4. Promote the existing source to the verified new release, verify its artifact,
+   then observe umbrella/child/root. Do not rerun bootstrap on the active cluster.
+   Use `readiness.yaml`, `platform_readiness_verify=true`,
+   `platform_readiness_phase=rancher`, for the server checks. These do not prove
+   browser login, all runtime Fleet/webhook health or lifecycle operations.
+5. Verify hostname/chain and HTTPS without an insecure bypass before entering
+   credentials. Use local admin, reset the first-login password privately and
+   retain independent direct RKE2 administrator recovery access. Verify required
+   runtime controllers before any later cluster lifecycle action. Stop before SSO.
+
+Rancher Helm uses Kubernetes datastore resources, not an application PVC; do not
+invent a Longhorn storage dependency. Storage-first is the completed operator
+checkpoint, not a chart requirement. Keycloak readiness is needed for later OIDC,
+not this initial local-admin installation.
+
+## Deployment ownership and obsolete installer audit
+
+The direct infrastructure Ansible installer was already deleted in #84
+(`036f1ec`), including `playbooks/install-rancher.yml`, `tasks/rancher-install.yml`,
+old Rancher vars and their old infrastructure test fixture. No remaining competing
+installer file was found. Current Ansible prerequisites, TLS and later API
+configuration are active shared responsibilities and are retained. RKE2 paths
+under `/etc/rancher/rke2` belong to RKE2; they are not obsolete Rancher installers.
+Do not reintroduce direct Helm install/upgrade or a second cert-manager path.
+
+## Deferred platform-only OIDC
+
+This initial stage does not run the configurator or approve its existing mappings.
+Install Keycloak later, then review the original groups/roles before extending
+authentication. Preserve the current definitions for that review.
 
 `configuration/ansible/configure-rancher-oidc.yaml` consumes explicit HTTPS issuer/client inputs and an existing protected client-secret file. Keycloak client creation/group membership and CA delivery remain separately approved prerequisites; callback is `https://<hostname>/verify-auth`, with full-path `groups` claims. Server-to-server endpoints remain HTTPS and must already be trusted by Rancher.
 

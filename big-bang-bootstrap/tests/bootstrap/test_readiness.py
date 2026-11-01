@@ -5,11 +5,24 @@ import yaml
 ROOT=Path(__file__).resolve().parents[2]
 class ReadinessTests(unittest.TestCase):
  def test_default_and_check_mode_never_call_an_api(self):
-  for extra in [{},{'platform_readiness_verify':True}]:
+  for extra in [{},{'platform_readiness_verify':True},{'platform_readiness_verify':True,'platform_readiness_phase':'rancher'}]:
    with self.subTest(extra=extra),tempfile.TemporaryDirectory() as directory:
     p=Path(directory);marker=p/'called';stub=p/'kubectl';stub.write_text('#!/bin/sh\ntouch "'+str(marker)+'"\nexit 99\n');stub.chmod(0o700)
     result=subprocess.run(['ansible-playbook','-i',str(ROOT/'configuration/ansible/inventory.yaml'),str(ROOT/'configuration/ansible/readiness.yaml'),'--limit','local','--check','-e',json.dumps(extra)],capture_output=True,text=True,env={**os.environ,'PATH':directory+':'+os.environ['PATH'],'ANSIBLE_LOCAL_TEMP':directory+'/local','ANSIBLE_REMOTE_TEMP':directory+'/remote'})
     self.assertEqual(result.returncode,0,result.stdout+result.stderr);self.assertFalse(marker.exists());self.assertIn('changed=0',result.stdout)
+ def test_rancher_phase_runs_only_server_reads_and_refuses_wrong_target(self):
+  for expected,success in [('fixture-uid',True),('wrong-uid',False)]:
+   with self.subTest(expected=expected),tempfile.TemporaryDirectory() as directory:
+    p=Path(directory);calls=p/'calls';stub=p/'kubectl'
+    stub.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "'+str(calls)+'"\ncase "$*" in *"get namespace kube-system"*) printf fixture-uid;; esac\n')
+    stub.chmod(0o700)
+    values={'platform_readiness_verify':True,'platform_readiness_phase':'rancher','target_kubeconfig':'/fixture/not-read','target_context':'synthetic','expected_cluster_uid':expected}
+    result=subprocess.run(['ansible-playbook','-i',str(ROOT/'configuration/ansible/inventory.yaml'),str(ROOT/'configuration/ansible/readiness.yaml'),'--limit','local','-e',json.dumps(values)],capture_output=True,text=True,env={**os.environ,'PATH':directory+':'+os.environ['PATH'],'ANSIBLE_LOCAL_TEMP':directory+'/local','ANSIBLE_REMOTE_TEMP':directory+'/remote'})
+    self.assertEqual(result.returncode==0,success,result.stdout+result.stderr)
+    observed=calls.read_text().splitlines();self.assertEqual(len(observed),3 if success else 1)
+    if success:
+     self.assertIn('helmrelease/rancher',observed[1]);self.assertIn('deployment/rancher',observed[2])
+     self.assertFalse(any('keycloak' in command or 'oidc' in command for command in observed))
  def test_explicit_apply_flags_in_check_mode_still_use_no_tools_or_private_inputs(self):
   selections=[('longhorn-prerequisites',{'longhorn_foundation_apply':True}),('rancher-prerequisites',{'rancher_foundation_apply':True}),('bootstrap',{'bootstrap_apply':True,'bootstrap_verify_release':True}),('headlamp-prerequisites',{'foundation_apply':True,'headlamp_registry_apply':True}),('keycloak-prerequisites',{'identity_foundation_apply':True,'identity_routing_apply':True,'identity_access_apply':True})]
   for name,extra in selections:

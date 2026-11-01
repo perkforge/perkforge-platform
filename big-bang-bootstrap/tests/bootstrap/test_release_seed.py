@@ -15,7 +15,7 @@ class ReleaseSeedTests(unittest.TestCase):
         self.assertIn('tag: {{ config_tag | to_json }}',seed)
         self.assertNotIn('branch:',seed)
         root=yaml.safe_load((EXAMPLES/'clusters/local/kustomization.yaml').read_text())
-        self.assertEqual(set(root['resources']),{'../../configuration/defaults','../../configuration/packages/longhorn','../../providers/rke2','../../profiles/il2','../../configuration/packages/bigbang'})
+        self.assertEqual(set(root['resources']),{'../../configuration/defaults','../../configuration/packages/longhorn','../../configuration/packages/rancher','../../providers/rke2','../../profiles/il2','../../configuration/packages/bigbang'})
 
     def test_bootstrap_rejects_bad_tags_or_evidence_before_api_work(self):
         for tag in ("main", "v99.0.0"):

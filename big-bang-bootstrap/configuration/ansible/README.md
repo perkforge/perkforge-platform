@@ -9,8 +9,8 @@ Dependency chain: RKE2 → Flux foundation → Big Bang umbrella → Longhorn �
 1. Infrastructure: verify RKE2 nodes Ready and the reviewed worker-only Longhorn prerequisites, labels, capacity and enforcing SELinux. Host preparation is already complete; do not rerun installation on existing hosts.
 2. Release and Flux: publish the reviewed core-only source and verify its immutable release/context. Install the pinned Flux foundation and seed a paused source/root using the exact kubeconfig/context/UID. Platform v0.9.0 selects identity applications and is not the Longhorn-first input.
 3. Longhorn prerequisites: after Flux namespaces exist, explicitly approve longhorn-prerequisites.yaml to apply common Big Bang and Longhorn namespace/installer RBAC. Review privileged permissions. No application TLS, identity namespace or tenant authority is needed for this stage.
-4. Longhorn activation: select a new published release containing the active outer release and Longhorn child. The v0.10.0 staging release keeps them suspended and cannot activate storage. Separately approve resuming the release-pinned seed source/root after the prerequisites above. The local root selects only Longhorn; shared Headlamp defaults are disabled and application values references optional. Run readiness.yaml phase storage. Validate a disposable claim with write/recreate persistence, reattachment and two healthy replicas on distinct workers before proceeding. Readiness alone does not prove durable I/O or backup recovery.
-5. Rancher: only after storage acceptance, select its package in the same authoritative root. Approve its namespace/installer RBAC, Rancher-only TLS/public CA delivery and external bootstrap-values Secret separately, then its Helm activation. Rancher has no fabricated PVC dependency; this ordering is an operator acceptance checkpoint. Verify HTTPS and local administration before adding SSO.
+4. Longhorn activation: select a new published release containing the active outer release and Longhorn child. The v0.10.0 staging release keeps them suspended and cannot activate storage. Separately approve resuming the release-pinned seed source/root after the prerequisites above. The first storage-only release v0.11.3 passed this checkpoint. This candidate now also selects Rancher, so do not mistake it for the initial storage-only input. Shared Headlamp defaults remain disabled and identity values references optional. Run readiness.yaml phase storage. Validate a disposable claim with write/recreate persistence, reattachment and two healthy replicas on distinct workers before proceeding. Readiness alone does not prove durable I/O or backup recovery.
+5. Rancher: storage acceptance passed and this candidate selects its package in the same authoritative root. Approve its namespace/installer RBAC, Rancher-only TLS/public CA delivery and external bootstrap-values Secret separately, then its Helm activation. Rancher has no fabricated PVC dependency; this ordering is an operator acceptance checkpoint. Verify HTTPS and local administration before adding SSO.
 6. Identity applications: Headlamp, Keycloak and OpenBao remain unselected. Later select reviewed packages and prerequisites, deliver their named credentials/TLS and validate placement/storage. Keycloak prerequisites default to the Longhorn overlay. PostgreSQL → Keycloak → Headlamp readiness precedes realm/client, API OIDC and Rancher SSO configuration; those security changes require separate approval. API OIDC maintenance includes protected configuration backup and separately approved control-plane restart.
 7. Enrollment remains omitted. Only after core and identity/security acceptance, select ../../enrollments/local and review compatible published downstream inputs and source/reconciler activation. Its retained definitions stay independently paused. readiness.yaml phase enrollment observes the parent; tenant foundations/apps remain in enrollment/application Git.
 
@@ -18,48 +18,40 @@ Kustomize file order is not readiness. Database startup also retains a bounded n
 
 ## Longhorn-only release and seed activation
 
-This source authors `spec.suspend: false` for the outer Big Bang HelmRelease and
-`packages.longhorn.flux.suspend: false`. The rendered local root contains only
-Longhorn; Rancher, identity applications and tenant enrollment remain unselected.
-Do not resume these child releases by hand while watching the older staging tag:
-its authored suspension would be reapplied by their parents.
+The first storage-only stage is complete on the physical cluster at v0.11.3.
+This candidate adds Rancher; it is not the first storage-only release. The live
+source/root are active, so **do not rerun bootstrap or pause them for routine
+promotion**. Use the [Rancher stage](#rancher-local-admin-stage) and package procedure
+for the next separately approved activation.
 
-Merge/release is source publication, not a live operation. The physical cluster now has four Ready Flux controllers and a paused v0.11.0
-source/root; common Big Bang and Longhorn installer prerequisites are prepared.
-The seed uses an explicit immutable tag, never main or a feature branch. Do not point an existing active cluster source at
-this release without the same activation review. Recheck the actual target/ref/paused state before any further operation.
+For a new cluster, choose a reviewed storage-only published release for the first
+stage, not this Rancher candidate. Its initial sequence remains:
 
-After this MR and its generated release PR are reviewed and published:
+1. Verify immutable tag/commit and clean checkout; keep `config_tag`, release
+   evidence, kubeconfig/context/UID in protected external runtime inputs. No main,
+   feature branch or self-referential future tag is a deployment input.
+2. Separately approve initial `bootstrap.yaml` (`bootstrap_apply=true`) to install
+   pinned Flux and create a **paused** source/root. Registry delivery is independent
+   and never overwrites. Bootstrap intentionally pauses the seed and is not a
+   maintenance reconciler for an already active cluster.
+3. Apply reviewed common/Longhorn prerequisites with explicit approval and verify
+   host compatibility, worker selection/capacity and privileged installer scope.
+4. Approve the exact source/root URL/tag/path/context/identity; resume the source,
+   verify its exact fresh artifact, then resume the root. The seed is not included
+   in its own Git tree, and child suspension comes only from reviewed Git values.
+5. Check storage readiness, then separately approve the disposable persistence/
+   reattachment/two-replica test. Retain its data until cleanup approval. Readiness
+   and replication do not prove backup/restore or HA. Only then review Rancher.
 
-1. Verify the **new** published tag/resolved commit using the normal release
-   evidence. Use a clean checkout of that exact release for the stage playbooks.
-   Set `config_tag` and `config_release_evidence` as protected operator runtime
-   inputs. Do not edit a future/self-referential tag into Git or repoint v0.10.0.
-2. With separate approval, use `bootstrap.yaml` (`bootstrap_apply=true`) to install
-   the pinned Flux foundation and create/update the **paused** source/root seed
-   at that selected tag. If a paused seed already exists at v0.10.0, review its
-   retarget to the new tag; selecting the release must precede any resume.
-   Bootstrap is an initial/containment operation, not a reconciler to rerun after
-   activation: it deliberately pauses both seed objects again.
-3. Approve `longhorn-prerequisites.yaml` (`longhorn_foundation_apply=true`) from
-   the same reviewed release; verify host labels, privilege scope and target UID.
-4. Explicitly approve live activation. Inspect `cluster-config` URL/tag and
-   `cluster-root` path/context/identity and paused state. Resume only that source,
-   wait until its Ready artifact revision matches the reviewed tag/commit, then
-   resume only `cluster-root` using standard Flux operations. The seed is owned by
-   this explicit bootstrap operation, not included in its own selected Git tree;
-   resuming it does not create competing child desired state. The active outer
-   release and Longhorn child then reconcile from the selected release.
-5. Run `readiness.yaml` with the explicit storage phase/verify gate. Separately
-   approve disposable PVC write/recreate, reattach and two-distinct-worker replica
-   acceptance. Stop before Rancher selection or any identity/tenant activation.
+For the current active cluster, promotion is a conditional tag change after
+prerequisites/inputs are ready, followed by exact artifact/root/child verification.
+Do not manually resume an individual child against contradictory Git values or
+reset failed releases automatically. A new failure needs diagnosis and approval.
 
-Flux documents [source suspension and artifact revisions](https://fluxcd.io/flux/components/source/gitrepositories/) and [Kustomization suspension](https://fluxcd.io/flux/components/kustomize/kustomizations/). Source readiness must refer to the newly selected artifact before root resume.
-
-All apply/verify defaults remain false; no source merge, release or runtime tag
-input is execution approval. Preserve logs and recovery inputs. If reconciliation
-fails, use containment below; do not delete retained volumes or assume a Helm
-retry/rollback or suspension removes installed workloads.
+Flux documents [artifact revisions](https://fluxcd.io/flux/components/source/gitrepositories/)
+and [Kustomization suspension](https://fluxcd.io/flux/components/kustomize/kustomizations/).
+No source merge/release or runtime input is live execution approval. Preserve
+recovery inputs and logs; suspension does not remove workloads or retained data.
 
 ## Repeatable Flux registry preparation
 
@@ -112,9 +104,9 @@ change pinned images. The first physical attempt recovered by creating the
 already-referenced Secret and recreating only failed controller pods. Those
 manual recovery actions are not part of the repeat procedure.
 
-A fresh published release is required for this code change. The original
-`v0.11.0` bootstrap lacked this step; preserve that immutable release rather than
-editing it in place. Longhorn activation stays paused while this gap is closed.
+Published v0.11.1 and later contain this registry step. Preserve the original
+v0.11.0 release unchanged. The current v0.11.3 cluster is active and reuses its
+existing Secret; registry repair/rotation is not part of ordinary source promotion.
 
 ## Containment and recovery
 
@@ -191,3 +183,14 @@ This prepares inputs only. Routes, Headlamp/Keycloak deployment, Rancher selecti
 API-server CA path/OIDC activation and live HTTPS still need separate operations.
 Do not enable the legacy Keycloak local-PV path just to create its namespace: this
 namespace-only stage has no storage dependency and does not bypass Longhorn checks.
+
+## Rancher local-admin stage
+
+The candidate local root selects Rancher alongside Longhorn; the running immutable
+v0.11.3 source still selects only Longhorn. Follow the [Rancher package procedure](../packages/rancher/README.md)
+for the compatibility gap, exact TLS/bootstrap references, privileged prerequisite
+approval and source promotion. Existing `rancher-prerequisites.yaml` owns only
+reviewed foundations; `platform-tls.yaml` owns separately approved credential/trust
+delivery. `readiness.yaml` phase `rancher` reads only HelmRelease/server readiness,
+not browser login or external authentication. No direct Ansible Helm installation,
+SSO configurator invocation or implicit retry belongs to this stage.
