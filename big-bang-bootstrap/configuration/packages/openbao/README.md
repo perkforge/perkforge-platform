@@ -20,8 +20,8 @@ is not an OpenBao backup or a substitute for independent recovery material.
 The StatefulSet uses OnDelete updates; upgrades need backup and explicit unseal
 planning, not a blind rolling restart or assumed downgrade.
 
-TLS is required at the server. The current v0.13.0 deployment has no ingress or public service. This candidate
-adds only the separately gated TCP route described below. No injector, CSI provider,
+TLS is required at the server. The initial v0.13.0 deployment had no ingress or public service. Approved v0.14.0
+added only the TCP route described below. No injector, CSI provider,
 Kubernetes-auth delegation, service discovery, auto-init or auto-unseal is enabled.
 The server account has no chart-created Role/ClusterRole bindings or persistent
 service-account-token Secret. The namespaced installer manages the six rendered
@@ -37,6 +37,9 @@ this backend TLS Secret; don't repurpose it or silently disable TLS verification
 No certificate or private key is generated or delivered by this MR.
 
 ## Separately approved activation and first access
+
+The initial store is already initialized. These are first-install/recovery boundaries,
+not instructions to initialize the current store again.
 
 1. Select a reviewed published release; verify target UID, capacity and Longhorn.
    Apply common/Rancher then OpenBao installer prerequisites using
@@ -89,7 +92,17 @@ restart/recovery testing remain separate work. No live realm/policy mappings.
 [Synthetic tests](../../../tests/security/test_openbao_initialization.py) exercise
 actual Ansible success, initialized-store refusal and default-no-action paths.
 
-## LAN HTTPS candidate — not activated
+<a id="lan-https-candidate--not-activated"></a>
+
+## LAN HTTPS
+
+**Observed update:** the separately approved candidate is now active at v0.14.0.
+Trusted LAN UI/health and exact served leaf plus existing Rancher HTTPS passed
+2026-11-01 16:51:36 UTC; existing Bao pod/HTTP routes unchanged. No init/unseal,
+new key delivery or root-token browser login occurred. The historical anchor is kept
+for existing review links; the procedure below remains the approval contract for
+any future change. Current stage advanced separately to local-headlamp; never
+reset it when promoting later source revisions.
 
 The official chart's `extraObjects` renders one `traefik.io/v1alpha1`
 `IngressRouteTCP` named `openbao-tls-passthrough` in `openbao`, owned by the
@@ -122,13 +135,14 @@ claimed, so other names fall through to existing HTTP routers.
 
 ### Separate activation approval
 
-Merge/release does not change the live pinned v0.13.0 artifact. Before any later
+Merge/release alone never promotes the live artifact; the current accepted source is v0.14.0. Before any later
 promotion, approve exposure explicitly and verify target/source/root, initialized
 unsealed healthy Bao, certificate/CA/DNS, existing Traefik CRD/provider/entrypoint,
 no conflicting TCP or same-host HTTP route and existing Rancher HTTPS baseline.
 Apply only the reviewed namespaced prerequisite delta from a clean published
 checkout, then conditionally promote the existing source with its resourceVersion
-and exact artifact checks. Keep `clusters/local`; later apps stay off. Do **not**
+and exact artifact checks. Preserve the current approved stage (now `clusters/local-headlamp`); never reset
+it to `local`, which could uninstall Headlamp. Keycloak stays off. Do **not**
 run initialization again, deliver more keys, change API auth or widen permissions.
 
 Acceptance: verified-CA/hostname GET `/ui/` and `/v1/sys/health` over LAN HTTPS,

@@ -7,6 +7,9 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../../..')
 const output = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(here, '../public/sources')
 const files = {
+  'headlamp-access-smoke.yaml': 'big-bang-bootstrap/configuration/ansible/headlamp-access-smoke.yaml',
+  'headlamp-access-cleanup.yaml': 'big-bang-bootstrap/configuration/ansible/headlamp-access-cleanup.yaml',
+  'verify-headlamp-access.py': 'big-bang-bootstrap/configuration/ansible/files/verify-headlamp-access.py',
   'openbao-initialize.yaml': 'big-bang-bootstrap/configuration/ansible/openbao-initialize.yaml',
   'longhorn-storage-smoke.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-storage-smoke.yaml',
   'longhorn-smoke-stage.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-smoke-stage.yaml',
