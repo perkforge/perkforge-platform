@@ -1,4 +1,4 @@
-# Inactive review candidate; installer accounts live beside HelmReleases in bigbang.
+# Inactive candidate; Helm readiness observes pods/ReplicaSets without mutation.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -75,6 +75,22 @@ rules:
   - update
   - patch
   - delete
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  verbs:
+  - get
+  - list
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -186,6 +202,22 @@ rules:
   verbs:
   - bind
   - escalate
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  verbs:
+  - get
+  - list
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
