@@ -1,28 +1,72 @@
+# Inactive candidate; installers belong to the HelmRelease namespace.
 apiVersion: v1
 kind: Namespace
-metadata: {name: harbor}
+metadata:
+  name: harbor
 ---
 apiVersion: v1
 kind: ServiceAccount
-metadata: {name: harbor-installer, namespace: harbor}
+metadata:
+  name: harbor-installer
+  namespace: bigbang
+automountServiceAccountToken: false
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
-metadata: {name: harbor-installer, namespace: harbor}
+metadata:
+  name: harbor-installer
+  namespace: harbor
 rules:
-- apiGroups: ['']
-  resources: [secrets, configmaps, services, persistentvolumeclaims]
-  verbs: [get, list, watch, create, update, patch, delete]
-- apiGroups: [apps]
-  resources: [deployments]
-  verbs: [get, list, watch, create, update, patch, delete]
-- apiGroups: [batch]
-  resources: [jobs]
-  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups:
+  - ''
+  resources:
+  - secrets
+  - configmaps
+  - services
+  - persistentvolumeclaims
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
-metadata: {name: harbor-installer, namespace: harbor}
-roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: harbor-installer}
+metadata:
+  name: harbor-installer
+  namespace: harbor
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: harbor-installer
 subjects:
-- {kind: ServiceAccount, name: harbor-installer, namespace: harbor}
+- kind: ServiceAccount
+  name: harbor-installer
+  namespace: bigbang
