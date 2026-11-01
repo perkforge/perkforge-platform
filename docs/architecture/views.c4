@@ -313,15 +313,15 @@ views {
 
 
   dynamic view realm_group_foundation {
-    title 'PerkForge realm and six-role groups — implemented, not applied'
-    description 'Who does what and why: Big Bang owns deployed Keycloak; this separately approved Ansible operation adds only owned empty realm/group structure. Synthetic HTTPS tests are not live authorization acceptance. No app integration or memberships.'
+    title 'PerkForge platform realm/groups — observed'
+    description 'Who does what and why: observed platform-only operation created one realm/five empty groups with no users, memberships, custom mappings or app clients; repeat changed zero. Big Bang still owns deployment. Tenant roles and human/app authorization remain unimplemented; existing master recovery is preserved.'
     link /runbook.html#realm-foundation 'Operation, code, tests and boundaries'
-    engineer -> platform.authorization.foundation '1. Review target, TLS, explicit tenants and master recovery; separately approve credential use and writes'
+    engineer -> platform.authorization.foundation '1. Approved platform-only input: empty tenant list; verified target/TLS and absent realm'
     platform.authorization.foundation -> platform.keycloak.master_admin '2. Verify target/TLS and authenticate existing master admin privately; do not create or retire credentials'
     platform.authorization.foundation -> platform.authorization.groups '3. Compare owned realm and every exact path/mapping; refuse conflicts before group writes'
-    platform.authorization.foundation -> platform.keycloak.runtime '4. Create missing owned realm/groups only; no IDs/moves/imported users, clients or role grants'
-    platform.keycloak.runtime -> platform.authorization.foundation '5. Read back canonical empty mappings; preserve partial creations on failure, rerun only missing state'
-    platform.authorization.foundation -> engineer '6. Save safe evidence; require live idempotence/recovery acceptance before separate memberships and per-app SSO'
+    platform.authorization.foundation -> platform.keycloak.runtime '4. Created owned PerkForge realm and five empty platform/container groups; built-in scaffolding only'
+    platform.keycloak.runtime -> platform.authorization.foundation '5. Verified zero users/members/custom mappings/app clients and second-run changed 0; existing apps/master preserved'
+    platform.authorization.foundation -> engineer '6. Saved redacted evidence; stop before tenant groups, user enrollment, role enforcement or app SSO; permanent recovery remains separate'
   }
 
 }

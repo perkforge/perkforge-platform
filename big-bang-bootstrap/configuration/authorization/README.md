@@ -8,7 +8,7 @@ review rendering, existing pilot evidence and unimplemented integration mechanic
 
 **Merging does not configure a realm, create users/credentials, apply Kubernetes
 or OpenBao grants, enable clients, or extend SSO.** Nothing in this folder is
-selected by the platform root or existing API configurators. The separately gated realm/group foundation below is now implemented but not live-tested; tenant migration and new app integration wiring remain incomplete.
+selected by the platform root or existing API configurators. The separately approved platform-only realm/group foundation below is live-tested; tenant migration, memberships and new app integration wiring remain incomplete.
 
 ## Review contract and current implementation
 
@@ -111,7 +111,7 @@ preserved synthetic API tests cover create/idempotence/conflict/redaction. They
 are not live authorizer, admission, OpenBao capability, app-login or data-isolation
 acceptance. See matrix [primary guidance](MATRIX.md#primary-guidance-used-for-this-review).
 
-## Realm/group foundation — implemented, not applied
+## Realm/group foundation
 
 [foundation.yaml](foundation.yaml) is the first operational step, separate from
 `preview.yaml`. Big Bang still owns deployment; Ansible owns this Admin API state.
@@ -186,10 +186,31 @@ create, idempotence, read-only inspection, interrupted creation/resume, canonica
 multi-tenant paths, unchanged shared memberships, refusal of ownership/role/default
 inheritance conflicts, wrong target/CA and denied access, and credential redaction.
 These are offline protocol/safety tests, not actual Keycloak authorizer or human
-login evidence. Live 26.8.1 creation/readback, second-run zero-write acceptance,
-permission denial and recovery checks remain unexecuted. No integration is enabled.
+login evidence. Live platform-only creation/readback and second-run zero-change
+acceptance subsequently passed as recorded below. Tenant creation, human/app
+permission denial and independent recovery drills remain unexecuted. No app
+integration is enabled.
 
 Versioned API contract: [Keycloak 26.8.1 Admin REST API](https://www.keycloak.org/docs-api/26.8.1/rest-api/index.html)
 (realm create/read, exact group-by-path, child creation, role mappings). Group-create
 requests carry no existing ID and accept only Created; concurrent conflicts stop.
 The API is not transactional; inspect state after any uncertain request outcome.
+
+### Observed platform-only execution — 2026-11-01 20:20:07 UTC
+
+Explicitly approved `authorization_tenants: []` used clean merged #127. The realm
+was absent before writes. Inspect changed 0; initial apply changed 6 (realm plus
+five groups); second apply changed 0, failed/unreachable 0. Independent API readback
+verified exactly `/platform`, its `admins`/`engineers`/`viewers` children, and
+`/tenants`; all memberships and custom group mappings empty, users 0, default groups
+0, custom app clients 0. Normal Keycloak built-ins are expected and were verified.
+Existing master access, source/root specifications, application readiness and
+Keycloak/database pod identities remained intact. No new credential, user, app
+client, role grant, tenant group or SSO was created. Protected automatic evidence
+contains recaps/readback only; credential values were absent from saved logs.
+
+This is proof of structural creation and idempotence, **not human authorization**.
+Future tenant/member/client operations and permanent recovery/bootstrap retirement
+still require review and action-specific approval. Nothing here authorizes reruns
+or expands platform-engineer rights. No cluster release promotion was required;
+source remains v0.14.0/local-keycloak, while reviewed Ansible came from merged #127.
