@@ -1,5 +1,11 @@
 # Current operator handoff
 
+## Harbor candidate is blocked
+
+[Harbor review](big-bang-bootstrap/configuration/packages/harbor/README.md) adds a
+rendered disabled profile with protected Secret references, no generated values.
+External data services, TLS/network/capacity and explicit scanner scope need review.
+
 ## GitLab candidate is blocked, not queued live activation
 
 [GitLab review](big-bang-bootstrap/configuration/packages/gitlab/README.md) commits

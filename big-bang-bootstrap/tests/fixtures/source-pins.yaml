@@ -46,3 +46,7 @@ gitlab:
   url: https://repo1.dso.mil/big-bang/product/packages/gitlab/-/archive/10.4.2-bb.0/gitlab-10.4.2-bb.0.tar.gz
   sha256: 95965feb32dbb0d5a1d1ec26645276741c5185f273723c4e7d1ea089dcfcd2bb
   chart: chart
+harbor:
+  url: https://repo1.dso.mil/big-bang/product/packages/harbor/-/archive/1.19.2-bb.3/harbor-1.19.2-bb.3.tar.gz
+  sha256: 16be0ea84cf3f29a8345853f11aaa32d968c053b7c28fddf39d785ae23192eba
+  chart: chart

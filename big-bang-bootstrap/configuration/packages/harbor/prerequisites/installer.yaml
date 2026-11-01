@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Namespace
+metadata: {name: harbor}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: harbor-installer, namespace: harbor}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: harbor-installer, namespace: harbor}
+rules:
+- apiGroups: ['']
+  resources: [secrets, configmaps, services, persistentvolumeclaims]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [apps]
+  resources: [deployments]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [batch]
+  resources: [jobs]
+  verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: harbor-installer, namespace: harbor}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: harbor-installer}
+subjects:
+- {kind: ServiceAccount, name: harbor-installer, namespace: harbor}
