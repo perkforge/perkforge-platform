@@ -1,0 +1,31 @@
+{
+  "repository": "registry1.dso.mil/ironbank/opensource/keycloak/keycloak",
+  "tag": "26.8.1",
+  "indexDigest": "sha256:3796d06a0a7b530ed0425644b27780411a585272ed40540c4ca942da31e8da36",
+  "linuxAmd64ManifestDigest": "sha256:7f154e39f67d3aadee7b76bf7812206997577e930a01247354621dd5a3f031fd",
+  "platforms": [
+    {
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      "digest": "sha256:7f154e39f67d3aadee7b76bf7812206997577e930a01247354621dd5a3f031fd"
+    },
+    {
+      "platform": {
+        "architecture": "arm64",
+        "os": "linux"
+      },
+      "digest": "sha256:25e07f5a28c9f914167a9b2b258d2e5f98a85d6d164a6b221e3661eafdf01f6d"
+    }
+  ],
+  "verifiedAt": "2026-11-01T14:17:50.473045+00:00",
+  "verification": "Authenticated HTTPS registry metadata; Docker-Content-Digest matched SHA256 of exact index and amd64 manifest bytes. No image layers pulled.",
+  "upstreamRelease": "https://github.com/keycloak/keycloak/releases/tag/26.8.1",
+  "chart": {
+    "version": "7.3.2-bb.1",
+    "appVersionMetadata": "26.8.0",
+    "sourceCommit": "e010b103ecec7473df266888589abcff713055d8",
+    "archiveSha256": "86ec7901a2e1d1dcc7298c1476060746ab75135e780b7b9400097fc152f444e8"
+  }
+}

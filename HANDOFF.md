@@ -112,7 +112,8 @@ no native password or permanent cluster-admin account is invented. See the
 
 ## Queued Keycloak candidate
 
-Stacked after Headlamp: chart 7.3.2-bb.1/Keycloak 26.8.0 with the pinned database
+Stacked after Headlamp: chart 7.3.2-bb.1 with a verified immutable Iron Bank Keycloak 26.8.1 image
+override (chart metadata remains 26.8.0), plus the unchanged pinned database
 and a separately prepared Longhorn claim. Initial master bootstrap administration
 only; no startup realm import, PerkForge groups or app client integration. Protected
 bootstrap/database/pull/TLS delivery and real first login remain future approvals.
