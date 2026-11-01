@@ -158,6 +158,10 @@ model {
         description 'Protect personal files, databases and secret recovery separately. Replication/Retain do not protect against deletion or corruption, and etcd snapshots do not contain PV contents. Independent custody and restore tests are required before relying on personal-data storage.'
       }
     }
+    gitlab = component 'GitLab Free baseline — blocked inactive review' {
+      description 'Exact Big Bang chart/profile rendered; no deployment. EE unlicensed Free baseline, protected root-secret reference, no SSO/runner/registry. External PostgreSQL/Redis/object store and roughly 17Gi app requests require explicit capacity design. Separate installer namespace authority and shared-secret runtime Job; no cluster RBAC. No human credentials generated.'
+      link https://github.com/perkforge/perkforge-platform/blob/feat/gitlab-review/big-bang-bootstrap/configuration/packages/gitlab/README.md 'Actual implementation, permissions and blockers'
+    }
     observability = component 'Observability architecture — inactive partial draft' {
       description 'PROPOSED #35/#36 after app/auth baseline. Native Big Bang pins reviewed; no root selection or live deployment. Metrics/Grafana candidate now has full selected child/CRD/RBAC/lookup audits, scoped foundation and six dashboard documents. Alloy/Loki profile, notification integration and live acceptance remain incomplete. No Myles provisioner adoption.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/observability-review/big-bang-bootstrap/configuration/observability/README.md 'Architecture, budget and incomplete stages'
