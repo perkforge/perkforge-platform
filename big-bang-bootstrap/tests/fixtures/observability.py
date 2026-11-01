@@ -12,3 +12,14 @@ def metrics_render(root):
   hr=next(x for x in outer if x['kind']=='HelmRelease' and x['metadata']['name']==name)
   result[name]=(hr,helm(src/name/'chart',release_name(hr),hr['spec']['targetNamespace'],child_values(outer,name),('--include-crds',)))
  return result
+
+
+def logging_render(root):
+ src=Path(os.environ['PREFLIGHT_SOURCES_DIR']);objects=build(root/'clusters/local');parent=next(x for x in objects if x['kind']=='HelmRelease')
+ values=ordered_values(objects,parent)+[(root/'configuration/observability/candidate-values.yaml').read_text()]
+ outer=helm(src/'bigbang/chart','bigbang','bigbang',values,tuple(y for x in ['loki','alloy'] for y in ['--set',x+'.enabled=true']))
+ result={}
+ for name in ['loki','alloy']:
+  hr=next(x for x in outer if x['kind']=='HelmRelease' and x['metadata']['name']==name)
+  result[name]=(hr,helm(src/name/'chart',release_name(hr),hr['spec']['targetNamespace'],child_values(outer,name),('--include-crds',)))
+ return result

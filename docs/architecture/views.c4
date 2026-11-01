@@ -190,6 +190,17 @@ views {
     platform.observability.grafana -> engineer '7. Verify real scrapes/admin/dashboards, no duplicate pipeline, resource/retention and network deny behavior'
   }
 
+  dynamic view logging_provisioning {
+    title 'Opt-in API logs and authenticated Loki — inactive candidate'
+    description 'Who does what and why: rendered and permission-audited, not deployed; no tenant access or network acceptance claimed.'
+    engineer -> platform.prerequisite_applier '1. Review release, capacity, exact PKI and separate protected machine credentials; approve changes'
+    platform.prerequisite_applier -> platform.observability.logging_installer '2. Default-off Ansible prepares namespace installers, API log reader and ingress boundary'
+    platform.bigbang -> platform.observability.logging_installer '3. Future approved selection delegates Helm; namespace-only operator manages opt-in collector'
+    platform.observability.logging_installer -> platform.observability.collectors '4. API reads only logging-pilot pods/log, labeled opt-in; no host mounts'
+    platform.observability.collectors -> platform.observability.stores '5. Narrow value redaction then verified HTTPS Basic auth; gateway overwrites tenant header, verifies backend TLS'
+    platform.observability.stores -> engineer '6. Verify real ingest/query, spoofed-header and backend-bypass denial, disk headroom and restore before expansion'
+  }
+
   dynamic view observability_review {
     title 'Observability collection and notification — proposed, inactive'
     description 'Architecture review before deployment. Installer/collector/store/query/human roles remain distinct; source exists only as disabled/paused native candidates. No live validation or tenant isolation claim.'

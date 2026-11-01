@@ -1,4 +1,3 @@
-# INACTIVE implementation candidate; reviewed prerequisites/credentials/release and approval required.
 monitoring:
   enabled: false
   git:
@@ -181,6 +180,137 @@ alloy:
     tag: 4.3.2-bb.2
   flux:
     suspend: true
+    serviceAccountName: alloy-installer
+    storageNamespace: alloy
+    install:
+      createNamespace: false
+      remediation:
+        retries: 0
+    upgrade:
+      remediation:
+        retries: 0
+  values:
+    upstream:
+      cluster:
+        name: local
+      clusterMetrics:
+        enabled: false
+      hostMetrics:
+        enabled: false
+      costMetrics:
+        enabled: false
+      clusterEvents:
+        enabled: false
+      nodeLogs:
+        enabled: false
+      applicationObservability:
+        enabled: false
+      selfReporting:
+        enabled: false
+      podLogsViaLoki:
+        enabled: false
+      podLogsViaKubernetesApi:
+        enabled: true
+        collector: alloy-logs
+        destinations:
+        - local-loki
+        namespaces:
+        - logging-pilot
+        labelSelectors:
+          observability.perkforge.io/logs: 'true'
+        secretFilter:
+          enabled: false
+        extraLogProcessingStages: "stage.replace {\n  expression = \"(?i)(?:password|token|secret)\\\
+          \\s*[:=]\\\\s*(?P<sensitive>[^\\\\s,;]+)\"\n  replace = \"REDACTED\"\n}\n"
+      collectors:
+        alloy-logs:
+          enabled: true
+          type: deployment
+          replicas: 1
+          alloy:
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 256Mi
+            clustering:
+              enabled: true
+            mounts:
+              dockercontainers: false
+              varlog: false
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 473
+              runAsGroup: 473
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                - ALL
+                add: []
+          controller:
+            type: deployment
+          rbac:
+            create: false
+          serviceAccount:
+            create: false
+            name: alloy-log-reader
+          global:
+            podSecurityContext:
+              fsGroup: 473
+        alloy-singleton:
+          enabled: false
+        alloy-metrics:
+          enabled: false
+        alloy-receiver:
+          enabled: false
+        alloy-profiles:
+          enabled: false
+      destinations:
+        local-loki:
+          type: loki
+          url: https://logging-loki-gateway.logging.svc.cluster.local/loki/api/v1/push
+          auth:
+            type: basic
+          secret:
+            create: false
+            name: loki-client-auth
+            namespace: alloy
+          tls:
+            caFile: /loki-ca/ca.crt
+            insecureSkipVerify: false
+      collectorCommon:
+        alloy:
+          alloy:
+            mounts:
+              extra:
+              - name: loki-ca
+                mountPath: /loki-ca
+                readOnly: true
+          controller:
+            volumes:
+              extra:
+              - name: loki-ca
+                configMap:
+                  name: loki-ca
+      alloy-operator:
+        ownNamespaceOnly: true
+        rbac:
+          create: true
+          createClusterRoles: false
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 256Mi
+        podSecurityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+    autoRollingUpgrade:
+      enabled: false
 loki:
   enabled: false
   git:
@@ -189,3 +319,143 @@ loki:
     tag: 6.55.0-bb.9
   flux:
     suspend: true
+    serviceAccountName: loki-installer
+    storageNamespace: logging
+    install:
+      createNamespace: false
+      remediation:
+        retries: 0
+    upgrade:
+      remediation:
+        retries: 0
+  values:
+    deploymentMode: SingleBinary
+    minio:
+      enabled: false
+    lokiCanary:
+      enabled: false
+    test:
+      enabled: false
+    chunksCache:
+      enabled: false
+    resultsCache:
+      enabled: false
+    read:
+      replicas: 0
+    write:
+      replicas: 0
+    backend:
+      replicas: 0
+    loki:
+      auth_enabled: true
+      commonConfig:
+        replication_factor: 1
+      storage:
+        type: filesystem
+      schemaConfig:
+        configs:
+        - from: '2024-04-01'
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+      limits_config:
+        retention_period: 72h
+        ingestion_rate_mb: 1
+        ingestion_burst_size_mb: 2
+        max_global_streams_per_user: 5000
+        max_label_names_per_series: 15
+        max_line_size: 256KB
+        max_line_size_truncate: false
+      compactor:
+        retention_enabled: true
+        delete_request_store: filesystem
+      server:
+        http_tls_config:
+          cert_file: /loki-tls/tls.crt
+          key_file: /loki-tls/tls.key
+      readinessProbe:
+        httpGet:
+          path: /ready
+          port: http-metrics
+          scheme: HTTPS
+      podSecurityContext:
+        seccompProfile:
+          type: RuntimeDefault
+    singleBinary:
+      replicas: 1
+      persistence:
+        enabled: true
+        storageClass: longhorn
+        size: 10Gi
+        enableStatefulSetRecreationForSizeChange: false
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: 1Gi
+      extraVolumes:
+      - name: loki-tls
+        secret:
+          secretName: loki-backend-tls
+      extraVolumeMounts:
+      - name: loki-tls
+        mountPath: /loki-tls
+        readOnly: true
+    gateway:
+      enabled: true
+      replicas: 1
+      resources:
+        requests:
+          cpu: 25m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+      service:
+        port: 443
+      basicAuth:
+        enabled: true
+        existingSecret: loki-gateway-auth
+      extraVolumes:
+      - name: gateway-tls
+        secret:
+          secretName: loki-gateway-tls
+      extraVolumeMounts:
+      - name: gateway-tls
+        mountPath: /gateway-tls
+        readOnly: true
+      nginxConfig:
+        ssl: true
+        schema: https
+        serverSnippet: 'ssl_certificate /gateway-tls/tls.crt;
+
+          ssl_certificate_key /gateway-tls/tls.key;
+
+          proxy_ssl_verify on;
+
+          proxy_ssl_trusted_certificate /gateway-tls/ca.crt;
+
+          proxy_ssl_server_name on;
+
+          proxy_ssl_name logging-loki.logging.svc.cluster.local;'
+        locationSnippet: 'proxy_set_header X-Scope-OrgID $remote_user;
+
+          proxy_set_header Authorization "";'
+      readinessProbe:
+        httpGet:
+          path: /
+          port: http-metrics
+          scheme: HTTPS
+      podSecurityContext:
+        seccompProfile:
+          type: RuntimeDefault
+    ingress:
+      enabled: false
+    rbac:
+      create: false
+      namespaced: true
+    serviceAccount:
+      automountServiceAccountToken: false

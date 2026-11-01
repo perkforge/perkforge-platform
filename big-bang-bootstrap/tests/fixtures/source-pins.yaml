@@ -34,3 +34,11 @@ prometheus-operator-crds:
   url: https://repo1.dso.mil/big-bang/product/packages/prometheus-operator-crds/-/archive/31.0.1-bb.0/prometheus-operator-crds-31.0.1-bb.0.tar.gz
   sha256: 26b734c697a34148e771405f093f21a5a4cdb7be57c9f949e8dd5dd759c08cb5
   chart: chart
+alloy:
+  url: https://repo1.dso.mil/big-bang/product/packages/alloy/-/archive/4.3.2-bb.2/alloy-4.3.2-bb.2.tar.gz
+  sha256: 79e9b80a7ea7b081d0453d3e93169909908135424f1d74624cbc56be0db70668
+  chart: chart
+loki:
+  url: https://repo1.dso.mil/big-bang/product/packages/loki/-/archive/6.55.0-bb.9/loki-6.55.0-bb.9.tar.gz
+  sha256: 8b688febb7b1402bad4fae2337f9c1c4495c7554996ecf3bad077d1039ed5ae8
+  chart: chart

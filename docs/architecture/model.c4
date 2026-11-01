@@ -165,6 +165,10 @@ model {
         description 'IMPLEMENTED INACTIVE: Ansible applies reviewed monitoring namespace, exact named CRD/webhook/role bind/escalate and namespace object permissions. helm-controller impersonates monitoring-installer, grafana-installer or prometheus-crds-installer. No cluster-admin binding; named delegation still trusts sensitive operator runtime, including cluster Secret access. History stays in monitoring, not bigbang.'
         link https://github.com/perkforge/perkforge-platform/blob/feat/observability-metrics/big-bang-bootstrap/configuration/ansible/metrics-prerequisites.yaml 'Default-off prerequisite playbook'
       }
+      logging_installer = component 'Scoped logging installers and operator — inactive' {
+        description 'Ansible applies logging/alloy namespaces and separate installers; only named Alloy CRD cluster rights. Operator uses namespace-only Roles, trusted Secret/workload/RBAC authority inside alloy. API log reader only in opt-in logging-pilot; no host mounts. No live grant or tenant-user access.'
+        link https://github.com/perkforge/perkforge-platform/blob/feat/observability-logs/big-bang-bootstrap/configuration/observability/logging.md 'Logging ownership, TLS and acceptance gates'
+      }
       collectors = component 'Exporters and proposed Alloy log identity' {
         description 'Prometheus node-exporter/kube-state-metrics distinct from RKE2 metrics-server. Alloy is a trusted host/API log reader; exact operator/CRDs/permissions and opt-in scope need review. No duplicate metrics pipeline, credential logs or high-cardinality secret/user labels.'
       }
