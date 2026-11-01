@@ -39,3 +39,7 @@ class GitLabReview(unittest.TestCase):
     for i,v in enumerate(child_values(outer,'gitlab')):
      f=p/f'{i}.yaml';f.write_text(v);args+=['-f',str(f)]
     r=subprocess.run(['helm','template',release_name(self.hr),str(src/'gitlab/chart'),'--namespace','gitlab','--kube-version','1.36.5','--kubeconfig',str(k),'--dry-run=server']+(['--is-upgrade'] if upgrade else [])+args,capture_output=True,text=True,timeout=40);self.assertEqual(r.returncode,0,r.stderr);self.assertFalse(any('/clusterroles' in x for x in requests),requests)
+
+ def test_installer_identity_namespace_matches_flux_helmrelease(self):
+  name=self.hr['spec']['serviceAccountName'];namespace=self.hr['metadata']['namespace'];sa=next(x for x in self.foundation if x['kind']=='ServiceAccount' and x['metadata']['name']==name);self.assertEqual(sa['metadata']['namespace'],namespace);self.assertFalse(sa['automountServiceAccountToken'])
+  subjects=[q for x in self.foundation if x['kind'].endswith('RoleBinding') for q in x['subjects'] if q['name']==name];self.assertTrue(subjects);self.assertTrue(all(q['namespace']==namespace for q in subjects))
