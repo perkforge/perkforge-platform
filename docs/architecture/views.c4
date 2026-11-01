@@ -151,4 +151,18 @@ views {
     include volumes, replica_pair, backups
   }
 
+  dynamic view bootstrap_installer_flow {
+    title 'Big Bang bootstrap — release, prerequisites and delegated package installation'
+    description 'General bootstrap ownership with Longhorn as the current concrete package. Each package needs its own reviewed installer contract; Longhorn diagnostic cluster-admin is an accepted lab exception, not a global default. Future packages remain unselected. This is a procedure model, not live approval.'
+    link /runbook.html#longhorn-rbac 'Bootstrap ownership, code and Longhorn trust example'
+    engineer -> platform.prerequisite_applier '1. Review exact published release, target and shared/per-package prerequisites'
+    platform.prerequisite_applier -> platform.longhorn_installer '2. Approved Ansible applies shared and selected package RBAC; Longhorn example'
+    engineer -> platform.flux '3. Separately approve source selection; verify artifact before root resume'
+    platform.flux -> platform.bigbang '4. Application root reconciles the Big Bang umbrella'
+    platform.bigbang -> platform.longhorn_installer '5. Generates selected package HelmRelease with delegated serviceAccountName'
+    platform.flux -> platform.longhorn_installer '6. helm-controller impersonates that package installer for Helm operations'
+    platform.longhorn_installer -> platform.longhorn_runtime '7. Helm creates package resources/runtime identities; Longhorn diagnostic exception'
+    platform.longhorn_runtime -> platform.storage '8. Verify readiness, then separately approve package acceptance tests'
+  }
+
 }

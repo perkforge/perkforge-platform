@@ -31,6 +31,7 @@ Use context first, then narrow into components or an operating flow. The single
 | service_lifecycle | Preflight, identity, exposure and scoped stop |
 | storage_detail | Optional Longhorn claims, worker replicas, independent backups and activation boundaries |
 | rke2_detail | Server/workers, Canal/DNS/Traefik, administrator access and recovery |
+| bootstrap_installer_flow | Release → shared/package prerequisites → Flux/Big Bang → delegated installer → runtime and acceptance |
 | platform_detail | Separate readiness and RKE2/Rancher/Flux/Big Bang ownership |
 
 Actual IP/MAC values and SSH identity references remain in ignored

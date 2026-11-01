@@ -45,7 +45,8 @@ kind: ClusterRole
 metadata: {name: longhorn-chart-installer}
 rules:
 # Kubernetes RBAC cannot restrict create by resourceNames. Review these privileged
-# creation permissions explicitly; named bind/escalate cannot grant cluster-admin.
+# creation permissions explicitly. The named cluster-admin bind below deliberately
+# trusts the upstream diagnostic account; this installer is not least-privileged.
 - apiGroups: [apiextensions.k8s.io]
   resources: [customresourcedefinitions]
   verbs: [create]
@@ -94,6 +95,10 @@ rules:
   resources: [clusterroles]
   resourceNames: [longhorn-role, longhorn-csi-role, longhorn-csi-secret-role]
   verbs: [get, list, watch, update, patch, delete, bind, escalate]
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [clusterroles]
+  resourceNames: [cluster-admin]
+  verbs: [bind]
 - apiGroups: [rbac.authorization.k8s.io]
   resources: [clusterrolebindings]
   resourceNames: [longhorn-bind, longhorn-support-bundle, longhorn-csi-bind, longhorn-csi-secret-bind]
