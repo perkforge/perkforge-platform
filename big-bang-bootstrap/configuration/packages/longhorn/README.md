@@ -261,7 +261,10 @@ ansible-playbook -i big-bang-bootstrap/configuration/ansible/inventory.yaml \
 ```
 
 Save the command's actual exit status as well as its log; an incomplete run is not
-PASS. Evidence includes namespace/pod/PVC/PV UIDs, all three checksums and Longhorn
+PASS. The protected first-run source snapshot matches its pre-execution SHA256 manifest.
+The committed version additionally checks canonical/fresh output, source URL and
+stable claim UID; these guard additions were checked offline, not by another live
+volume allocation. Evidence includes namespace/pod/PVC/PV UIDs, all three checksums and Longhorn
 replica/engine snapshots. The first run's protected `retained-resources.json` also
 records exact cleanup targets. No terminal/password-input capture is needed.
 

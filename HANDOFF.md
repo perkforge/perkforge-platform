@@ -13,7 +13,8 @@ the operator's behalf; preserve protected runtime evidence and other worktrees.
 - Flux's active `flux-system/cluster-config` source and `cluster-root` select
   **v0.11.3**, commit `84cc2b7a79fde4b3e72af093ca79a0f1de7fe7f9`.
   Source artifact and root applied revision matched that exact release; root was
-  Ready/Healthy. Big Bang and Longhorn HelmReleases were Ready after separately
+  Ready/Healthy at 01:55:55 UTC, after Big Bang became Ready at 01:55:22 UTC
+  and Longhorn at 01:51:21 UTC on 2026-11-01. Big Bang and Longhorn HelmReleases were Ready after separately
   approved single failure resets. Publication alone never promotes the live source.
 - Longhorn 1.13.0 is installed, V1 only, on the two workers. Manager and CSI rollout
   checks passed. `longhorn` is a **nondefault** StorageClass: two replicas,
@@ -29,9 +30,17 @@ the operator's behalf; preserve protected runtime evidence and other worktrees.
 - Dedicated workstation PXE services/listeners/guard remain stopped as previously
   verified. This work performed no host/network/firmware change or node reboot.
 
+## Review branch versus deployed release
+
+[Draft MR #99](https://github.com/perkforge/perkforge-platform/pull/99), branch
+`test/longhorn-storage-acceptance`, commits the reusable test, current handoff and
+C4. It is separate from the deployed v0.11.3 configuration. Review/merge or another
+release does not promote the running source or authorize another live operation.
+
 ## First storage test — passed, resources retained
 
-The explicitly approved test created one unique namespace, one **1 GiB** claim and
+The run completed at **2026-11-01 02:03:46 UTC** (saved exit-record timestamp and
+Ansible recap). The explicitly approved test created one unique namespace, one **1 GiB** claim and
 one non-root, digest-pinned official BusyBox pod at a time. It passed:
 
 1. Initial write/checksum on worker-1.
@@ -62,7 +71,7 @@ The [C4 storage flow](docs/architecture/README.md) links the actual Ansible code
 
 ## Next decisions
 
-1. Review the retained test evidence and separately approve exact resource cleanup
+1. Review MR #99 and the retained test evidence; separately approve exact resource cleanup
    or further storage tests. No automatic teardown or data-volume deletion.
 2. Plan recovery tests appropriate to this lab: replica loss/rebuild and independent
    application backup/restore are still untested. Replication is not backup.
