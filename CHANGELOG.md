@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.3](https://github.com/perkforge/perkforge-platform/compare/v0.11.2...v0.11.3) (2026-11-01)
+
+
+### Bug Fixes
+
+* **longhorn:** authorize reviewed diagnostic role binding ([#97](https://github.com/perkforge/perkforge-platform/issues/97)) ([1247b0c](https://github.com/perkforge/perkforge-platform/commit/1247b0cde315fbeab9e075fa5e3e4cd60344903c))
+
 ## [0.11.2](https://github.com/perkforge/perkforge-platform/compare/v0.11.1...v0.11.2) (2026-11-01)
 
 
