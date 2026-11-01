@@ -148,3 +148,30 @@ The operation does not install Longhorn, create disks/claims or unpause Flux.
 The local root now authors active outer/Longhorn releases behind a paused,
 release-pinned seed. Use the [release/seed procedure](../../ansible/README.md#longhorn-only-release-and-seed-activation); v0.10.0 is the suspended staging input.
 Do not manually resume a child while its selected Git release still suspends it.
+
+## Installer chart lookup permission
+
+The pinned1.13.0 chart's `templates/validate-psp-install.yaml` executes an unnamed
+ClusterRole `lookup` before checking `enablePSP` (already false). Helm evaluates
+that lookup even though the template lines begin with YAML comments. The existing
+named-role list/write permissions cannot authorize this collection request.
+The installer ClusterRole therefore adds only `list` on
+`rbac.authorization.k8s.io/clusterroles` without `resourceNames`, bound only to the
+existing `bigbang:longhorn-installer`. This exposes cluster role definitions to
+that installer; it adds no unrestricted get/watch, writes, bind/escalate or Secret
+access. Existing named mutation permissions are unchanged.
+
+A named list would require a name field selector, which this chart does not send
+([Kubernetes RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#referring-to-resources)).
+Disabling PSP does not avoid the lookup; patching/forking or changing the pinned
+upstream chart would introduce a separate source/version change. Retain the
+minimal read-only permission rather than broadening installer writes or bypassing
+Helm server rendering.
+
+The regression uses real Helm server-side rendering of the pinned chart against
+an isolated loopback authorization model: the old role and a name-restricted list
+fail, while this exact list-only addition passes. It is not live Kubernetes
+acceptance. Publication changes no running source ref: v0.11.1 stays immutable.
+A future released checkout, installer-RBAC apply and failed-release retry need
+separate review/approval; do not imperatively patch permissions or delete volumes.
+UI ingress remains disabled and Rancher/identity/tenant selection is unchanged.
