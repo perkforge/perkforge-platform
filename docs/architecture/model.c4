@@ -158,6 +158,10 @@ model {
         description 'Protect personal files, databases and secret recovery separately. Replication/Retain do not protect against deletion or corruption, and etcd snapshots do not contain PV contents. Independent custody and restore tests are required before relying on personal-data storage.'
       }
     }
+    harbor = component 'Harbor admin and registry — blocked inactive' {
+      description 'Pinned rendered profile, protected Secret references only. Installer namespace authority, no runtime cluster grant. PostgreSQL/Redis, TLS/internal network, cumulative capacity and scanner decision remain blocked. No SSO/robot/CI credentials, no live registry.'
+      link https://github.com/perkforge/perkforge-platform/blob/feat/harbor-review/big-bang-bootstrap/configuration/packages/harbor/README.md 'Harbor inputs, authority and acceptance'
+    }
     gitlab = component 'GitLab Free baseline — blocked inactive review' {
       description 'Exact Big Bang chart/profile rendered; no deployment. EE unlicensed Free baseline, protected root-secret reference, no SSO/runner/registry. External PostgreSQL/Redis/object store and roughly 17Gi app requests require explicit capacity design. Separate installer namespace authority and shared-secret runtime Job; no cluster RBAC. No human credentials generated.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/gitlab-review/big-bang-bootstrap/configuration/packages/gitlab/README.md 'Actual implementation, permissions and blockers'

@@ -190,6 +190,15 @@ views {
     platform.observability.grafana -> engineer '7. Verify real scrapes/admin/dashboards, no duplicate pipeline, resource/retention and network deny behavior'
   }
 
+  dynamic view harbor_initial_admin {
+    title 'Harbor initial administration — blocked candidate'
+    engineer -> platform.harbor '1. Review supported external data services, capacity, TLS/network and explicit deferred scanner scope'
+    engineer -> platform.prerequisite_applier '2. Separately approve protected admin/signing/encryption inputs and namespace installer rights'
+    platform.prerequisite_applier -> platform.harbor '3. Future grants only namespace chart/history CRUD, no cluster RBAC'
+    platform.bigbang -> platform.harbor '4. After gates and release approval, delegated Helm deploys registry using Secret references'
+    platform.harbor -> engineer '5. Verify trusted admin, authenticated push/pull and denial, persistence/restore; SSO/CI robots later'
+  }
+
   dynamic view gitlab_initial_admin {
     title 'GitLab initial administration — blocked candidate'
     description 'Who does what and why: real disabled profile, not approved deployment; external datastore/capacity/TLS decisions remain.'

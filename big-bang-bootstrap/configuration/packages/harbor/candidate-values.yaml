@@ -1,0 +1,69 @@
+# Blocked, inactive profile. No root valuesFrom or prerequisite apply path.
+addons:
+  harbor:
+    enabled: false
+    git:
+      repo: https://repo1.dso.mil/big-bang/product/packages/harbor.git
+      path: ./chart
+      tag: 1.19.2-bb.3
+    flux:
+      suspend: true
+      serviceAccountName: harbor-installer
+      storageNamespace: harbor
+      install: {createNamespace: false, remediation: {retries: 0}}
+      upgrade: {remediation: {retries: 0}}
+    values:
+      domain: UNCONFIGURED.invalid
+      istio: {enabled: false}
+      bbtests: {enabled: false}
+      monitoring: {enabled: false}
+      postgresql:
+        enabled: false
+        auth: {password: null}
+        initdbPassword: null
+      redis-bb: {enabled: false}
+      upstream:
+        externalURL: https://harbor.UNCONFIGURED.invalid
+        expose:
+          type: clusterIP
+          tls: {enabled: true, certSource: secret, secret: {secretName: harbor-service-tls}}
+        existingSecretAdminPassword: harbor-initial-admin
+        existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
+        harborAdminPassword: null
+        secretKey: null
+        existingSecretSecretKey: harbor-encryption-key
+        core:
+          existingSecret: harbor-core-auth
+          secretName: harbor-token-signing
+          existingXsrfSecret: harbor-xsrf
+        jobservice:
+          existingSecret: harbor-jobservice-auth
+          existingSecretKey: JOBSERVICE_SECRET
+        registry:
+          existingSecret: harbor-registry-auth
+          existingSecretKey: REGISTRY_HTTP_SECRET
+          credentials: {existingSecret: harbor-registry-credentials, password: null}
+        database:
+          type: external
+          internal: {password: null}
+          external:
+            host: UNCONFIGURED-postgresql.invalid
+            username: harbor
+            password: null
+            coreDatabase: harbor
+            existingSecret: harbor-database
+            sslmode: verify-full
+        redis:
+          type: external
+          external:
+            addr: UNCONFIGURED-redis.invalid:6379
+            existingSecret: harbor-redis
+            password: null
+        persistence:
+          enabled: true
+          resourcePolicy: keep
+          persistentVolumeClaim:
+            registry: {storageClass: longhorn, size: 10Gi}
+            jobservice:
+              jobLog: {storageClass: longhorn, size: 1Gi}
+        trivy: {enabled: false}
