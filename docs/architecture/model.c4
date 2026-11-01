@@ -159,7 +159,7 @@ model {
       }
     }
     authorization = component 'Authorization plan — disabled review' {
-      description 'PROPOSED only: Ansible renders review artifacts; no live apply or integration. Existing pilot mappings are retained. Keycloak realm administration is distinct from Kubernetes/platform administration. Activation also requires admission/workload identity and credential custody decisions.'
+      description 'PROPOSED only: Ansible renders review artifacts; no live apply or integration. Existing pilot mappings are retained. Keycloak realm administration is distinct from Kubernetes/platform administration. Everyday operator access is intended through Keycloak platform-admin SSO. Durable local recovery credentials belong in the operator password manager, independent of cluster/Keycloak; test local emergency access with SSO unavailable. Temporary bootstrap credentials are not automatically durable recovery identities. Activation also requires admission/workload identity and custody decisions.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/README.md 'Who does what and why'
       groups = component 'Human groups and app clients — proposed' {
         description 'PerkForge display name/perkforge realm. platform-admin uses canonical /platform/admins; each tenant has /tenants/<id>/admins and developers. Parents grant nothing, no users/default memberships or realm-admin mappings. Clients disabled. Full-path group mapper claim disclosure needs review.'

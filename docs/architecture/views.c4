@@ -189,7 +189,9 @@ views {
     platform.authorization.groups -> platform.rancher.runtime '6. Rancher allows platform-admin group only; retain local break-glass, no tenant grants'
     platform.authorization.groups -> platform.authorization.storage_admin '7. Longhorn has no native OIDC RBAC; proxy/access decision remains blocked'
     platform.authorization.tenant_rbac -> engineer '8. Verify positive/negative API, malicious PodSpec and cross-tenant tests before enabling'
-    platform.authorization.bao_policies -> engineer '9. Verify native capabilities, revocation/session expiry and recovery; promote diagram only with evidence'
+    platform.authorization.bao_policies -> engineer '9. Verify native capabilities and revocation; everyday operator access uses platform-admin SSO'
+    engineer -> custody '10. Keep durable local recovery in independent password-manager custody; bootstrap access may be temporary'
+    custody -> engineer '11. Test local emergency access with SSO unavailable; custody stays off cluster; no live test claimed'
   }
 
   dynamic view keycloak_initial_admin {

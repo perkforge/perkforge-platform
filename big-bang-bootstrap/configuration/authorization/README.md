@@ -70,6 +70,27 @@ replace root-only recovery operations. Reviewer must approve policy scope and
 future Identity alias strategy. The existing configurator now additionally
 requires `platform_api_apply=true`; default/check mode does not authenticate.
 
+## Everyday access and independent recovery
+
+The operator intends to use Keycloak `platform-admin` SSO for everyday platform
+administration, including their own access. Keep a separately tested local
+break-glass path independent of the cluster and Keycloak, with durable recovery
+credentials in the operator's password manager. Verify emergency access while
+SSO is unavailable before relying on that design; no such test is claimed here.
+
+Distinguish each app's temporary bootstrap credential from its approved durable
+recovery identity. An initial root token, temporary master administrator or
+bootstrap password is not automatically a permanent break-glass credential.
+Document the supported per-app recovery method, then separately approve any
+replacement, revocation or retirement; do not retain broad bootstrap access by
+default or remove the only verified recovery path. OpenBao unseal material remains
+separate from both ordinary administrator credentials and this app cache.
+
+Temporary flat files now live at `~/src/perkforge-tmp-secrets/` outside Git,
+directory 0700/files 0600. Future approved app credential capture uses that path.
+The operator owns password-manager migration and temporary-copy cleanup; moving
+files is not credential rotation. No live identity changes are authorized here.
+
 ## Ordered review, migration and acceptance
 
 1. Verify initial app/local-admin access, trusted TLS and independent recovery.

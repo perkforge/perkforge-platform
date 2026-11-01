@@ -40,11 +40,19 @@ unverified. No competing direct Ansible/Helm installer is used.
 
 Protected `.rke2-state/` retains the activation summary, exact source/root/Helm
 objects, authorization/capacity checks and automatically saved redacted Ansible
-output. The ignored owner-only `app-admin-cache/` contains Rancher's admin username
-and bootstrap-password flat files plus metadata. No values belong in Git/chat.
+output. The temporary app credential cache was moved to
+`~/src/perkforge-tmp-secrets/`, outside Git (directory 0700, files 0600). It contains
+Rancher's admin username and bootstrap-password flat files plus metadata. Future
+approved app credential saves use this location, not the former `.rke2-state/`
+cache. No values belong in Git/chat.
 The operator owns proper-store migration and explicit temporary-copy cleanup;
 changing a cached file is not server password rotation. Other app entries remain
-pending or not applicable; no OpenBao unseal material is bundled there.
+pending or not applicable; no CA signing key, unseal or SSH material is bundled
+there. Everyday operator access is intended to use Keycloak platform-admin SSO;
+durable local break-glass credential custody stays independent of the cluster/Keycloak in
+the operator's password manager and requires a tested emergency path. Bootstrap
+credentials are not automatically permanent recovery identities. No SSO, account
+creation, credential rotation or deletion was performed for this custody move.
 
 ## Acceptance requirement for every subsequent app
 
