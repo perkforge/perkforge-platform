@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.0](https://github.com/perkforge/perkforge-platform/compare/v0.13.0...v0.14.0) (2026-11-01)
+
+
+### Features
+
+* **openbao:** add exact-SNI TLS passthrough candidate ([#123](https://github.com/perkforge/perkforge-platform/issues/123)) ([07b3d6b](https://github.com/perkforge/perkforge-platform/commit/07b3d6b37667d08e7cfcdd2fe2aa48c4728f5cdf))
+* **openbao:** preserve guarded initialization and custody procedure ([#121](https://github.com/perkforge/perkforge-platform/issues/121)) ([23791c3](https://github.com/perkforge/perkforge-platform/commit/23791c3470ac48872253ef2c8a9f6f20066b115c))
+
 ## [0.13.0](https://github.com/perkforge/perkforge-platform/compare/v0.12.0...v0.13.0) (2026-11-01)
 
 
