@@ -2,7 +2,7 @@
 
 ## Current checkpoint — 2026-11-01
 
-Keycloak initial master administration, OpenBao LAN HTTPS, Headlamp temporary-admin acceptance, Rancher installation and the first Longhorn storage test passed. **No further live
+PerkForge platform-only realm/group foundation, Keycloak initial master administration, OpenBao LAN HTTPS, Headlamp temporary-admin acceptance, Rancher installation and the first Longhorn storage test passed. **No further live
 action is authorized by this handoff.** Never push main or merge for the operator;
 preserve protected evidence, retained test data and other worktrees.
 
@@ -173,26 +173,48 @@ is a short sample, not all attributable to Headlamp. Its declared request adds
 physical available ~221.19/222.56GiB with 70.73GiB reserve each. No backup/HA or
 new storage acceptance claimed, and the retained test volume was not deleted.
 
-## Prepared realm/group foundation — no live changes
+## PerkForge platform realm/group foundation — passed 20:20:07 UTC
 
-`configuration/authorization/foundation.yaml` under big-bang-bootstrap is the
-new default-off Ansible entrypoint for the owned PerkForge realm and empty six-role
-group families. It creates no users/memberships/clients/role grants, credentials or
-app integrations. Existing trial bootstrap and disabled review render are separate.
-Synthetic HTTPS protocol/safety tests cover positive creation/idempotence/resume
-and negative ownership, mapping, target, CA and access cases; live acceptance is
-**not executed**. See the [approval/input/recovery scope](big-bang-bootstrap/configuration/authorization/README.md#realmgroup-foundation--implemented-not-applied).
-Next: review/merge this feature MR, then separately approve the exact tenant list,
-existing master credential use and realm/group writes. Preserve master recovery;
-no account retirement, app SSO or delegated tenant administration is implied.
+Approved platform-only execution used clean merged source
+`f2fa519434973197a12008805324c08d97a3644d` and the
+[versioned Ansible operation](big-bang-bootstrap/configuration/authorization/foundation.yaml).
+Target, trusted hostname/exact physical TLS leaf, existing master credential and
+absence of the realm were verified first. Read-only inspect: ok 14/changed 0.
+First apply: ok 111/changed **6** (one realm and five groups), failed 0. Second
+apply: ok 132/changed **0**, failed 0. Final independent API readback passed.
+
+Observed realm: `perkforge` / PerkForge. Exactly five empty group paths:
+`/platform`, `/platform/admins`, `/platform/engineers`, `/platform/viewers`,
+`/tenants`. `authorization_tenants: []`: no tenant-specific groups were created.
+There are **zero users, memberships, custom group role mappings, default groups
+or custom app clients**. Keycloak's six normal built-in realm clients are present.
+Canonical group labels confer no application permission. No engineer powers,
+PerkForge user enrollment, realm-management grants or SSO integration was applied.
+
+Existing master API access remains usable; no credentials were generated, copied,
+reset, retired or logged. The temporary master account still does not expire
+itself; independently held permanent recovery remains a separate checkpoint.
+Flux source stays v0.14.0 and root local-keycloak; source/root specs and Keycloak/
+PostgreSQL pod identities stayed unchanged. All six HelmReleases remained Ready.
+No route, Kubernetes RBAC, storage, other-app or forced recovery operation occurred.
+Private `realm-foundation-<run>/` evidence retains merged-source guards, protected
+inputs, redacted inspect/apply logs, two acceptance reads, changed=0 recap and
+summary exit 0. Credential-value scanning of saved logs passed.
+
+Next: separately review/approve the first human identity and membership enrollment,
+permanent recovery, and one app integration at a time with allowed/denied tests.
+Tenant delegation, multi-tenant shared-user changes and engineer scope remain
+unimplemented. Foundation creation/idempotence is live-tested; actual human/app
+role enforcement, cross-tenant authorization and recovery drill are **not proven**.
 
 ## Next configuration — recovery and identity remain separately gated
 
 OpenBao, Headlamp and Keycloak initial acceptance are complete on the same v0.14.0
 artifact using the [ordered stage roots](big-bang-bootstrap/configuration/ansible/README.md#ordered-app-stages).
-No further app is authorized. Establish independent Keycloak permanent recovery,
-review the six-role matrix and separately approve incremental PerkForge realm/
-group/client configuration. Initial master administration is not that rollout.
+No further app is authorized. Platform-only realm/group creation and idempotence
+are now accepted above. Establish independent Keycloak permanent recovery, review
+the six-role matrix and separately approve human membership/client configuration.
+Empty groups are not that authorization rollout.
 OpenBao root retirement/scoped recovery, custody transfer and backup/restore remain
 pending; Headlamp's temporary admin remains revoked. Never move backward to an
 older root as an automatic rollback or assume publishing a release activates it.

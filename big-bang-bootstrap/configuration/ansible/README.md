@@ -283,6 +283,11 @@ explicitly. Do not prune a previous app to make capacity appear adequate.
 ## Realm/group foundation after Keycloak acceptance
 
 Use the separately gated [authorization foundation](../authorization/foundation.yaml)
-and [reviewed operation/approval scope](../authorization/README.md#realmgroup-foundation--implemented-not-applied).
+and [reviewed operation/approval scope](../authorization/README.md#realmgroup-foundation).
 It creates only an owned realm and empty canonical groups. It does not run the
 older trial user/client bootstrap, assign memberships or activate app SSO.
+
+Platform-only live acceptance passed on 2026-11-01: owned realm plus five empty
+groups, first apply changed 6/second changed 0, no users/memberships/custom grants.
+The default remains off. Further enrollment, tenant groups and app SSO need review
+and separate approval; no release/source promotion occurred for this API operation.

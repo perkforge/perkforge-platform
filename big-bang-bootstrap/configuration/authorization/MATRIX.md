@@ -239,10 +239,12 @@ focused positive/negative tests. New ongoing access remains separately gated.
 
 The [default-off Ansible foundation](foundation.yaml) implements only the owned
 PerkForge realm and empty canonical group paths, with exact-path read/compare,
-conflict refusal, create-only idempotence and synthetic HTTPS tests. It is **not
-applied live** and grants no memberships, Keycloak roles, app clients, Kubernetes
-bindings or OpenBao policies. Existing review templates remain non-apply artifacts.
-Explicit tenant IDs produce tenant-qualified groups; shared-user membership and
+conflict refusal, create-only idempotence and synthetic HTTPS tests. Its **platform-only realm/five empty groups are observed live** at 20:20:07 UTC;
+first apply changed 6, second changed 0, with zero users/memberships/custom group
+mappings/custom app clients. It grants no Keycloak roles, Kubernetes bindings or
+OpenBao policies. Existing review templates remain non-apply artifacts.
+Tenant group creation is still unexecuted; explicit tenant IDs produce qualified
+groups when separately approved. Shared-user membership and
 multi-tenant scope are never edited by this step. Platform-engineer powers remain
 unsettled and ungranted. App and delegated membership integrations remain proposed;
 update this matrix, ownership C4 and allowed/denied tests in each implementation MR.
