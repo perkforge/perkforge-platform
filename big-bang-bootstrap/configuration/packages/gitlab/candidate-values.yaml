@@ -1,0 +1,70 @@
+# Nondeployable review profile: external data services and credentials unresolved.
+# This file is not in root valuesFrom. Enabling a Helm flag is not approval.
+addons:
+  gitlab:
+    enabled: false
+    git:
+      repo: https://repo1.dso.mil/big-bang/product/packages/gitlab.git
+      path: ./chart
+      tag: 10.4.2-bb.0
+    flux:
+      suspend: true
+      serviceAccountName: gitlab-installer
+      storageNamespace: gitlab
+      install:
+        createNamespace: false
+        remediation: {retries: 0}
+      upgrade:
+        remediation: {retries: 0}
+    values:
+      domain: UNCONFIGURED.invalid
+      istio: {enabled: false}
+      bbtests: {enabled: false}
+      global:
+        edition: ee
+        hosts:
+          domain: UNCONFIGURED.invalid
+          gitlab: {name: gitlab.UNCONFIGURED.invalid}
+          registry: {name: registry.UNCONFIGURED.invalid}
+        ingress: {enabled: false, configureCertmanager: false}
+        gatewayApi: {enabled: false, installEnvoy: false, configureCertmanager: false}
+        certificates:
+          customCAs: []
+        initialRootPassword: {secret: gitlab-initial-admin, key: password}
+        psql:
+          host: UNCONFIGURED-postgresql.invalid
+          username: gitlab
+          database: gitlabhq_production
+          password: {secret: gitlab-database, key: password}
+        redis:
+          host: UNCONFIGURED-redis.invalid
+          auth: {enabled: true, secret: gitlab-redis, key: password}
+        appConfig:
+          omniauth: {enabled: false}
+          object_store:
+            enabled: true
+            connection: {secret: gitlab-object-store, key: connection}
+          lfs: {bucket: gitlab-lfs}
+          artifacts: {bucket: gitlab-artifacts}
+          uploads: {bucket: gitlab-uploads}
+          packages: {bucket: gitlab-packages}
+          externalDiffs: {bucket: gitlab-diffs}
+          terraformState: {bucket: gitlab-terraform}
+          ciSecureFiles: {bucket: gitlab-securefiles}
+          dependencyProxy: {bucket: gitlab-dependencyproxy}
+      upstream:
+        installCertmanager: false
+        nginx-ingress: {enabled: false}
+        nginx-ingress-geo: {enabled: false}
+        traefik: {install: false}
+        haproxy: {install: false}
+        prometheus: {install: false}
+        gitlab-runner: {install: false}
+        gitlab-zoekt: {install: false}
+        openbao: {install: false}
+        ai-gateway: {install: false}
+        registry: {enabled: false}
+        gitlab:
+          kas: {enabled: false}
+          gitaly:
+            persistence: {enabled: true, storageClass: longhorn, size: 10Gi}

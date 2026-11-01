@@ -1,5 +1,12 @@
 # Current operator handoff
 
+## GitLab candidate is blocked, not queued live activation
+
+[GitLab review](big-bang-bootstrap/configuration/packages/gitlab/README.md) commits
+the actual pinned disabled profile and namespace installer audit. External
+PostgreSQL/Redis/object store and roughly17Gi app requests need capacity decisions;
+no license, credentials, ingress or deployment. No obsolete direct installer found.
+
 ## Inactive alert/validation preparation
 
 [Native rule overlay and acceptance contract](big-bang-bootstrap/configuration/observability/alerts-and-validation.md)
