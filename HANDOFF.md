@@ -1,5 +1,12 @@
 # Current operator handoff
 
+## Inactive logging draft
+
+The [logging candidate](big-bang-bootstrap/configuration/observability/logging.md)
+adds scoped API collection and authenticated TLS Loki with 3d/10Gi retention.
+No selection, credentials, permissions or live acceptance. Operator-generated
+workloads, Alloy binary validation, query auth and network enforcement remain gates.
+
 ## Current checkpoint — 2026-11-01
 
 Rancher installation and the first Longhorn storage test passed. **No further live

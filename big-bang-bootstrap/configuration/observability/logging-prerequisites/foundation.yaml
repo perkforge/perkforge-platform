@@ -1,0 +1,186 @@
+# Review candidate only; no root references this foundation.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: logging
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: alloy
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: logging-pilot
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: loki-installer
+  namespace: logging
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alloy-installer
+  namespace: alloy
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alloy-log-reader
+  namespace: alloy
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: loki-installer
+  namespace: logging
+rules:
+# Helm history and pre-provisioned TLS/auth references; trusted namespace installer.
+- apiGroups: ['']
+  resources: [secrets, configmaps, services, serviceaccounts, persistentvolumeclaims]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [apps]
+  resources: [deployments, statefulsets]
+  verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: loki-installer
+  namespace: logging
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: loki-installer
+subjects:
+- kind: ServiceAccount
+  name: loki-installer
+  namespace: logging
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: alloy-installer
+  namespace: alloy
+rules:
+- apiGroups: ['']
+  resources: [secrets, configmaps, services, serviceaccounts]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [apps]
+  resources: [deployments]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [batch]
+  resources: [jobs]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [collectors.grafana.com]
+  resources: [alloys]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [roles, rolebindings]
+  verbs: [create]
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [roles, rolebindings]
+  resourceNames: [alloy-alloy-operator-alloy-manager, alloy-alloy-operator, alloy-alloy-operator-leader-election-role, alloy-alloy-operator-leader-election-rolebinding, alloy-upstream-add-finalizer, alloy-upstream-remove-alloy-and-finalizer]
+  verbs: [get, list, watch, update, patch, delete]
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [roles]
+  resourceNames: [alloy-alloy-operator-alloy-manager, alloy-alloy-operator, alloy-alloy-operator-leader-election-role, alloy-upstream-add-finalizer, alloy-upstream-remove-alloy-and-finalizer]
+  verbs: [bind, escalate]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: alloy-installer
+  namespace: alloy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: alloy-installer
+subjects:
+- kind: ServiceAccount
+  name: alloy-installer
+  namespace: alloy
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: alloy-installer
+rules:
+- apiGroups: [apiextensions.k8s.io]
+  resources: [customresourcedefinitions]
+  verbs: [create]
+- apiGroups: [apiextensions.k8s.io]
+  resources: [customresourcedefinitions]
+  resourceNames: [alloys.collectors.grafana.com]
+  verbs: [get, list, watch, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: alloy-installer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: alloy-installer
+subjects:
+- kind: ServiceAccount
+  name: alloy-installer
+  namespace: alloy
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: alloy-client-secret-reader
+  namespace: alloy
+rules:
+- apiGroups: ['']
+  resources: [secrets]
+  resourceNames: [loki-client-auth]
+  verbs: [get, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: alloy-client-secret-reader
+  namespace: alloy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: alloy-client-secret-reader
+subjects:
+- kind: ServiceAccount
+  name: alloy-log-reader
+  namespace: alloy
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: alloy-pod-log-reader
+  namespace: logging-pilot
+rules:
+- apiGroups: ['']
+  resources: [pods, pods/log]
+  verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: alloy-pod-log-reader
+  namespace: logging-pilot
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: alloy-pod-log-reader
+subjects:
+- kind: ServiceAccount
+  name: alloy-log-reader
+  namespace: alloy
