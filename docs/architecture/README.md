@@ -38,6 +38,8 @@ Actual IP/MAC values and SSH identity references remain in ignored
 The private file is never copied into viewer assets or public source links.
 These views are architecture, not a live status dashboard or approval.
 
+The existing platform view links [installer ownership and release promotion](public/runbook.html#bootstrap-ownership): current Ansible-applied Kubernetes prerequisites versus the deferred scoped Flux foundation in [#95](https://github.com/perkforge/perkforge-platform/issues/95), coordinated with [#14](https://github.com/perkforge/perkforge-platform/issues/14). These notes do not add a rollout gate.
+
 ## View and validate
 
 Requires Node >=22.22.3/npm. LikeC4 1.60.0 is locked locally; install dependencies when

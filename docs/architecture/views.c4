@@ -133,7 +133,7 @@ views {
   }
   view platform_detail of platform {
     title 'Platform boundary — readiness and ownership'
-    description 'Separate operating scope after OS/access. Infrastructure Ansible owns host/RKE2/Rancher configuration; Rancher owns platform-admin cluster lifecycle, Flux owns GitOps and Big Bang supplies curated packages. Enrollment and application repositories retain their respective ownership.'
+    description 'Separate operating scope after OS/access. Infrastructure Ansible owns host/RKE2; reviewed Ansible operations currently apply installer foundations before Helm rendering. Platform Ansible owns gated Rancher API configuration. Rancher owns platform-admin cluster lifecycle; Flux reconciles explicitly promoted releases and Big Bang supplies packages. Enrollment and application repositories retain their respective ownership.'
     link /runbook.html#platform 'Platform readiness and responsibilities'
     include readiness, rke2, storage, rancher, flux, bigbang, enrollment, applications
   }
