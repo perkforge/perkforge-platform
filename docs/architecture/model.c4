@@ -158,6 +158,19 @@ model {
         description 'Protect personal files, databases and secret recovery separately. Replication/Retain do not protect against deletion or corruption, and etcd snapshots do not contain PV contents. Independent custody and restore tests are required before relying on personal-data storage.'
       }
     }
+    keycloak = component 'Keycloak identity server — candidate' {
+      description 'PLANNED: chart 7.3.2-bb.1/Keycloak 26.8.0 plus pinned PostgreSQL on a retained Longhorn claim. One app/database, not HA. Initial master bootstrap administrator only; no realm import, users, PerkForge groups, clients or app OIDC activation.'
+      link https://github.com/perkforge/perkforge-platform/blob/feat/keycloak-bootstrap/big-bang-bootstrap/configuration/packages/keycloak/README.md 'Initial Keycloak procedure'
+      installer = component 'keycloak-installer — namespaced Helm identity' {
+        description 'Ansible prepares namespace/PVC/init ConfigMap; Helm manages namespaced app/database resources. Only named database Secret get lookups, no cluster RBAC or human grants. Credentials and current physical TLS remain separate approved delivery.'
+      }
+      runtime = component 'Keycloak/PostgreSQL workload identities' {
+        description 'Application and database roles are separate from human Keycloak administration and Kubernetes/tenant roles. Application DB user is not database superuser. Helm does not own realm API configuration.'
+      }
+      master_admin = component 'Temporary master bootstrap administrator' {
+        description 'External Secret-backed initial identity; first-start only, no fabricated live password. Master realm recovery/admin does not automatically imply PerkForge platform-admin membership or vice versa. Removal requires verified permanent recovery and separate approval.'
+      }
+    }
     headlamp = component 'Headlamp Kubernetes identity UI — candidate' {
       description 'PLANNED: token-login UI only, no Keycloak configuration or human authorization change. No native admin password or persistent cluster-admin SA. Ingress stays off; separately approved authenticated loopback forwarding and token identity/expiry are required before admin login acceptance.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/headlamp-bootstrap/big-bang-bootstrap/configuration/packages/headlamp/README.md 'Token-mode procedure and identity decision'
