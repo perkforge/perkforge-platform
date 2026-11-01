@@ -167,7 +167,7 @@ views {
 
   dynamic view app_stage_promotion {
     title 'One release — approved app stages and acceptance'
-    description 'OBSERVED OpenBao/Headlamp acceptance at v0.14.0; Keycloak stage remains proposed, not deployed. Fixed Kustomize stage roots share one immutable artifact. Preserve Longhorn/Rancher. Stop after every app for access/custody and health/capacity acceptance; no automatic backward-stage rollback or auth integration.'
+    description 'OBSERVED OpenBao/Headlamp/Keycloak acceptance at v0.14.0; root now local-keycloak, no realm/group/SSO activation. Fixed Kustomize stage roots share one immutable artifact. Preserve Longhorn/Rancher. Stop after every app for access/custody and health/capacity acceptance; no automatic backward-stage rollback or auth integration.'
     link /runbook.html#app-stages 'Stage paths, ownership and stop gates'
     engineer -> platform.prerequisite_applier '1. Review exact release and approve only OpenBao inputs/prerequisites'
     engineer -> platform.flux '2. Promote verified source; default local path selects OpenBao only'
@@ -239,15 +239,16 @@ views {
   }
 
   dynamic view keycloak_initial_admin {
-    title 'Keycloak initial master administration — proposed'
-    description 'Who does what and why: package deployment and temporary master recovery identity precede, but do not activate, Ansible realm/group configuration.'
+    title 'Keycloak initial master administration — observed v0.14.0'
+    description 'Who does what and why: observed deployment, scoped policies, TLS and private initial master login precede Ansible realm/group configuration. Temporary master admin does not expire; permanent independent recovery and retirement remain separate approvals. Frontend TLS terminates at Traefik; internal HTTP/PostgreSQL are plaintext.'
+    link /runbook.html#keycloak-access 'Observed operation, source links and recovery boundary'
     engineer -> platform.prerequisite_applier '1. Review exact release/target; approve Longhorn claim, private credentials and current physical TLS'
-    platform.prerequisite_applier -> platform.keycloak.installer '2. Ansible prepares namespace, retained PVC, empty-store SQL and scoped installer rights'
-    engineer -> platform.flux '3. Promote release only after protected bootstrap/database/Registry1 inputs exist'
+    platform.prerequisite_applier -> platform.keycloak.installer '2. Ansible prepares 4Gi retained PVC, empty-store SQL, scoped installer rights and only two Keycloak NetworkPolicies'
+    engineer -> platform.flux '3. Deliver approved leaf/bootstrap/database/Registry1 Secrets; retain v0.14.0, advance only local-keycloak path'
     platform.bigbang -> platform.keycloak.installer '4. Child waits for Longhorn and delegates chart operations to keycloak-installer'
     platform.keycloak.installer -> platform.keycloak.runtime '5. Helm creates database/app workloads without importing a realm or granting human roles'
     platform.keycloak.runtime -> platform.keycloak.master_admin '6. First empty-store start creates approved temporary master bootstrap identity'
-    engineer -> platform.keycloak.master_admin '7. Separately verify trusted HTTPS and private admin login; retain recovery'
+    engineer -> platform.keycloak.master_admin '7. Passed trusted HTTPS, private master-admin API login, database role and per-node health/storage checks'
     platform.keycloak.master_admin -> engineer '8. Stop before realm/groups/clients/SSO; proposed Ansible configuration needs review and approval'
   }
 
