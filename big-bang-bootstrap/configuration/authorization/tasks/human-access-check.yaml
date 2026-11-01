@@ -1,0 +1,18 @@
+- name: Verify recorded human identity, not merely a colliding username
+  ansible.builtin.assert:
+    that:
+    - human_user.id == human_record.id and human_user.username == human_username
+    - human_user.enabled
+    - human_user.attributes['perkforge-managed'] == ['true']
+    - human_user.attributes['perkforge-enrollment'] == ['human-totp-il2-v1']
+- ansible.builtin.uri:
+    url: '{{ human_api }}/users/{{ human_user.id }}/{{ item }}'
+    headers: '{{ human_headers }}'
+  loop: [groups, role-mappings]
+  register: human_access
+- name: Refuse unexpected memberships or direct privilege rather than resetting them
+  ansible.builtin.assert:
+    that:
+    - human_access.results[0].json | map(attribute='id') | difference([human_group.json.id]) | length == 0
+    - human_access.results[1].json.clientMappings | default({}) | length == 0
+    - human_access.results[1].json.realmMappings | default([]) | map(attribute='name') | difference(['default-roles-perkforge']) | length == 0

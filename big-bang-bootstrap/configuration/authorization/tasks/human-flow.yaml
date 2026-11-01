@@ -1,0 +1,81 @@
+- ansible.builtin.uri:
+    url: '{{ human_api }}/authentication/flows'
+    headers: '{{ human_headers }}'
+  register: human_flows
+- ansible.builtin.set_fact:
+    human_top: "{{ human_flows.json | selectattr('alias', 'equalto', human_flow_alias) | list }}"
+    human_forms: "{{ human_flows.json | selectattr('alias', 'equalto', human_forms_alias) | list }}"
+    human_constructing: "{{ human_realm.json.browserFlow == 'browser' and human_found | length == 0 }}"
+- name: Refuse unknown or duplicated flow ownership; bound policy cannot be rebuilt
+  ansible.builtin.assert:
+    that:
+    - human_top | length <= 1 and human_forms | length <= 1
+    - human_top | length > 0 or human_constructing | bool
+    - human_forms | length > 0 or human_constructing | bool
+- ansible.builtin.assert:
+    that:
+    - item.description == human_flow_description
+    - item.providerId == 'basic-flow'
+    - not item.builtIn
+  loop: '{{ human_top + human_forms }}'
+- ansible.builtin.assert:
+    that: human_top[0].topLevel
+  when: human_top | length == 1
+- ansible.builtin.assert:
+    that: not human_forms[0].topLevel
+  when: human_forms | length == 1
+- name: Create only the missing owned top-level browser flow
+  ansible.builtin.uri:
+    url: '{{ human_api }}/authentication/flows'
+    method: POST
+    headers: '{{ human_headers }}'
+    body_format: json
+    body:
+      alias: '{{ human_flow_alias }}'
+      description: '{{ human_flow_description }}'
+      providerId: basic-flow
+      topLevel: true
+      builtIn: false
+    status_code: 201
+  when: human_top | length == 0
+  changed_when: true
+- name: Add and require the two known fresh-login authenticators in parent order
+  ansible.builtin.include_tasks: human-execution.yaml
+  loop:
+  - {parent: '{{ human_flow_alias }}', provider: auth-cookie, requirement: ALTERNATIVE, kind: authenticator}
+  - {parent: '{{ human_flow_alias }}', provider: basic-flow, requirement: ALTERNATIVE, kind: forms}
+  - {parent: '{{ human_forms_alias }}', provider: auth-username-password-form, requirement: REQUIRED, kind: authenticator}
+  - {parent: '{{ human_forms_alias }}', provider: auth-otp-form, requirement: REQUIRED, kind: authenticator}
+  loop_control: {loop_var: human_step}
+- name: Verify exact nested structure, ordering and unconditional OTP before binding
+  ansible.builtin.uri:
+    url: '{{ human_api }}/authentication/flows/{{ item }}/executions'
+    headers: '{{ human_headers }}'
+  loop: ['{{ human_flow_alias }}', '{{ human_forms_alias }}']
+  register: human_flow_final
+- ansible.builtin.set_fact:
+    human_top_final: "{{ human_flow_final.results[0].json | selectattr('level', 'equalto', 0) | list }}"
+    human_forms_final: "{{ human_flow_final.results[1].json | selectattr('level', 'equalto', 0) | list }}"
+- ansible.builtin.assert:
+    that:
+    - human_top_final | length == 2 and human_forms_final | length == 2
+    - human_top_final[0].providerId == 'auth-cookie' and human_top_final[0].requirement == 'ALTERNATIVE'
+    - human_top_final[1].authenticationFlow and human_top_final[1].displayName == human_forms_alias and human_top_final[1].requirement == 'ALTERNATIVE'
+    - human_forms_final | map(attribute='providerId') | list == ['auth-username-password-form','auth-otp-form']
+    - human_forms_final | map(attribute='requirement') | list == ['REQUIRED','REQUIRED']
+- name: Bind only the verified PerkForge browser policy, never master or direct grants
+  ansible.builtin.uri:
+    url: '{{ human_api }}'
+    method: PUT
+    headers: '{{ human_headers }}'
+    body_format: json
+    body: {browserFlow: '{{ human_flow_alias }}'}
+    status_code: 204
+  when: human_realm.json.browserFlow != human_flow_alias
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ human_api }}'
+    headers: '{{ human_headers }}'
+  register: human_bound
+- ansible.builtin.assert:
+    that: human_bound.json.browserFlow == human_flow_alias

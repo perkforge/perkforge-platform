@@ -1,0 +1,14 @@
+# NONSECRET EXAMPLE. No real identity/credential values; nothing applies by default.
+human_apply: false
+human_username: person@lab.example.invalid # username only, never inferred email
+human_mfa_scope: UNDECIDED # proposed explicit choice: perkforge-browser
+human_recovery_preserved: false
+human_url: https://keycloak.perkforge.home.arpa/auth
+human_ca_file: /UNCONFIGURED/public-root-ca.crt
+human_admin_username_file: /UNCONFIGURED/existing-master-username
+human_admin_password_file: /UNCONFIGURED/existing-master-password
+human_initial_password_file: /UNCONFIGURED/approved-temporary-password
+human_record_file: /UNCONFIGURED/protected-custody/enrollment.json
+# Existing bootstrap inventory supplies exact physical target/context/UID and IL2.
+# Human completes permanent password, required profile fields and TOTP privately.
+# No email, emailVerified, SMTP, MFA seed, recovery credential or app grant here.

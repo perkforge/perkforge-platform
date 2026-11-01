@@ -7,6 +7,15 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../../..')
 const output = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(here, '../public/sources')
 const files = {
+  'enroll-human.yaml': 'big-bang-bootstrap/configuration/authorization/enroll-human.yaml',
+  'human-example.yaml': 'big-bang-bootstrap/configuration/authorization/human.example.yaml',
+  'test-human-totp.py': 'big-bang-bootstrap/tests/integration/test_human_totp.py',
+  'human-preflight.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-preflight.yaml',
+  'human-flow.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-flow.yaml',
+  'human-execution.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-execution.yaml',
+  'human-user.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-user.yaml',
+  'human-access-check.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-access-check.yaml',
+
   'realm-foundation.yaml': 'big-bang-bootstrap/configuration/authorization/foundation.yaml',
   'test-realm-foundation.py': 'big-bang-bootstrap/tests/integration/test_realm_foundation.py',
   'realm-foundation-inspect.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/foundation-inspect.yaml',
