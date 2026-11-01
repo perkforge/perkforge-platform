@@ -1,0 +1,36 @@
+# REVIEW ONLY. Reuses proven claim-bound role/policy approach, not active API config.
+roles:
+  platform-admin:
+    role_type: oidc
+    user_claim: sub
+    groups_claim: groups
+    bound_audiences: [openbao]
+    bound_claims: {groups: [/platform/admins]}
+    allowed_redirect_uris: [https://openbao.perkforge.home.arpa/ui/vault/auth/oidc/oidc/callback]
+    token_ttl: 900
+    token_max_ttl: 3600
+    token_no_default_policy: true
+    token_policies: [proposed-platform-admin]
+{% for tenant in authorization_tenants %}
+  tenant-{{ tenant }}-admin:
+    role_type: oidc
+    user_claim: sub
+    groups_claim: groups
+    bound_audiences: [openbao]
+    bound_claims: {groups: ['/tenants/{{ tenant }}/admins']}
+    allowed_redirect_uris: [https://openbao.perkforge.home.arpa/ui/vault/auth/oidc/oidc/callback]
+    token_ttl: 900
+    token_max_ttl: 3600
+    token_no_default_policy: true
+    token_policies: [proposed-tenant-{{ tenant }}-admin]
+{% endfor %}
+policies:
+  proposed-platform-admin: |
+    # Administrative trust, not the root token; root-only operations remain separate.
+    path "*" { capabilities = ["create", "read", "update", "patch", "delete", "list", "sudo"] }
+{% for tenant in authorization_tenants %}
+  proposed-tenant-{{ tenant }}-admin: |
+    path "tenants/data/{{ tenant }}/*" { capabilities = ["create", "read", "update", "patch", "delete"] }
+    path "tenants/metadata/{{ tenant }}/*" { capabilities = ["read", "list", "delete"] }
+{% endfor %}
+# Tenant developers have no human secret policy by default. Workload auth is separate.

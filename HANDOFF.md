@@ -62,7 +62,12 @@ one non-root, digest-pinned official BusyBox pod at a time. It passed:
    the same PVC/PV UIDs. Ansible: `ok=78 changed=25 failed=0`.
 
 The namespace, PVC, Retain PV, Longhorn volume/replicas and final pod are retained.
-The test pod sleeps for at most one hour; the claim/data remain after it exits.
+Saved read-only evidence at 03:33 UTC shows the final pod completed normally
+(exit 0) at **03:03:42Z**, exactly one hour after startup. Its command was the
+bounded one-hour sleep. The retained claim/volume remain; the volume is now
+Detached and reports robustness Unknown while inactive. This is not fresh
+active-replica validation or evidence of a storage regression; no attach/retest
+or cleanup was performed.
 **Cleanup is not approved.** Protected run evidence under the existing ignored
 `infrastructure/ansible/inventory/.rke2-state/` contains `retained-resources.json`
 with exact names/UIDs, stage manifests/objects/checksums, logs and exit status.
@@ -107,6 +112,18 @@ only; no startup realm import, PerkForge groups or app client integration. Prote
 bootstrap/database/pull/TLS delivery and real first login remain future approvals.
 Ansible retains realm API ownership separately from Helm deployment. See the
 [Keycloak procedure](big-bang-bootstrap/configuration/packages/keycloak/README.md).
+
+## Queued authorization review
+
+After the three app drafts, the authorization draft renders disabled PerkForge
+realm/groups/client, tenant RBAC and OpenBao role/policy proposals with Ansible.
+Nothing selects or applies them. Canonical /platform/admins is retained; tenant
+roles use /tenants/<id>/admins or developers. Realm administration remains separate.
+Admission/workload identity, claim disclosure, broad OpenBao admin scope and the
+Longhorn admin proxy path still need decisions before activation. Existing API
+configuration additionally defaults to platform_api_apply=false. No users, client
+secrets or live memberships are created. See the
+[review contract](big-bang-bootstrap/configuration/authorization/README.md).
 
 ## Next decisions
 

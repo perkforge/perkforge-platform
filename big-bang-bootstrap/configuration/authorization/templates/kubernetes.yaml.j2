@@ -1,0 +1,53 @@
+# REVIEW ONLY. No Kustomization or apply entrypoint selects these grants.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: proposed-platform-admin}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: cluster-admin}
+subjects: [{kind: Group, apiGroup: rbac.authorization.k8s.io, name: '{{ authorization_group_prefix }}{{ authorization_platform_admin_group }}'}]
+{% for tenant in authorization_tenants %}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: proposed-tenant-admin, namespace: tenant-{{ tenant }}}
+rules:
+- apiGroups: [apps]
+  resources: [deployments, deployments/scale, statefulsets, statefulsets/scale, daemonsets, replicasets]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [batch]
+  resources: [jobs, cronjobs]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: ['']
+  resources: [pods, services, configmaps, secrets, serviceaccounts, persistentvolumeclaims]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: ['']
+  resources: [pods/log, pods/exec, pods/portforward]
+  verbs: [get, create]
+- apiGroups: [networking.k8s.io]
+  resources: [ingresses]
+  verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: proposed-tenant-developer, namespace: tenant-{{ tenant }}}
+rules:
+- apiGroups: [apps]
+  resources: [deployments, deployments/scale]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [apps]
+  resources: [replicasets]
+  verbs: [get, list, watch]
+- apiGroups: ['']
+  resources: [pods, services, events]
+  verbs: [get, list, watch]
+- apiGroups: ['']
+  resources: [pods/log]
+  verbs: [get]
+{% for role,child in [('admin','admins'),('developer','developers')] %}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: proposed-tenant-{{ role }}, namespace: tenant-{{ tenant }}}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: proposed-tenant-{{ role }}}
+subjects: [{kind: Group, apiGroup: rbac.authorization.k8s.io, name: '{{ authorization_group_prefix }}/tenants/{{ tenant }}/{{ child }}'}]
+{% endfor %}
+{% endfor %}

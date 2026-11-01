@@ -1,3 +1,4 @@
+platform_api_apply: false
 # API configuration only. Big Bang/Flux owns deployment; no users/memberships are managed.
 platform_checkout: /UNCONFIGURED/platform-checkout
 keycloak_url: https://keycloak.perkforge.home.arpa/auth

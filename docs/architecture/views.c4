@@ -178,6 +178,20 @@ views {
     platform.storage.acceptance -> engineer '7. Retain test claim/PV/volume, final pod and evidence; cleanup needs separate approval'
   }
 
+  dynamic view authorization_review {
+    title 'Who does what and why — proposed human authorization'
+    description 'Disabled configuration, not observed grants. Installer/runtime accounts stay distinct from human role groups. Every live migration needs review, credentials, admission and separate approval.'
+    engineer -> platform.authorization.api_owner '1. Review canonical platform/tenant groups, membership ownership and recovery; no user creation'
+    platform.authorization.api_owner -> platform.authorization.groups '2. Offline Ansible renders disabled realm/clients; later API owner must read/compare and refuse conflicts'
+    platform.authorization.groups -> platform.headlamp.runtime '3. Proposed Keycloak full-path claims; Headlamp/API issuer and audience both need verification'
+    platform.headlamp.runtime -> platform.authorization.tenant_rbac '4. Kubernetes evaluates exact group bindings plus workload admission; tenant A cannot administer B'
+    platform.authorization.groups -> platform.authorization.bao_policies '5. OpenBao validates audience and exact claim-bound role, then its own ACL policies'
+    platform.authorization.groups -> platform.rancher.runtime '6. Rancher allows platform-admin group only; retain local break-glass, no tenant grants'
+    platform.authorization.groups -> platform.authorization.storage_admin '7. Longhorn has no native OIDC RBAC; proxy/access decision remains blocked'
+    platform.authorization.tenant_rbac -> engineer '8. Verify positive/negative API, malicious PodSpec and cross-tenant tests before enabling'
+    platform.authorization.bao_policies -> engineer '9. Verify native capabilities, revocation/session expiry and recovery; promote diagram only with evidence'
+  }
+
   dynamic view keycloak_initial_admin {
     title 'Keycloak initial master administration — proposed'
     description 'Who does what and why: package deployment and temporary master recovery identity precede, but do not activate, Ansible realm/group configuration.'

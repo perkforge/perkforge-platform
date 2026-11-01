@@ -151,11 +151,33 @@ model {
         description 'Worker-only placement and disk labels exclude control-1 from application-data replicas. V1 engine, no overprovisioning, root-disk headroom and bounded snapshots; add dedicated disks as measured growth requires. One worker outage leaves a single surviving copy until rebuild.'
       }
       acceptance = component 'Approved Ansible storage smoke test' {
-        description 'Workstation Ansible owns disposable namespace/PVC/pod changes; Python only verifies target/release, disk capacity and volume/replica state. One approved physical run passed. Default/check mode contacts no API. Retain claim/PV/volume and final pod; no automatic cleanup or repair.'
+        description 'Workstation Ansible owns disposable namespace/PVC/pod changes; Python only verifies target/release, disk capacity and volume/replica state. One approved physical run passed. Saved 03:33 UTC evidence shows the final one-hour pod completed exit 0 at 03:03:42Z; retained volume is Detached/Unknown while inactive, not fresh active health proof. Default/check mode contacts no API. No attach/retest or automatic cleanup/repair.'
         link /sources/longhorn-storage-smoke.yaml 'Actual Ansible test entrypoint'
       }
       backups = component 'Independent application-data backups' {
         description 'Protect personal files, databases and secret recovery separately. Replication/Retain do not protect against deletion or corruption, and etcd snapshots do not contain PV contents. Independent custody and restore tests are required before relying on personal-data storage.'
+      }
+    }
+    authorization = component 'Authorization plan — disabled review' {
+      description 'PROPOSED only: Ansible renders review artifacts; no live apply or integration. Existing pilot mappings are retained. Keycloak realm administration is distinct from Kubernetes/platform administration. Activation also requires admission/workload identity and credential custody decisions.'
+      link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/README.md 'Who does what and why'
+      groups = component 'Human groups and app clients — proposed' {
+        description 'PerkForge display name/perkforge realm. platform-admin uses canonical /platform/admins; each tenant has /tenants/<id>/admins and developers. Parents grant nothing, no users/default memberships or realm-admin mappings. Clients disabled. Full-path group mapper claim disclosure needs review.'
+        link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/templates/realm.yaml.j2 'Reviewable realm/group/client template'
+      }
+      api_owner = component 'Ansible realm/API configuration owner' {
+        description 'Helm deploys apps; Ansible separately reviews/reconciles realm/groups/clients and native API settings. preview.yaml never authenticates/applies; existing OpenBao API configuration now additionally requires explicit platform_api_apply=true. No dual realm-import/API owners or unreviewed adoption.'
+        link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/preview.yaml 'Actual offline Ansible review entrypoint'
+      }
+      tenant_rbac = component 'Kubernetes authorization and admission boundary — proposed' {
+        description 'Exact oidc: group bindings: platform cluster-admin; tenant-qualified namespace roles; developer Deployment/scale management without direct Secret/SA/token/exec. Deployment edits can indirectly access mounted credentials or workload SAs. Restricted Pod Security/admission/identity/network controls are required before activation; RBAC alone is not isolation.'
+        link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/templates/kubernetes.yaml.j2 'Disabled reviewable Kubernetes roles/bindings'
+      }
+      bao_policies = component 'OpenBao claim-bound roles and ACLs — proposed' {
+        description 'Reuse proven exact bound_claims.groups role-to-policy pattern. Proposed platform administrative sudo is stronger than prior KV-only pilot; root/unseal recovery stays separate. Tenant admin only its KV paths, no default developer secret role. groups_claim does not itself create Identity aliases or authorization.'
+      }
+      storage_admin = component 'Longhorn admin entry boundary — undecided' {
+        description 'No native password/OIDC/group RBAC. Ingress stays off. Verify an existing Rancher proxy path or choose an external authenticated platform-admin-only proxy later; no tenant storage administration or fabricated client.'
       }
     }
     keycloak = component 'Keycloak identity server — candidate' {
