@@ -153,7 +153,7 @@ views {
 
   dynamic view bootstrap_installer_flow {
     title 'Big Bang bootstrap — release, prerequisites and delegated package installation'
-    description 'General bootstrap ownership with Longhorn as the current concrete package. Each package needs its own reviewed installer contract; Longhorn diagnostic cluster-admin is an accepted lab exception, not a global default. Rancher is a separately reviewed candidate; live v0.11.3 is storage-only and identity/tenants remain unselected. This is a procedure model, not live approval.'
+    description 'General bootstrap ownership with Longhorn as the current concrete package. Each package needs its own reviewed installer contract; Longhorn diagnostic cluster-admin is an accepted lab exception, not a global default. Rancher is Ready at live v0.12.0 with first login pending and identity/tenants remain unselected. This is a procedure model, not live approval.'
     link /runbook.html#longhorn-rbac 'Bootstrap ownership, code and Longhorn trust example'
     engineer -> platform.prerequisite_applier '1. Review exact published release, target and shared/per-package prerequisites'
     platform.prerequisite_applier -> platform.longhorn_installer '2. Approved Ansible applies shared and selected package RBAC; Longhorn example'
@@ -192,8 +192,8 @@ views {
   }
 
   dynamic view rancher_local_admin {
-    title 'Rancher local-admin stage — planned, not activated'
-    description 'Candidate source only. Big Bang/Flux owns installation; Ansible applies approved prerequisites/TLS, not a competing Helm deployment. Vendor matrix covers RKE2 1.36 but lists Longhorn 1.12, not the separately managed 1.13 lab combination. One replica/control-plane is not HA. No SSO or test-volume cleanup.'
+    title 'Rancher installation observed — first login pending'
+    description 'Observed at v0.12.0: root/umbrella/Rancher Ready, runtime controllers available and trusted HTTPS ping passed; no first login. Big Bang/Flux owns installation; Ansible applies approved prerequisites/TLS, not a competing Helm deployment. Vendor matrix covers RKE2 1.36 but lists Longhorn 1.12, not the separately managed 1.13 lab combination. One replica/control-plane is not HA. No SSO or test-volume cleanup.'
     link /runbook.html#rancher-stage 'Source, necessary inputs and acceptance gates'
     engineer -> platform.prerequisite_applier '1. Review new release, target/capacity, vendor gaps and privileged action scope'
     platform.prerequisite_applier -> platform.rancher.inputs '2. Separately approve namespace, checked TLS/public CA and bootstrap Secret delivery'

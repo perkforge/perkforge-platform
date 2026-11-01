@@ -2,50 +2,49 @@
 
 ## Current checkpoint — 2026-11-01
 
-The physical cluster has reached the first Longhorn storage acceptance checkpoint.
-No further live action is authorized by this handoff. Never push main or merge on
-the operator's behalf; preserve protected runtime evidence and other worktrees.
+Rancher installation and the first Longhorn storage test passed. **No further live
+action is authorized by this handoff.** Never push main or merge for the operator;
+preserve protected evidence, retained test data and other worktrees.
 
-- control-1, worker-1 and worker-2 run RHEL 10.2 / RKE2 v1.36.5+rke2r1. The last
-  checks showed all three Ready. One control-plane/embedded-etcd server means
-  **no control-plane HA**. OS installation, key-only SSH/password-sudo, workload
-  networking and sequential connected OS reboot checks previously passed.
-- Flux's active `flux-system/cluster-config` source and `cluster-root` select
-  **v0.11.3**, commit `84cc2b7a79fde4b3e72af093ca79a0f1de7fe7f9`.
-  Source artifact and root applied revision matched that exact release; root was
-  Ready/Healthy at 01:55:55 UTC, after Big Bang became Ready at 01:55:22 UTC
-  and Longhorn at 01:51:21 UTC on 2026-11-01. Big Bang and Longhorn HelmReleases were Ready after separately
-  approved single failure resets. Publication alone never promotes the live source.
-- Longhorn 1.13.0 is installed, V1 only, on the two workers. Manager and CSI rollout
-  checks passed. `longhorn` is a **nondefault** StorageClass: two replicas,
-  `Retain`, `WaitForFirstConsumer`. Default disks share the workers' OS filesystems;
-  reserved/minimum headroom is not a filesystem quota. Control-1 has no data replica.
-- The operator explicitly accepts upstream Longhorn as trusted lab infrastructure.
-  The diagnostic account receives cluster-admin; the manager role already has
-  powerful RBAC-management rights. The installer has a reviewed **named bind**
-  grant, not its own general cluster-admin binding. This is not least privilege.
-  [Trust decision and procedure](big-bang-bootstrap/configuration/packages/longhorn/README.md).
-- Longhorn UI ingress remains absent. Live v0.11.3 has no Rancher deployment;
-  Headlamp, Keycloak, OpenBao and tenants remain unselected. This source candidate
-  selects Rancher for a later local-admin-only stage; no authentication is extended live.
-- Dedicated workstation PXE services/listeners/guard remain stopped as previously
-  verified. This work performed no host/network/firmware change or node reboot.
+- Three physical nodes run RHEL 10.2 / RKE2 v1.36.5+rke2r1; node health and
+  conservative scheduling headroom passed the Rancher preflight. One control-plane/
+  embedded-etcd server means no control-plane HA. Previous key-only SSH/password-
+  sudo, networking and sequential connected OS reboot checks passed.
+- Flux source and root now select **v0.12.0**, exact commit
+  `44083aa4413a135ddc65eb6664d92851057b9e6f`. Publication and CI were verified
+  before the separately approved promotion. Rancher Ready at **03:23:32Z**, Big Bang
+  at **03:23:35Z**, root Ready/Healthy at **03:23:39Z**. Longhorn stayed Ready.
+- Rancher **2.15.2** server, webhook, fleet-controller and helmops deployments were
+  available. Trusted HTTPS hostname/current physical CA verification and `/ping`
+  passed. **First login/password setup has NOT been attempted.** No SSO/groups,
+  tenant authorization or cluster lifecycle operation was performed. Continuous
+  Delivery remains off; internal Fleet is required platform machinery.
+- The approved namespace/TLS/public-CA/bootstrap Secret and Rancher prerequisite
+  delivery passed. Only Rancher's current physical service leaf/key was sent;
+  the CA signing key stayed local. The installer has named cluster-admin bind;
+  Rancher's runtime account is cluster-admin. This is trusted infrastructure,
+  not least privilege. No Flux reinstall or forced retry was needed.
+- Longhorn **1.13.0** remains V1, worker-only, two replicas, nondefault `longhorn`
+  class with Retain/WaitForFirstConsumer. UI ingress remains absent. Root-disk
+  reservations are not filesystem quotas. The accepted diagnostic cluster-admin
+  delegation and powerful manager RBAC remain the explicit lab trust decision.
+- OpenBao, Headlamp and Keycloak are queued source candidates, **not deployed**.
+  Ordinary publication does not promote the pinned live source. No credentials
+  or identity integrations were created for them.
 
-## Reviewed source versus deployed release
+The Rancher/RKE2 matrix includes our Kubernetes/OS versions, but lists Longhorn
+1.12 rather than independent 1.13. This lab combination is not claimed fully
+vendor-certified. One Rancher replica/control-plane is not HA. Required rollout
+and HTTPS checks passed; real browser login and lifecycle operations remain
+unverified. No competing direct Ansible/Helm installer is used.
 
-Merged MR #99 records the completed storage test and commits its repeatable code.
-The `feat/rancher-local-admin` candidate now selects Rancher 2.15.2 alongside
-Longhorn, with local admin only and the optional destructive post-delete hook off.
-Its reviewed installer must delegate cluster-admin to Rancher's runtime account;
-that live grant is not approved by this document. The current source tag remains
-v0.11.3, so feature publication or a new release alone cannot activate Rancher.
-
-The vendor matrix includes RKE2 1.36/RHEL 10.2, but lists Longhorn 1.12 rather than
-our independently Flux-owned 1.13. Do not claim full-stack certification. No
-Longhorn downgrade, Rancher-managed second storage installation or live probe was
-performed while preparing this source. The one-replica/one-control-plane lab is
-not HA. Actual capacity, TLS/browser behavior and Rancher controllers remain
-activation-time acceptance work; see the [Rancher procedure](big-bang-bootstrap/configuration/packages/rancher/README.md).
+Protected `.rke2-state/` retains the activation summary, exact source/root/Helm
+objects, authorization/capacity checks and automatically saved redacted Ansible
+output. The ignored owner-only `app-admin-cache/` contains Rancher's admin username
+and bootstrap-password flat files plus metadata. No values belong in Git/chat.
+The operator owns proper-store migration and explicit temporary-copy cleanup;
+changing a cached file is not server password rotation. Other app entries remain
+pending or not applicable; no OpenBao unseal material is bundled there.
 
 ## First storage test — passed, resources retained
 
@@ -93,24 +92,17 @@ Existing proven policy/role/API configuration is retained for later review.
 
 ## Next decisions
 
-1. Review/publish the Rancher local-admin candidate. Before live activation, approve
-   exact released source/target, privileged prerequisites, checked TLS/public-CA and
-   bootstrap inputs, then source promotion. No SSO/group/role changes are included.
-   Separately approve exact retained-test cleanup or additional storage tests; no
-   automatic teardown or data-volume deletion.
-2. Plan recovery tests appropriate to this lab: replica loss/rebuild and independent
-   application backup/restore are still untested. Replication is not backup.
-3. Rancher is the next platform stage, through a reviewed Big Bang package selection
-   MR/release and explicit runtime promotion/activation. Review DNS, TLS/public-CA
-   and protected bootstrap inputs first; do not use a competing direct installer.
-   Rancher Helm has no fabricated PVC dependency. Keep its later OIDC API setup
-   separate from installation.
-4. Install Keycloak separately when selected, then review the original groups/roles
-   before extending application authentication. Do not silently discard the original
-   identity design or extend SSO during storage/Rancher preparation.
-5. Deferred ownership/configuration refactors are tracked in #95 and #14. They do
-   not block this completed storage test. Kickstart and node-upgrade backlog work
-   does not authorize reinstalling or upgrading any node.
+1. Separately approve Rancher first login and private password setup; keep direct
+   RKE2 recovery access. No login/password change or OIDC operation is implied.
+2. Review queued OpenBao, Headlamp, Keycloak and disabled authorization drafts in
+   dependency order. Each activation needs a verified release, concrete target,
+   scoped credentials/TLS/prerequisites and separate approval. Preserve existing
+   proven group/policy configuration for review after Keycloak is installed.
+3. Retained storage-test cleanup and further storage/recovery tests need separate
+   approval. Recovery drill #101 and Velero evaluation #105 are backlog only;
+   replication is not backup. No automatic data-volume deletion.
+4. Deferred ownership/configuration refactors #95/#14, Kickstart and node upgrades
+   do not authorize rebuilding or upgrading existing nodes.
 
 ## Custody, DNS/TLS and recovery limits
 
@@ -129,10 +121,11 @@ application PV data. Preserve current local recovery material.
 Previously approved DNS migration and CoreDNS checks passed for lab, Kubernetes
 and public names. DNS-service/node/workstation reboot persistence and browser DoH
 are not fully verified. Local CA/service certificate issuance and workstation/node
-OS trust checks passed; container/application trust and live HTTPS remain separate.
+OS trust checks passed; Rancher trusted HTTPS passed; other container/application/browser trust remains separate.
 Independent CA backup/passphrase custody is unconfirmed. Application TLS delivery
 is prepared in `configuration/ansible/platform-tls.yaml` under Big Bang bootstrap,
-but is **not applied**; it requires its own released-source/target/security approval.
+and was applied only for Rancher under explicit approval. Other applications require
+their own released-source/target/security approval.
 Reuse the existing Flux registry Secret; do not read, replace or rotate it as part
 of ordinary release promotion.
 
