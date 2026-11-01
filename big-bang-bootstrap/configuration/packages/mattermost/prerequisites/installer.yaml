@@ -1,4 +1,4 @@
-# Inactive proposal; installer identities belong beside their HelmReleases.
+# Inactive candidate; read-only Helm readiness, operator runtime trust unresolved.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -114,6 +114,22 @@ rules:
   - update
   - patch
   - delete
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  verbs:
+  - get
+  - list
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -161,6 +177,22 @@ rules:
   - update
   - patch
   - delete
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  verbs:
+  - get
+  - list
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
