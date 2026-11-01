@@ -4,8 +4,8 @@ Both installer accounts live in `bigbang`, the HelmRelease namespace. Target-
 namespace and cluster bindings refer to those exact identities; API token automount
 is off. The operator runtime identity is separate and remains cluster-powerful.
 
-Big Bang3.35.1 pins Mattermost11.11.0-bb.0/app11.11.0 and required operator
-1.25.9-bb.1. Both exact charts render16 objects total, including three CRDs and
+Big Bang 3.35.1 pins Mattermost 11.11.0-bb.0/app11.11.0 and required operator
+1.25.9-bb.1. Both exact charts render 16 objects total, including three CRDs and
 one Mattermost custom resource. They are disabled/paused and absent from the root;
 there is no apply entrypoint. CR rendering is not proof of operator-generated
 workloads, supported Kubernetes behavior or installed readiness.
@@ -23,7 +23,7 @@ its CR groups. The chart exposes no namespace-watch/RBAC restriction knob.
 
 Operator subsequently creates app deployments/services from Mattermost CR; initial
 Helm objects alone cannot audit every future runtime API call/upgrade branch.
-Installer CRUD/roleRef/escalation covers all16 rendered objects, including the
+Installer CRUD/roleRef/escalation covers all 16 rendered objects, including the
 readiness Job. Its upstream helper also creates an unrestricted
 `allow-egress-from-mattermost-wait-job-to-anywhere-any-port` policy despite general
 networkPolicies=false. API-only egress replacement and actual controller resources

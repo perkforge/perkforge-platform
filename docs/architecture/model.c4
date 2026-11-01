@@ -158,6 +158,10 @@ model {
         description 'Protect personal files, databases and secret recovery separately. Replication/Retain do not protect against deletion or corruption, and etcd snapshots do not contain PV contents. Independent custody and restore tests are required before relying on personal-data storage.'
       }
     }
+    sonarqube = component 'SonarQube Community Build — blocked inactive' {
+      description 'Exact Community Build profile, no commercial entitlement assumed. Namespace installer only, protected JDBC/admin-reset/monitoring inputs. External PostgreSQL, host limits, cumulative capacity and TLS/network remain gates; privileged init disabled. No SSO or GitLab scanner tokens; free MR-analysis limits explicit.'
+      link https://github.com/perkforge/perkforge-platform/blob/feat/sonarqube-review/big-bang-bootstrap/configuration/packages/sonarqube/README.md 'Community limits, identities and prerequisites'
+    }
     mattermost = component 'Mattermost and operator — blocked inactive' {
       description 'Real CR/operator profile, no deployment. Separate installers and operator-generated runtime identities. Pinned operator has cluster-wide Secret/workload authority, unapproved trust gate. Edition/licensing, external PostgreSQL/object storage and network egress remain unresolved. No local admin or SSO created.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/mattermost-review/big-bang-bootstrap/configuration/packages/mattermost/README.md 'Edition, authority and data-service gates'
@@ -171,7 +175,7 @@ model {
       link https://github.com/perkforge/perkforge-platform/blob/feat/gitlab-review/big-bang-bootstrap/configuration/packages/gitlab/README.md 'Actual implementation, permissions and blockers'
     }
     observability = component 'Observability architecture — inactive partial draft' {
-      description 'PROPOSED #35/#36 after app/auth baseline. Native Big Bang pins reviewed; no root selection or live deployment. Metrics/Grafana candidate now has full selected child/CRD/RBAC/lookup audits, scoped foundation and six dashboard documents. Alloy/Loki profile, notification integration and live acceptance remain incomplete. No Myles provisioner adoption.'
+      description 'PROPOSED #35/#36 after app/auth baseline. Native Big Bang pins reviewed; no root selection or live deployment. Metrics/Grafana candidate now has full selected child/CRD/RBAC/lookup audits, scoped foundation and six dashboard documents. Alloy/Loki now has inactive scoped API collection/TLS/permission candidates; notification adapter and all live acceptance remain incomplete. No Myles provisioner adoption.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/observability-review/big-bang-bootstrap/configuration/observability/README.md 'Architecture, budget and incomplete stages'
       metrics_installer = component 'Three delegated metrics installer identities' {
         description 'IMPLEMENTED INACTIVE: Ansible applies reviewed monitoring namespace, exact named CRD/webhook/role bind/escalate and namespace object permissions. helm-controller impersonates monitoring-installer, grafana-installer or prometheus-crds-installer. No cluster-admin binding; named delegation still trusts sensitive operator runtime, including cluster Secret access. History stays in monitoring, not bigbang.'
@@ -185,10 +189,10 @@ model {
         description 'Prometheus node-exporter/kube-state-metrics distinct from RKE2 metrics-server. Alloy is a trusted host/API log reader; exact operator/CRDs/permissions and opt-in scope need review. No duplicate metrics pipeline, credential logs or high-cardinality secret/user labels.'
       }
       stores = component 'Prometheus and proposed Loki stores' {
-        description 'Proposed bounded Longhorn-backed non-HA stores; Prometheus 7d/8GB on 10Gi, Loki 3d/10Gi pending implementation and measurement. Replicas/WAL/indexes/compaction/reserves counted; operational retention does not replace security/audit policy. Loki tenant header alone is not authentication.'
+        description 'Proposed bounded Longhorn-backed non-HA stores; Prometheus 7d/8GB on 10Gi, Loki 3d/10Gi configured in inactive candidate, pending measurement. Replicas/WAL/indexes/compaction/reserves counted; operational retention does not replace security/audit policy. Loki tenant header alone is not authentication.'
       }
       grafana = component 'Grafana admin UI and Git-owned configuration' {
-        description 'One separate Grafana; bundled Monitoring Grafana off. External admin Secret ref, anonymous/OIDC/ingress off. Native provisioning candidate; six dashboards and tenant query isolation not implemented. Folders/variables are not a tenant security boundary.'
+        description 'One separate Grafana; bundled Monitoring Grafana off. External admin Secret ref, anonymous/OIDC/ingress off. Native provisioning and six dashboard documents implemented inactive; tenant query isolation remains unimplemented. Folders/variables are not a tenant security boundary.'
       }
       alerts = component 'Bundled Alertmanager notification owner' {
         description 'Retain upstream PrometheusRules/Alertmanager. Proposed Grafana-managed alerts forward to the same external Alertmanager; one ntfy path only after compatibility tests. Grafana UI can silence Prometheus Alertmanager but its contact/routing configuration is read-only there and remains Git-owned.'

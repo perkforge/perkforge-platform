@@ -58,3 +58,7 @@ mattermost-operator:
   url: https://repo1.dso.mil/big-bang/product/packages/mattermost-operator/-/archive/1.25.9-bb.1/mattermost-operator-1.25.9-bb.1.tar.gz
   sha256: 733a0acaf98e575e8c1286b2a8481af650aa17243b550ce53a2685df5ba78000
   chart: chart
+sonarqube:
+  url: https://repo1.dso.mil/big-bang/product/packages/sonarqube/-/archive/2026.4.1-bb.4/sonarqube-2026.4.1-bb.4.tar.gz
+  sha256: 4ff0ac3e4fb7e687475949784621102c5b20e87fe64941fa474b5d25b2ed5ce7
+  chart: chart

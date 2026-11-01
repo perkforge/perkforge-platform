@@ -4,7 +4,7 @@ Installer accounts live in `bigbang`, alongside their HelmReleases. Target-names
 Roles bind those exact identities; targetNamespace/storageNamespace do not relocate
 the impersonated account. No API token automount on installer accounts.
 
-Big Bang 3.35.1 pins package10.4.2-bb.0 / GitLab19.4.2. The actual candidate renders
+Big Bang 3.35.1 pins package 10.4.2-bb.0 / GitLab 19.4.2. The actual candidate renders
 75 objects at RKE2 Kubernetes1.36.5; this is syntax/resource review, not a vendor
 support certification or successful installation. Root does not include this file;
 package disabled/paused, hostname/data-service addresses deliberately UNCONFIGURED.
@@ -36,7 +36,7 @@ rendered kinds/roleRefs are checked. Matching initial and upgrade Helm server-dr
 synthetic API with namespace Secret reads and no cluster-role lookup; this is not
 proof of live authorization or existing-store migration behavior.
 
-The chart unconditionally emits31 public DoD/partner CA bundle Secrets. The profile
+The chart unconditionally emits 31 public DoD/partner CA bundle Secrets. The profile
 clears customCA mounts, so those bundles are not trusted by workloads. They are
 public certificates, not app credentials, but unnecessary objects still need an
 explicit package/post-render review before deployment. Do not silently replace
@@ -52,7 +52,7 @@ buckets, DB, Redis persistence, backups/replica overhead are additional.
 
 Preserved vendor requests include toolbox3.5Gi, sidekiq3GB, **two webservice pods
 with2.5GB Rails +2.5GB workhorse each**, shell2x300Mi, Gitaly600Mi, plus init/jobs
-and external services. This is already about17Gi requested app memory before DB/
+and external services. This is already about 17 GiB requested app memory before DB/
 Redis/object storage, monitoring and other queued apps; all queued apps cannot
 be accepted from the earlier idle snapshot. No dishonest request shrinking or
 unsupported all-in-one install has been made. Review selective activation/capacity

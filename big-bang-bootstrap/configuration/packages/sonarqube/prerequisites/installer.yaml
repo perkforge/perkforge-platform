@@ -1,0 +1,89 @@
+# Inactive candidate; Helm readiness observations are read-only.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sonarqube
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sonarqube-installer
+  namespace: bigbang
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sonarqube-installer
+  namespace: sonarqube
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - secrets
+  - configmaps
+  - services
+  - serviceaccounts
+  - persistentvolumeclaims
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sonarqube-installer
+  namespace: sonarqube
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: sonarqube-installer
+subjects:
+- kind: ServiceAccount
+  name: sonarqube-installer
+  namespace: bigbang
