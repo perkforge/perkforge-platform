@@ -1,5 +1,9 @@
 # GitLab initial administration — blocked inactive candidate (#78)
 
+Installer accounts live in `bigbang`, alongside their HelmReleases. Target-namespace
+Roles bind those exact identities; targetNamespace/storageNamespace do not relocate
+the impersonated account. No API token automount on installer accounts.
+
 Big Bang 3.35.1 pins package 10.4.2-bb.0 / GitLab 19.4.2. The actual candidate renders
 75 objects at RKE2 Kubernetes1.36.5; this is syntax/resource review, not a vendor
 support certification or successful installation. Root does not include this file;

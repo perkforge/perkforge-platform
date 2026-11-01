@@ -1,5 +1,9 @@
 # Mattermost initial administration — BLOCKED inactive candidate (#109)
 
+Both installer accounts live in `bigbang`, the HelmRelease namespace. Target-
+namespace and cluster bindings refer to those exact identities; API token automount
+is off. The operator runtime identity is separate and remains cluster-powerful.
+
 Big Bang 3.35.1 pins Mattermost 11.11.0-bb.0/app11.11.0 and required operator
 1.25.9-bb.1. Both exact charts render 16 objects total, including three CRDs and
 one Mattermost custom resource. They are disabled/paused and absent from the root;

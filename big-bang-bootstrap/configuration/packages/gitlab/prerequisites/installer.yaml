@@ -1,4 +1,4 @@
-# Inactive reviewed candidate; no apply entrypoint while data/capacity gates remain.
+# Inactive candidate; Flux installer identities belong to the HelmRelease namespace.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -8,7 +8,8 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: gitlab-installer
-  namespace: gitlab
+  namespace: bigbang
+automountServiceAccountToken: false
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -16,32 +17,101 @@ metadata:
   name: gitlab-installer
   namespace: gitlab
 rules:
-- apiGroups: ['']
-  resources: [configmaps, secrets, services, serviceaccounts, persistentvolumeclaims]
-  verbs: [get, list, watch, create, update, patch, delete]
-- apiGroups: [apps]
-  resources: [deployments, statefulsets]
-  verbs: [get, list, watch, create, update, patch, delete]
-- apiGroups: [batch]
-  resources: [jobs]
-  verbs: [get, list, watch, create, update, patch, delete]
-- apiGroups: [autoscaling]
-  resources: [horizontalpodautoscalers]
-  verbs: [get, list, watch, create, update, patch, delete]
-- apiGroups: [policy]
-  resources: [poddisruptionbudgets]
-  verbs: [get, list, watch, create, update, patch, delete]
-- apiGroups: [rbac.authorization.k8s.io]
-  resources: [roles, rolebindings]
-  verbs: [create]
-- apiGroups: [rbac.authorization.k8s.io]
-  resources: [roles, rolebindings]
-  resourceNames: [gitlab-shared-secrets]
-  verbs: [get, list, watch, update, patch, delete]
-- apiGroups: [rbac.authorization.k8s.io]
-  resources: [roles]
-  resourceNames: [gitlab-shared-secrets]
-  verbs: [bind, escalate]
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  - secrets
+  - services
+  - serviceaccounts
+  - persistentvolumeclaims
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - statefulsets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - roles
+  - rolebindings
+  verbs:
+  - create
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - roles
+  - rolebindings
+  resourceNames:
+  - gitlab-shared-secrets
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - roles
+  resourceNames:
+  - gitlab-shared-secrets
+  verbs:
+  - bind
+  - escalate
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -55,4 +125,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: gitlab-installer
-  namespace: gitlab
+  namespace: bigbang

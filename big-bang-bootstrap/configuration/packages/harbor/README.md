@@ -1,5 +1,9 @@
 # Harbor initial administration — blocked inactive candidate (#25)
 
+Installer accounts live in `bigbang`, alongside their HelmReleases. Target Roles
+bind those exact identities; storageNamespace does not relocate impersonation.
+Installer API token automount is disabled.
+
 Exact Big Bang 3.35.1 package1.19.2-bb.3/app2.15.2 profile and checksummed source
 render23 objects. Disabled/paused, no root inclusion, no prerequisite apply path.
 No live deployment, credential generation or claim that the cumulative stack fits.
