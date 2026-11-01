@@ -134,14 +134,22 @@ Ansible retains realm API ownership separately from Helm deployment. See the
 
 ## Queued authorization review
 
-After the three app drafts, the authorization draft renders disabled PerkForge
-realm/groups/client, tenant RBAC and OpenBao role/policy proposals with Ansible.
-Nothing selects or applies them. Canonical /platform/admins is retained; tenant
-roles use /tenants/<id>/admins or developers. Realm administration remains separate.
-Admission/workload identity, claim disclosure, broad OpenBao admin scope and the
-Longhorn admin proxy path still need decisions before activation. Existing API
-configuration additionally defaults to platform_api_apply=false. No users, client
-secrets or live memberships are created. See the
+The authorization draft now has a [five-role/app matrix](big-bang-bootstrap/configuration/authorization/MATRIX.md)
+and zoomable C4 role → group → client/app mapping → tenant/resource views. One shared
+PerkForge realm, per-app clients and multi-tenant memberships are design intent;
+unsupported native protocols/edition features are explicitly gated. PA controls
+platform/shared identity and platform values; tenant values need grant/emergency
+in nominal OpenBao policy, with administrator bypass acknowledged. TD reads own
+values without writes; viewers perform no operational changes or value reads,
+but may chat in assigned channels. Tenant membership ownership must not reset or
+delete shared identities or grant platform authority.
+
+Only disabled group/Kubernetes/OpenBao review examples are rendered. Consent and
+emergency elevation, delegated identity mechanics, admission, app/query isolation,
+revocation/migration and most app integrations remain unimplemented. No users,
+credentials, memberships or live grants were created. Use small per-app integration
+MRs; the shared design is not an all-app apply. Existing API configuration still
+defaults to platform_api_apply=false. See the
 [review contract](big-bang-bootstrap/configuration/authorization/README.md).
 
 ## Next decisions

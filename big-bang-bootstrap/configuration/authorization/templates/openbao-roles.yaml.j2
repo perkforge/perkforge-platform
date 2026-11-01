@@ -1,36 +1,59 @@
-# REVIEW ONLY. Reuses proven claim-bound role/policy approach, not active API config.
+# REVIEW ONLY. Proposed KV-v2 mounts/path layout; no auth, mount or policy is applied.
 roles:
-  platform-admin:
+{% for role,group in [('platform-admin','/platform/admins'),('platform-viewer','/platform/viewers')] %}
+  {{ role }}:
     role_type: oidc
     user_claim: sub
     groups_claim: groups
     bound_audiences: [openbao]
-    bound_claims: {groups: [/platform/admins]}
+    bound_claims: {groups: ['{{ group }}']}
     allowed_redirect_uris: [https://openbao.perkforge.home.arpa/ui/vault/auth/oidc/oidc/callback]
     token_ttl: 900
     token_max_ttl: 3600
     token_no_default_policy: true
-    token_policies: [proposed-platform-admin]
+    token_policies: [proposed-{{ role }}]
+{% endfor %}
 {% for tenant in authorization_tenants %}
-  tenant-{{ tenant }}-admin:
+{% for role,group in [('admin','admins'),('developer','developers'),('viewer','viewers')] %}
+  tenant-{{ tenant }}-{{ role }}:
     role_type: oidc
     user_claim: sub
     groups_claim: groups
     bound_audiences: [openbao]
-    bound_claims: {groups: ['/tenants/{{ tenant }}/admins']}
+    bound_claims: {groups: ['/tenants/{{ tenant }}/{{ group }}']}
     allowed_redirect_uris: [https://openbao.perkforge.home.arpa/ui/vault/auth/oidc/oidc/callback]
     token_ttl: 900
     token_max_ttl: 3600
     token_no_default_policy: true
-    token_policies: [proposed-tenant-{{ tenant }}-admin]
+    token_policies: [proposed-tenant-{{ tenant }}-{{ role }}]
+{% endfor %}
 {% endfor %}
 policies:
   proposed-platform-admin: |
-    # Administrative trust, not the root token; root-only operations remain separate.
-    path "*" { capabilities = ["create", "read", "update", "patch", "delete", "list", "sudo"] }
+    # Own platform values; tenant names only. No standing sys/auth/policy/self-grant.
+    path "platform/data/*" { capabilities = ["create", "read", "update", "patch", "delete"] }
+    path "platform/metadata" { capabilities = ["list"] }
+    path "platform/metadata/*" { capabilities = ["read", "list", "update", "delete"] }
+    path "tenants/metadata" { capabilities = ["list"] }
+    path "tenants/metadata/*" { capabilities = ["list"] }
+  proposed-platform-viewer: |
+    # Proposed names-only discovery. No platform/tenant value reads.
+    path "platform/metadata" { capabilities = ["list"] }
+    path "platform/metadata/*" { capabilities = ["list"] }
 {% for tenant in authorization_tenants %}
   proposed-tenant-{{ tenant }}-admin: |
     path "tenants/data/{{ tenant }}/*" { capabilities = ["create", "read", "update", "patch", "delete"] }
-    path "tenants/metadata/{{ tenant }}/*" { capabilities = ["read", "list", "delete"] }
+    path "tenants/metadata/{{ tenant }}" { capabilities = ["list"] }
+    path "tenants/metadata/{{ tenant }}/*" { capabilities = ["read", "list", "update"] }
+    # Irreversible destroy/all-version deletion and retention need separate review.
+  proposed-tenant-{{ tenant }}-developer: |
+    path "tenants/data/{{ tenant }}/*" { capabilities = ["read"] }
+    path "tenants/metadata/{{ tenant }}" { capabilities = ["list"] }
+    path "tenants/metadata/{{ tenant }}/*" { capabilities = ["list"] }
+  proposed-tenant-{{ tenant }}-viewer: |
+    # Proposed names-only discovery; no data read or detailed metadata read.
+    path "tenants/metadata/{{ tenant }}" { capabilities = ["list"] }
+    path "tenants/metadata/{{ tenant }}/*" { capabilities = ["list"] }
 {% endfor %}
-# Tenant developers have no human secret policy by default. Workload auth is separate.
+# Grants/emergency elevation are NOT implemented. Kubernetes/identity administrators
+# remain powerful trust actors; these app ACLs cannot promise privacy against them.
