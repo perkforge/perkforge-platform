@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.2](https://github.com/perkforge/perkforge-platform/compare/v0.11.1...v0.11.2) (2026-11-01)
+
+
+### Bug Fixes
+
+* **longhorn:** permit installer chart ClusterRole lookup ([#93](https://github.com/perkforge/perkforge-platform/issues/93)) ([d7d228c](https://github.com/perkforge/perkforge-platform/commit/d7d228cdbaef00a013bafef5a53bb6392791e2d5))
+
 ## [0.11.1](https://github.com/perkforge/perkforge-platform/compare/v0.11.0...v0.11.1) (2026-11-01)
 
 
