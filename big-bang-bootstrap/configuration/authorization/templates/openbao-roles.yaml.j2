@@ -30,10 +30,11 @@ roles:
 {% endfor %}
 policies:
   proposed-platform-admin: |
-    # Own platform values; tenant names only. No standing sys/auth/policy/self-grant.
+    # Own value edits/soft-delete only; metadata retention/permanent-delete excluded.
+    # Tenant names only. No standing sys/auth/policy/self-grant.
     path "platform/data/*" { capabilities = ["create", "read", "update", "patch", "delete"] }
     path "platform/metadata" { capabilities = ["list"] }
-    path "platform/metadata/*" { capabilities = ["read", "list", "update", "delete"] }
+    path "platform/metadata/*" { capabilities = ["read", "list"] }
     path "tenants/metadata" { capabilities = ["list"] }
     path "tenants/metadata/*" { capabilities = ["list"] }
   proposed-platform-viewer: |
@@ -44,7 +45,7 @@ policies:
   proposed-tenant-{{ tenant }}-admin: |
     path "tenants/data/{{ tenant }}/*" { capabilities = ["create", "read", "update", "patch", "delete"] }
     path "tenants/metadata/{{ tenant }}" { capabilities = ["list"] }
-    path "tenants/metadata/{{ tenant }}/*" { capabilities = ["read", "list", "update"] }
+    path "tenants/metadata/{{ tenant }}/*" { capabilities = ["read", "list"] }
     # Irreversible destroy/all-version deletion and retention need separate review.
   proposed-tenant-{{ tenant }}-developer: |
     path "tenants/data/{{ tenant }}/*" { capabilities = ["read"] }

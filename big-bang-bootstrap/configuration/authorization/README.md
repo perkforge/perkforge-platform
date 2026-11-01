@@ -36,7 +36,10 @@ Protocol/edition exceptions and client-specific claim disclosure remain decision
   platform KV values editable by PA, tenant names discoverable by PA, own tenant
   values managed by TA/read by TD, and proposed metadata-only viewer examples.
   No global `*`/sudo, standing tenant data read for PA, or auth/policy self-grant.
-  LIST metadata, READ metadata and READ data are distinct. Proposed mount layout,
+  LIST metadata, READ metadata and READ data are distinct. Admin metadata is
+  read/list only: no metadata update (retention change), metadata delete (all-version
+  deletion), engine configuration or destroy endpoint. Value writes and current-
+  version soft delete remain separate. Proposed mount layout,
   helper endpoints, consent/elevation, retention and migration still need review.
 
 The prior broad OpenBao administrative wildcard and developer-no-secret-read

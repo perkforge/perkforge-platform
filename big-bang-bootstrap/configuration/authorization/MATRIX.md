@@ -76,7 +76,11 @@ standing human access; any additional scope needs review.
   revocation and token lifetime are **not implemented**. UI helper endpoints and
   exact mount migration must be reviewed separately. Root/unseal custody is not
   an ordinary group mapping. Irreversible version destroy/retention is not
-  automatically granted by these review examples.
+  automatically granted by these review examples. PA/TA metadata examples grant
+  read/list only, not update/patch/delete; ordinary value writes and current-version
+  soft delete use the data endpoint. Engine configuration and destroy endpoints
+  receive no grant. Existing engine retention still governs version expiry; this
+  is not a promise that writes retain every historical version forever.
 - **Longhorn:** no native password/OIDC/fine-grained human RBAC. A verified Rancher
   proxy or authenticated PA-only proxy is a future choice; a proxy entry check
   does not create internal tenant roles. UI ingress stays off. No fake client.

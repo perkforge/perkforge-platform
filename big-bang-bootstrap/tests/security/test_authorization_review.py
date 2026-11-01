@@ -87,6 +87,14 @@ class AuthorizationReview(unittest.TestCase):
    self.assertTrue(bao_permitted(pa,'platform/data/service/password','read'))
    self.assertTrue(bao_permitted(pa,'platform/data/service/password','update'))
    self.assertTrue(bao_permitted(pa,'tenants/metadata/a','list'))
+   self.assertTrue(bao_permitted(pa,'platform/metadata/service/password','read'))
+   # KV-v2 metadata UPDATE changes retention; DELETE removes every version.
+   for verb in ['create','update','patch','delete']:
+    self.assertFalse(bao_permitted(pa,'platform/metadata/service/password',verb))
+   for path in ['platform/config','platform/destroy/service/password']:
+    self.assertFalse(bao_permitted(pa,path,'update'))
+   self.assertTrue(bao_permitted(pa,'platform/data/service/password','delete')) # current-version soft delete
+
    for path,verb in [('tenants/metadata/a/item','read'),('tenants/data/a/item','read'),('tenants/data/b/item','update'),('sys/policies/acl/self','update'),('auth/oidc/role/self','update')]:self.assertFalse(bao_permitted(pa,path,verb))
    for tenant,other in [('a','b'),('b','a')]:
     for role in ['admin','developer','viewer']:
@@ -96,6 +104,14 @@ class AuthorizationReview(unittest.TestCase):
      self.assertEqual(bao_permitted(policy,f'tenants/data/{tenant}/item','read'),role!='viewer')
      self.assertEqual(bao_permitted(policy,f'tenants/data/{tenant}/item','update'),role=='admin')
      self.assertTrue(bao_permitted(policy,f'tenants/metadata/{tenant}','list'))
+     for verb in ['create','update','patch','delete']:
+      self.assertFalse(bao_permitted(policy,f'tenants/metadata/{tenant}/item',verb))
+     self.assertFalse(bao_permitted(policy,f'tenants/destroy/{tenant}/item','update'))
+     self.assertFalse(bao_permitted(policy,'tenants/config','update'))
+     if role=='admin':
+      self.assertTrue(bao_permitted(policy,f'tenants/metadata/{tenant}/item','read'))
+      self.assertTrue(bao_permitted(policy,f'tenants/data/{tenant}/item','delete')) # soft delete only
+
    self.assertFalse(bao_permitted(bao['policies']['proposed-platform-viewer'],'platform/data/service/password','read'))
    self.assertEqual({x['name'] for x in realm['groups'][0]['subGroups']},{'admins','viewers'})
    self.assertTrue(all({x['name'] for x in t['subGroups']}=={'admins','developers','viewers'} for t in realm['groups'][1]['subGroups']))
