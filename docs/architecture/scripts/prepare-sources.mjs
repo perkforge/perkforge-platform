@@ -7,6 +7,11 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../../..')
 const output = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(here, '../public/sources')
 const files = {
+  'realm-foundation.yaml': 'big-bang-bootstrap/configuration/authorization/foundation.yaml',
+  'test-realm-foundation.py': 'big-bang-bootstrap/tests/integration/test_realm_foundation.py',
+  'realm-foundation-inspect.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/foundation-inspect.yaml',
+  'realm-foundation-create.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/foundation-create.yaml',
+  'realm-foundation-tenant.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/foundation-tenant.yaml',
   'headlamp-access-smoke.yaml': 'big-bang-bootstrap/configuration/ansible/headlamp-access-smoke.yaml',
   'headlamp-access-cleanup.yaml': 'big-bang-bootstrap/configuration/ansible/headlamp-access-cleanup.yaml',
   'verify-headlamp-access.py': 'big-bang-bootstrap/configuration/ansible/files/verify-headlamp-access.py',

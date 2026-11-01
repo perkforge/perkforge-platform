@@ -173,6 +173,19 @@ is a short sample, not all attributable to Headlamp. Its declared request adds
 physical available ~221.19/222.56GiB with 70.73GiB reserve each. No backup/HA or
 new storage acceptance claimed, and the retained test volume was not deleted.
 
+## Prepared realm/group foundation — no live changes
+
+`configuration/authorization/foundation.yaml` under big-bang-bootstrap is the
+new default-off Ansible entrypoint for the owned PerkForge realm and empty six-role
+group families. It creates no users/memberships/clients/role grants, credentials or
+app integrations. Existing trial bootstrap and disabled review render are separate.
+Synthetic HTTPS protocol/safety tests cover positive creation/idempotence/resume
+and negative ownership, mapping, target, CA and access cases; live acceptance is
+**not executed**. See the [approval/input/recovery scope](big-bang-bootstrap/configuration/authorization/README.md#realmgroup-foundation--implemented-not-applied).
+Next: review/merge this feature MR, then separately approve the exact tenant list,
+existing master credential use and realm/group writes. Preserve master recovery;
+no account retirement, app SSO or delegated tenant administration is implied.
+
 ## Next configuration — recovery and identity remain separately gated
 
 OpenBao, Headlamp and Keycloak initial acceptance are complete on the same v0.14.0

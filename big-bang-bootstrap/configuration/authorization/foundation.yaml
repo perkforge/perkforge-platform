@@ -1,0 +1,183 @@
+- name: Prepare only the reviewed PerkForge realm and empty six-role group foundation
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars_files: [desired.yaml]
+  vars:
+    realm_foundation_apply: false
+    realm_foundation_inspect: false
+    realm_foundation_recovery_preserved: false
+    realm_foundation_url: https://keycloak.perkforge.home.arpa/auth
+    realm_foundation_ca: /UNCONFIGURED/root-ca.crt
+    realm_foundation_username_file: /UNCONFIGURED/bootstrap-username
+    realm_foundation_password_file: /UNCONFIGURED/bootstrap-password
+    realm_foundation_definition:
+      realm: perkforge
+      displayName: PerkForge
+      enabled: true
+      sslRequired: all
+      registrationAllowed: false
+      resetPasswordAllowed: false
+      bruteForceProtected: true
+      accessTokenLifespan: 300
+      ssoSessionIdleTimeout: 900
+      ssoSessionMaxLifespan: 3600
+      attributes: {perkforge-managed: 'true', perkforge-purpose: realm-foundation-v1}
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ realm_foundation_ca }}'
+      follow_redirects: none
+      unredirected_headers: [Authorization]
+      use_netrc: false
+      use_proxy: false
+      timeout: 20
+  tasks:
+  - name: Validate local target and canonical role contract without credentials or APIs
+    ansible.builtin.assert:
+      that:
+      - ansible_play_hosts_all == ['local']
+      - deployment_environment == 'local'
+      - impact_profile == 'il2'
+      - authorization_realm == 'perkforge'
+      - authorization_tenants is sequence and authorization_tenants is not string
+      - authorization_tenants | unique | length == authorization_tenants | length
+      - realm_foundation_url is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?/auth$')
+      - not authorization_apply | bool
+      - authorization_integrations.values() | selectattr('enabled', 'equalto', true) | list | length == 0
+      - realm_foundation_definition.realm == 'perkforge'
+      - realm_foundation_definition.keys() | list | sort == ['realm','displayName','enabled','sslRequired','registrationAllowed','resetPasswordAllowed','bruteForceProtected','accessTokenLifespan','ssoSessionIdleTimeout','ssoSessionMaxLifespan','attributes'] | sort
+      - realm_foundation_definition.attributes == {'perkforge-managed':'true', 'perkforge-purpose':'realm-foundation-v1'}
+  - ansible.builtin.assert:
+      that:
+      - item is string and item is match('^[a-z][a-z0-9-]{0,30}$')
+      - item not in ['system', 'kube-system', 'default', 'bigbang', 'cattle-system', 'keycloak', 'openbao', 'headlamp', 'longhorn-system']
+    loop: '{{ authorization_tenants }}'
+  - name: Default and check mode never read credentials or contact either API
+    ansible.builtin.debug:
+      msg: 'Realm/group foundation only; apply={{ realm_foundation_apply | bool }} inspect={{ realm_foundation_inspect | bool }} check={{ ansible_check_mode }}. No users, memberships, clients, role mappings or app grants.'
+  - name: Build parent-first exact paths without inventing tenant identities
+    ansible.builtin.set_fact:
+      foundation_groups:
+      - {path: /platform, parent: '', name: platform, role: ''}
+      - {path: /platform/admins, parent: /platform, name: admins, role: platform-admin}
+      - {path: /platform/engineers, parent: /platform, name: engineers, role: platform-engineer}
+      - {path: /platform/viewers, parent: /platform, name: viewers, role: platform-viewer}
+      - {path: /tenants, parent: '', name: tenants, role: ''}
+  - ansible.builtin.include_tasks: tasks/foundation-tenant.yaml
+    loop: '{{ authorization_tenants }}'
+    loop_control: {loop_var: foundation_tenant}
+  - name: Inspect existing state and optionally create only missing owned resources
+    when: (realm_foundation_apply | bool or realm_foundation_inspect | bool) and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - realm_foundation_recovery_preserved | bool
+        - expected_cluster_uid != 'UNCONFIGURED'
+        - target_kubeconfig != '/UNCONFIGURED/kubeconfig'
+        - target_context != 'UNCONFIGURED'
+        - realm_foundation_ca is match('^/') and not realm_foundation_ca.startswith('/UNCONFIGURED/')
+    - name: Verify selected physical cluster before authenticating
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: foundation_uid
+      changed_when: false
+    - ansible.builtin.assert:
+        that: foundation_uid.stdout == expected_cluster_uid
+    - name: Keep authentication and every API payload out of logs and diff
+      no_log: true
+      block:
+      - ansible.builtin.stat:
+          path: '{{ item }}'
+          follow: false
+        loop: ['{{ realm_foundation_username_file }}', '{{ realm_foundation_password_file }}']
+        register: foundation_credentials
+      - ansible.builtin.assert:
+          that:
+          - item.stat.isreg | default(false)
+          - not (item.stat.islnk | default(false))
+          - item.stat.mode == '0600'
+          - item.stat.pw_name == lookup('env', 'USER')
+          - item.stat.size > 0
+        loop: '{{ foundation_credentials.results }}'
+      - name: Authenticate existing master administrator; never create or reset one
+        ansible.builtin.uri:
+          url: '{{ realm_foundation_url }}/realms/master/protocol/openid-connect/token'
+          method: POST
+          body_format: form-urlencoded
+          body:
+            client_id: admin-cli
+            grant_type: password
+            username: "{{ lookup('file', realm_foundation_username_file) | trim }}"
+            password: "{{ lookup('file', realm_foundation_password_file) | trim }}"
+        register: foundation_login
+      - ansible.builtin.set_fact:
+          foundation_headers: {Authorization: 'Bearer {{ foundation_login.json.access_token }}'}
+          foundation_api: '{{ realm_foundation_url }}/admin/realms/perkforge'
+          foundation_missing: []
+          foundation_group_ids: {}
+      - ansible.builtin.uri:
+          url: '{{ foundation_api }}'
+          headers: '{{ foundation_headers }}'
+          status_code: [200, 404]
+        register: foundation_realm
+      - name: Refuse adoption and security drift; do not PUT or replace a realm
+        ansible.builtin.assert:
+          that: foundation_realm.json.get(item.key) == item.value
+        loop: '{{ realm_foundation_definition | dict2items | rejectattr("key", "equalto", "attributes") | list }}'
+        when: foundation_realm.status == 200
+      - name: Compare owned realm attributes while preserving server-managed defaults
+        ansible.builtin.assert:
+          that: foundation_realm.json.attributes.get(item.key) == item.value
+        loop: '{{ realm_foundation_definition.attributes | dict2items }}'
+        when: foundation_realm.status == 200
+      - name: Refuse default group inheritance before any writes
+        ansible.builtin.uri:
+          url: '{{ foundation_api }}/default-groups'
+          headers: '{{ foundation_headers }}'
+        register: foundation_defaults
+        when: foundation_realm.status == 200
+      - ansible.builtin.assert:
+          that: foundation_defaults.json | length == 0
+        when: foundation_realm.status == 200
+      - name: Inspect all exact paths and mappings before any writes
+        ansible.builtin.include_tasks: tasks/foundation-inspect.yaml
+        loop: '{{ foundation_groups }}'
+        loop_control: {loop_var: foundation_group}
+        when: foundation_realm.status == 200
+      - ansible.builtin.set_fact:
+          foundation_missing: '{{ foundation_groups | map(attribute="path") | list }}'
+        when: foundation_realm.status == 404
+      - name: Create only a missing realm without users, clients or role grants
+        ansible.builtin.uri:
+          url: '{{ realm_foundation_url }}/admin/realms'
+          method: POST
+          headers: '{{ foundation_headers }}'
+          body_format: json
+          body: '{{ realm_foundation_definition }}'
+          status_code: 201
+        when: realm_foundation_apply | bool and foundation_realm.status == 404
+        changed_when: true
+      - name: Create only missing groups in parent order; no moves or updates
+        ansible.builtin.include_tasks: tasks/foundation-create.yaml
+        loop: '{{ foundation_groups }}'
+        loop_control: {loop_var: foundation_group}
+        when: realm_foundation_apply | bool
+      - name: Verify every resulting path and empty role mapping
+        vars: {foundation_verify_after: true}
+        ansible.builtin.include_tasks: tasks/foundation-inspect.yaml
+        loop: '{{ foundation_groups }}'
+        loop_control: {loop_var: foundation_group}
+        when: realm_foundation_apply | bool
+      always:
+      - name: Drop local administrator session facts; never persist tokens
+        ansible.builtin.set_fact:
+          foundation_login: {}
+          foundation_headers: {}
+          cacheable: false
+        no_log: true
+    - name: Report only nonsecret planned paths and execution mode
+      ansible.builtin.debug:
+        msg:
+          apply: '{{ realm_foundation_apply | bool }}'
+          inspected_missing_paths: '{{ foundation_missing }}'
+          user_membership_client_and_role_grants: false
