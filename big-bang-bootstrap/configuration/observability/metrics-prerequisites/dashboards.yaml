@@ -1,0 +1,119 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pf-dashboard-cluster
+  namespace: monitoring
+  labels:
+    grafana_dashboard: '1'
+data:
+  cluster.json: "{\n  \"uid\": \"pf-cluster\",\n  \"title\": \"PerkForge Cluster\"\
+    ,\n  \"schemaVersion\": 39,\n  \"version\": 1,\n  \"editable\": false,\n  \"tags\"\
+    : [\n    \"perkforge\",\n    \"platform-admin\"\n  ],\n  \"panels\": [\n    {\n\
+    \      \"id\": 1,\n      \"type\": \"timeseries\",\n      \"title\": \"Cluster\"\
+    ,\n      \"datasource\": {\n        \"type\": \"prometheus\",\n        \"uid\"\
+    : \"prometheus\"\n      },\n      \"targets\": [\n        {\n          \"refId\"\
+    : \"A\",\n          \"expr\": \"sum by (node) (rate(node_cpu_seconds_total{mode!=\\\
+    \"idle\\\"}[5m]))\"\n        }\n      ],\n      \"gridPos\": {\n        \"h\"\
+    : 8,\n        \"w\": 24,\n        \"x\": 0,\n        \"y\": 0\n      }\n    }\n\
+    \  ],\n  \"time\": {\n    \"from\": \"now-1h\",\n    \"to\": \"now\"\n  },\n \
+    \ \"annotations\": {\n    \"list\": []\n  }\n}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pf-dashboard-workloads
+  namespace: monitoring
+  labels:
+    grafana_dashboard: '1'
+data:
+  workloads.json: "{\n  \"uid\": \"pf-workloads\",\n  \"title\": \"PerkForge Workloads\"\
+    ,\n  \"schemaVersion\": 39,\n  \"version\": 1,\n  \"editable\": false,\n  \"tags\"\
+    : [\n    \"perkforge\",\n    \"platform-admin\"\n  ],\n  \"panels\": [\n    {\n\
+    \      \"id\": 1,\n      \"type\": \"timeseries\",\n      \"title\": \"Workloads\"\
+    ,\n      \"datasource\": {\n        \"type\": \"prometheus\",\n        \"uid\"\
+    : \"prometheus\"\n      },\n      \"targets\": [\n        {\n          \"refId\"\
+    : \"A\",\n          \"expr\": \"sum by (namespace) (kube_deployment_status_replicas_available)\"\
+    \n        }\n      ],\n      \"gridPos\": {\n        \"h\": 8,\n        \"w\"\
+    : 24,\n        \"x\": 0,\n        \"y\": 0\n      }\n    }\n  ],\n  \"time\":\
+    \ {\n    \"from\": \"now-1h\",\n    \"to\": \"now\"\n  },\n  \"annotations\":\
+    \ {\n    \"list\": []\n  }\n}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pf-dashboard-tenants
+  namespace: monitoring
+  labels:
+    grafana_dashboard: '1'
+data:
+  tenants.json: "{\n  \"uid\": \"pf-tenants\",\n  \"title\": \"PerkForge Tenants\"\
+    ,\n  \"schemaVersion\": 39,\n  \"version\": 1,\n  \"editable\": false,\n  \"tags\"\
+    : [\n    \"perkforge\",\n    \"platform-admin\"\n  ],\n  \"panels\": [\n    {\n\
+    \      \"id\": 1,\n      \"type\": \"timeseries\",\n      \"title\": \"Tenants\"\
+    ,\n      \"datasource\": {\n        \"type\": \"prometheus\",\n        \"uid\"\
+    : \"prometheus\"\n      },\n      \"targets\": [\n        {\n          \"refId\"\
+    : \"A\",\n          \"expr\": \"sum by (namespace) (container_memory_working_set_bytes{namespace=~\\\
+    \"tenant-.*\\\"})\"\n        }\n      ],\n      \"gridPos\": {\n        \"h\"\
+    : 8,\n        \"w\": 24,\n        \"x\": 0,\n        \"y\": 0\n      }\n    }\n\
+    \  ],\n  \"time\": {\n    \"from\": \"now-1h\",\n    \"to\": \"now\"\n  },\n \
+    \ \"annotations\": {\n    \"list\": []\n  }\n}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pf-dashboard-nextcloud
+  namespace: monitoring
+  labels:
+    grafana_dashboard: '1'
+data:
+  nextcloud.json: "{\n  \"uid\": \"pf-nextcloud\",\n  \"title\": \"PerkForge Nextcloud\"\
+    ,\n  \"schemaVersion\": 39,\n  \"version\": 1,\n  \"editable\": false,\n  \"tags\"\
+    : [\n    \"perkforge\",\n    \"platform-admin\"\n  ],\n  \"panels\": [\n    {\n\
+    \      \"id\": 1,\n      \"type\": \"timeseries\",\n      \"title\": \"Nextcloud\"\
+    ,\n      \"datasource\": {\n        \"type\": \"prometheus\",\n        \"uid\"\
+    : \"prometheus\"\n      },\n      \"targets\": [\n        {\n          \"refId\"\
+    : \"A\",\n          \"expr\": \"up{job=~\\\".*nextcloud.*\\\"}\"\n        }\n\
+    \      ],\n      \"gridPos\": {\n        \"h\": 8,\n        \"w\": 24,\n     \
+    \   \"x\": 0,\n        \"y\": 0\n      }\n    }\n  ],\n  \"time\": {\n    \"from\"\
+    : \"now-1h\",\n    \"to\": \"now\"\n  },\n  \"annotations\": {\n    \"list\":\
+    \ []\n  }\n}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pf-dashboard-logging
+  namespace: monitoring
+  labels:
+    grafana_dashboard: '1'
+data:
+  logging.json: "{\n  \"uid\": \"pf-logging\",\n  \"title\": \"PerkForge Logging\"\
+    ,\n  \"schemaVersion\": 39,\n  \"version\": 1,\n  \"editable\": false,\n  \"tags\"\
+    : [\n    \"perkforge\",\n    \"platform-admin\"\n  ],\n  \"panels\": [\n    {\n\
+    \      \"id\": 1,\n      \"type\": \"timeseries\",\n      \"title\": \"Logging\"\
+    ,\n      \"datasource\": {\n        \"type\": \"prometheus\",\n        \"uid\"\
+    : \"prometheus\"\n      },\n      \"targets\": [\n        {\n          \"refId\"\
+    : \"A\",\n          \"expr\": \"sum(rate(loki_distributor_lines_received_total[5m]))\"\
+    \n        }\n      ],\n      \"gridPos\": {\n        \"h\": 8,\n        \"w\"\
+    : 24,\n        \"x\": 0,\n        \"y\": 0\n      }\n    }\n  ],\n  \"time\":\
+    \ {\n    \"from\": \"now-1h\",\n    \"to\": \"now\"\n  },\n  \"annotations\":\
+    \ {\n    \"list\": []\n  }\n}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pf-dashboard-alerting
+  namespace: monitoring
+  labels:
+    grafana_dashboard: '1'
+data:
+  alerting.json: "{\n  \"uid\": \"pf-alerting\",\n  \"title\": \"PerkForge Alerting\"\
+    ,\n  \"schemaVersion\": 39,\n  \"version\": 1,\n  \"editable\": false,\n  \"tags\"\
+    : [\n    \"perkforge\",\n    \"platform-admin\"\n  ],\n  \"panels\": [\n    {\n\
+    \      \"id\": 1,\n      \"type\": \"timeseries\",\n      \"title\": \"Alerting\"\
+    ,\n      \"datasource\": {\n        \"type\": \"prometheus\",\n        \"uid\"\
+    : \"prometheus\"\n      },\n      \"targets\": [\n        {\n          \"refId\"\
+    : \"A\",\n          \"expr\": \"sum by (alertstate) (ALERTS)\"\n        }\n  \
+    \    ],\n      \"gridPos\": {\n        \"h\": 8,\n        \"w\": 24,\n       \
+    \ \"x\": 0,\n        \"y\": 0\n      }\n    }\n  ],\n  \"time\": {\n    \"from\"\
+    : \"now-1h\",\n    \"to\": \"now\"\n  },\n  \"annotations\": {\n    \"list\":\
+    \ []\n  }\n}"

@@ -1,0 +1,79 @@
+- name: Prepare only the separately approved local metrics/Grafana prerequisites
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars:
+    metrics_foundation_apply: false
+    metrics_api_server_cidrs: []
+    gitops_path: ./big-bang-bootstrap/clusters/local
+  tasks:
+  - name: Refuse another target or stage
+    ansible.builtin.assert:
+      that:
+      - inventory_hostname == 'local'
+      - deployment_environment == 'local'
+      - ansible_play_hosts_all | length == 1
+      - gitops_path == './big-bang-bootstrap/clusters/local'
+  - name: Report safe default without credentials or Kubernetes access
+    ansible.builtin.debug:
+      msg: "local metrics/Grafana prerequisites apply={{ metrics_foundation_apply | bool }}"
+  - name: Apply requires separate approval and a published reviewed checkout
+    when: metrics_foundation_apply | bool and not ansible_check_mode
+    block:
+    - name: Verify released stage context before any API mutation
+      ansible.builtin.include_tasks: verify-release.yaml
+    - name: Check executing checkout matches reviewed release
+      ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', rev-parse, HEAD]
+      register: foundation_checkout
+      changed_when: false
+    - name: Refuse unversioned code or placeholder cluster inputs
+      ansible.builtin.assert:
+        that:
+        - foundation_checkout.stdout == config_release.resolvedCommit
+        - target_kubeconfig != '/UNCONFIGURED/kubeconfig'
+        - target_context != 'UNCONFIGURED'
+        - expected_cluster_uid != 'UNCONFIGURED'
+    - name: Require a clean reviewed checkout
+      ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', status, --porcelain]
+      register: foundation_changes
+      changed_when: false
+    - name: Refuse unpublished local changes
+      ansible.builtin.assert:
+        that: foundation_changes.stdout | length == 0
+    - name: Verify actual target before mutation
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: foundation_cluster
+      changed_when: false
+    - name: Refuse a different cluster
+      ansible.builtin.assert:
+        that: foundation_cluster.stdout == expected_cluster_uid
+    - name: Require exact reviewed API-server IPv4 sources, not a household subnet
+      ansible.builtin.assert:
+        that:
+        - metrics_api_server_cidrs | length > 0
+        - metrics_api_server_cidrs | length <= 3
+    - ansible.builtin.assert:
+        that:
+        - item is match('^[0-9]{1,3}([.][0-9]{1,3}){3}/32$')
+        - item.split('/')[0].split('.') | map('int') | select('gt',255) | list | length == 0
+      loop: '{{ metrics_api_server_cidrs }}'
+    - name: Apply common Big Bang then selected metrics/Grafana prerequisites
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', apply, -k, '{{ playbook_dir }}/../packages/{{ item }}/prerequisites']
+      loop: [bigbang]
+      register: foundation_result
+      changed_when: "'created' in foundation_result.stdout or 'configured' in foundation_result.stdout"
+
+    - name: Apply reviewed namespace, installer and runtime-reader foundations
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', apply, -k, '{{ playbook_dir }}/../observability/metrics-prerequisites']
+      register: metrics_foundation
+      changed_when: "'created' in metrics_foundation.stdout or 'configured' in metrics_foundation.stdout"
+    - name: Apply trusted-namespace and exact API webhook ingress policies
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', apply, -f, '-']
+        stdin: "{{ lookup('template', playbook_dir ~ '/../observability/metrics-prerequisites/templates/network-policy.yaml.j2') }}"
+      register: metrics_network
+      changed_when: "'created' in metrics_network.stdout or 'configured' in metrics_network.stdout"

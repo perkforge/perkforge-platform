@@ -1,4 +1,4 @@
-# INACTIVE architecture review; not included by any root/valuesFrom. Not install-ready.
+# INACTIVE implementation candidate; reviewed prerequisites/credentials/release and approval required.
 monitoring:
   enabled: false
   git:
@@ -10,9 +10,12 @@ monitoring:
     install:
       remediation:
         retries: 0
+      createNamespace: false
     upgrade:
       remediation:
         retries: 0
+    serviceAccountName: monitoring-installer
+    storageNamespace: monitoring
   values:
     upstream:
       grafana:
@@ -56,6 +59,18 @@ monitoring:
                 resources:
                   requests:
                     storage: 10Gi
+      prometheusOperator:
+        admissionWebhooks:
+          enabled: true
+          certManager:
+            enabled: false
+          patch:
+            enabled: true
+            image:
+              registry: ghcr.io
+              repository: jkroepke/kube-webhook-certgen
+              tag: 1.8.8
+              sha: ''
 grafana:
   enabled: false
   git:
@@ -67,9 +82,12 @@ grafana:
     install:
       remediation:
         retries: 0
+      createNamespace: false
     upgrade:
       remediation:
         retries: 0
+    serviceAccountName: grafana-installer
+    storageNamespace: monitoring
   values:
     sso:
       enabled: false
@@ -96,6 +114,43 @@ grafana:
           enabled: false
         auth.generic_oauth:
           enabled: false
+          client_secret: null
+          client_id: null
+          auth_url: null
+          api_url: null
+          token_url: null
+      rbac:
+        namespaced: true
+        create: false
+      sidecar:
+        dashboards:
+          searchNamespace: monitoring
+          resource: configmap
+          provider:
+            allowUiUpdates: false
+        datasources:
+          searchNamespace: monitoring
+          resource: configmap
+          enabled: false
+      datasources:
+        datasourcesbb.yaml:
+          apiVersion: 1
+          datasources:
+          - name: Prometheus
+            uid: prometheus
+            type: prometheus
+            access: proxy
+            url: http://monitoring-monitoring-kube-prometheus.monitoring.svc:9090
+            editable: false
+          - name: Alertmanager
+            uid: alertmanager
+            type: alertmanager
+            access: proxy
+            url: http://monitoring-monitoring-kube-alertmanager.monitoring.svc:9093
+            editable: false
+            jsonData:
+              implementation: prometheus
+              handleGrafanaManagedAlerts: false
 prometheusOperatorCRDs:
   enabled: false
   git:
@@ -107,9 +162,17 @@ prometheusOperatorCRDs:
     install:
       remediation:
         retries: 0
+      createNamespace: false
     upgrade:
       remediation:
         retries: 0
+    serviceAccountName: prometheus-crds-installer
+    storageNamespace: monitoring
+  values:
+    upstream:
+      crds:
+        annotations:
+          helm.sh/resource-policy: keep
 alloy:
   enabled: false
   git:

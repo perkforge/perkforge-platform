@@ -127,9 +127,10 @@ design decision. OpenBao/ESO credential delivery is future work, not currently l
    (#40/#101/#105). Replication/redeployment is not backup/restore evidence.
 
 The inactive YAML is actual native Big Bang input for review, not new automation.
-Outer renders and local Monitoring/Grafana child renders passed. CI validates
-outer selection/pins; it does **not** fetch/render these five new child archives
-or prove installer permissions, full-stack deployment, tenant auth or alerts.
+The original architecture draft validated outer selection/local child renders.
+The [metrics implementation](metrics.md) now adds checksummed Monitoring/Grafana/
+CRD fetch/render and installer audits to CI. Alloy/Loki and full-stack deployment,
+tenant auth or alerts are not proven.
 Those missing pieces are why this is an honest architecture/partial-config draft,
 not five claimed completed implementation MRs.
 

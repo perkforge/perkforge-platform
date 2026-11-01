@@ -159,8 +159,12 @@ model {
       }
     }
     observability = component 'Observability architecture — inactive partial draft' {
-      description 'PROPOSED #35/#36 after app/auth baseline. Native Big Bang pins reviewed; no root selection or live deployment. Monitoring/Grafana local child renders only; installer/RBAC, Alloy/Loki profile, six dashboards, notification integration and live acceptance remain incomplete. No Myles provisioner adoption.'
+      description 'PROPOSED #35/#36 after app/auth baseline. Native Big Bang pins reviewed; no root selection or live deployment. Metrics/Grafana candidate now has full selected child/CRD/RBAC/lookup audits, scoped foundation and six dashboard documents. Alloy/Loki profile, notification integration and live acceptance remain incomplete. No Myles provisioner adoption.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/observability-review/big-bang-bootstrap/configuration/observability/README.md 'Architecture, budget and incomplete stages'
+      metrics_installer = component 'Three delegated metrics installer identities' {
+        description 'IMPLEMENTED INACTIVE: Ansible applies reviewed monitoring namespace, exact named CRD/webhook/role bind/escalate and namespace object permissions. helm-controller impersonates monitoring-installer, grafana-installer or prometheus-crds-installer. No cluster-admin binding; named delegation still trusts sensitive operator runtime, including cluster Secret access. History stays in monitoring, not bigbang.'
+        link https://github.com/perkforge/perkforge-platform/blob/feat/observability-metrics/big-bang-bootstrap/configuration/ansible/metrics-prerequisites.yaml 'Default-off prerequisite playbook'
+      }
       collectors = component 'Exporters and proposed Alloy log identity' {
         description 'Prometheus node-exporter/kube-state-metrics distinct from RKE2 metrics-server. Alloy is a trusted host/API log reader; exact operator/CRDs/permissions and opt-in scope need review. No duplicate metrics pipeline, credential logs or high-cardinality secret/user labels.'
       }

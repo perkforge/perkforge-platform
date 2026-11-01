@@ -134,6 +134,16 @@ ntfy path and #37–40 acceptance remain unfinished. No package is selected or
 activated, no credential/destination is created, and Myles provisioner is excluded.
 See the [review and explicit limits](big-bang-bootstrap/configuration/observability/README.md).
 
+## Metrics/Grafana implementation candidate
+
+A subsequent inactive #37 candidate implements ten CRD renders, full selected
+object/binding/escalation/lookup checks, supported admission certificate patch jobs,
+three scoped installers, namespace ConfigMap-only Grafana sidecar access and six
+starting dashboard documents. Default-off Ansible requires exact protected API
+source inputs before foundation/network writes. No root selects it; credentials,
+actual scrape/tenant/policy/admin behavior and resource/restore acceptance remain
+unverified. See [implemented scope and gates](big-bang-bootstrap/configuration/observability/metrics.md).
+
 ## Next decisions
 
 1. Separately approve Rancher first login and private password setup; keep direct
