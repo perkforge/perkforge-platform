@@ -15,7 +15,14 @@ configuration/
 tests/                             configuration/bootstrap/security/integration
 ```
 
-Local selects only Longhorn, with active outer/child Helm desired state behind a paused, release-pinned seed. Headlamp is disabled in shared defaults; Headlamp, Keycloak, Rancher, OpenBao and tenant enrollment are unselected. Start with storage acceptance, then select Rancher with its own TLS/bootstrap inputs; defer identity/SSO and tenant activation. Publication does not select a release or resume the paused seed. Local means the physical three-node cluster. Actual IL2 preparation is deferred.
+This candidate selects Longhorn plus Rancher for the local-admin management stage.
+The live source remains pinned to v0.11.3 (Longhorn only); its first storage test
+passed. A future published release requires separately approved Rancher namespace,
+TLS/public-CA/bootstrap inputs, installer delegation and source promotion before
+activation. Headlamp, Keycloak, OpenBao and tenant enrollment remain unselected;
+no SSO/group/role setup is included. Initial seed defaults stay paused for new
+clusters; do not rerun bootstrap on the active cluster. Local means the physical
+three-node lab, not a HA or IL2 authorization claim.
 
 Start with [platform maintenance](../docs/platform/README.md): [applications and values](../docs/platform/applications.md), [targets/environments](../docs/platform/targets.md), and [impact profiles](../docs/platform/profiles.md). Use [operation order](configuration/ansible/README.md), [verification commands](tests/README.md), [infrastructure prerequisites](../infrastructure/README.md).
 

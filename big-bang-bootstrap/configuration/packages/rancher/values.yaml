@@ -1,4 +1,5 @@
-# Optional upstream Rancher chart; unselected and child release explicitly paused.
+# Local-admin management stage; activation needs a newly selected release,
+# separately approved prerequisites and protected TLS/bootstrap inputs.
 packages:
   rancher:
     enabled: true
@@ -18,7 +19,7 @@ packages:
     passBigBangValues: false
     includeDefaultDependsOn: false
     flux:
-      suspend: true
+      suspend: false
       serviceAccountName: rancher-installer
       storageNamespace: bigbang
       timeout: 10m
@@ -30,6 +31,12 @@ packages:
     values:
       hostname: rancher.perkforge.home.arpa
       replicas: 1
+      resources:
+        requests: {cpu: 500m, memory: 1Gi}
+        limits: {memory: 4Gi}
+      # Uninstall cleanup is a separate reviewed action, not a Helm side effect.
+      postDelete:
+        enabled: false
       features: continuous-delivery=false
       agentTLSMode: strict
       privateCA: true

@@ -153,7 +153,7 @@ views {
 
   dynamic view bootstrap_installer_flow {
     title 'Big Bang bootstrap — release, prerequisites and delegated package installation'
-    description 'General bootstrap ownership with Longhorn as the current concrete package. Each package needs its own reviewed installer contract; Longhorn diagnostic cluster-admin is an accepted lab exception, not a global default. Future packages remain unselected. This is a procedure model, not live approval.'
+    description 'General bootstrap ownership with Longhorn as the current concrete package. Each package needs its own reviewed installer contract; Longhorn diagnostic cluster-admin is an accepted lab exception, not a global default. Rancher is a separately reviewed candidate; live v0.11.3 is storage-only and identity/tenants remain unselected. This is a procedure model, not live approval.'
     link /runbook.html#longhorn-rbac 'Bootstrap ownership, code and Longhorn trust example'
     engineer -> platform.prerequisite_applier '1. Review exact published release, target and shared/per-package prerequisites'
     platform.prerequisite_applier -> platform.longhorn_installer '2. Approved Ansible applies shared and selected package RBAC; Longhorn example'
@@ -176,6 +176,20 @@ views {
     platform.storage.volumes -> platform.storage.replica_pair '5. Normal CSI detach, worker-2 reattachment and checksum verification'
     platform.storage.replica_pair -> platform.storage.acceptance '6. Read-only verifier confirms two healthy distinct-worker replicas, both RW'
     platform.storage.acceptance -> engineer '7. Retain test claim/PV/volume, final pod and evidence; cleanup needs separate approval'
+  }
+
+  dynamic view rancher_local_admin {
+    title 'Rancher local-admin stage — planned, not activated'
+    description 'Candidate source only. Big Bang/Flux owns installation; Ansible applies approved prerequisites/TLS, not a competing Helm deployment. Vendor matrix covers RKE2 1.36 but lists Longhorn 1.12, not the separately managed 1.13 lab combination. One replica/control-plane is not HA. No SSO or test-volume cleanup.'
+    link /runbook.html#rancher-stage 'Source, necessary inputs and acceptance gates'
+    engineer -> platform.prerequisite_applier '1. Review new release, target/capacity, vendor gaps and privileged action scope'
+    platform.prerequisite_applier -> platform.rancher.inputs '2. Separately approve namespace, checked TLS/public CA and bootstrap Secret delivery'
+    platform.prerequisite_applier -> platform.rancher.installer '3. Apply versioned source/installer grants; runtime delegation is cluster-admin'
+    engineer -> platform.flux '4. Promote exact published release only after inputs and prerequisites are ready'
+    platform.flux -> platform.bigbang '5. Reconcile selected Rancher child; Longhorn remains unchanged'
+    platform.bigbang -> platform.rancher.installer '6. Generated HelmRelease selects rancher-installer; helm-controller impersonates it'
+    platform.rancher.installer -> platform.rancher.runtime '7. Helm creates runtime account/binding, server, hooks and TLS ingress'
+    platform.rancher.runtime -> engineer '8. Verify readiness, trusted HTTPS and local-admin password reset; stop before SSO/lifecycle actions'
   }
 
 }

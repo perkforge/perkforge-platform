@@ -43,10 +43,10 @@ for personal files, databases and secret-service recovery, with restore checks.
 Pinned Big Bang 3.35.1 has no built-in Longhorn package. Its custom-package mechanism
 can declare an upstream pinned Longhorn chart, reconciled by Flux, ordered before
 stateful applications. Infrastructure Ansible owns host prerequisites. Optional Longhorn 1.13.0 and Rancher 2.15.2 inputs and prerequisites are prepared
-under big-bang-bootstrap/configuration/packages; Longhorn is selected but suspended; Rancher remains unselected/suspended.
-Host compatibility, actual scheduling/labels and backup details still need review
-before any installation. The existing static Keycloak PV remains an unconfigured
-specimen until deliberately replaced; no storage implementation has been applied.
+under big-bang-bootstrap/configuration/packages. Live v0.11.3 Longhorn readiness and the first scoped PVC test passed; this candidate selects Rancher for a separately approved local-admin-only promotion. No infrastructure Ansible Rancher Helm installer remains.
+Recheck host compatibility, scheduling/capacity and backup inputs before later
+installations. The old static Keycloak PV remains an unselected specimen; the
+completed Longhorn test does not activate identity data or prove backup recovery.
 See [Big Bang storage guidance](https://docs-bigbang.dso.mil/latest/docs/community/development/bigbang-storage-options/),
 [custom packages](https://docs-bigbang.dso.mil/latest/docs/installation/environments/extra-package-deployment/)
 and [Longhorn recommendations](https://longhorn.io/docs/1.13.0/best-practices/).
