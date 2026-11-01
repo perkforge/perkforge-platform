@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/perkforge/perkforge-platform/compare/v0.11.0...v0.11.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* **bootstrap:** make Flux registry delivery repeatable ([#91](https://github.com/perkforge/perkforge-platform/issues/91)) ([57f8d04](https://github.com/perkforge/perkforge-platform/commit/57f8d044a1c92210960f0df95fd6802914c31065))
+
 ## [0.11.0](https://github.com/perkforge/perkforge-platform/compare/v0.10.0...v0.11.0) (2026-10-31)
 
 
