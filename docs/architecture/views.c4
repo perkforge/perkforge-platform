@@ -190,6 +190,15 @@ views {
     platform.observability.grafana -> engineer '7. Verify real scrapes/admin/dashboards, no duplicate pipeline, resource/retention and network deny behavior'
   }
 
+  dynamic view sonarqube_initial_admin {
+    title 'SonarQube Community Build — blocked candidate'
+    engineer -> platform.sonarqube '1. Review free feature limits, external PostgreSQL, host limits and cumulative storage/memory'
+    engineer -> platform.prerequisite_applier '2. Separately approve current TLS/CA and protected JDBC/admin-reset/passcode references'
+    platform.prerequisite_applier -> platform.sonarqube '3. Future namespace installer CRUD only; no cluster grant or privileged init'
+    platform.bigbang -> platform.sonarqube '4. After gates and release approval, delegated Helm creates app and protected admin-reset hook'
+    platform.sonarqube -> engineer '5. Verify UP, trusted local admin, sample quality gate and restore; GitLab tokens/SSO remain future'
+  }
+
   dynamic view mattermost_initial_admin {
     title 'Mattermost operator and admin — blocked candidate'
     engineer -> platform.mattermost '1. Decide edition, cumulative data-service capacity and explicit cluster-wide operator trust; not approved'

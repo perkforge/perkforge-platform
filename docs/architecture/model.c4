@@ -158,6 +158,10 @@ model {
         description 'Protect personal files, databases and secret recovery separately. Replication/Retain do not protect against deletion or corruption, and etcd snapshots do not contain PV contents. Independent custody and restore tests are required before relying on personal-data storage.'
       }
     }
+    sonarqube = component 'SonarQube Community Build — blocked inactive' {
+      description 'Exact Community Build profile, no commercial entitlement assumed. Namespace installer only, protected JDBC/admin-reset/monitoring inputs. External PostgreSQL, host limits, cumulative capacity and TLS/network remain gates; privileged init disabled. No SSO or GitLab scanner tokens; free MR-analysis limits explicit.'
+      link https://github.com/perkforge/perkforge-platform/blob/feat/sonarqube-review/big-bang-bootstrap/configuration/packages/sonarqube/README.md 'Community limits, identities and prerequisites'
+    }
     mattermost = component 'Mattermost and operator — blocked inactive' {
       description 'Real CR/operator profile, no deployment. Separate installers and operator-generated runtime identities. Pinned operator has cluster-wide Secret/workload authority, unapproved trust gate. Edition/licensing, external PostgreSQL/object storage and network egress remain unresolved. No local admin or SSO created.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/mattermost-review/big-bang-bootstrap/configuration/packages/mattermost/README.md 'Edition, authority and data-service gates'

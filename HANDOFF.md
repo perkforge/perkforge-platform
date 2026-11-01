@@ -1,5 +1,12 @@
 # Current operator handoff
 
+## SonarQube candidate is blocked
+
+[SonarQube Community review](big-bang-bootstrap/configuration/packages/sonarqube/README.md)
+is a real pinned disabled profile, not commercial MR-analysis capability. External
+DB/TLS, host limits and cumulative capacity remain gates; no privileged init,
+credentials, GitLab tokens or SSO configured. Istio/Gateway API remains ticket-only.
+
 ## Mattermost candidate is blocked
 
 [Mattermost review](big-bang-bootstrap/configuration/packages/mattermost/README.md)

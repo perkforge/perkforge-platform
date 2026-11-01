@@ -1,0 +1,51 @@
+# Inactive blocked Community Build review, no root selection.
+addons:
+  sonarqube:
+    enabled: false
+    git:
+      repo: https://repo1.dso.mil/big-bang/product/packages/sonarqube.git
+      path: ./chart
+      tag: 2026.4.1-bb.4
+    flux:
+      suspend: true
+      serviceAccountName: sonarqube-installer
+      storageNamespace: sonarqube
+      install: {createNamespace: false, remediation: {retries: 0}}
+      upgrade: {remediation: {retries: 0}}
+    values:
+      domain: UNCONFIGURED.invalid
+      istio: {enabled: false}
+      routes:
+        inbound:
+          sonarqube: {enabled: false}
+      networkPolicies: {enabled: false}
+      sso: {enabled: false}
+      monitoring: {enabled: false}
+      bbtests: {enabled: false}
+      upstream:
+        community: {enabled: true, buildNumber: '26.9.0.129388'}
+        image:
+          repository: registry1.dso.mil/ironbank/sonarsource/sonarqube/sonarqube-community-build
+          tag: 26.9.0.129388-community
+          pullSecrets: [private-registry]
+        ingress: {enabled: false}
+        nginx: {enabled: false}
+        initSysctl: {enabled: false}
+        initFs: {enabled: false}
+        monitoringPasscode: null
+        monitoringPasscodeSecretName: sonarqube-monitoring
+        monitoringPasscodeSecretKey: passcode
+        jdbcOverwrite:
+          enabled: true
+          jdbcUrl: jdbc:postgresql://UNCONFIGURED-postgresql.invalid/sonarqube?sslmode=verify-full
+          jdbcUsername: sonarqube
+          jdbcPassword: null
+          jdbcSecretName: sonarqube-database
+          jdbcSecretPasswordKey: password
+        setAdminPassword:
+          passwordSecretName: sonarqube-initial-admin
+        persistence:
+          enabled: true
+          storageClass: longhorn
+          size: 20Gi
+        serviceAccount: {create: true, automountToken: false}
