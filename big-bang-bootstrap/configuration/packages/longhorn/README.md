@@ -175,3 +175,42 @@ acceptance. Publication changes no running source ref: v0.11.1 stays immutable.
 A future released checkout, installer-RBAC apply and failed-release retry need
 separate review/approval; do not imperatively patch permissions or delete volumes.
 UI ingress remains disabled and Rancher/identity/tenant selection is unchanged.
+
+## Lab trust decision: upstream diagnostic RBAC
+
+The operator accepts upstream Longhorn 1.13.0 as trusted cluster infrastructure in
+this physical lab. The chart unconditionally binds its dedicated
+`longhorn-support-bundle` account to `cluster-admin` for on-demand diagnostic
+collection. Its separate manager `longhorn-role` also already grants wildcard
+verbs on ClusterRoles/ClusterRoleBindings, including bind/escalate. Neither the
+runtime deployment nor its delegated installer is a least-privileged security
+boundary. Disabling UI ingress does not remove these privileges.
+
+The installer therefore adds exactly `bind` on the named ClusterRole
+`cluster-admin`. It does not bind the installer itself to cluster-admin, add
+wildcard installer rules, or broaden the existing named binding-object mutation
+list. Kubernetes still checks both binding-object permissions and authority over
+its roleRef; named object access alone was insufficient. This grant permits
+cluster-admin delegation through the installer's existing binding creation rights;
+RBAC cannot restrict create by object name or subject. Treat compromise of this
+installer as a cluster-wide security risk.
+
+Retain the upstream chart without a local support-bundle patch/fork. UI ingress
+stays disabled; Rancher, identity and tenants remain deferred. Revisit runtime
+RBAC hardening separately before extending the lab trust model.
+
+At the last approved v0.11.2 attempt (2026-11-01 01:16:52 UTC), Longhorn was
+partially installed and stalled on this diagnostic binding; storage readiness and
+PVC acceptance were not established. Publishing this fix does not change the
+active release-pinned source. A new release, live prerequisite grant, promotion
+and failed-release retry require separate action-specific approval. No live grant
+or retry is authorized by this document.
+
+The regression renders all pinned child resources, checks every role's escalation
+and every binding's roleRef authority, and proves removal of this new grant leaves
+only the support-bundle binding unauthorized. This is an offline policy check,
+not API-server or storage acceptance.
+
+Sources: [Longhorn support bundles](https://longhorn.io/docs/1.13.0/troubleshoot/support-bundle/),
+[pinned chart RBAC](https://github.com/longhorn/charts/blob/longhorn-1.13.0/charts/longhorn/templates/clusterrolebinding.yaml),
+and [Kubernetes binding restrictions](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#restrictions-on-role-binding-creation-or-update).

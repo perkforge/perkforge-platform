@@ -44,3 +44,9 @@ real pinned Helm server rendering to cover the unnamed ClusterRole list lookup.
 It rejects the old/name-restricted policies and proves the exact list-only rule
 allows rendering with PSP and ingress disabled. This authorization model uses
 synthetic discovery/roles, not a live cluster or real credentials.
+
+`security/test_longhorn_installer.py` renders the pinned Longhorn child and checks
+all resource CRUD, role escalation and binding roleRefs against the bound installer
+policy. Removing the named cluster-admin bind reproduces only the diagnostic
+binding denial. This offline model does not replace Kubernetes admission or live
+storage acceptance; the lab explicitly accepts upstream runtime RBAC trust.

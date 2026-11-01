@@ -165,6 +165,18 @@ model {
       description 'CURRENT: Helm renders selected packages after versioned installer prerequisites are separately approved and applied by Ansible. Chart lookups may need permissions before rendering; values cannot grant their own pre-render authority. Runtime chart RBAC is separate from installer delegation. This is an ownership choice, not a requirement that all prerequisites remain outside GitOps.'
       link /runbook.html#bootstrap-ownership 'Pre-render prerequisite boundary'
     }
+    prerequisite_applier = component 'Approved prerequisite Ansible actor' {
+      description 'Operator-approved longhorn-prerequisites.yaml applies versioned Kubernetes RBAC using protected external target access. This actor applies grants; it is not their recipient. No live apply is authorized by this model.'
+      link https://github.com/perkforge/perkforge-platform/blob/main/big-bang-bootstrap/configuration/ansible/longhorn-prerequisites.yaml 'Prerequisite playbook'
+    }
+    longhorn_installer = component 'Helm installer identity' {
+      description 'bigbang:longhorn-installer is selected by the child HelmRelease serviceAccountName. Helm-controller uses impersonation for chart operations. Named bind on cluster-admin permits the upstream diagnostic delegation; the installer is not itself bound to cluster-admin. This is an explicit trusted-infrastructure lab decision, not least privilege.'
+      link https://github.com/perkforge/perkforge-platform/blob/main/big-bang-bootstrap/configuration/packages/longhorn/prerequisites/installer.yaml 'Versioned installer RBAC'
+    }
+    longhorn_runtime = component 'Longhorn runtime identities' {
+      description 'Helm creates separate manager, CSI, UI and support-bundle accounts/bindings. Support-bundle receives cluster-admin; manager longhorn-role already has wildcard ClusterRole/ClusterRoleBinding verbs. UI ingress remains disabled. Last v0.11.2 attempt partially installed and stalled on diagnostic binding; this proposed fix requires separate live grant/retry approval.'
+      link /runbook.html#longhorn-rbac 'Lab trust and observed stopping point'
+    }
     enrollment = component 'Tenant enrollment repository' {
       // Not selected in the local root until core platform readiness.
       description 'Owns tenant foundations and registration.'
