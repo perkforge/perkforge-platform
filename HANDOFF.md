@@ -2,7 +2,7 @@
 
 ## Current checkpoint — 2026-11-01
 
-OpenBao LAN HTTPS, Headlamp temporary-admin acceptance, Rancher installation and the first Longhorn storage test passed. **No further live
+Keycloak initial master administration, OpenBao LAN HTTPS, Headlamp temporary-admin acceptance, Rancher installation and the first Longhorn storage test passed. **No further live
 action is authorized by this handoff.** Never push main or merge for the operator;
 preserve protected evidence, retained test data and other worktrees.
 
@@ -12,8 +12,8 @@ preserve protected evidence, retained test data and other worktrees.
   sudo, networking and sequential connected OS reboot checks passed.
 - Flux source and root now select **v0.14.0**, exact commit
   `1ac80591d63c45105a5110182a3fdc4bf7ded7d2`, path
-  `./big-bang-bootstrap/clusters/local-headlamp` (retaining OpenBao/Longhorn/Rancher). Publication/CI and exact artifact were verified.
-  Root/umbrella/Headlamp/OpenBao/Rancher/Longhorn fresh Ready at **17:11:21Z**.
+  `./big-bang-bootstrap/clusters/local-keycloak` (retaining Headlamp/OpenBao/Longhorn/Rancher). Publication/CI and exact artifact were verified.
+  Root/umbrella/Keycloak/Headlamp/OpenBao/Rancher/Longhorn Ready; Keycloak acceptance passed at **18:23:33Z**.
   Historical OpenBao initial administration passed at 15:29:57Z.
   Historical first Rancher installation: Rancher Ready at **03:23:32Z**, Big Bang
   at **03:23:35Z**, root Ready/Healthy at **03:23:39Z**. Longhorn stayed Ready.
@@ -42,8 +42,7 @@ preserve protected evidence, retained test data and other worktrees.
   Approved one-hour dedicated bootstrap admin passed actual cookie-login/proxy,
   identity and safe capability reviews. Its SA/binding were UID-checked/deleted
   and the cached token denied afterward; loopback forwarding closed. This proves
-  the authentication/API path, **not Corey's personal browser login**. Keycloak
-  remains disabled/undeployed; no other apps were activated.
+  the authentication/API path, **not Corey's personal browser login**. The temporary identity remains revoked; no new Headlamp access was created.
 
 The Rancher/RKE2 matrix includes our Kubernetes/OS versions, but lists Longhorn
 1.12 rather than independent 1.13. This lab combination is not claimed fully
@@ -69,6 +68,61 @@ durable local break-glass credential custody stays independent of the cluster/Ke
 the operator's password manager and requires a tested emergency path. Bootstrap
 credentials are not automatically permanent recovery identities. No SSO, account
 creation, credential rotation or deletion was performed for this custody move.
+
+## Keycloak acceptance — passed 18:23:33 UTC
+
+Same verified v0.14.0 artifact; only the root advanced from `local-headlamp` to
+`local-keycloak`. Keycloak **26.8.1** (verified immutable Iron Bank digest), chart
+7.3.2-bb.1, and PostgreSQL 18.6 are Ready without restart. One app/database is not HA.
+Ansible applied the reviewed namespaced installer prerequisites, empty-store SQL,
+4 GiB Longhorn claim and Keycloak-only ingress. Only `identity-ingress` and
+`postgres-from-keycloak` NetworkPolicies were selected; no Headlamp route or
+realm/Kubernetes group bindings were applied. The database application role was
+verified non-superuser without create-database, create-role or replication rights.
+
+Current physical leaf/key delivery passed chain, hostname, lifetime and key-match
+checks; the CA signing key stayed local. Trusted HTTPS, exact served leaf, master
+issuer discovery, private bootstrap-admin login and read-only master-realm API
+passed. This is not an observed personal browser login. Traefik terminates TLS;
+Traefik-to-Keycloak HTTP and Keycloak-to-PostgreSQL traffic are **unencrypted inside
+the cluster**, explicitly accepted for this lab. Policies restrict reachability,
+not encryption or proof of comprehensive tenant isolation. Management port 9000
+is not publicly routed. OpenBao LAN HTTPS and Rancher ping still passed.
+
+The temporary **master** bootstrap administrator does not automatically expire,
+and has no automatic PerkForge/platform group membership. Three distinct new
+passwords (bootstrap, database superuser, application database user) and username
+are in an owner-only `keycloak-v0140-<run>/` custody directory. They are not durable
+recovery merely because cached. Establish independently held permanent recovery,
+then separately approve bootstrap retirement; no account deletion/rotation was
+performed. A populated database must never be deleted/reinitialized to retry.
+PerkForge realm/groups/clients, application SSO and API OIDC remain **not applied**.
+
+Protected `keycloak-v0140-<run>/` execution evidence retains the actual private
+credential-delivery Ansible batch, redacted output, target/release guards,
+readiness/image/HTTPS/login/database verification and resource/storage snapshots.
+The versioned operation is documented in the [Keycloak procedure](big-bang-bootstrap/configuration/packages/keycloak/README.md).
+No credential values or private operational inputs belong in this handoff.
+
+Post-app snapshot: all three nodes Ready/no pressure, 55 Running pods all Ready,
+zero Pending/Failed. Actual CPU/RAM, declared requests and finite limits:
+
+| Node | CPU actual / requests / finite limits | RAM GiB actual / requests / finite limits |
+|---|---|---|
+| control-1 | 0.369 / 2.085 / 0.800 | 4.959 / 3.656 / 5.039 |
+| worker-1 | 0.156 / 2.370 / 2.300 | 1.925 / 1.836 / 3.828 |
+| worker-2 | 0.137 / 2.470 / 2.900 | 2.233 / 2.000 / 3.625 |
+
+Each node allocates 6 CPU/~15.201 GiB. Remaining unrequested CPU/RAM is respectively
+3.915/11.544, 3.630/13.365 and 3.530/13.201. Limits omit unlimited containers and
+are not node ceilings. Keycloak/database added 0.5 CPU/1 GiB requests; actual RAM
+changed -0.022/+0.114/+0.578 GiB over the immediate baseline, not solely attributable
+to this app. Longhorn workers have ~220.51/220.80 GiB physical available, 70.73 GiB
+reserved each and 15 GiB logical scheduled each (previously 11). The 4 GiB database
+volume is attached/healthy with two running replicas on distinct workers.
+Replication and successful login do not prove backup/restore. Retained storage-test
+data is untouched. Next checkpoint: permanent recovery/custody and separately
+approved realm/group configuration; no further deployment is authorized here.
 
 ## OpenBao LAN HTTPS — passed 16:51:36 UTC
 
@@ -119,16 +173,16 @@ is a short sample, not all attributable to Headlamp. Its declared request adds
 physical available ~221.19/222.56GiB with 70.73GiB reserve each. No backup/HA or
 new storage acceptance claimed, and the retained test volume was not deleted.
 
-## Next app selection — Keycloak remains separately gated
+## Next configuration — recovery and identity remain separately gated
 
-OpenBao initial administration acceptance passed; independent custody transfer,
-root-token retirement/scoped recovery design and backup/restore remain pending.
-Headlamp is accepted above; Keycloak is a merged source stage, not deployed. A combined
-release must use the [ordered app stage roots](big-bang-bootstrap/configuration/ansible/README.md#ordered-app-stages):
-OpenBao-only default (retaining Rancher/Longhorn), then Headlamp, then Keycloak/database.
-Each forward root-path promotion requires separate approval and successful access,
-custody and health/capacity acceptance. The immutable source stays identical;
-publication does not activate apps. OpenBao and Headlamp stages were separately approved and completed; Keycloak and further stages are not authorized.
+OpenBao, Headlamp and Keycloak initial acceptance are complete on the same v0.14.0
+artifact using the [ordered stage roots](big-bang-bootstrap/configuration/ansible/README.md#ordered-app-stages).
+No further app is authorized. Establish independent Keycloak permanent recovery,
+review the six-role matrix and separately approve incremental PerkForge realm/
+group/client configuration. Initial master administration is not that rollout.
+OpenBao root retirement/scoped recovery, custody transfer and backup/restore remain
+pending; Headlamp's temporary admin remains revoked. Never move backward to an
+older root as an automatic rollback or assume publishing a release activates it.
 
 ## OpenBao acceptance evidence — 2026-11-01 15:29:57 UTC
 
@@ -251,10 +305,10 @@ defaults to platform_api_apply=false. See the
 
 1. Separately approve Rancher first login and private password setup; keep direct
    RKE2 recovery access. No login/password change or OIDC operation is implied.
-2. Review queued OpenBao, Headlamp, Keycloak and disabled authorization drafts in
-   dependency order. Each activation needs a verified release, concrete target,
-   scoped credentials/TLS/prerequisites and separate approval. Preserve existing
-   proven group/policy configuration for review after Keycloak is installed.
+2. Initial OpenBao/Headlamp/Keycloak acceptance is complete. Review the six-role
+   matrix and disabled authorization configuration, establish permanent recovery
+   and separately approve realm/groups/clients before one-at-a-time app SSO.
+   Preserve proven mappings; no live integration is implied by the design.
 3. Retained storage-test cleanup and further storage/recovery tests need separate
    approval. Recovery drill #101 and Velero evaluation #105 are backlog only;
    replication is not backup. No automatic data-volume deletion.

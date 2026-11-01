@@ -29,7 +29,7 @@ index and linux/amd64 manifest bytes against their digest headers. The selected
 index preserves the publisher's amd64/arm64 entries; no registry/edition switch.
 [Nonsecret evidence](../../../tests/fixtures/keycloak-image-evidence.json) records
 immutable digests and existing chart archive/source identity. No credentials or
-image layers are included. No app startup, upgrade or live delegation is claimed.
+image layers are included. That image-metadata check alone did not prove startup or delegation; the separately approved installation result follows below.
 
 Offline comparison requires the actual pinned Big Bang/child renders to differ
 only in the Keycloak image and matching version labels; database image/claim,
@@ -99,3 +99,29 @@ Sources: [Keycloak bootstrap/recovery](https://www.keycloak.org/server/bootstrap
 [import/export timing](https://www.keycloak.org/server/importExport).
 No competing direct Keycloak Helm installer remains; useful Ansible API and
 recovery/identity tests are preserved rather than deleted as obsolete deployment.
+
+## Observed initial installation — 2026-11-01
+
+Approved v0.14.0 root-path promotion to `local-keycloak` passed at 18:23:33 UTC:
+Keycloak/PostgreSQL, umbrella and root Ready; exact 26.8.1 image, trusted hostname/
+CA/served leaf, private temporary-master login/read-only API and non-superuser
+application DB login verified. The retained 4 GiB Longhorn volume has two healthy
+worker replicas. Existing OpenBao LAN/Rancher and cluster resource checks passed.
+No personal browser login, realm/group/client import, SSO or API OIDC is claimed.
+
+Actual source operations: [TLS delivery](../../ansible/platform-tls.yaml),
+[namespace/storage/installer/route preparation](../../ansible/keycloak-prerequisites.yaml),
+[empty-store database SQL](prerequisites/database-init.yaml),
+[workloads and external Secret references](values.yaml), and only the two
+Keycloak-namespace objects in [NetworkPolicies](../../identity/routing/network.yaml).
+The private execution batch generated/captured three passwords and delivered the
+four reviewed Secret references without logging values or overwriting conflicts;
+its protected evidence is retained, not embedded in public source or the viewer.
+
+The accepted lab transport is frontend TLS termination at Traefik, then internal
+HTTP and unencrypted PostgreSQL. NetworkPolicies restrict reachability, not encrypt
+it. Temporary master bootstrap administration **does not expire automatically**;
+independent permanent recovery must be verified before separately approved removal.
+Password-cache transfer is not rotation. Do not reinitialize/delete populated
+storage or reset accounts as an automatic retry. One app/database is not HA;
+independent database backup/restore remains untested.
