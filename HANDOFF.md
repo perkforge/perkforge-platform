@@ -62,6 +62,18 @@ the operator's password manager and requires a tested emergency path. Bootstrap
 credentials are not automatically permanent recovery identities. No SSO, account
 creation, credential rotation or deletion was performed for this custody move.
 
+## OpenBao LAN HTTPS — draft, not live
+
+Candidate adds a Helm-owned exact-SNI TCP passthrough route on existing Traefik
+443 to `openbao:8200`; current live v0.13.0 still has **no ingress**. Only its
+installer's namespaced IngressRouteTCP CRUD rule changes. No extra TLS key delivery,
+TLS termination at Traefik, root-token browser login or shared HTTP route changes.
+Read-only capability check found installed Traefik v3.7.13, served passthrough CRD
+and matching `traefik` provider filter, with no existing TCP routes. This is not
+runtime routing proof. After reviewed publication, separate activation approval
+must cover prerequisite delta, exposure/source promotion, end-to-end trusted TLS
+and existing Rancher route checks. See the [precise procedure](big-bang-bootstrap/configuration/packages/openbao/README.md#lan-https-candidate--not-activated).
+
 ## Next app selection — Headlamp requires separate approval
 
 OpenBao initial administration acceptance passed; independent custody transfer,

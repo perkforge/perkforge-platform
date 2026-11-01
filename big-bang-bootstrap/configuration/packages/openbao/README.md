@@ -20,7 +20,8 @@ is not an OpenBao backup or a substitute for independent recovery material.
 The StatefulSet uses OnDelete updates; upgrades need backup and explicit unseal
 planning, not a blind rolling restart or assumed downgrade.
 
-TLS is required at the server. No ingress, public service, injector, CSI provider,
+TLS is required at the server. The current v0.13.0 deployment has no ingress or public service. This candidate
+adds only the separately gated TCP route described below. No injector, CSI provider,
 Kubernetes-auth delegation, service discovery, auto-init or auto-unseal is enabled.
 The server account has no chart-created Role/ClusterRole bindings or persistent
 service-account-token Secret. The namespaced installer manages the six rendered
@@ -87,3 +88,55 @@ and explicit cleanup. Root-token retirement, scoped recovery, audit/backup and
 restart/recovery testing remain separate work. No live realm/policy mappings.
 [Synthetic tests](../../../tests/security/test_openbao_initialization.py) exercise
 actual Ansible success, initialized-store refusal and default-no-action paths.
+
+## LAN HTTPS candidate — not activated
+
+The official chart's `extraObjects` renders one `traefik.io/v1alpha1`
+`IngressRouteTCP` named `openbao-tls-passthrough` in `openbao`, owned by the
+OpenBao Helm release/Flux. It matches only
+``HostSNI(`openbao.perkforge.home.arpa`)`` on existing `websecure` and forwards
+unchanged TLS bytes to existing `openbao:8200`; no catch-all, extra listener,
+NodePort, LoadBalancer, Gateway API, HTTP redirect or shared-controller change.
+The ingress-class annotation matches the installed CRD provider filter.
+
+TLS terminates **only at OpenBao**. The browser/client verifies the current
+physical CA, hostname and leaf validity end to end. Traefik does not terminate
+or independently verify that encrypted session, and receives no additional
+leaf/CA signing key, TLS Secret or bearer token configuration. There is no
+`insecureSkipVerify` or ServersTransport. This preserves the option of future
+native TLS client authentication rather than silently terminating it at a proxy.
+Clients must trust the public CA; DNS presence alone does not establish trust.
+The UI/API becomes reachable wherever the existing Traefik 443 listener is
+reachable; this is not a new authentication or tenant-isolation boundary. Do not
+add router port-forwarding or assume it is internet-safe. No automatic root-token
+browser login: the initial root remains a highly privileged bootstrap authority.
+
+The sole installer change is **namespaced** `traefik.io/ingressroutetcps`
+get/list/watch/create/update/patch/delete in the existing OpenBao Role. No CRD
+installation, cluster role, wildcard, bind/escalate, additional Secret right or
+other routing kind is granted. Existing Helm-release Secret storage rights in
+`bigbang` remain unchanged. Ansible applies the reviewed prerequisite; Helm's delegated
+installer owns this route. Existing HTTP ingress files and all other chart
+objects are unchanged. TCP matches run before HTTP; only this exact SNI is
+claimed, so other names fall through to existing HTTP routers.
+
+### Separate activation approval
+
+Merge/release does not change the live pinned v0.13.0 artifact. Before any later
+promotion, approve exposure explicitly and verify target/source/root, initialized
+unsealed healthy Bao, certificate/CA/DNS, existing Traefik CRD/provider/entrypoint,
+no conflicting TCP or same-host HTTP route and existing Rancher HTTPS baseline.
+Apply only the reviewed namespaced prerequisite delta from a clean published
+checkout, then conditionally promote the existing source with its resourceVersion
+and exact artifact checks. Keep `clusters/local`; later apps stay off. Do **not**
+run initialization again, deliver more keys, change API auth or widen permissions.
+
+Acceptance: verified-CA/hostname GET `/ui/` and `/v1/sys/health` over LAN HTTPS,
+served leaf fingerprint matching the existing Bao certificate, Rancher `/ping`
+still trusted and `pong`, fresh root/umbrella/package readiness and resource
+snapshot. No token submission/browser login or negative TLS interception test is
+included implicitly. Stop on route conflict, stale artifact, TLS mismatch,
+unexpected permission request, existing-route regression or reconciliation failure;
+no automatic rollback/deletion. Offline renders are not a live routing test.
+
+Source: [Traefik IngressRouteTCP and TCP-before-HTTP matching](https://doc.traefik.io/traefik/reference/routing-configuration/kubernetes/crd/tcp/ingressroutetcp/).
