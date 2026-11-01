@@ -169,12 +169,22 @@ secrets or live memberships are created. See the
 
 ## Observability follow-on — partial draft only
 
-#35/#36 has an inactive architecture/source-pin and native values review, after
-the app/auth stack. Monitoring/Grafana locally rendered; full installer/lookup/RBAC
-and CRD compatibility audit, Alloy/Loki configuration, six dashboards, one verified
-ntfy path and #37–40 acceptance remain unfinished. No package is selected or
-activated, no credential/destination is created, and Myles provisioner is excluded.
-See the [review and explicit limits](big-bang-bootstrap/configuration/observability/README.md).
+#108 provides the architecture base; #111–#113 add inactive implementation and
+regressions: exact metrics/CRD/installer/lookup audit, six dashboard documents,
+scoped Alloy/Loki configuration and native alert rules/readiness capture. The
+final cumulative offline suite passed **125 tests**; C4 validation/build and local
+links passed. This is not installed or physically accepted monitoring.
+
+All 35 upstream rules and bundled Alertmanager remain. Grafana has
+`handleGrafanaManagedAlerts: false`: Grafana-managed forwarding and ntfy delivery
+are not implemented. The notification receiver remains null. Namespace/label log
+opt-in is not tenant RBAC/query isolation. Loki 10Gi/72h is not a capacity guarantee:
+a sustained 1MB/s ceiling could fill it in hours, not three days. Measured ingest,
+cardinality, WAL/index/compaction/replica headroom, auth/network denial and actual
+retention/notification/recovery evidence are activation gates. No destination,
+credential, package selection or live change; Myles provisioner stays excluded.
+See the [review and explicit limits](big-bang-bootstrap/configuration/observability/README.md)
+and linked implementation/acceptance procedures.
 
 ## Metrics/Grafana implementation candidate
 
