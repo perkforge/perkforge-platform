@@ -24,11 +24,10 @@ Longhorn; Rancher, identity applications and tenant enrollment remain unselected
 Do not resume these child releases by hand while watching the older staging tag:
 its authored suspension would be reapplied by their parents.
 
-Merge/release is source publication, not a live operation. The recorded physical
-handoff has no Flux/bootstrap installed; the seed uses an explicit immutable tag,
-never main or a feature branch. Do not point an existing active cluster source at
-this release without the same activation review. No live source was queried by
-this change; recheck the actual target/ref/paused state before applying it.
+Merge/release is source publication, not a live operation. The physical cluster now has four Ready Flux controllers and a paused v0.11.0
+source/root; common Big Bang and Longhorn installer prerequisites are prepared.
+The seed uses an explicit immutable tag, never main or a feature branch. Do not point an existing active cluster source at
+this release without the same activation review. Recheck the actual target/ref/paused state before any further operation.
 
 After this MR and its generated release PR are reviewed and published:
 
@@ -61,6 +60,61 @@ All apply/verify defaults remain false; no source merge, release or runtime tag
 input is execution approval. Preserve logs and recovery inputs. If reconciliation
 fails, use containment below; do not delete retained volumes or assume a Helm
 retry/rollback or suspension removes installed workloads.
+
+## Repeatable Flux registry preparation
+
+The pinned Big Bang Flux foundation uses Iron Bank controller images. All four
+controller Deployments already reference `flux-system/private-registry`; no node
+registry configuration, image replacement, service-account patch or restart
+annotation is required. OS registration and Git source authentication do not
+supply registry authentication.
+
+Use a clean checkout of a published release containing this registry step, with
+its matching `config_tag` and release evidence. Bootstrap verifies both the
+executing commit and clean tree before API work. Supply the normal explicit
+kubeconfig/context/cluster UID and pinned upstream checkout destination in a
+protected external YAML file; never put local deployment inputs or credentials
+into tracked values. The additional input contract is:
+
+| Input | First creation | Reuse |
+|---|---|---|
+| `bootstrap_apply` | Explicitly approved `true` | Explicitly approved `true` |
+| `bootstrap_registry_apply` | Separately approved `true` | `false` (default) |
+| `registry_username` | Registry1 username | Not read |
+| `registry_credential_file` | Absolute path to nonempty owner-only `0600` regular token/password file; no symlinks | Not read |
+
+From the selected clean release root, set `PLATFORM_INPUTS` to the absolute path
+of that protected input file, then run after approval:
+
+```sh
+ansible-playbook -i big-bang-bootstrap/configuration/ansible/inventory.yaml \
+  big-bang-bootstrap/configuration/ansible/bootstrap.yaml \
+  -e "@$PLATFORM_INPUTS" -e bootstrap_apply=true -e bootstrap_registry_apply=true
+```
+
+The normal bootstrap gate encloses all registry operations. Default and check
+mode do not contact Kubernetes or read credentials. Release/context/cluster and
+upstream commit checks precede mutation. Bootstrap extracts/applies only the
+Namespace from the pinned upstream render, then creates the missing named Secret
+through redacted stdin before applying controllers. No credential manifest is
+written to disk, logged or passed in process arguments. Existing credentials are
+never overwritten: with the delivery flag false, bootstrap checks the named
+Secret's Docker-config type and Registry1 auth structure under redaction, without
+opening the local credential file. Structure checks do not prove credentials are
+valid; controller readiness verifies actual image pulls. Rotation is separate.
+
+For a retry or a cluster with an existing compatible Secret, use the same command
+with `bootstrap_registry_apply=false` and omit local registry inputs. Bootstrap
+still reapplies a **paused** source/root; do not rerun it as routine maintenance
+after activation. A failed controller wait leaves the seed unapplied. Inspect
+Flux events and credential scope before retrying; do not delete the namespace or
+change pinned images. The first physical attempt recovered by creating the
+already-referenced Secret and recreating only failed controller pods. Those
+manual recovery actions are not part of the repeat procedure.
+
+A fresh published release is required for this code change. The original
+`v0.11.0` bootstrap lacked this step; preserve that immutable release rather than
+editing it in place. Longhorn activation stays paused while this gap is closed.
 
 ## Containment and recovery
 

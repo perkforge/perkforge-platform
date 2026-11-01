@@ -36,3 +36,5 @@ Secret/CA content, log redaction, existing-resource refusal and mismatched-key
 rejection before any API call. This is offline evidence, not live Secret delivery.
 
 The authoritative local-root regression renders only active Longhorn behind the separately tested paused seed and checks identity/tenant packages are absent. Identity and capacity tests explicitly compose their application fixtures; those inventory totals do not describe the initial Longhorn-only rollout. Fixture opt-in never changes operator selection.
+
+bootstrap/test_flux_registry uses synthetic credentials and a mock CLI to verify default/check refusal, explicit creation, redaction, reuse without local files, unsafe-file and overwrite refusal, and credential ordering before controller apply. It makes no live registry or cluster calls.

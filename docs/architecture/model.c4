@@ -117,7 +117,7 @@ model {
     }
   }
   platform = system 'Host readiness and platform ownership' {
-    description 'Separate from OS installation. Infrastructure Ansible owns host/RKE2; platform Ansible owns gated Rancher API configuration. Flux owns optional Big Bang Longhorn/Rancher Helm deployments and GitOps and Big Bang supplies curated platform packages.'
+    description 'Separate from OS installation. Infrastructure Ansible owns host/RKE2; platform Ansible owns gated Rancher API configuration. Flux owns Big Bang Longhorn/Rancher Helm deployments and GitOps and Big Bang supplies curated platform packages. Bootstrap stages the pinned Flux namespace and separately approved Registry1 pull Secret before controllers, with protected external inputs and clean published-release checks. Existing credentials are reused without reading local tokens; credential rotation is separate.'
     link /runbook.html#platform 'Platform responsibilities'
     readiness = boundary 'Host readiness / separate approval' {
       description 'Review repositories, Python, time, kernel prerequisites, networking/CNI, firewall, SELinux and capacity before cluster changes. Installed OS and working SSH alone are insufficient.'

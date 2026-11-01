@@ -4,6 +4,9 @@ all:
       vars:
         ansible_connection: local
         bootstrap_apply: false
+        bootstrap_registry_apply: false
+        registry_username: UNCONFIGURED
+        registry_credential_file: /UNCONFIGURED/registry-credential
         config_repository: https://github.com/perkforge/perkforge-platform.git
         config_tag: UNCONFIGURED
         config_release_evidence: /UNCONFIGURED/platform-release.json

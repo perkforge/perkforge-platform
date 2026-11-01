@@ -12,8 +12,9 @@ worktree; never push main or merge. Publish changes only when explicitly request
   are expected. This records the last verification, not continuous live status.
 - control-1 supplies the control plane and embedded etcd. Both workers are agents.
   This is a single-server cluster, not HA. Canal, CoreDNS, Traefik, metrics-server
-  and the snapshot controller are installed. No Rancher, Flux, Big Bang or
-  application activation was performed in this session.
+  and the snapshot controller are installed. Flux is now installed with all four
+  controllers Ready. The v0.11.0 cluster-config source and cluster-root remain
+  paused. No Big Bang, Longhorn, Rancher or identity application is installed.
 - All nodes are registered with Red Hat; BaseOS/AppStream are enabled. Approved
   host preparation installed prerequisites, persisted modules/forwarding/bridge
   settings, excluded Canal interfaces from NetworkManager and stopped/disabled
@@ -316,3 +317,20 @@ own TLS/bootstrap credentials. Defer SSO until Keycloak is separately ready.
 Previously prepared three-application TLS inputs remain protected and unapplied;
 they are not the initial storage stage. No live mutation, commit or push is
 authorized by the source preparation.
+
+## Bootstrap repeatability boundary
+
+Approved Flux installation and Longhorn namespace/installer prerequisites completed
+from clean published v0.11.0. The initial Flux image pulls failed for missing
+Registry1 authentication. Separately approved, redacted delivery created only
+flux-system/private-registry; recreating failed controller pods recovered all four
+controllers. Both seed objects remain suspended; all three nodes are Ready.
+Private verification is .rke2-state/flux-bootstrap-v0.11.0-verified.yml.
+
+The registry recovery is being incorporated into the supported bootstrap before
+further activation: explicit creation gate, protected external username/file
+inputs, no overwrite, existing-Secret reuse, pinned namespace/Secret before
+controllers, and clean-release checks. Follow configuration/ansible/README.md; do
+not depend on the temporary recovery playbook or this conversation. Publish that
+change before a human uses the new repeat procedure. Live activation remains
+unapproved; no identity/tenant scope is added.

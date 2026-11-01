@@ -1,0 +1,90 @@
+# Included only inside bootstrap_apply after release, target and upstream pin checks.
+- name: Render the pinned Flux namespace without changing upstream manifests
+  ansible.builtin.command:
+    argv: [kubectl, kustomize, '{{ flux_manifest_path }}']
+  register: flux_render
+  changed_when: false
+- name: Select the namespace from the pinned manifest
+  ansible.builtin.set_fact:
+    flux_namespaces: "{{ flux_render.stdout | from_yaml_all | selectattr('kind', 'equalto', 'Namespace') | list }}"
+- name: Require only the expected Flux namespace
+  ansible.builtin.assert:
+    that:
+    - flux_namespaces | length == 1
+    - flux_namespaces[0].metadata.name == 'flux-system'
+- name: Apply only the pinned namespace before credential delivery
+  ansible.builtin.command:
+    argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', apply, -f, '-']
+    stdin: '{{ flux_namespaces[0] | to_json }}'
+  register: flux_namespace_apply
+  changed_when: "'created' in flux_namespace_apply.stdout or 'configured' in flux_namespace_apply.stdout"
+- name: Inspect only the named existing pull Secret under redaction
+  ansible.builtin.command:
+    argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, secret, private-registry, -n, flux-system, --ignore-not-found, -o, json]
+  register: flux_pull_secret
+  changed_when: false
+  no_log: true
+- name: Require separate delivery approval when the credential is absent
+  ansible.builtin.assert:
+    that: flux_pull_secret.stdout | length > 0 or bootstrap_registry_apply | bool
+    fail_msg: Flux requires flux-system/private-registry. Supply protected registry inputs and explicitly approve bootstrap_registry_apply for first creation.
+- name: Validate an existing credential without reading the local credential file
+  when: flux_pull_secret.stdout | length > 0
+  ansible.builtin.assert:
+    that:
+    - not (bootstrap_registry_apply | bool)
+    - (flux_pull_secret.stdout | from_json).type == 'kubernetes.io/dockerconfigjson'
+    - "'registry1.dso.mil' in ((flux_pull_secret.stdout | from_json).data['.dockerconfigjson'] | b64decode | from_json).auths"
+    - "(((flux_pull_secret.stdout | from_json).data['.dockerconfigjson'] | b64decode | from_json).auths['registry1.dso.mil'].auth | b64decode).split(':', 1) | length == 2"
+    - "(((flux_pull_secret.stdout | from_json).data['.dockerconfigjson'] | b64decode | from_json).auths['registry1.dso.mil'].auth | b64decode).split(':', 1)[0] | length > 0"
+    - "(((flux_pull_secret.stdout | from_json).data['.dockerconfigjson'] | b64decode | from_json).auths['registry1.dso.mil'].auth | b64decode).split(':', 1)[1] | length > 0"
+    fail_msg: Existing pull credential is incompatible or explicit creation would overwrite it. Reuse a valid Secret with bootstrap_registry_apply=false; rotation is separate.
+  no_log: true
+- name: Create the missing Flux-only credential after explicit approval
+  when: flux_pull_secret.stdout | length == 0
+  block:
+  - name: Require explicit protected credential inputs
+    ansible.builtin.assert:
+      that:
+      - registry_username != 'UNCONFIGURED'
+      - registry_username | length > 0
+      - "':' not in registry_username"
+      - registry_credential_file is match('^/')
+      - registry_credential_file != '/UNCONFIGURED/registry-credential'
+    no_log: true
+  - name: Inspect designated credential file metadata only
+    ansible.builtin.stat:
+      path: '{{ registry_credential_file }}'
+      get_checksum: false
+      get_mime: false
+    register: flux_credential_file
+    no_log: true
+  - name: Refuse unsafe credential file permissions or symlinks
+    ansible.builtin.assert:
+      that:
+      - flux_credential_file.stat.isreg | default(false)
+      - not (flux_credential_file.stat.islnk | default(false))
+      - flux_credential_file.stat.mode == '0600'
+      - flux_credential_file.stat.size | int > 0
+    no_log: true
+  - name: Refuse an empty credential before API delivery
+    ansible.builtin.assert:
+      that: lookup('ansible.builtin.file', registry_credential_file) | trim | length > 0
+    no_log: true
+  - name: Create only the already referenced Flux pull Secret through redacted stdin
+    ansible.builtin.command:
+      argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', create, -f, '-']
+      stdin: '{{ flux_registry_secret | to_json }}'
+    vars:
+      flux_registry_secret:
+        apiVersion: v1
+        kind: Secret
+        metadata: {name: private-registry, namespace: flux-system}
+        type: kubernetes.io/dockerconfigjson
+        stringData:
+          .dockerconfigjson: "{{ {'auths': {'registry1.dso.mil': {'auth': (registry_username ~ ':' ~ (lookup('ansible.builtin.file', registry_credential_file) | trim)) | b64encode}}} | to_json }}"
+    no_log: true
+- name: Clear transient credential-bearing command results
+  ansible.builtin.set_fact:
+    flux_pull_secret: {}
+  no_log: true
