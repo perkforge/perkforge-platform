@@ -29,7 +29,7 @@ class OptionalPlatformPackages(unittest.TestCase):
         self.assertFalse(self.parent['spec']['suspend'])
         names={x['metadata']['name'] for x in self.root}
         self.assertTrue({'values-longhorn', 'values-rancher', 'rancher-official'} <= names)
-        self.assertFalse({'values-keycloak','tenant-enrollments'} & names)
+        self.assertFalse({'tenant-enrollments'} & names)
         outer=helm(self.sources/'bigbang/chart','bigbang','bigbang',ordered_values(self.root,self.parent))
         # Namespace ownership is enforced by Flux's actual authored post-renderer.
         with tempfile.TemporaryDirectory() as temp:
@@ -37,10 +37,10 @@ class OptionalPlatformPackages(unittest.TestCase):
             (p/'kustomization.yaml').write_text(yaml.safe_dump({'apiVersion':'kustomize.config.k8s.io/v1beta1','kind':'Kustomization','resources':['render.yaml'],**self.parent['spec']['postRenderers'][0]['kustomize']}))
             outer=build(p)
         releases={x['metadata']['name']:x for x in outer if x['kind']=='HelmRelease'}
-        self.assertEqual(set(releases), {'longhorn','rancher','openbao','headlamp'})
+        self.assertEqual(set(releases), {'longhorn','rancher','openbao','headlamp','keycloak'})
         self.assertFalse(releases['longhorn']['spec']['suspend'])
         self.assertFalse(releases['rancher']['spec']['suspend'])
-        self.assertEqual({x['metadata']['name'] for x in outer if x['kind']=='GitRepository'}, {'longhorn','headlamp','bigbang-wrapper'})
+        self.assertEqual({x['metadata']['name'] for x in outer if x['kind']=='GitRepository'}, {'longhorn','headlamp','keycloak','bigbang-wrapper'})
         self.assertFalse(any(x['kind'] in ['Deployment','StatefulSet','PersistentVolumeClaim','Namespace','ClusterRole','ClusterRoleBinding'] for x in outer))
         self.assertFalse(any(x['kind']=='Kustomization' for x in self.root))
 

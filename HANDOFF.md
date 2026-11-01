@@ -110,6 +110,15 @@ acceptance needs a separately approved Kubernetes token identity and lifetime;
 no native password or permanent cluster-admin account is invented. See the
 [Headlamp procedure](big-bang-bootstrap/configuration/packages/headlamp/README.md).
 
+## Queued Keycloak candidate
+
+Stacked after Headlamp: chart 7.3.2-bb.1/Keycloak 26.8.0 with the pinned database
+and a separately prepared Longhorn claim. Initial master bootstrap administration
+only; no startup realm import, PerkForge groups or app client integration. Protected
+bootstrap/database/pull/TLS delivery and real first login remain future approvals.
+Ansible retains realm API ownership separately from Helm deployment. See the
+[Keycloak procedure](big-bang-bootstrap/configuration/packages/keycloak/README.md).
+
 ## Next decisions
 
 1. Separately approve Rancher first login and private password setup; keep direct

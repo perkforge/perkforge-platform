@@ -59,7 +59,7 @@ def release_name(release):
 def application_package_fixture(root):
     """Explicit identity-package opt-in for offline tests, never operator input."""
     objects = [obj for obj in build(root / 'clusters/local')
-               if obj['metadata']['name'] not in {'values-longhorn', 'values-rancher', 'rancher-official', 'values-openbao', 'openbao-official', 'values-headlamp'}]
+               if obj['metadata']['name'] not in {'values-longhorn', 'values-rancher', 'rancher-official', 'values-openbao', 'openbao-official', 'values-headlamp', 'values-keycloak'}]
     parent = next(o for o in objects if o['kind'] == 'HelmRelease')
     parent['spec']['valuesFrom'].insert(2, {'kind':'ConfigMap','name':'values-headlamp','valuesKey':'oidc.yaml','optional':True})
     for name in ['headlamp', 'keycloak']:
@@ -71,6 +71,13 @@ def application_package_fixture(root):
             config['data']['oidc.yaml'] = (root / 'configuration/packages/headlamp/oidc.yaml').read_text()
             value = yaml.safe_load(config['data']['values.yaml'])
             value['addons']['headlamp']['values']['upstream']['nodeSelector'] = {'kubernetes.io/hostname':'REPLACE_WITH_WORKER_NODE'}
+            config['data']['values.yaml'] = yaml.safe_dump(value)
+        if name == 'keycloak':
+            import yaml
+            config = next(o for o in selected if o['kind'] == 'ConfigMap')
+            value = yaml.safe_load(config['data']['values.yaml'])
+            value['addons']['keycloak']['values']['upstream']['nodeSelector'] = {'kubernetes.io/hostname':'REPLACE_WITH_WORKER_NODE'}
+            value['addons']['keycloak']['values']['postgresql']['primary']['nodeSelector'] = {'kubernetes.io/hostname':'REPLACE_WITH_WORKER_NODE'}
             config['data']['values.yaml'] = yaml.safe_dump(value)
         objects += selected
     return objects

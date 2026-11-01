@@ -1,4 +1,4 @@
-# Explicit package configuration, with external credential references.
+# Initial master bootstrap administration only; realm/API configuration stays separate.
 addons:
   keycloak:
     enabled: true
@@ -24,7 +24,7 @@ addons:
         imagePullSecrets:
         - name: private-registry
         nodeSelector:
-          kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE
+          storage.perkforge.io/worker: 'true'
         extraEnv: '- {name: KC_HOSTNAME, value: ''https://keycloak.perkforge.home.arpa/auth''}
 
           - {name: KC_CACHE, value: local}
@@ -64,7 +64,7 @@ addons:
               postgresPassword: ''
         primary:
           nodeSelector:
-            kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE
+            storage.perkforge.io/worker: 'true'
           persistence:
             existingClaim: keycloak-postgres
           initdb:
@@ -98,3 +98,6 @@ addons:
         remediation:
           retries: 0
           remediateLastFailure: false
+      suspend: false
+      timeout: 10m
+    includeDefaultDependsOn: false
