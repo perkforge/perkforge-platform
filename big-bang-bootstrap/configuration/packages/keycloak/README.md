@@ -1,12 +1,41 @@
 # Keycloak initial master-administrator stage
 
 Stacked after OpenBao and Headlamp. Select Big Bang Keycloak chart
-**7.3.2-bb.1 / Keycloak 26.8.0**, with its pinned PostgreSQL 18.12.4 chart dependency
+**7.3.2-bb.1 with an immutable Iron Bank Keycloak 26.8.1 image override**, with its pinned PostgreSQL 18.12.4 chart dependency
 and Iron Bank PostgreSQL 18.6 image. One application and one database instance,
 worker placement and the existing 4Gi Longhorn prerequisite claim: **not HA**.
 Application/database passwords remain external Secrets; no realm import runs at
 server startup. No PerkForge groups, app clients, mappings or API OIDC settings
 are activated by selecting the chart.
+
+## Security patch and compatibility
+
+The official [26.8.1 release](https://github.com/keycloak/keycloak/releases/tag/26.8.1)
+fixes delegated-administration issues including denied reset-password bypass and
+`manage-users` escalation. This is not a claim that patching alone makes tenant
+delegation safe: version-specific negative API tests and the separate role review
+remain required before enabling it.
+
+Retain the compatible 7.3.2-bb.1 package and use its supported
+`upstream.image.tag` / `upstream.image.digest` fields. Chart `appVersion` and image
+annotations still describe 26.8.0; inspect the **rendered workload image**, not
+those metadata fields, for the selected runtime version. The new official
+7.4.0-bb.2 package declares 26.8.1 but rejects the legacy common values emitted by
+our pinned Big Bang 3.35.1; a blind package bump would require a separate
+`global`/`bb-common` schema migration and additional dependency changes.
+
+Authenticated metadata verification on 2026-11-01 checked the official registry
+index and linux/amd64 manifest bytes against their digest headers. The selected
+index preserves the publisher's amd64/arm64 entries; no registry/edition switch.
+[Nonsecret evidence](../../../tests/fixtures/keycloak-image-evidence.json) records
+immutable digests and existing chart archive/source identity. No credentials or
+image layers are included. No app startup, upgrade or live delegation is claimed.
+
+Offline comparison requires the actual pinned Big Bang/child renders to differ
+only in the Keycloak image and matching version labels; database image/claim,
+namespace/resources, installer RBAC and Secret references stay identical. A future
+live installation still needs explicit approval and readiness/access/resource
+acceptance. This source change does not promote the running release.
 
 The `clusters/local-keycloak` stage enables this application and database together,
 after Headlamp acceptance. The default and Headlamp stages leave both off. See

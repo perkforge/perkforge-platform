@@ -273,8 +273,8 @@ model {
       }
     }
     keycloak = component 'Keycloak identity server — candidate' {
-      description 'PLANNED: chart 7.3.2-bb.1/Keycloak 26.8.0 plus pinned PostgreSQL on a retained Longhorn claim. One app/database, not HA. Initial master bootstrap administrator only; no realm import, users, PerkForge groups, clients or app OIDC activation.'
-      link https://github.com/perkforge/perkforge-platform/blob/feat/keycloak-bootstrap/big-bang-bootstrap/configuration/packages/keycloak/README.md 'Initial Keycloak procedure'
+      description 'PLANNED: compatible chart 7.3.2-bb.1 with verified immutable Iron Bank 26.8.1 image override (chart appVersion metadata remains 26.8.0), plus unchanged PostgreSQL on a retained Longhorn claim. One app/database, not HA. Initial master bootstrap administrator only; no realm import, users, PerkForge groups, clients or app OIDC activation.'
+      link https://github.com/perkforge/perkforge-platform/blob/fix/keycloak-security-patch/big-bang-bootstrap/configuration/packages/keycloak/README.md 'Initial Keycloak procedure'
       installer = component 'keycloak-installer — namespaced Helm identity' {
         description 'Ansible prepares namespace/PVC/init ConfigMap; Helm manages namespaced app/database resources. Only named database Secret get lookups, no cluster RBAC or human grants. Credentials and current physical TLS remain separate approved delivery.'
       }
