@@ -1,46 +1,5 @@
 # Current operator handoff
 
-## SonarQube candidate is blocked
-
-[SonarQube Community review](big-bang-bootstrap/configuration/packages/sonarqube/README.md)
-is a real pinned disabled profile, not commercial MR-analysis capability. External
-DB/TLS, host limits and cumulative capacity remain gates; no privileged init,
-credentials, GitLab tokens or SSO configured. Istio/Gateway API remains ticket-only.
-
-## Mattermost candidate is blocked
-
-[Mattermost review](big-bang-bootstrap/configuration/packages/mattermost/README.md)
-includes both required pinned charts and named installer delegation, not apply.
-Cluster-wide operator Secret/workload trust, edition entitlement, external data
-services and unrestricted vendor wait-job egress require review before selection.
-
-## Harbor candidate is blocked
-
-[Harbor review](big-bang-bootstrap/configuration/packages/harbor/README.md) adds a
-rendered disabled profile with protected Secret references, no generated values.
-External data services, TLS/network/capacity and explicit scanner scope need review.
-
-## GitLab candidate is blocked, not queued live activation
-
-[GitLab review](big-bang-bootstrap/configuration/packages/gitlab/README.md) commits
-the actual pinned disabled profile and namespace installer audit. External
-PostgreSQL/Redis/object store and roughly17Gi app requests need capacity decisions;
-no license, credentials, ingress or deployment. No obsolete direct installer found.
-
-## Inactive alert/validation preparation
-
-[Native rule overlay and acceptance contract](big-bang-bootstrap/configuration/observability/alerts-and-validation.md)
-preserve vendor rules and bundled Alertmanager; the receiver is null and no
-notifications are sent. Default-off readiness capture is not completed #40
-acceptance. ntfy payload/auth decision and all physical monitoring tests remain.
-
-## Inactive logging draft
-
-The [logging candidate](big-bang-bootstrap/configuration/observability/logging.md)
-adds scoped API collection and authenticated TLS Loki with 3d/10Gi retention.
-No selection, credentials, permissions or live acceptance. Operator-generated
-workloads, Alloy binary validation, query auth and network enforcement remain gates.
-
 ## Current checkpoint — 2026-11-01
 
 Rancher installation and the first Longhorn storage test passed. **No further live
@@ -86,6 +45,45 @@ and bootstrap-password flat files plus metadata. No values belong in Git/chat.
 The operator owns proper-store migration and explicit temporary-copy cleanup;
 changing a cached file is not server password rotation. Other app entries remain
 pending or not applicable; no OpenBao unseal material is bundled there.
+
+## Morning draft review order — no overnight activation
+
+All are **Draft**. Source merge/release and live source promotion remain distinct.
+After a predecessor merges, retarget the next draft to main, inspect the diff and
+rerun checks; do not merge into predecessor feature branches.
+
+| MR | Scope | Current limit |
+| --- | --- | --- |
+| [103](https://github.com/perkforge/perkforge-platform/pull/103) | OpenBao initial server | Future TLS, init/unseal and token custody approval |
+| [104](https://github.com/perkforge/perkforge-platform/pull/104) | Headlamp token mode | Future suitable short-lived identity; no native password |
+| [106](https://github.com/perkforge/perkforge-platform/pull/106) | Keycloak initial master admin | Future protected inputs/login; no realm/groups applied |
+| [107](https://github.com/perkforge/perkforge-platform/pull/107) | Authorization review/config | Functional offline rendering; live apply/migration wiring incomplete |
+| [108](https://github.com/perkforge/perkforge-platform/pull/108) | Monitoring architecture | Partial architecture base, not live acceptance |
+| [111](https://github.com/perkforge/perkforge-platform/pull/111) | Metrics/Grafana implementation | Inactive; six dashboards, exact CRD/RBAC/lookup tests |
+| [112](https://github.com/perkforge/perkforge-platform/pull/112) | Alloy/Loki implementation | Inactive; binary/operator/network/query validation pending |
+| [113](https://github.com/perkforge/perkforge-platform/pull/113) | Native alerts/readiness evidence | Null receiver; ntfy adapter/auth and physical acceptance blocked |
+| [114](https://github.com/perkforge/perkforge-platform/pull/114) | GitLab Free baseline | Disabled; external data services and capacity unresolved |
+| [115](https://github.com/perkforge/perkforge-platform/pull/115) | Harbor initial administration | Disabled; DB/Redis/TLS/network/scanner decisions |
+| [116](https://github.com/perkforge/perkforge-platform/pull/116) | Mattermost/operator | Disabled; cluster-wide operator trust, edition and network gates |
+| [117](https://github.com/perkforge/perkforge-platform/pull/117) | SonarQube Community Build | Disabled; PostgreSQL/host limits/TLS/capacity; no paid MR-analysis claim |
+
+Monitoring and collaboration candidates are not in the root valuesFrom. Their
+namespaced/CRD installer policies are reviewable source, not applied authority.
+Istio/Gateway API is ticket-only. No new live probe, deployment, app login, credential
+generation, SSO, source promotion or retained test cleanup occurred for this queue.
+Read exact-head PR checks for CI; offline checks are not physical acceptance.
+
+**Cumulative capacity is unresolved:** proposed core app PVCs14Gi + retained test1Gi
++ monitoring22Gi + GitLab Gitaly10Gi + Harbor11Gi + SonarQube20Gi =78Gi logical,
+about156Gi two-replica scheduling before external databases/object stores, snapshots,
+WAL/index/compaction and reserves. GitLab alone preserves roughly17Gi app requests;
+Mattermost adds4Gi plus512Mi operator, SonarQube about2GB requested/6GB limit,
+all before their data services and monitoring. An idle snapshot cannot prove the
+whole queue fits; choose a subset or review capacity rather than enable all.
+
+Temporary cache metadata now marks Grafana/GitLab/Harbor/Mattermost/SonarQube pending.
+No new values were created/retrieved; existing Rancher files were untouched. User
+owns tomorrow's migration/removal. No CA/unseal/SSH material is bundled with apps.
 
 ## First storage test — passed, resources retained
 

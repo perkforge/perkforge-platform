@@ -1,7 +1,7 @@
 # SonarQube Community Build — blocked inactive candidate (#110)
 
-Big Bang3.35.1 pins chart2026.4.1-bb.4, native SonarQube chart2026.4.1 and
-Community Build26.9.0.129388 image. Package declares Kubernetes>=1.32; rendering at
+Big Bang 3.35.1 pins chart 2026.4.1-bb.4, native SonarQube chart 2026.4.1 and
+Community Build 26.9.0.129388 image. Package declares Kubernetes >=1.32; rendering at
 1.36.5 passes that constraint, not a complete vendor support/integration test.
 Root does not include the disabled/paused profile; no apply entrypoint or live ops.
 
@@ -40,7 +40,7 @@ execute it. Initial/upgrade rendered behavior does not prove existing DB migrati
   memory and500m/1CPU plus external PostgreSQL, init/hook jobs and scan workload.
   Vendor ephemeral-storage maximum512000M is **not reserved space**; review a
   realistic bound and request before deployment. No shrink-to-fit claim.
--20Gi Longhorn PVC schedules40Gi across two replicas, excluding DB, snapshots,
+- 20Gi Longhorn PVC schedules40Gi across two replicas, excluding DB, snapshots,
   backups and headroom. Together with earlier monitoring/app proposals, GitLab
   and Harbor, cumulative storage can exceed the earlier80–100Gi logical budget.
   Select a subset or resize/review capacity; do not enable the entire queue.
