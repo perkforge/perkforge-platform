@@ -1,0 +1,69 @@
+- name: Separately approved disposable Longhorn persistence test
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars:
+    storage_test_apply: false
+    storage_test_namespace: UNCONFIGURED
+    storage_test_output: /UNCONFIGURED/output
+    storage_expected_checksum: 55f473d7eef1f1248d1d5e39a95c5ae90dc86150b20799614ab64ad97607c3b3
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Storage test apply={{ storage_test_apply | bool }}; no default/check-mode API calls; no claim/volume/namespace cleanup'
+  - name: Explicitly approved test only
+    when: storage_test_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - inventory_hostname == 'local'
+        - storage_test_namespace is match('^pf-longhorn-smoke-[a-z0-9]{6,16}$')
+        - storage_test_output is match('^/')
+        - not storage_test_output.startswith('/UNCONFIGURED/')
+        - expected_cluster_uid != 'UNCONFIGURED'
+    - ansible.builtin.set_fact:
+        storage_k: ['kubectl', '--kubeconfig', '{{ target_kubeconfig }}', '--context', '{{ target_context }}', '--request-timeout=30s']
+    - ansible.builtin.command:
+        argv: '{{ storage_k + ["get", "namespace", "kube-system", "-o", "jsonpath={.metadata.uid}"] }}'
+      register: test_uid
+      changed_when: false
+    - ansible.builtin.assert:
+        that: test_uid.stdout == expected_cluster_uid
+    - name: Verify release, empty namespace and worker storage before creation
+      ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/files/verify-longhorn-smoke.py', preflight, '{{ target_kubeconfig }}', '{{ target_context }}', '{{ expected_cluster_uid }}', '{{ storage_test_namespace }}', '{{ storage_test_output }}']
+      changed_when: false
+    - name: Render isolated namespace and 1Gi claim; create refuses existing objects
+      ansible.builtin.template:
+        src: fixtures/longhorn-smoke-foundation.yaml.j2
+        dest: '{{ storage_test_output }}/foundation.yaml'
+        mode: '0600'
+    - ansible.builtin.command:
+        argv: '{{ storage_k + ["create", "-f", storage_test_output + "/foundation.yaml"] }}'
+    - name: Record the unique namespace UID
+      ansible.builtin.command:
+        argv: '{{ storage_k + ["get", "namespace", storage_test_namespace, "-o", "json"] }}'
+      register: smoke_namespace
+      changed_when: false
+    - ansible.builtin.copy:
+        content: '{{ smoke_namespace.stdout }}'
+        dest: '{{ storage_test_output }}/namespace.json'
+        mode: '0600'
+    - name: Initial write, same-worker recreation, then cross-worker reattachment
+      ansible.builtin.include_tasks: longhorn-smoke-stage.yaml
+      loop:
+      - {name: initial, worker: worker-1}
+      - {name: recreate, worker: worker-1}
+      - {name: cross-worker, worker: worker-2}
+      loop_control:
+        loop_var: storage_stage
+    - name: Verify two healthy replicas and RW engine modes after cross-worker move
+      ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/files/verify-longhorn-smoke.py', health, '{{ target_kubeconfig }}', '{{ target_context }}', '{{ expected_cluster_uid }}', '{{ storage_test_namespace }}', '{{ storage_test_output }}', '{{ storage_volume_handle }}', worker-2]
+      register: volume_health
+      changed_when: false
+      until: volume_health.rc == 0
+      retries: 120
+      delay: 5
+    - ansible.builtin.copy:
+        content: 'PASS: initial write, same-worker recreation, cross-worker checksum, two healthy distinct-worker replicas. Retain namespace/PVC/PV/volume; cleanup requires approval. No backup/restore or HA proof.'
+        dest: '{{ storage_test_output }}/summary.txt'
+        mode: '0600'

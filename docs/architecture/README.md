@@ -29,6 +29,7 @@ Use context first, then narrow into components or an operating flow. The single
 | installation | Manual layout/account review and disk commitment |
 | security_handoff | Physical trust, public-key enrollment and fresh access checks |
 | service_lifecycle | Preflight, identity, exposure and scoped stop |
+| storage_acceptance | Ordered approved PVC write/recreation/reattachment/replica test and retention gate |
 | storage_detail | Optional Longhorn claims, worker replicas, independent backups and activation boundaries |
 | rke2_detail | Server/workers, Canal/DNS/Traefik, administrator access and recovery |
 | bootstrap_installer_flow | Release → shared/package prerequisites → Flux/Big Bang → delegated installer → runtime and acceptance |
