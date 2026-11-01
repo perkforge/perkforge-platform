@@ -7,7 +7,7 @@ from fixtures.render_helpers import build, helm, ordered_values, child_values, r
 ROOT=Path(__file__).resolve().parents[2]
 class HeadlampInitial(unittest.TestCase):
  def test_actual_root_disables_oidc_without_granting_runtime_privilege(self):
-  root=build(ROOT/'clusters/local');parent=next(x for x in root if x['kind']=='HelmRelease')
+  root=build(ROOT/'clusters/local-headlamp');parent=next(x for x in root if x['kind']=='HelmRelease')
   config=next(x for x in root if x['metadata']['name']=='values-headlamp')
   self.assertNotIn('oidc.yaml',config['data'])
   self.assertFalse(any(x['name']=='values-headlamp' and x['valuesKey']=='oidc.yaml' for x in parent['spec']['valuesFrom']))
@@ -34,7 +34,7 @@ class HeadlampInitial(unittest.TestCase):
  def test_selected_chart_has_no_object_lookup_against_synthetic_api(self):
   import tempfile,subprocess
   from fixtures.lookup_server import lookup_server
-  root=build(ROOT/'clusters/local');parent=next(x for x in root if x['kind']=='HelmRelease')
+  root=build(ROOT/'clusters/local-headlamp');parent=next(x for x in root if x['kind']=='HelmRelease')
   src=Path(os.environ['PREFLIGHT_SOURCES_DIR'])
   outer=helm(src/'bigbang/chart','bigbang','bigbang',ordered_values(root,parent))
   child=next(x for x in outer if x['kind']=='HelmRelease' and x['metadata']['name']=='headlamp')

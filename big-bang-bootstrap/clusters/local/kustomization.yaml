@@ -15,6 +15,10 @@ configMapGenerator:
   namespace: bigbang
   files:
   - values.yaml
+- name: values-app-stage
+  namespace: bigbang
+  files:
+  - values.yaml=app-stage.yaml
 generatorOptions:
   disableNameSuffixHash: true
 commonAnnotations:

@@ -53,6 +53,9 @@ spec:
   - kind: ConfigMap
     name: values-cluster
     valuesKey: values.yaml
+  - kind: ConfigMap
+    name: values-app-stage
+    valuesKey: values.yaml
   install:
     createNamespace: false
     remediation:

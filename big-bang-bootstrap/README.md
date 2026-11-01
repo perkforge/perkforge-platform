@@ -15,14 +15,14 @@ configuration/
 tests/                             configuration/bootstrap/security/integration
 ```
 
-This candidate selects Longhorn plus Rancher for the local-admin management stage.
-The live source remains pinned to v0.11.3 (Longhorn only); its first storage test
-passed. A future published release requires separately approved Rancher namespace,
-TLS/public-CA/bootstrap inputs, installer delegation and source promotion before
-activation. Headlamp, Keycloak, OpenBao and tenant enrollment remain unselected;
-no SSO/group/role setup is included. Initial seed defaults stay paused for new
-clusters; do not rerun bootstrap on the active cluster. Local means the physical
-three-node lab, not a HA or IL2 authorization claim.
+The default local root selects Longhorn, Rancher and OpenBao. The reviewed
+stage roots add Headlamp, then Keycloak and its database from the **same release**.
+Publication alone does not promote the live source. The last recorded deployment
+is v0.12.0 (Rancher/Longhorn); OpenBao, Headlamp, Keycloak and identity integration
+are not deployed. See [ordered app stages](configuration/ansible/README.md#ordered-app-stages)
+for approval and acceptance boundaries. Initial seeds remain paused; never rerun
+bootstrap on the active cluster. This physical three-node lab is not HA or an IL2
+authorization claim.
 
 Start with [platform maintenance](../docs/platform/README.md): [applications and values](../docs/platform/applications.md), [targets/environments](../docs/platform/targets.md), and [impact profiles](../docs/platform/profiles.md). Use [operation order](configuration/ansible/README.md), [verification commands](tests/README.md), [infrastructure prerequisites](../infrastructure/README.md).
 

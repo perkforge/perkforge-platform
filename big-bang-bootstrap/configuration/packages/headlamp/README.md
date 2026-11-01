@@ -1,7 +1,7 @@
 # Headlamp initial Kubernetes-token stage
 
 Stacked after OpenBao; chart **0.45.0-bb.1**, application **0.45.0**, existing
-immutable source/checksum pins retained. The root selects a single worker-hosted
+immutable source/checksum pins retained. The `clusters/local-headlamp` stage selects a single worker-hosted
 Headlamp with bounded requests. This is a candidate, not a live deployment.
 
 The active ConfigMap no longer imports `oidc.yaml`. That file and the prior proven
@@ -52,3 +52,5 @@ Sources: [Headlamp in-cluster installation](https://headlamp.dev/docs/latest/ins
 [Keycloak integration](https://headlamp.dev/docs/latest/installation/in-cluster/keycloak/).
 Existing useful API/identity configuration and tests are preserved; no competing
 direct Headlamp deployment installer remained to delete.
+
+Use the [ordered app stages](../../ansible/README.md#ordered-app-stages); the default local root leaves Headlamp off until its separately approved stage.

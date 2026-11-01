@@ -46,6 +46,15 @@ The operator owns proper-store migration and explicit temporary-copy cleanup;
 changing a cached file is not server password rotation. Other app entries remain
 pending or not applicable; no OpenBao unseal material is bundled there.
 
+## Next app selection — source candidate, not live
+
+OpenBao source merged; Headlamp and Keycloak/auth remain review stages. A combined
+release must use the [ordered app stage roots](big-bang-bootstrap/configuration/ansible/README.md#ordered-app-stages):
+OpenBao-only default (retaining Rancher/Longhorn), then Headlamp, then Keycloak/database.
+Each forward root-path promotion requires separate approval and successful access,
+custody and health/capacity acceptance. The immutable source stays identical;
+publication does not activate apps. No new live actions were performed for this change.
+
 ## Acceptance requirement for every subsequent app
 
 After each successful deployment, provide timestamped per-node CPU/RAM usage

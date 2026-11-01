@@ -1,0 +1,6 @@
+# Final, required deployment selection; no authentication configuration.
+addons:
+  headlamp:
+    enabled: false
+  keycloak:
+    enabled: false

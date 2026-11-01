@@ -7,7 +7,7 @@ from fixtures.render_helpers import build,helm,ordered_values,child_values,relea
 ROOT=Path(__file__).resolve().parents[2]
 class KeycloakInitial(unittest.TestCase):
  def test_actual_selected_chart_uses_external_credentials_and_no_realm_import(self):
-  root=build(ROOT/'clusters/local');parent=next(x for x in root if x['kind']=='HelmRelease');src=Path(os.environ['PREFLIGHT_SOURCES_DIR'])
+  root=build(ROOT/'clusters/local-keycloak');parent=next(x for x in root if x['kind']=='HelmRelease');src=Path(os.environ['PREFLIGHT_SOURCES_DIR'])
   outer=helm(src/'bigbang/chart','bigbang','bigbang',ordered_values(root,parent))
   hr=next(x for x in outer if x['kind']=='HelmRelease' and x['metadata']['name']=='keycloak')
   self.assertFalse(hr['spec']['suspend']);self.assertEqual(hr['spec']['dependsOn'],[{'name':'longhorn','namespace':'bigbang'}])

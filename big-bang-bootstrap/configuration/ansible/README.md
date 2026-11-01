@@ -236,3 +236,43 @@ not browser login or external authentication. No direct Ansible Helm installatio
 SSO configurator invocation or implicit retry belongs to this stage.
 
 OpenBao is the next queued source stage: [initial token administration](../packages/openbao/README.md). Its separately gated `openbao-prerequisites.yaml` grants namespaced chart authority only. TLS delivery, initialization/unseal and token custody remain separate approvals; no OIDC integration is applied.
+
+## Ordered app stages
+
+One immutable published artifact contains these standard Kustomize roots:
+
+| Order | Root `spec.path` | Selected apps |
+|---|---|---|
+| 1 | `./big-bang-bootstrap/clusters/local` | Existing Longhorn/Rancher plus OpenBao |
+| 2 | `./big-bang-bootstrap/clusters/local-headlamp` | Stage 1 plus token-mode Headlamp |
+| 3 | `./big-bang-bootstrap/clusters/local-keycloak` | Stage 2 plus Keycloak and PostgreSQL |
+
+The required final `values-app-stage` ConfigMap overrides earlier package selection.
+It changes selection only: no new installer rights, credentials or OIDC integration.
+All stages use the same source tag/commit; adding a package does not require a new
+release. These are stage paths for the same physical target, not new clusters.
+
+1. Review the exact release render at stage 1, existing target/UID and prerequisites.
+   Deliver only separately approved TLS/bootstrap inputs and installer prerequisites.
+   Prerequisite playbooks retain the base local path as their verification input;
+   do not rerun Flux bootstrap or pause existing reconcilers.
+2. Separately approve OpenBao activation and initialization/unseal custody. Promote
+   the active source only with current-tag/resourceVersion guards; verify the exact
+   fresh artifact. Keep root at the default path. Stop on drift/failure/timeout.
+3. Complete OpenBao readiness, admin-access/custody acceptance and the required
+   health/capacity report. Uninitialized/sealed state is not successful acceptance.
+4. After Headlamp inputs/prerequisites and explicit approval, conditionally change
+   only the existing root path from stage 1 to stage 2. Check the expected old path,
+   resourceVersion, active source and exact artifact first. Preserve saved results;
+   verify Ready, approved token access and health/capacity before continuing.
+5. After Keycloak/database credentials, TLS, prerequisites and explicit approval,
+   similarly advance stage 2 to stage 3. Verify database/Keycloak readiness, initial
+   master-admin access and health/capacity. Realm/group/app authentication remains
+   a separate disabled proposal requiring approval.
+
+No live promotion command is authorized by this procedure. There is no new stage
+controller: the operator uses the existing guarded Kubernetes access, saving each
+conditional patch and observed result automatically. Never substitute arbitrary
+paths or move backward as automatic rollback: disabling a package can uninstall it.
+On a failed stage retain its path, objects, data and diagnostics; decide recovery
+explicitly. Do not prune a previous app to make capacity appear adequate.

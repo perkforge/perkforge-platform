@@ -8,6 +8,10 @@ Application/database passwords remain external Secrets; no realm import runs at
 server startup. No PerkForge groups, app clients, mappings or API OIDC settings
 are activated by selecting the chart.
 
+The `clusters/local-keycloak` stage enables this application and database together,
+after Headlamp acceptance. The default and Headlamp stages leave both off. See
+[ordered app stages](../../ansible/README.md#ordered-app-stages).
+
 ## Who does what and why
 
 - Flux/Big Bang deploy Keycloak and PostgreSQL using `keycloak-installer`; its

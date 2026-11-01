@@ -23,7 +23,7 @@ class IdentityPackageTests(IdentityFixture):
         for o in objects:
             self.assertNotIn(o['kind'], ['Namespace', 'Ingress', 'PersistentVolumeClaim', 'ClusterRole', 'ClusterRoleBinding', 'RoleBinding'])
         self.assertEqual({o['metadata']['name'] for o in self.root if o['kind'] == 'ConfigMap'},
-                         {'values-shared', 'values-provider', 'values-impact', 'values-cluster', 'values-keycloak', 'values-headlamp'})
+                         {'values-shared', 'values-provider', 'values-impact', 'values-cluster', 'values-keycloak', 'values-headlamp', 'values-app-stage'})
         for o in self.outer:
             if o['kind'] == 'HelmRelease':
                 self.assertEqual(o['spec']['serviceAccountName'], o['metadata']['name'] + '-installer')
