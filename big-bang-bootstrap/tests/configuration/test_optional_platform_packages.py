@@ -25,14 +25,14 @@ class OptionalPlatformPackages(unittest.TestCase):
             values=next(x for x in cls.outer if x['kind']=='Secret' and x['metadata']['name']==name+'-values')['stringData']['values.yaml']
             cls.children[name]=helm(cls.sources/name,name,namespace,[values])
 
-    def test_current_root_selects_storage_and_local_admin_rancher_without_identity(self):
+    def test_current_root_selects_storage_rancher_and_openbao_without_identity(self):
         self.assertFalse(self.parent['spec']['suspend'])
         names={x['metadata']['name'] for x in self.root}
         self.assertTrue({'values-longhorn', 'values-rancher', 'rancher-official'} <= names)
-        self.assertFalse({'values-headlamp','values-keycloak','values-openbao','tenant-enrollments'} & names)
+        self.assertFalse({'values-headlamp','values-keycloak','tenant-enrollments'} & names)
         outer=helm(self.sources/'bigbang/chart','bigbang','bigbang',ordered_values(self.root,self.parent))
         releases={x['metadata']['name']:x for x in outer if x['kind']=='HelmRelease'}
-        self.assertEqual(set(releases), {'longhorn','rancher'})
+        self.assertEqual(set(releases), {'longhorn','rancher','openbao'})
         self.assertFalse(releases['longhorn']['spec']['suspend'])
         self.assertFalse(releases['rancher']['spec']['suspend'])
         self.assertEqual({x['metadata']['name'] for x in outer if x['kind']=='GitRepository'}, {'longhorn','bigbang-wrapper'})

@@ -178,6 +178,19 @@ views {
     platform.storage.acceptance -> engineer '7. Retain test claim/PV/volume, final pod and evidence; cleanup needs separate approval'
   }
 
+  dynamic view openbao_initial_admin {
+    title 'OpenBao initial token administration — proposed'
+    description 'Who does what and why: separate reviewed prerequisites, Helm runtime identity and human token custody. No deployment or initialization approval is conveyed.'
+    engineer -> platform.prerequisite_applier '1. Review published release, target, capacity and current physical PKI; approve scoped actions'
+    platform.prerequisite_applier -> platform.openbao.installer '2. Ansible applies namespaced installer/release-storage delegation, no cluster grants'
+    engineer -> platform.flux '3. Deliver separately approved backend TLS Secret, then promote exact release'
+    platform.flux -> platform.bigbang '4. Reconcile selected package; existing storage and Rancher unchanged'
+    platform.bigbang -> platform.openbao.installer '5. HelmRelease selects delegated installer before rendering'
+    platform.openbao.installer -> platform.openbao.runtime '6. Helm creates TLS server/SA and retained Longhorn claim; sealed state stays NotReady'
+    engineer -> platform.openbao.runtime '7. Separately approved verified-TLS loopback access, new-store init, separate share/token custody and unseal'
+    platform.openbao.runtime -> engineer '8. Verify readiness and private admin login; stop before OIDC/policy changes'
+  }
+
   dynamic view rancher_local_admin {
     title 'Rancher local-admin stage — planned, not activated'
     description 'Candidate source only. Big Bang/Flux owns installation; Ansible applies approved prerequisites/TLS, not a competing Helm deployment. Vendor matrix covers RKE2 1.36 but lists Longhorn 1.12, not the separately managed 1.13 lab combination. One replica/control-plane is not HA. No SSO or test-volume cleanup.'

@@ -194,3 +194,5 @@ reviewed foundations; `platform-tls.yaml` owns separately approved credential/tr
 delivery. `readiness.yaml` phase `rancher` reads only HelmRelease/server readiness,
 not browser login or external authentication. No direct Ansible Helm installation,
 SSO configurator invocation or implicit retry belongs to this stage.
+
+OpenBao is the next queued source stage: [initial token administration](../packages/openbao/README.md). Its separately gated `openbao-prerequisites.yaml` grants namespaced chart authority only. TLS delivery, initialization/unseal and token custody remain separate approvals; no OIDC integration is applied.

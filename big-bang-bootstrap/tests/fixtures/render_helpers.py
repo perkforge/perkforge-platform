@@ -59,7 +59,7 @@ def release_name(release):
 def application_package_fixture(root):
     """Explicit identity-package opt-in for offline tests, never operator input."""
     objects = [obj for obj in build(root / 'clusters/local')
-               if obj['metadata']['name'] not in {'values-longhorn', 'values-rancher', 'rancher-official'}]
+               if obj['metadata']['name'] not in {'values-longhorn', 'values-rancher', 'rancher-official', 'values-openbao', 'openbao-official'}]
     for name in ['headlamp', 'keycloak']:
         objects += build(root / 'configuration/packages' / name)
     return objects

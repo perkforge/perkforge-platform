@@ -79,6 +79,18 @@ Repeat only after new action-specific approval, with a fresh namespace/output an
 reviewed target inputs: [storage test procedure](big-bang-bootstrap/configuration/packages/longhorn/README.md#disposable-storage-acceptance).
 The [C4 storage flow](docs/architecture/README.md) links the actual Ansible code.
 
+## Queued OpenBao candidate
+
+This feature adds OpenBao 2.7.2/chart 0.30.6 after the merged Rancher source stage.
+It is not deployed. TLS-required single-server PebbleDB on a 10Gi Longhorn claim
+is a non-HA lab choice; no ingress, Kubernetes auth delegation, auto-init/unseal
+or OIDC integration is enabled. Namespaced installer prerequisites are separate
+from Flux deployment. New-store initialization, unseal shares, admin token custody
+and verified client login require explicit future approval. A sealed server is
+NotReady; the draft does not claim admin access is already usable. See the
+[OpenBao procedure](big-bang-bootstrap/configuration/packages/openbao/README.md).
+Existing proven policy/role/API configuration is retained for later review.
+
 ## Next decisions
 
 1. Review/publish the Rancher local-admin candidate. Before live activation, approve

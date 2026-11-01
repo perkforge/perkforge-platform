@@ -158,6 +158,16 @@ model {
         description 'Protect personal files, databases and secret recovery separately. Replication/Retain do not protect against deletion or corruption, and etcd snapshots do not contain PV contents. Independent custody and restore tests are required before relying on personal-data storage.'
       }
     }
+    openbao = component 'OpenBao token administration — candidate' {
+      description 'PLANNED only: official chart 0.30.6/OpenBao 2.7.2. One TLS-required worker server, Longhorn-backed 10Gi PebbleDB, no ingress/injector/Kubernetes auth delegation or automatic init/unseal. No HA. Preserved pilot OIDC policies are not activated. Sealed/uninitialized is NotReady, not accepted.'
+      link https://github.com/perkforge/perkforge-platform/blob/feat/openbao-bootstrap/big-bang-bootstrap/configuration/packages/openbao/README.md 'OpenBao source and activation gates'
+      installer = component 'openbao-installer — namespaced Helm identity' {
+        description 'Administrator-applied Ansible prerequisite creates this bigbang service account and namespaced chart/release-storage bindings. No cluster RBAC, bind/escalate or Kubernetes-auth delegation; app root cannot grant its own installer authority.'
+      }
+      runtime = component 'openbao runtime account and sealed server' {
+        description 'Chart creates a non-root server account without a persistent SA token or RoleBinding. Initial human admin uses an approved bearer token, not a password. Unseal shares are separate recovery custody; later OIDC group-to-policy mappings remain gated Ansible API configuration.'
+      }
+    }
     rancher = component 'Rancher cluster lifecycle administration' {
       description 'PLANNED: candidate selects Rancher 2.15.2 local admin only; live v0.11.3 has not deployed it. Big Bang/Flux owns Helm. One replica, strict private-CA TLS, no application PVC. Reviewed release, capacity, TLS/bootstrap inputs and privileged installer approval precede promotion. No Keycloak/SSO/groups/roles changes; direct RKE2 recovery remains independent.'
       link /runbook.html#rancher-stage 'Rancher local-admin stage and approval gates'
