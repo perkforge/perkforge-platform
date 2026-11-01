@@ -33,8 +33,6 @@ addons:
           - {name: JAVA_OPTS_KC_HEAP, value: ''-Xms128m -Xmx768m''}
 
           '
-        nodeSelector:
-          kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE
         resources:
           requests:
             cpu: 250m
@@ -43,6 +41,4 @@ addons:
             cpu: '1'
             memory: 1536Mi
       postgresql:
-        primary:
-          nodeSelector:
-            kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE
+        primary: {}

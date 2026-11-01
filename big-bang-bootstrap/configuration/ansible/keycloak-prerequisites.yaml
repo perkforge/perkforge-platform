@@ -4,6 +4,7 @@
   vars:
     identity_foundation_apply: false
     keycloak_storage_backend: longhorn
+    keycloak_routing_apply: false
     identity_routing_apply: false
     identity_access_apply: false
     gitops_path: ./big-bang-bootstrap/clusters/local
@@ -14,7 +15,7 @@
       - ansible_play_hosts_all == ['local']
       - deployment_environment == 'local'
       - impact_profile == 'il2'
-      - not (identity_routing_apply | bool or identity_access_apply | bool) or identity_foundation_apply | bool
+      - not (identity_routing_apply | bool or identity_access_apply | bool or keycloak_routing_apply | bool) or identity_foundation_apply | bool
   - name: Default and check mode do not access Kubernetes
     ansible.builtin.debug:
       msg: 'foundation={{ identity_foundation_apply | bool }} routing={{ identity_routing_apply | bool }} access={{ identity_access_apply | bool }}'
@@ -76,3 +77,10 @@
       when: item.enabled | bool
       register: identity_result
       changed_when: "'created' in identity_result.stdout or 'configured' in identity_result.stdout"
+
+    - name: Apply only the approved Keycloak HTTPS route without Headlamp or identity grants
+      when: keycloak_routing_apply | bool
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', apply, -f, '{{ playbook_dir }}/../identity/routing/keycloak.yaml']
+      register: keycloak_route_result
+      changed_when: "'created' in keycloak_route_result.stdout or 'configured' in keycloak_route_result.stdout"
