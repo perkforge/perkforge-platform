@@ -9,9 +9,9 @@ Dependency chain: RKE2 → Flux foundation → Big Bang umbrella → Longhorn �
 1. Infrastructure: verify RKE2 nodes Ready and the reviewed worker-only Longhorn prerequisites, labels, capacity and enforcing SELinux. Host preparation is already complete; do not rerun installation on existing hosts.
 2. Release and Flux: publish the reviewed core-only source and verify its immutable release/context. Install the pinned Flux foundation and seed a paused source/root using the exact kubeconfig/context/UID. Platform v0.9.0 selects identity applications and is not the Longhorn-first input.
 3. Longhorn prerequisites: after Flux namespaces exist, explicitly approve longhorn-prerequisites.yaml to apply common Big Bang and Longhorn namespace/installer RBAC. Review privileged permissions. No application TLS, identity namespace or tenant authority is needed for this stage.
-4. Longhorn activation: select a new published release containing the active outer release and Longhorn child. The v0.10.0 staging release keeps them suspended and cannot activate storage. Separately approve resuming the release-pinned seed source/root after the prerequisites above. The first storage-only release v0.11.3 passed this checkpoint. This candidate now also selects Rancher, so do not mistake it for the initial storage-only input. Shared Headlamp defaults remain disabled and identity values references optional. Run readiness.yaml phase storage. Validate a disposable claim with write/recreate persistence, reattachment and two healthy replicas on distinct workers before proceeding. Readiness alone does not prove durable I/O or backup recovery.
+4. Longhorn activation: select a new published release containing the active outer release and Longhorn child. The v0.10.0 staging release keeps them suspended and cannot activate storage. Separately approve resuming the release-pinned seed source/root after the prerequisites above. The first storage-only release v0.11.3 passed this checkpoint. This candidate also selects Rancher and OpenBao, so do not mistake it for the initial storage-only input. Shared Headlamp defaults remain disabled and identity values references optional. Run readiness.yaml phase storage. Validate a disposable claim with write/recreate persistence, reattachment and two healthy replicas on distinct workers before proceeding. Readiness alone does not prove durable I/O or backup recovery.
 5. Rancher: storage acceptance passed and this candidate selects its package in the same authoritative root. Approve its namespace/installer RBAC, Rancher-only TLS/public CA delivery and external bootstrap-values Secret separately, then its Helm activation. Rancher has no fabricated PVC dependency; this ordering is an operator acceptance checkpoint. Verify HTTPS and local administration before adding SSO.
-6. Initial app access: this candidate selects OpenBao and Headlamp token mode; Keycloak remains a separate later source stage. Source selection is not live deployment approval. Deliver reviewed prerequisites and named credentials/TLS, then validate placement/storage and the per-app health report below. OpenBao initialization/unseal and Headlamp token identity require their own approved scope; token-mode Headlamp does not depend on Keycloak. For later OIDC, PostgreSQL/Keycloak readiness precedes realm/client, API OIDC and app SSO configuration; those security changes remain separate. API OIDC maintenance includes protected configuration backup and a separately approved control-plane restart.
+6. Initial app access: the default `clusters/local` root selects OpenBao only, retaining Longhorn/Rancher. After OpenBao acceptance, `clusters/local-headlamp` adds token-mode Headlamp; after Headlamp acceptance, `clusters/local-keycloak` adds Keycloak and its database. Use the [ordered app stages](#ordered-app-stages) within the same immutable release. Source selection is not live deployment approval. Deliver reviewed prerequisites and named credentials/TLS, then validate placement/storage and the per-app health report below. OpenBao initialization/unseal and Headlamp token identity require their own approved scope; token-mode Headlamp does not depend on Keycloak. For later OIDC, PostgreSQL/Keycloak readiness precedes realm/client, API OIDC and app SSO configuration; those security changes remain separate. API OIDC maintenance includes protected configuration backup and a separately approved control-plane restart.
 7. Enrollment remains omitted. Only after core and identity/security acceptance, select ../../enrollments/local and review compatible published downstream inputs and source/reconciler activation. Its retained definitions stay independently paused. readiness.yaml phase enrollment observes the parent; tenant foundations/apps remain in enrollment/application Git.
 
 Kustomize file order is not readiness. Database startup also retains a bounded native readiness init-container. Checks observe status; they never activate, scale or create extra reconcilers. Enabling gates or resuming resources outside reviewed source cannot replace this sequence.
@@ -59,13 +59,15 @@ and dashboard/live-data acceptance remain separate future approved work.
 ## Longhorn-only release and seed activation
 
 The first storage-only stage is complete on the physical cluster at v0.11.3.
-This candidate adds Rancher; it is not the first storage-only release. The live
+This candidate includes Rancher and OpenBao; it is not the first storage-only release. The live
 source/root are active, so **do not rerun bootstrap or pause them for routine
-promotion**. Use the [Rancher stage](#rancher-local-admin-stage) and package procedure
-for the next separately approved activation.
+promotion**. Rancher activation is also complete at the last verified v0.12.0
+checkpoint; use [ordered app stages](#ordered-app-stages) for the next separately
+approved activation. The [Rancher procedure](#rancher-local-admin-stage) remains
+the reference for that earlier rollout.
 
 For a new cluster, choose a reviewed storage-only published release for the first
-stage, not this Rancher candidate. Its initial sequence remains:
+stage, not this multi-app candidate. Its initial sequence remains:
 
 1. Verify immutable tag/commit and clean checkout; keep `config_tag`, release
    evidence, kubeconfig/context/UID in protected external runtime inputs. No main,
@@ -226,8 +228,9 @@ namespace-only stage has no storage dependency and does not bypass Longhorn chec
 
 ## Rancher local-admin stage
 
-The candidate local root selects Rancher alongside Longhorn; the running immutable
-v0.11.3 source still selects only Longhorn. Follow the [Rancher package procedure](../packages/rancher/README.md)
+The candidate local root selects OpenBao alongside Rancher/Longhorn. The last
+verified running immutable v0.12.0 source selects Rancher and Longhorn; it does not
+select the queued initial apps. Follow the [Rancher package procedure](../packages/rancher/README.md)
 for the compatibility gap, exact TLS/bootstrap references, privileged prerequisite
 approval and source promotion. Existing `rancher-prerequisites.yaml` owns only
 reviewed foundations; `platform-tls.yaml` owns separately approved credential/trust
