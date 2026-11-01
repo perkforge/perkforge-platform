@@ -1,8 +1,9 @@
 # Longhorn storage package
 
-Selected in clusters/local for the initial storage stage, not installed;
+Selected in clusters/local for the initial storage stage; the approved physical
+v0.11.3 installation and first disposable storage test passed (see below). For a new target,
 the outer Big Bang release and this package author active Helm desired state,
-while the release-pinned seed remains paused until explicit activation approval.
+while a new target’s release-pinned seed remains paused until explicit activation approval.
 Big Bang 3.35.1 generates the single child release/source from the official charts
 Git tag longhorn-1.13.0 (charts/longhorn). The checksummed official chart artifact
 is a test fixture, never vendored deployment source. Git sourcing avoids the shared
@@ -30,7 +31,7 @@ still single-server. Add dedicated worker SSDs as actual growth requires.
 1. Run a read-only RHEL/Longhorn preflight: pinned RKE2/Longhorn compatibility,
    SELinux policy, iSCSI package/version/module/service, mount propagation, free
    disk/RAM, networking and worker selection. Worker packages/service/module and directory preparation completed;
-   runtime validation is still pending. Do not install open-iscsi 2.1.12; check upstream guidance.
+   the first scoped runtime storage test has since passed. Do not install open-iscsi 2.1.12; check upstream guidance.
 2. Separately approve host prerequisites and directory/label preparation. Longhorn
    needs privileged root/host access; prerequisites/ contains a privileged namespace,
    installer RBAC and named bind/escalate permissions derived from the pinned chart.
@@ -83,8 +84,7 @@ host probes completed successfully. SELinux remains enforcing; read-only queries
 confirmed iscsid_t dac_override and container_t-to-spc_t socket connectto allow
 rules. No direct iscsid_t-to-container_file_t directory rule was returned; this
 alone does not establish a missing runtime permission. Runtime process contexts,
-AVC behavior and PVC I/O remain unverified until Longhorn runs. The two reviewed worker selection labels are applied; control-1 remains excluded. Chart network policies explicitly select RKE2; the chart is not
-applied. Host readiness does not authorize deployment.
+AVC behavior and PVC I/O were not validated by that host audit. The first scoped PVC test has now passed; a comprehensive runtime SELinux audit remains separate. The two reviewed worker selection labels are applied; control-1 remains excluded. Chart network policies explicitly select RKE2; the chart has since been applied through separately approved release promotion. Host readiness alone does not authorize deployment.
 
 When reviewing cluster metadata, compare node names, hostname labels and RKE2
 hostname annotations with the inventory. Investigate unexpected test values;
@@ -171,7 +171,7 @@ Helm server rendering.
 The regression uses real Helm server-side rendering of the pinned chart against
 an isolated loopback authorization model: the old role and a name-restricted list
 fail, while this exact list-only addition passes. It is not live Kubernetes
-acceptance. Publication changes no running source ref: v0.11.1 stays immutable.
+acceptance. Publication alone changes no running source ref: old release tags stay immutable.
 A future released checkout, installer-RBAC apply and failed-release retry need
 separate review/approval; do not imperatively patch permissions or delete volumes.
 UI ingress remains disabled and Rancher/identity/tenant selection is unchanged.
@@ -199,9 +199,10 @@ Retain the upstream chart without a local support-bundle patch/fork. UI ingress
 stays disabled; Rancher, identity and tenants remain deferred. Revisit runtime
 RBAC hardening separately before extending the lab trust model.
 
-At the last approved v0.11.2 attempt (2026-11-01 01:16:52 UTC), Longhorn was
-partially installed and stalled on this diagnostic binding; storage readiness and
-PVC acceptance were not established. Publishing this fix does not change the
+At the failed v0.11.2 attempt (2026-11-01 01:16:52 UTC), Longhorn was
+partially installed and stalled on this diagnostic binding. The separately
+approved v0.11.3 grant and single child/umbrella resets subsequently passed
+readiness; the first scoped PVC test below also passed. Publishing this fix does not change the
 active release-pinned source. A new release, live prerequisite grant, promotion
 and failed-release retry require separate action-specific approval. No live grant
 or retry is authorized by this document.
@@ -214,3 +215,65 @@ not API-server or storage acceptance.
 Sources: [Longhorn support bundles](https://longhorn.io/docs/1.13.0/troubleshoot/support-bundle/),
 [pinned chart RBAC](https://github.com/longhorn/charts/blob/longhorn-1.13.0/charts/longhorn/templates/clusterrolebinding.yaml),
 and [Kubernetes binding restrictions](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#restrictions-on-role-binding-creation-or-update).
+
+## Disposable storage acceptance
+
+The first approved physical test passed on 2026-11-01 at v0.11.3: initial sample
+write on worker-1, same-worker pod recreation, then normal detach/reattachment on
+worker-2 all produced the same checksum. The volume was healthy with two running
+replicas on distinct workers and both engine replica modes RW. Three distinct pod
+UIDs used the same claim/PV. Manager/CSI, umbrella/root readiness and exact release
+revision had already passed. This is small-sample acceptance, not performance,
+node-loss/rebuild, backup/restore or HA validation.
+
+`configuration/ansible/longhorn-storage-smoke.yaml` owns the disposable test through
+Ansible/YAML. Its read-only Python verifier checks the selected release/target,
+worker disks/capacity and final volume/replica/engine state. It creates one unique
+restricted namespace and one 1Gi `sample` PVC using `longhorn`, then creates one
+non-root pod at a time. Node selectors preserve WaitForFirstConsumer scheduling;
+it never assigns nodeName directly. The official BusyBox 1.37.0 multiarchitecture
+image is digest-pinned; the pod has no service-account token, host access or added
+RBAC. Only the first pod writes nonsecret sample data. Later pods only read it.
+
+Defaults and check mode contact no API. A repeat requires separate approval and a
+fresh mode0700 canonical output directory plus protected mode0600 vars:
+
+```yaml
+# Protected operator inputs, never a credential-bearing tracked file.
+target_kubeconfig: /ABSOLUTE/PROTECTED/kubeconfig
+target_context: REVIEWED_CONTEXT
+expected_cluster_uid: REVIEWED_KUBE_SYSTEM_UID
+storage_test_namespace: pf-longhorn-smoke-FRESHLOWERCASEID
+storage_test_output: /ABSOLUTE/PROTECTED/FRESH_OUTPUT
+```
+
+The scoped verifier currently expects the recorded v0.11.3 release, two named
+workers and a nondefault retained two-replica class. Review/update that contract
+before using another release/topology; do not disable its checks. After approval:
+
+```sh
+umask 077
+ANSIBLE_LOG_PATH=/ABSOLUTE/PROTECTED/FRESH_OUTPUT/ansible.log \
+ANSIBLE_LOCAL_TEMP=/ABSOLUTE/PROTECTED/FRESH_OUTPUT/ansible-tmp \
+ansible-playbook -i big-bang-bootstrap/configuration/ansible/inventory.yaml \
+  big-bang-bootstrap/configuration/ansible/longhorn-storage-smoke.yaml --limit local \
+  -e @/ABSOLUTE/PROTECTED/INPUTS.yml -e storage_test_apply=true
+```
+
+Save the command's actual exit status as well as its log; an incomplete run is not
+PASS. The protected first-run source snapshot matches its pre-execution SHA256 manifest.
+The committed version additionally checks canonical/fresh output, source URL and
+stable claim UID; these guard additions were checked offline, not by another live
+volume allocation. Evidence includes namespace/pod/PVC/PV UIDs, all three checksums and Longhorn
+replica/engine snapshots. The first run's protected `retained-resources.json` also
+records exact cleanup targets. No terminal/password-input capture is needed.
+
+The playbook gracefully deletes only its prior test pod after checking its UID,
+waits for normal detach, and stops on errors/timeouts. It does not resume partial
+runs or repair storage. Inspect retained evidence before deciding any retry.
+It never deletes the claim, PV, volume or namespace. The final pod sleeps for at
+most one hour; the retained claim/data outlive it. Approve cleanup separately,
+including the effect of Retain, rather than assuming namespace deletion erases
+Longhorn data. No forced detach, node reboot or existing workload change is part
+of this test. The observed missing dm_crypt modules did not block this unencrypted
+volume; encrypted storage remains unvalidated and needs separate preparation.

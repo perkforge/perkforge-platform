@@ -138,17 +138,21 @@ model {
         description 'Mode0600 credentials with the reviewed API endpoint. Use the protected bundled client; default kubeconfig replacement requires an explicit operator request.'
       }
       recovery = component 'Server token and matching etcd snapshots' {
-        description 'Keep protected off-node copies together for recovery. The explicit backup check creates a named snapshot, requires an unchanged server token, compares transfer size/SHA256 and validates the embedded integrity trailer without restart/restore. Exported tokens or their ZIP alone do not back up etcd. Byte integrity is separate from database consistency and restore validation. Etcd snapshots do not contain application PV data; that requires its own backup. The existing Keycloak specification uses a retained 4Gi local PV with unset worker/path and no enforced quota. Selected but suspended Big Bang Longhorn 1.13.0 package specifies two Longhorn replicas on distinct workers, initially around 80–100Gi logical capacity, no data replicas on control-1, bounded retention, independent backups and later dedicated worker disks. Not installed or a claim of HA. Read-only host audit confirms worker identity, XFS/shared propagation and capacity; approved iSCSI/module/service and directory preparation completed on both workers. SELinux stays enforcing; queried capability/socket rules are present, while runtime contexts and I/O remain unverified. Actual claims require later runtime validation.'
+        description 'Keep protected off-node copies together for recovery. The explicit backup check creates a named snapshot, requires an unchanged server token, compares transfer size/SHA256 and validates the embedded integrity trailer without restart/restore. Exported tokens or their ZIP alone do not back up etcd. Byte integrity is separate from database consistency and restore validation. Etcd snapshots do not contain application PV data; that requires its own backup. The existing Keycloak specification uses a retained 4Gi local PV with unset worker/path and no enforced quota. Installed Big Bang Longhorn 1.13.0 package specifies two Longhorn replicas on distinct workers, initially around 80–100Gi logical capacity, no data replicas on control-1, bounded retention, independent backups and later dedicated worker disks. The first 1Gi disposable persistence/reattachment test passed; this is not HA or backup/restore proof. Read-only host audit confirms worker identity, XFS/shared propagation and capacity; approved iSCSI/module/service and directory preparation completed on both workers. SELinux stays enforcing; queried capability/socket rules are present, while exhaustive runtime/SELinux and recovery validation remain separate. Small-sample PVC I/O passed on both workers.'
       }
     }
     storage = component 'Longhorn application storage' {
-      description 'Selected initial Big Bang custom package with active Helm desired state behind a paused release-pinned seed; Flux reconciles its pinned upstream chart only after reviewed seed resume. Storage acceptance precedes Rancher, then identity/SSO and tenants. No storage is installed. Host prerequisites and labels remain separately approved infrastructure work.'
+      description 'OBSERVED: Longhorn 1.13.0, Big Bang and the root are Ready at v0.11.3. The first approved 1Gi persistence, recreation and cross-worker reattachment test passed with two healthy replicas. UI ingress stays absent; Rancher/identity/tenants remain deferred. Recovery, backup/restore and cleanup need separate approval. A diagram authorizes no live action.'
       link /runbook.html#storage 'Storage ownership, rollout and testing'
       volumes = component 'Retained expandable application volumes' {
         description 'Nondefault StorageClass, two replicas, WaitForFirstConsumer. Keycloak depends on Longhorn and its alternate PVC overlay removes the old static PV binding. Future Harbor, portal, Nextcloud and OpenBao claims need explicit sizing.'
       }
       replica_pair = component 'Replicas on two distinct workers' {
         description 'Worker-only placement and disk labels exclude control-1 from application-data replicas. V1 engine, no overprovisioning, root-disk headroom and bounded snapshots; add dedicated disks as measured growth requires. One worker outage leaves a single surviving copy until rebuild.'
+      }
+      acceptance = component 'Approved Ansible storage smoke test' {
+        description 'Workstation Ansible owns disposable namespace/PVC/pod changes; Python only verifies target/release, disk capacity and volume/replica state. One approved physical run passed. Default/check mode contacts no API. Retain claim/PV/volume and final pod; no automatic cleanup or repair.'
+        link /sources/longhorn-storage-smoke.yaml 'Actual Ansible test entrypoint'
       }
       backups = component 'Independent application-data backups' {
         description 'Protect personal files, databases and secret recovery separately. Replication/Retain do not protect against deletion or corruption, and etcd snapshots do not contain PV contents. Independent custody and restore tests are required before relying on personal-data storage.'
@@ -174,7 +178,7 @@ model {
       link https://github.com/perkforge/perkforge-platform/blob/main/big-bang-bootstrap/configuration/packages/longhorn/prerequisites/installer.yaml 'Versioned installer RBAC'
     }
     longhorn_runtime = component 'Longhorn runtime identities' {
-      description 'Helm creates separate manager, CSI, UI and support-bundle accounts/bindings. Support-bundle receives cluster-admin; manager longhorn-role already has wildcard ClusterRole/ClusterRoleBinding verbs. UI ingress remains disabled. Last v0.11.2 attempt partially installed and stalled on diagnostic binding; this proposed fix requires separate live grant/retry approval.'
+      description 'Helm creates separate manager, CSI, UI and support-bundle accounts/bindings. Support-bundle receives cluster-admin; manager longhorn-role already has wildcard ClusterRole/ClusterRoleBinding verbs. UI ingress remains disabled. The separately approved v0.11.3 named grant and single child/umbrella resets completed; all are Ready. Further grants or retries still require approval.'
       link /runbook.html#longhorn-rbac 'Lab trust and observed stopping point'
     }
     enrollment = component 'Tenant enrollment repository' {

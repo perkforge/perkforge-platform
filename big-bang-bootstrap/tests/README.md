@@ -50,3 +50,9 @@ all resource CRUD, role escalation and binding roleRefs against the bound instal
 policy. Removing the named cluster-admin bind reproduces only the diagnostic
 binding denial. This offline model does not replace Kubernetes admission or live
 storage acceptance; the lab explicitly accepts upstream runtime RBAC trust.
+
+`bootstrap/test_longhorn_storage_smoke.py` proves default/check mode makes no API
+calls, renders the actual restricted pod/1Gi claim templates and checks positive
+replica health plus co-location, degraded/RW-mode and failed-replica negatives.
+The live Ansible smoke is separately approved, retains storage and is not invoked
+by this unittest suite. See the Longhorn package procedure for its observed result.

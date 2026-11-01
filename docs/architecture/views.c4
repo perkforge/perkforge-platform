@@ -146,9 +146,9 @@ views {
 
   view storage_detail of platform.storage {
     title 'Storage — application claims, worker replicas and independent backups'
-    description 'Prepared design, not installed. Storage-first rollout supports stateful apps; Rancher Helm has no storage dependency. Read-only host compatibility precedes installation, then disposable PVC persistence/reattach tests. No live bootstrap is authorized by this diagram.'
+    description 'OBSERVED: installed and Ready at v0.11.3; first 1Gi persistence/recreation/cross-worker reattachment and two-replica checks passed. Retained test resources require cleanup approval. Backup/restore, node-failure recovery and HA are not proven. Rancher Helm has no PVC dependency.'
     link /runbook.html#storage 'Storage rollout and next tests'
-    include volumes, replica_pair, backups
+    include volumes, replica_pair, acceptance, backups
   }
 
   dynamic view bootstrap_installer_flow {
@@ -163,6 +163,19 @@ views {
     platform.flux -> platform.longhorn_installer '6. helm-controller impersonates that package installer for Helm operations'
     platform.longhorn_installer -> platform.longhorn_runtime '7. Helm creates package resources/runtime identities; Longhorn diagnostic exception'
     platform.longhorn_runtime -> platform.storage '8. Verify readiness, then separately approve package acceptance tests'
+  }
+
+  dynamic view storage_acceptance {
+    title 'Storage acceptance — one approved retained 1Gi test'
+    description 'OBSERVED PASS: initial write, same-worker recreation and worker-to-worker reattachment used one claim with identical checksums. Two healthy replicas on distinct workers. No reboot, forced detach, backup/restore or HA proof; no automatic cleanup.'
+    link /runbook.html#storage 'Test outcome, limits and retained-resource handoff'
+    engineer -> platform.storage.acceptance '1. Approve exact target, disposable 1Gi scope and retention'
+    platform.storage.acceptance -> platform.storage.volumes '2. Ansible creates unique namespace/PVC and scheduler-placed non-root pod on worker-1'
+    platform.storage.volumes -> platform.storage.acceptance '3. Write nonsecret sample, sync and record checksum/UIDs'
+    platform.storage.acceptance -> platform.storage.volumes '4. Gracefully recreate pod on worker-1; verify original checksum'
+    platform.storage.volumes -> platform.storage.replica_pair '5. Normal CSI detach, worker-2 reattachment and checksum verification'
+    platform.storage.replica_pair -> platform.storage.acceptance '6. Read-only verifier confirms two healthy distinct-worker replicas, both RW'
+    platform.storage.acceptance -> engineer '7. Retain test claim/PV/volume, final pod and evidence; cleanup needs separate approval'
   }
 
 }

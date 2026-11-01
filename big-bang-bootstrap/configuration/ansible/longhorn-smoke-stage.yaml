@@ -1,0 +1,90 @@
+- name: Gracefully delete only the preceding test pod
+  when: storage_stage.name != 'initial'
+  block:
+  - ansible.builtin.command:
+      argv: '{{ storage_k + ["-n", storage_test_namespace, "get", "pod", "sample", "-o", "json"] }}'
+    register: preceding_pod
+    changed_when: false
+  - ansible.builtin.assert:
+      that: (preceding_pod.stdout | from_json).metadata.uid == storage_previous_pod_uid
+  - ansible.builtin.command:
+      argv: '{{ storage_k + ["-n", storage_test_namespace, "delete", "pod", "sample", "--grace-period=30", "--wait=true", "--timeout=120s"] }}'
+  - name: Wait for normal CSI detach, never force detach
+    ansible.builtin.command:
+      argv: '{{ storage_k + ["-n", "longhorn-system", "get", "volumes.longhorn.io", storage_volume_handle, "-o", "json"] }}'
+    register: detached_volume
+    changed_when: false
+    until: (detached_volume.stdout | from_json).status.state == 'detached'
+    retries: 60
+    delay: 5
+- name: Render the scheduler-placed test pod
+  ansible.builtin.template:
+    src: fixtures/longhorn-smoke-pod.yaml.j2
+    dest: '{{ storage_test_output }}/{{ storage_stage.name }}-pod.yaml'
+    mode: '0600'
+- ansible.builtin.command:
+    argv: '{{ storage_k + ["create", "-f", storage_test_output + "/" + storage_stage.name + "-pod.yaml"] }}'
+- ansible.builtin.command:
+    argv: '{{ storage_k + ["-n", storage_test_namespace, "wait", "--for=condition=Ready", "pod/sample", "--timeout=300s"] }}'
+  changed_when: false
+- ansible.builtin.command:
+    argv: '{{ storage_k + ["-n", storage_test_namespace, "get", "pod", "sample", "-o", "json"] }}'
+  register: current_pod
+  changed_when: false
+- ansible.builtin.assert:
+    that:
+    - (current_pod.stdout | from_json).spec.nodeName == storage_stage.worker
+    - storage_stage.name == 'initial' or (current_pod.stdout | from_json).metadata.uid != storage_previous_pod_uid
+- ansible.builtin.copy:
+    content: '{{ current_pod.stdout }}'
+    dest: '{{ storage_test_output }}/{{ storage_stage.name }}-pod.json'
+    mode: '0600'
+- ansible.builtin.set_fact:
+    storage_previous_pod_uid: '{{ (current_pod.stdout | from_json).metadata.uid }}'
+- name: Write only nonsecret sample data on the first mount
+  when: storage_stage.name == 'initial'
+  ansible.builtin.command:
+    argv: '{{ storage_k + ["-n", storage_test_namespace, "exec", "sample", "--", "sh", "-c", "printf ''%s\n'' ''PerkForge Longhorn persistence test - no secrets'' > /data/sample.txt && sync"] }}'
+- name: Read checksum without rewriting data
+  ansible.builtin.command:
+    argv: '{{ storage_k + ["-n", storage_test_namespace, "exec", "sample", "--", "sha256sum", "/data/sample.txt"] }}'
+  register: observed_checksum
+  changed_when: false
+- ansible.builtin.assert:
+    that: observed_checksum.stdout.split()[0] == storage_expected_checksum
+- ansible.builtin.copy:
+    content: '{{ observed_checksum.stdout }}'
+    dest: '{{ storage_test_output }}/{{ storage_stage.name }}-checksum.txt'
+    mode: '0600'
+- name: Read the bound claim
+  ansible.builtin.command:
+    argv: '{{ storage_k + ["-n", storage_test_namespace, "get", "pvc", "sample", "-o", "json"] }}'
+  register: bound_claim
+  changed_when: false
+- ansible.builtin.copy:
+    content: '{{ bound_claim.stdout }}'
+    dest: '{{ storage_test_output }}/{{ storage_stage.name }}-pvc.json'
+    mode: '0600'
+- ansible.builtin.assert:
+    that:
+    - (bound_claim.stdout | from_json).status.phase == 'Bound'
+    - storage_stage.name == 'initial' or (bound_claim.stdout | from_json).metadata.uid == storage_claim_uid
+- ansible.builtin.set_fact:
+    storage_claim_uid: '{{ (bound_claim.stdout | from_json).metadata.uid }}'
+- ansible.builtin.command:
+    argv: '{{ storage_k + ["get", "pv", (bound_claim.stdout | from_json).spec.volumeName, "-o", "json"] }}'
+  register: bound_pv
+  changed_when: false
+- ansible.builtin.assert:
+    that:
+    - (bound_pv.stdout | from_json).spec.claimRef.uid == (bound_claim.stdout | from_json).metadata.uid
+    - (bound_pv.stdout | from_json).spec.persistentVolumeReclaimPolicy == 'Retain'
+    - (bound_pv.stdout | from_json).spec.csi.driver == 'driver.longhorn.io'
+- ansible.builtin.copy:
+    content: '{{ bound_pv.stdout }}'
+    dest: '{{ storage_test_output }}/{{ storage_stage.name }}-pv.json'
+    mode: '0600'
+- ansible.builtin.set_fact:
+    storage_volume_handle: '{{ (bound_pv.stdout | from_json).spec.csi.volumeHandle }}'
+- ansible.builtin.debug:
+    msg: 'PASS {{ storage_stage.name }} on {{ storage_stage.worker }}: checksum matched; claim retained'

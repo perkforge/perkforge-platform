@@ -7,6 +7,11 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../../..')
 const output = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(here, '../public/sources')
 const files = {
+  'longhorn-storage-smoke.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-storage-smoke.yaml',
+  'longhorn-smoke-stage.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-smoke-stage.yaml',
+  'verify-longhorn-smoke.py': 'big-bang-bootstrap/configuration/ansible/files/verify-longhorn-smoke.py',
+  'longhorn-smoke-pod.yaml.j2': 'big-bang-bootstrap/configuration/ansible/fixtures/longhorn-smoke-pod.yaml.j2',
+  'longhorn-smoke-foundation.yaml.j2': 'big-bang-bootstrap/configuration/ansible/fixtures/longhorn-smoke-foundation.yaml.j2',
   'workload-smoke.yml': 'infrastructure/ansible/tests/workload-smoke.yml',
   'workload-smoke.yaml': 'infrastructure/ansible/tests/fixtures/workload-smoke.yaml',
   'prepare.yml': 'pxe/transport/prepare.yml',
