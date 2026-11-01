@@ -1,5 +1,9 @@
 # SonarQube Community Build — blocked inactive candidate (#110)
 
+Installer account lives in `bigbang`, beside its HelmRelease, with target-namespace
+RoleBindings to that exact identity and API token automount disabled. Target and
+Helm storage namespaces do not relocate Flux impersonation.
+
 Big Bang 3.35.1 pins chart 2026.4.1-bb.4, native SonarQube chart 2026.4.1 and
 Community Build 26.9.0.129388 image. Package declares Kubernetes >=1.32; rendering at
 1.36.5 passes that constraint, not a complete vendor support/integration test.

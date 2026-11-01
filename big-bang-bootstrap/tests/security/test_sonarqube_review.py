@@ -29,3 +29,7 @@ class SonarQubeReview(unittest.TestCase):
    for m in t.getmembers():
     if m.isfile() and '/templates/' in m.name and m.name.endswith(('.yaml','.tpl')) and 'lookup ' in t.extractfile(m).read().decode():hits.append(m.name)
   self.assertEqual(hits,[])
+
+ def test_installer_identity_matches_helmrelease_namespace(self):
+  name=self.hr['spec']['serviceAccountName'];namespace=self.hr['metadata']['namespace'];sa=next(x for x in self.foundation if x['kind']=='ServiceAccount' and x['metadata']['name']==name);self.assertEqual(sa['metadata']['namespace'],namespace);self.assertFalse(sa['automountServiceAccountToken'])
+  subjects=[q for x in self.foundation if x['kind'].endswith('RoleBinding') for q in x['subjects'] if q['name']==name];self.assertTrue(subjects);self.assertTrue(all(q['namespace']==namespace for q in subjects))

@@ -71,7 +71,10 @@ Monitoring and collaboration candidates are not in the root valuesFrom. Their
 namespaced/CRD installer policies are reviewable source, not applied authority.
 Istio/Gateway API is ticket-only. No new live probe, deployment, app login, credential
 generation, SSO, source promotion or retained test cleanup occurred for this queue.
-Read exact-head PR checks for CI; offline checks are not physical acceptance.
+Installer identities are in the HelmRelease namespace (`bigbang`), with bindings
+to target-namespace roles; regression tests cover this distinction. Runtime
+operator/app accounts remain separate. Read exact-head PR checks for CI; offline
+checks are not physical acceptance.
 
 **Cumulative capacity is unresolved:** proposed core app PVCs14Gi + retained test1Gi
 + monitoring22Gi + GitLab Gitaly10Gi + Harbor11Gi + SonarQube20Gi =78Gi logical,
