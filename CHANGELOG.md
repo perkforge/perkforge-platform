@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.13.0](https://github.com/perkforge/perkforge-platform/compare/v0.12.0...v0.13.0) (2026-11-01)
+
+
+### Features
+
+* **auth:** review six-role mappings and ongoing authorization evidence ([#107](https://github.com/perkforge/perkforge-platform/issues/107)) ([742c299](https://github.com/perkforge/perkforge-platform/commit/742c2995715448f2ea90748a9c57bae0a211f665))
+* **headlamp:** select token-only initial UI stage ([#104](https://github.com/perkforge/perkforge-platform/issues/104)) ([e750571](https://github.com/perkforge/perkforge-platform/commit/e75057197111a7898ec438d2f1e79bd9fe0a54fe))
+* **keycloak:** select isolated master-admin deployment stage ([#106](https://github.com/perkforge/perkforge-platform/issues/106)) ([7578d78](https://github.com/perkforge/perkforge-platform/commit/7578d78fd02c4ae47d54fe5ca1b8c35cfc8ca65d))
+* **openbao:** prepare TLS-required initial token administration ([#103](https://github.com/perkforge/perkforge-platform/issues/103)) ([d42e360](https://github.com/perkforge/perkforge-platform/commit/d42e36090d7605680cce6d6f1e62efd0f3ece83c))
+* **platform:** gate app selection through ordered release stages ([#119](https://github.com/perkforge/perkforge-platform/issues/119)) ([59ead1f](https://github.com/perkforge/perkforge-platform/commit/59ead1f5e329001775fd1cd2e687dbe2516a434e))
+
+
+### Bug Fixes
+
+* **keycloak:** pin verified Iron Bank 26.8.1 security image ([#120](https://github.com/perkforge/perkforge-platform/issues/120)) ([d3059db](https://github.com/perkforge/perkforge-platform/commit/d3059db89b0decff5b4704645663cdbff6da1b4c))
+
 ## [0.12.0](https://github.com/perkforge/perkforge-platform/compare/v0.11.3...v0.12.0) (2026-11-01)
 
 
