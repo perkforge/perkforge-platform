@@ -1,0 +1,49 @@
+# Blocked inactive profile; no root selection. Licensing/operator trust unresolved.
+addons:
+  mattermostOperator:
+    enabled: false
+    git:
+      repo: https://repo1.dso.mil/big-bang/product/packages/mattermost-operator.git
+      path: ./chart
+      tag: 1.25.9-bb.1
+    flux:
+      suspend: true
+      serviceAccountName: mattermost-operator-installer
+      storageNamespace: mattermost-operator
+      install: {createNamespace: false, remediation: {retries: 0}}
+      upgrade: {remediation: {retries: 0}}
+    values:
+      istio: {enabled: false}
+      networkPolicies: {enabled: false}
+  mattermost:
+    enabled: false
+    git:
+      repo: https://repo1.dso.mil/big-bang/product/packages/mattermost.git
+      path: ./chart
+      tag: 11.11.0-bb.0
+    flux:
+      suspend: true
+      serviceAccountName: mattermost-installer
+      storageNamespace: mattermost
+      install: {createNamespace: false, remediation: {retries: 0}}
+      upgrade: {remediation: {retries: 0}}
+    values:
+      domain: UNCONFIGURED.invalid
+      istio: {enabled: false}
+      ingress: {enabled: false, host: chat.UNCONFIGURED.invalid}
+      monitoring: {enabled: false}
+      networkPolicies: {enabled: false}
+      sso: {enabled: false}
+      bbtests: {enabled: false}
+      enterprise: {enabled: false, existingSecret: '', license: ''}
+      postgresql: {install: false, auth: {password: null}}
+      minio: {install: false}
+      elasticsearch: {enabled: false}
+      database: {secret: mattermost-database}
+      fileStore:
+        secret: mattermost-filestore
+        url: UNCONFIGURED-object-store.invalid
+        bucket: mattermost
+      resources:
+        requests: {cpu: 2, memory: 4Gi}
+        limits: {cpu: 2, memory: 4Gi}

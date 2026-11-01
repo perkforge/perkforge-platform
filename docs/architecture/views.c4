@@ -190,6 +190,15 @@ views {
     platform.observability.grafana -> engineer '7. Verify real scrapes/admin/dashboards, no duplicate pipeline, resource/retention and network deny behavior'
   }
 
+  dynamic view mattermost_initial_admin {
+    title 'Mattermost operator and admin — blocked candidate'
+    engineer -> platform.mattermost '1. Decide edition, cumulative data-service capacity and explicit cluster-wide operator trust; not approved'
+    engineer -> platform.prerequisite_applier '2. Future scoped approval for protected inputs, physical TLS, namespace and named installer delegation'
+    platform.prerequisite_applier -> platform.mattermost '3. Ansible grants reviewed prerequisite rights; Helm creates operator CRDs/runtime account'
+    platform.bigbang -> platform.mattermost '4. After gates and release approval, child creates Mattermost CR; operator creates runtime workloads'
+    platform.mattermost -> engineer '5. Controlled trusted initial admin, messaging/files, authorization and restore tests; SSO later'
+  }
+
   dynamic view harbor_initial_admin {
     title 'Harbor initial administration — blocked candidate'
     engineer -> platform.harbor '1. Review supported external data services, capacity, TLS/network and explicit deferred scanner scope'

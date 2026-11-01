@@ -50,3 +50,11 @@ harbor:
   url: https://repo1.dso.mil/big-bang/product/packages/harbor/-/archive/1.19.2-bb.3/harbor-1.19.2-bb.3.tar.gz
   sha256: 16be0ea84cf3f29a8345853f11aaa32d968c053b7c28fddf39d785ae23192eba
   chart: chart
+mattermost:
+  url: https://repo1.dso.mil/big-bang/product/packages/mattermost/-/archive/11.11.0-bb.0/mattermost-11.11.0-bb.0.tar.gz
+  sha256: 64f12edfbe571a07d50d1267ba37e9790657bdd49a9f5bd9abc4e657a798a758
+  chart: chart
+mattermost-operator:
+  url: https://repo1.dso.mil/big-bang/product/packages/mattermost-operator/-/archive/1.25.9-bb.1/mattermost-operator-1.25.9-bb.1.tar.gz
+  sha256: 733a0acaf98e575e8c1286b2a8481af650aa17243b550ce53a2685df5ba78000
+  chart: chart

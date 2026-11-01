@@ -1,5 +1,12 @@
 # Current operator handoff
 
+## Mattermost candidate is blocked
+
+[Mattermost review](big-bang-bootstrap/configuration/packages/mattermost/README.md)
+includes both required pinned charts and named installer delegation, not apply.
+Cluster-wide operator Secret/workload trust, edition entitlement, external data
+services and unrestricted vendor wait-job egress require review before selection.
+
 ## Harbor candidate is blocked
 
 [Harbor review](big-bang-bootstrap/configuration/packages/harbor/README.md) adds a
