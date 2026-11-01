@@ -91,6 +91,15 @@ NotReady; the draft does not claim admin access is already usable. See the
 [OpenBao procedure](big-bang-bootstrap/configuration/packages/openbao/README.md).
 Existing proven policy/role/API configuration is retained for later review.
 
+## Queued Headlamp candidate
+
+Stacked after OpenBao: selects Headlamp 0.45.0-bb.1 in token mode with worker
+placement, no ingress or Keycloak client settings. Existing OIDC files and proven
+group/RBAC tests are preserved as explicit historical fixtures. Admin-login
+acceptance needs a separately approved Kubernetes token identity and lifetime;
+no native password or permanent cluster-admin account is invented. See the
+[Headlamp procedure](big-bang-bootstrap/configuration/packages/headlamp/README.md).
+
 ## Next decisions
 
 1. Review/publish the Rancher local-admin candidate. Before live activation, approve

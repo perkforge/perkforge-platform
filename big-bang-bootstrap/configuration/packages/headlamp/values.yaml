@@ -1,3 +1,4 @@
+# Initial Kubernetes-token login only; no OIDC client or admin grant is created.
 addons:
   headlamp:
     enabled: true
@@ -13,6 +14,7 @@ addons:
         remediation:
           retries: 0
           remediateLastFailure: false
+      suspend: false
     values:
       bigbang:
         rbac:
@@ -23,7 +25,7 @@ addons:
         - name: private-registry
         replicaCount: 1
         nodeSelector:
-          kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE
+          storage.perkforge.io/worker: 'true'
         resources:
           requests:
             cpu: 100m
@@ -35,3 +37,4 @@ addons:
         inbound:
           headlamp:
             enabled: false
+    includeDefaultDependsOn: false

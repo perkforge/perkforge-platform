@@ -5,6 +5,7 @@ resources:
 - ../../configuration/packages/longhorn
 - ../../configuration/packages/rancher
 - ../../configuration/packages/openbao
+- ../../configuration/packages/headlamp
 - ../../providers/rke2
 - ../../profiles/il2
 - ../../configuration/packages/bigbang

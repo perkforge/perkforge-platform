@@ -1,12 +1,10 @@
-# Sole physical local root; optional packages are absent until explicitly selected.
+# Physical local package inputs; credentials remain external.
 domain: perkforge.home.arpa
 addons:
   headlamp:
     values:
       upstream:
         replicaCount: 1
-        nodeSelector:
-          kubernetes.io/hostname: REPLACE_WITH_WORKER_NODE
       routes:
         inbound:
           headlamp:

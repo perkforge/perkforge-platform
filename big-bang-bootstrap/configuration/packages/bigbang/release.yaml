@@ -1,5 +1,4 @@
-# Active desired state only after the release-pinned seed is explicitly resumed.
-# Ansible owns namespaces and installer foundations; seed defaults remain paused.
+# Active only after explicit release promotion; package credentials are external.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -7,7 +6,6 @@ metadata:
 spec:
   suspend: false
   interval: 10m
-  # Parent wait must exceed the selected child's 10m install window.
   timeout: 15m
   releaseName: bigbang
   targetNamespace: bigbang
@@ -25,10 +23,6 @@ spec:
   - kind: ConfigMap
     name: values-headlamp
     valuesKey: values.yaml
-    optional: true
-  - kind: ConfigMap
-    name: values-headlamp
-    valuesKey: oidc.yaml
     optional: true
   - kind: ConfigMap
     name: values-rancher
@@ -96,11 +90,6 @@ spec:
           version: v2
           kind: HelmRelease
           name: rancher
-        patch: |-
-          - op: add
-            path: /spec/valuesFrom/-
-            value:
-              kind: Secret
-              name: rancher-bootstrap-values
-              valuesKey: values.yaml
-              optional: false
+        patch: "- op: add\n  path: /spec/valuesFrom/-\n  value:\n    kind: Secret\n\
+          \    name: rancher-bootstrap-values\n    valuesKey: values.yaml\n    optional:\
+          \ false"

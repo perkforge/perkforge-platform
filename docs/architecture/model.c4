@@ -158,6 +158,16 @@ model {
         description 'Protect personal files, databases and secret recovery separately. Replication/Retain do not protect against deletion or corruption, and etcd snapshots do not contain PV contents. Independent custody and restore tests are required before relying on personal-data storage.'
       }
     }
+    headlamp = component 'Headlamp Kubernetes identity UI — candidate' {
+      description 'PLANNED: token-login UI only, no Keycloak configuration or human authorization change. No native admin password or persistent cluster-admin SA. Ingress stays off; separately approved authenticated loopback forwarding and token identity/expiry are required before admin login acceptance.'
+      link https://github.com/perkforge/perkforge-platform/blob/feat/headlamp-bootstrap/big-bang-bootstrap/configuration/packages/headlamp/README.md 'Token-mode procedure and identity decision'
+      installer = component 'headlamp-installer — delegated Helm identity' {
+        description 'Ansible installs namespaced chart and Helm-storage permissions, separately gated Registry1 delivery. Installer can create Deployment/Service/runtime SA, not human or cluster RBAC.'
+      }
+      runtime = component 'Headlamp runtime SA — no application RBAC' {
+        description 'UI forwards the human token; Kubernetes authenticates/authorizes it. Unsafe service-account token use and chart cluster-role binding are disabled. Prior proven OIDC group mappings are retained only for later review.'
+      }
+    }
     openbao = component 'OpenBao token administration — candidate' {
       description 'PLANNED only: official chart 0.30.6/OpenBao 2.7.2. One TLS-required worker server, Longhorn-backed 10Gi PebbleDB, no ingress/injector/Kubernetes auth delegation or automatic init/unseal. No HA. Preserved pilot OIDC policies are not activated. Sealed/uninitialized is NotReady, not accepted.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/openbao-bootstrap/big-bang-bootstrap/configuration/packages/openbao/README.md 'OpenBao source and activation gates'

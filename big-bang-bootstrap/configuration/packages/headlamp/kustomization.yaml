@@ -3,6 +3,6 @@ kind: Kustomization
 configMapGenerator:
 - name: values-headlamp
   namespace: bigbang
-  files: [values.yaml, oidc.yaml]
+  files: [values.yaml]
 generatorOptions:
   disableNameSuffixHash: true
