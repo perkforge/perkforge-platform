@@ -5,6 +5,11 @@ playbook owns only the mutable app settings which chart values do not configure:
 Keycloak's dedicated OpenBao client/direct groups mapper, and OpenBao's KV mounts,
 ACL policies, OIDC/Kubernetes auth configuration and three explicit roles.
 
+The API workflow now defaults to `platform_api_apply=false`; default/check runs
+read no credential values and make no API calls. A separately approved live run
+must explicitly set `platform_api_apply=true`. This is independent of the new
+[authorization review](../../authorization/README.md), which never applies APIs.
+
 Uses only `ansible.builtin.uri` from pinned `ansible-core==2.19.11`; no Galaxy
 collections, custom modules, Python configurators or framework. The maintained
 community.general Keycloak integration was considered, but a few explicit

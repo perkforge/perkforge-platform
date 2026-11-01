@@ -1,0 +1,69 @@
+# REVIEW ONLY: not selected by any live workflow; no credentials or memberships.
+authorization_apply: false
+authorization_render: false
+authorization_output_directory: /UNCONFIGURED/authorization-review
+authorization_realm: perkforge
+authorization_realm_display_name: PerkForge
+authorization_tenants: []
+authorization_platform_admin_group: /platform/admins
+authorization_platform_viewer_group: /platform/viewers
+authorization_group_prefix: 'oidc:'
+authorization_integrations:
+  headlamp:
+    enabled: false
+    client_id: headlamp-local
+    mode: native-oidc-and-kubernetes-rbac
+    configuration: ../packages/headlamp/oidc.yaml
+    api_identity: ../identity/kubernetes/rke2-oidc.yaml
+    groups_claim: groups
+    api_groups_prefix: 'oidc:'
+    api_audience: headlamp-local
+  rancher:
+    enabled: false
+    client_id: rancher
+    mode: platform-admin-only-generic-oidc
+    configuration: ../ansible/configure-rancher-oidc.yaml
+    allowed_group: /platform/admins
+    global_role: admin
+  openbao:
+    enabled: false
+    client_id: openbao
+    mode: claim-bound-oidc-roles-and-acl-policies
+    configuration: ../ansible/platform-config/configure.yaml
+    role_template: templates/openbao-roles.yaml.j2
+    groups_claim: groups
+  longhorn:
+    enabled: false
+    mode: platform-admin-proxy-decision-pending
+    native_oidc: false
+    allowed_group: /platform/admins
+    configuration: UNDECIDED-proxy
+authorization_roles:
+  platform-admin:
+    group: /platform/admins
+    scope: platform
+    realm_admin: false
+    identity_scope: shared-realm-user-administration-mechanism-pending
+  platform-engineer:
+    group: /platform/engineers
+    scope: platform-code-mrs-and-proposed-scoped-diagnostics
+    inherits_platform_admin: false
+    direct_live_writes: undecided
+    secret_values: explicit-scope-review-required
+    realm_admin: false
+  platform-viewer:
+    group: /platform/viewers
+    scope: platform-status-no-secret-values
+    realm_admin: false
+  tenant-admin:
+    group_pattern: /tenants/<tenant>/admins
+    scope: one-tenant-namespace
+    realm_admin: false
+  tenant-developer:
+    group_pattern: /tenants/<tenant>/developers
+    scope: one-tenant-deployment-resources-and-secret-value-read
+    realm_admin: false
+  tenant-viewer:
+    group_pattern: /tenants/<tenant>/viewers
+    scope: one-tenant-status-no-secret-values
+    realm_admin: false

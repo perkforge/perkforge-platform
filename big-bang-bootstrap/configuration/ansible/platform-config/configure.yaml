@@ -27,8 +27,11 @@
       ansible.builtin.debug:
         msg: Check mode validates static inputs only; no authentication or API request runs.
       when: ansible_check_mode
+    - name: Explain explicit API apply boundary
+      ansible.builtin.debug:
+        msg: "API apply={{ platform_api_apply | bool }}; no authentication or credentials unless separately approved and explicitly enabled."
     - name: Configure the approved APIs
-      when: not ansible_check_mode
+      when: platform_api_apply | bool and not ansible_check_mode
       block:
         - name: Check private input metadata before reading values
           ansible.builtin.stat:

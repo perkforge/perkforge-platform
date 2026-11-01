@@ -1,0 +1,70 @@
+# Keycloak representation for review; not a Helm import or a live API payload.
+realm: {{ authorization_realm }}
+displayName: {{ authorization_realm_display_name }}
+enabled: true
+sslRequired: all
+registrationAllowed: false
+bruteForceProtected: true
+accessTokenLifespan: 300
+attributes: {perkforge-managed: 'true', perkforge-purpose: authorization-review}
+groups:
+- name: platform
+  attributes: {perkforge-managed: ['true']}
+  subGroups:
+  - name: admins
+    attributes: {perkforge-managed: ['true'], perkforge-role: [platform-admin]}
+  - name: engineers
+    attributes: {perkforge-managed: ['true'], perkforge-role: [platform-engineer]}
+  - name: viewers
+    attributes: {perkforge-managed: ['true'], perkforge-role: [platform-viewer]}
+- name: tenants
+  attributes: {perkforge-managed: ['true']}
+{% if not authorization_tenants %}
+  subGroups: []
+{% else %}
+  subGroups:
+{% endif %}
+{% for tenant in authorization_tenants %}
+  - name: {{ tenant }}
+    attributes: {perkforge-managed: ['true']}
+    subGroups:
+    - name: admins
+      attributes: {perkforge-managed: ['true'], perkforge-role: [tenant-admin]}
+    - name: developers
+      attributes: {perkforge-managed: ['true'], perkforge-role: [tenant-developer]}
+    - name: viewers
+      attributes: {perkforge-managed: ['true'], perkforge-role: [tenant-viewer]}
+{% endfor %}
+# No members/passwords or realm-management roles. Clients remain disabled.
+clients:
+{% for client in [
+ {'id':'headlamp-local','redirect':'https://headlamp.perkforge.home.arpa/oidc-callback'},
+ {'id':'rancher','redirect':'https://rancher.perkforge.home.arpa/verify-auth'},
+ {'id':'openbao','redirect':'https://openbao.perkforge.home.arpa/ui/vault/auth/oidc/oidc/callback'}] %}
+- clientId: {{ client.id }}
+  enabled: false
+  protocol: openid-connect
+  clientAuthenticatorType: client-secret
+  publicClient: false
+  standardFlowEnabled: true
+  implicitFlowEnabled: false
+  directAccessGrantsEnabled: false
+  serviceAccountsEnabled: false
+  fullScopeAllowed: false
+  redirectUris: [{{ client.redirect }}]
+  attributes:
+    perkforge-managed: 'true'
+{% if client.id != 'rancher' %}
+    pkce.code.challenge.method: S256
+{% endif %}
+  protocolMappers:
+  - name: groups
+    protocol: openid-connect
+    protocolMapper: oidc-group-membership-mapper
+    config:
+      claim.name: groups
+      full.path: 'true'
+      id.token.claim: 'true'
+      access.token.claim: 'false'
+      userinfo.token.claim: 'true'
+{% endfor %}

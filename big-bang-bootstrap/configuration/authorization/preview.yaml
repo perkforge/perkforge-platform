@@ -1,0 +1,50 @@
+- name: Review disabled authorization definitions without APIs or credentials
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [desired.yaml]
+  tasks:
+  - name: Refuse activation through a review-only entrypoint
+    ansible.builtin.assert:
+      that:
+      - not authorization_apply | bool
+      - authorization_realm == 'perkforge'
+      - authorization_realm_display_name == 'PerkForge'
+      - authorization_platform_admin_group == '/platform/admins'
+      - authorization_platform_viewer_group == '/platform/viewers'
+      - authorization_tenants | unique | length == authorization_tenants | length
+      - authorization_integrations.values() | selectattr('enabled', 'equalto', true) | list | length == 0
+      fail_msg: Review-only candidate; no live apply or app integration is implemented here.
+  - name: Validate explicit tenant IDs before rendering namespace or claim paths
+    ansible.builtin.assert:
+      that:
+      - item is match('^[a-z][a-z0-9-]{0,30}$')
+      - item not in ['system', 'kube-system', 'default', 'bigbang', 'cattle-system', 'keycloak', 'openbao', 'headlamp', 'longhorn-system']
+    loop: '{{ authorization_tenants }}'
+  - name: Explain ownership and safe default
+    ansible.builtin.debug:
+      msg: 'Review only: Ansible realm/API ownership; Helm deploys apps. No users, credentials, roles or integrations are applied. render={{ authorization_render | bool }}'
+  - name: Render only explicitly requested nonsecret review artifacts
+    when: authorization_render | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - authorization_output_directory is match('^/')
+        - not authorization_output_directory.startswith('/UNCONFIGURED/')
+    - ansible.builtin.stat:
+        path: '{{ authorization_output_directory }}'
+        follow: false
+      register: review_output
+    - ansible.builtin.assert:
+        that: not review_output.stat.exists
+        fail_msg: Preserve earlier review output; choose a fresh directory.
+    - ansible.builtin.file:
+        path: '{{ authorization_output_directory }}'
+        state: directory
+        mode: '0700'
+    - ansible.builtin.template:
+        src: 'templates/{{ item }}.j2'
+        dest: '{{ authorization_output_directory }}/{{ item }}'
+        mode: '0600'
+        force: false
+      loop: [realm.yaml, kubernetes.yaml, openbao-roles.yaml]

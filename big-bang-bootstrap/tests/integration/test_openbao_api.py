@@ -111,6 +111,9 @@ class PlatformConfigAPI(unittest.TestCase):
         (self.work/'vars.yaml').write_text(yaml.safe_dump(self.vars))
 
     def run_play(self,playbook='configure.yaml'):
+        # Explicit synthetic API test opt-in; production default remains false.
+        self.vars['platform_api_apply']=True
+        (self.work/'vars.yaml').write_text(yaml.safe_dump(self.vars))
         result=subprocess.run(['ansible-playbook','-i','localhost,',str(ROOT/'big-bang-bootstrap/configuration/ansible/platform-config'/playbook),
             '-e','@'+str(self.work/'vars.yaml')],capture_output=True,text=True,timeout=90,
             env={**os.environ,'ANSIBLE_LOCAL_TEMP':str(self.work/'local'),'ANSIBLE_REMOTE_TEMP':str(self.work/'remote'),

@@ -40,11 +40,19 @@ unverified. No competing direct Ansible/Helm installer is used.
 
 Protected `.rke2-state/` retains the activation summary, exact source/root/Helm
 objects, authorization/capacity checks and automatically saved redacted Ansible
-output. The ignored owner-only `app-admin-cache/` contains Rancher's admin username
-and bootstrap-password flat files plus metadata. No values belong in Git/chat.
+output. The temporary app credential cache was moved to
+`~/src/perkforge-tmp-secrets/`, outside Git (directory 0700, files 0600). It contains
+Rancher's admin username and bootstrap-password flat files plus metadata. Future
+approved app credential saves use this location, not the former `.rke2-state/`
+cache. No values belong in Git/chat.
 The operator owns proper-store migration and explicit temporary-copy cleanup;
 changing a cached file is not server password rotation. Other app entries remain
-pending or not applicable; no OpenBao unseal material is bundled there.
+pending or not applicable; no CA signing key, unseal or SSH material is bundled
+there. Everyday operator access is intended to use Keycloak platform-admin SSO;
+durable local break-glass credential custody stays independent of the cluster/Keycloak in
+the operator's password manager and requires a tested emergency path. Bootstrap
+credentials are not automatically permanent recovery identities. No SSO, account
+creation, credential rotation or deletion was performed for this custody move.
 
 ## Acceptance requirement for every subsequent app
 
@@ -73,7 +81,12 @@ one non-root, digest-pinned official BusyBox pod at a time. It passed:
    the same PVC/PV UIDs. Ansible: `ok=78 changed=25 failed=0`.
 
 The namespace, PVC, Retain PV, Longhorn volume/replicas and final pod are retained.
-The test pod sleeps for at most one hour; the claim/data remain after it exits.
+Saved read-only evidence at 03:33 UTC shows the final pod completed normally
+(exit 0) at **03:03:42Z**, exactly one hour after startup. Its command was the
+bounded one-hour sleep. The retained claim/volume remain; the volume is now
+Detached and reports robustness Unknown while inactive. This is not fresh
+active-replica validation or evidence of a storage regression; no attach/retest
+or cleanup was performed.
 **Cleanup is not approved.** Protected run evidence under the existing ignored
 `infrastructure/ansible/inventory/.rke2-state/` contains `retained-resources.json`
 with exact names/UIDs, stage manifests/objects/checksums, logs and exit status.
@@ -119,6 +132,28 @@ only; no startup realm import, PerkForge groups or app client integration. Prote
 bootstrap/database/pull/TLS delivery and real first login remain future approvals.
 Ansible retains realm API ownership separately from Helm deployment. See the
 [Keycloak procedure](big-bang-bootstrap/configuration/packages/keycloak/README.md).
+
+## Queued authorization review
+
+The authorization draft now has a [six-role/app matrix](big-bang-bootstrap/configuration/authorization/MATRIX.md)
+and zoomable C4 role → group → client/app mapping → tenant/resource views. One shared
+PerkForge realm, per-app clients and multi-tenant memberships are design intent;
+unsupported native protocols/edition features are explicitly gated. PA controls
+platform/shared identity and platform values; tenant values need grant/emergency
+in nominal OpenBao policy, with administrator bypass acknowledged. Platform-engineer is a distinct code/MR and proposed scoped-diagnostics role,
+with no inherited identity/RBAC/secret/break-glass authority; direct live writes
+remain undecided. TD reads own
+values without writes; viewers perform no operational changes or value reads,
+but may chat in assigned channels. Tenant membership ownership must not reset or
+delete shared identities or grant platform authority.
+
+Only disabled group/Kubernetes/OpenBao review examples are rendered. Consent and
+emergency elevation, delegated identity mechanics, admission, app/query isolation,
+revocation/migration and most app integrations remain unimplemented. No users,
+credentials, memberships or live grants were created. Use small per-app integration
+MRs; the shared design is not an all-app apply. Existing API configuration still
+defaults to platform_api_apply=false. See the
+[review contract](big-bang-bootstrap/configuration/authorization/README.md).
 
 ## Next decisions
 
