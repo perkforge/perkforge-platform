@@ -54,6 +54,15 @@ the operator's password manager and requires a tested emergency path. Bootstrap
 credentials are not automatically permanent recovery identities. No SSO, account
 creation, credential rotation or deletion was performed for this custody move.
 
+## Next app selection — source candidate, not live
+
+OpenBao source merged; Headlamp and Keycloak/auth remain review stages. A combined
+release must use the [ordered app stage roots](big-bang-bootstrap/configuration/ansible/README.md#ordered-app-stages):
+OpenBao-only default (retaining Rancher/Longhorn), then Headlamp, then Keycloak/database.
+Each forward root-path promotion requires separate approval and successful access,
+custody and health/capacity acceptance. The immutable source stays identical;
+publication does not activate apps. No new live actions were performed for this change.
+
 ## Acceptance requirement for every subsequent app
 
 After each successful deployment, provide timestamped per-node CPU/RAM usage

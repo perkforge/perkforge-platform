@@ -165,6 +165,20 @@ views {
     platform.longhorn_runtime -> platform.storage '8. Verify readiness, then separately approve package acceptance tests'
   }
 
+  dynamic view app_stage_promotion {
+    title 'One release — approved app stages and acceptance'
+    description 'PROPOSED, not deployed: fixed Kustomize stage roots in one immutable artifact. Preserve Longhorn/Rancher. Stop after every app for access/custody and health/capacity acceptance; no automatic backward-stage rollback or auth integration.'
+    link /runbook.html#app-stages 'Stage paths, ownership and stop gates'
+    engineer -> platform.prerequisite_applier '1. Review exact release and approve only OpenBao inputs/prerequisites'
+    engineer -> platform.flux '2. Promote verified source; default local path selects OpenBao only'
+    platform.flux -> platform.openbao.runtime '3. Install; approved initialization/unseal custody and admin access are separate gates'
+    platform.openbao.runtime -> engineer '4. Verify Ready, custody/access and per-node health/storage headroom; stop on failure'
+    engineer -> platform.flux '5. Approve Headlamp prerequisites; advance same-artifact root to local-headlamp'
+    platform.headlamp.runtime -> engineer '6. Verify token access and health/capacity before next approval'
+    engineer -> platform.flux '7. Approve Keycloak/database inputs; advance root to local-keycloak'
+    platform.keycloak.runtime -> engineer '8. Verify database, initial admin access and health; OIDC/group apply remains separate'
+  }
+
   dynamic view storage_acceptance {
     title 'Storage acceptance — one approved retained 1Gi test'
     description 'OBSERVED PASS: initial write, same-worker recreation and worker-to-worker reattachment used one claim with identical checksums. Two healthy replicas on distinct workers. No reboot, forced detach, backup/restore or HA proof; no automatic cleanup.'

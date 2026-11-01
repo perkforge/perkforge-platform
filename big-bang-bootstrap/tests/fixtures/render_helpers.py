@@ -58,7 +58,7 @@ def release_name(release):
 
 def application_package_fixture(root):
     """Explicit identity-package opt-in for offline tests, never operator input."""
-    objects = [obj for obj in build(root / 'clusters/local')
+    objects = [obj for obj in build(root / 'clusters/local-keycloak')
                if obj['metadata']['name'] not in {'values-longhorn', 'values-rancher', 'rancher-official', 'values-openbao', 'openbao-official', 'values-headlamp', 'values-keycloak'}]
     parent = next(o for o in objects if o['kind'] == 'HelmRelease')
     parent['spec']['valuesFrom'].insert(2, {'kind':'ConfigMap','name':'values-headlamp','valuesKey':'oidc.yaml','optional':True})

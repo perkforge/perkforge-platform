@@ -70,6 +70,15 @@ class Documentation(unittest.TestCase):
         self.assertNotIn('ansible',str(package['scripts']))
         self.assertNotIn('pilot.sh',str(package['scripts']))
 
+    def test_initial_app_instructions_follow_the_declarative_stages(self):
+        runbook=(REPO/'big-bang-bootstrap/configuration/ansible/README.md').read_text()
+        step=next(line for line in runbook.splitlines() if line.startswith('6. Initial app access:'))
+        self.assertIn('default `clusters/local` root selects OpenBao only',step)
+        self.assertIn('after OpenBao acceptance, `clusters/local-headlamp`'.lower(),step.lower())
+        self.assertIn('after Headlamp acceptance, `clusters/local-keycloak`'.lower(),step.lower())
+        self.assertIn('same immutable release',step)
+        self.assertNotIn('selects OpenBao and Headlamp',step)
+
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
         copies={
          'longhorn-storage-smoke.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-storage-smoke.yaml',

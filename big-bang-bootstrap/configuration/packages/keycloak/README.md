@@ -37,6 +37,10 @@ namespace/resources, installer RBAC and Secret references stay identical. A futu
 live installation still needs explicit approval and readiness/access/resource
 acceptance. This source change does not promote the running release.
 
+The `clusters/local-keycloak` stage enables this application and database together,
+after Headlamp acceptance. The default and Headlamp stages leave both off. See
+[ordered app stages](../../ansible/README.md#ordered-app-stages).
+
 ## Who does what and why
 
 - Flux/Big Bang deploy Keycloak and PostgreSQL using `keycloak-installer`; its

@@ -1,0 +1,5 @@
+addons:
+  headlamp:
+    enabled: true
+  keycloak:
+    enabled: true
