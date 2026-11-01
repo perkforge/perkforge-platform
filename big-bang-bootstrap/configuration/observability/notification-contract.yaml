@@ -1,0 +1,22 @@
+# Not a deployable Alertmanager receiver or a secret-bearing app configuration.
+# A real reviewed endpoint/adapter must satisfy this before routing is armed.
+notification:
+  enabled: false
+  owner: bundled-prometheus-alertmanager
+  destination: ntfy-compatible-authenticated-tls
+  endpoint_ref: UNCONFIGURED
+  credential_ref: UNCONFIGURED
+  adapter: UNDECIDED
+  send_resolved: true
+  duplicate_direct_grafana_route: false
+  transport:
+    verify_tls: true
+    secrets_in_url_or_labels: false
+  acceptance:
+  - firing-and-resolved-reach-only-intended-client
+  - group-and-repeat-behavior
+  - silence-suppresses-and-expires
+  - no-double-delivery-from-grafana-and-prometheus
+  - invalid-credential-or-certificate-is-denied
+  - failed-delivery-is-visible-with-bounded-retry
+  - payload-conversion-and-sensitive-label-review

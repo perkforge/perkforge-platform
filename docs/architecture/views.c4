@@ -190,6 +190,17 @@ views {
     platform.observability.grafana -> engineer '7. Verify real scrapes/admin/dashboards, no duplicate pipeline, resource/retention and network deny behavior'
   }
 
+  dynamic view observability_acceptance {
+    title 'Alert ownership and acceptance gates — inactive'
+    description 'Who does what and why: offline native rules/render tests only. No notification destination or live acceptance claimed.'
+    engineer -> platform.observability.alerts '1. Review native rules plus three lab thresholds; approve exact release and one notification contract'
+    platform.observability.stores -> platform.observability.alerts '2. Future Prometheus evaluates rules; bundled Alertmanager owns Git routing/grouping/inhibition'
+    platform.observability.grafana -> platform.observability.alerts '3. Human viewing/silences; external contacts read-only; no duplicate Grafana route'
+    platform.observability.alerts -> platform.observability.notification '4. BLOCKED: TLS/auth/payload adapter and firing/resolved/dedup evidence required before routing'
+    engineer -> platform.prerequisite_applier '5. Separately approve read-only UID-checked readiness capture to fresh protected evidence directory'
+    platform.prerequisite_applier -> engineer '6. Stop on failed condition; actual scrapes/log auth/retention/notification/recovery acceptance remains separate'
+  }
+
   dynamic view logging_provisioning {
     title 'Opt-in API logs and authenticated Loki — inactive candidate'
     description 'Who does what and why: rendered and permission-audited, not deployed; no tenant access or network acceptance claimed.'
