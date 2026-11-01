@@ -42,3 +42,8 @@ class LoggingInstaller(unittest.TestCase):
   with tempfile.TemporaryDirectory() as d:
    p=subprocess.run(['ansible-playbook','-i',str(ROOT/'configuration/ansible/inventory.yaml'),str(play),'--check'],capture_output=True,text=True,env={**os.environ,'ANSIBLE_LOCAL_TEMP':d},timeout=40);self.assertEqual(p.returncode,0,p.stdout+p.stderr);self.assertIn('changed=0',p.stdout)
   policy=next(x for x in self.foundation if x['kind']=='NetworkPolicy' and x['metadata']['name']=='authenticated-loki-clients');self.assertEqual(policy['spec']['podSelector']['matchLabels']['app.kubernetes.io/component'],'gateway')
+
+ def test_impersonated_accounts_and_all_bindings_use_helmrelease_namespace(self):
+  for _,(hr,_) in self.render.items():
+   name=hr['spec']['serviceAccountName'];namespace=hr['metadata']['namespace'];sa=next(x for x in self.foundation if x['kind']=='ServiceAccount' and x['metadata']['name']==name);self.assertEqual(sa['metadata']['namespace'],namespace);self.assertFalse(sa['automountServiceAccountToken'])
+   subjects=[q for x in self.foundation if x['kind'].endswith('RoleBinding') for q in x['subjects'] if q['name']==name];self.assertTrue(subjects);self.assertTrue(all(q['namespace']==namespace for q in subjects))
