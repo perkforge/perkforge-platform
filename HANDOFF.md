@@ -46,6 +46,17 @@ The operator owns proper-store migration and explicit temporary-copy cleanup;
 changing a cached file is not server password rotation. Other app entries remain
 pending or not applicable; no OpenBao unseal material is bundled there.
 
+## Acceptance requirement for every subsequent app
+
+After each successful deployment, provide timestamped per-node CPU/RAM usage
+versus requests/limits, node/pod readiness/failures, and Longhorn disk/replica usage
+and remaining headroom, preferably with a comparable previous-app delta. Save
+safe evidence automatically, without terminal-output transcription. Missing metrics
+are unavailable, not zero. See the shared [acceptance contract](big-bang-bootstrap/configuration/ansible/README.md#health-and-capacity-acceptance-after-every-app).
+This does not authorize deployment or repair. After app deployment, an early Grafana
+goal is a verified cluster overview; assess the six queued dashboards or a reviewed
+compatible community dashboard before adoption.
+
 ## First storage test — passed, resources retained
 
 The run completed at **2026-11-01 02:03:46 UTC** (saved exit-record timestamp and

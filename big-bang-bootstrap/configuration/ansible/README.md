@@ -16,6 +16,46 @@ Dependency chain: RKE2 → Flux foundation → Big Bang umbrella → Longhorn �
 
 Kustomize file order is not readiness. Database startup also retains a bounded native readiness init-container. Checks observe status; they never activate, scale or create extra reconcilers. Enabling gates or resuming resources outside reviewed source cannot replace this sequence.
 
+## Health and capacity acceptance after every app
+
+After each successful app deployment, provide the operator a timestamped health/
+resource breakdown before calling that stage accepted or starting the next app.
+Reuse the existing read-only resource snapshot command set and the explicit
+kubeconfig/context/cluster-UID gate in [readiness.yaml](readiness.yaml): Kubernetes
+node/pod status, metrics API (`kubectl top nodes` and `kubectl top pods -A`), node allocation/request/
+limit summaries and Longhorn node/volume/replica status. Do not install metrics
+components, read Secret data, repair or change workloads as part of this report.
+
+- Per node: actual CPU and RAM usage with units/percent of allocatable, separately
+  from summed pod requests/limits; identify unrequested/unlimited workloads and
+  overcommit. Missing/stale metrics mean unavailable, never zero or requests-as-use.
+- Node Ready/pressure, pod/controller readiness, Pending/failed/crash-looping pods,
+  restarts and the largest consumers; distinguish expected completed jobs and
+  intentionally detached volumes from failures.
+- Per Longhorn worker: raw/free/reserved/scheduled disk space, healthy versus
+  degraded replica/volume state, two-copy overhead and remaining usable headroom.
+  Replication is not backup; do not equate scheduled capacity with measured bytes.
+- Where comparable, show the delta from the previous app's snapshot, naming both
+  timestamps/versions and sample age. An instantaneous quiet sample is not a peak
+  load or full-stack capacity guarantee. Explain any noncomparable baseline.
+
+Save safe results/status automatically with that app's protected `.rke2-state/`
+run evidence; public handoff contains only sanitized aggregates/limits and evidence
+references. Do not require the operator to transcribe terminal output. This is an
+acceptance requirement within each approved deployment/acceptance batch, not
+authority to deploy apps, change access or repair health, and not a claim that a
+new reporting wrapper exists. A failed readiness/health gate stops the next stage;
+no automatic eviction, cleanup or capacity repair.
+
+After the app stages, an early Grafana goal is a cluster overview covering these
+same node/workload/storage signals. Assess the six queued starting dashboards in
+[metrics draft #111](https://github.com/perkforge/perkforge-platform/pull/111) first.
+A community dashboard is welcome after reviewing its metric names, RKE2/exporter
+labels, datasource UID/variables, units, plugin/version/license requirements and
+access boundaries. Keep reviewed dashboard JSON/datasources in Git; no blind
+imports or unsupported metrics presented as healthy zeroes. Grafana deployment
+and dashboard/live-data acceptance remain separate future approved work.
+
 ## Longhorn-only release and seed activation
 
 The first storage-only stage is complete on the physical cluster at v0.11.3.
