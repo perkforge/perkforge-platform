@@ -20,8 +20,15 @@ def secret_allowed(role, namespace, name, verb):
                for r in role['rules'])
 
 
+def clusterrole_list_allowed(role):
+    """Unnamed collection listing needs a rule without resourceNames/field selector."""
+    return any('rbac.authorization.k8s.io' in r['apiGroups']
+               and 'clusterroles' in r['resources'] and 'list' in r['verbs']
+               and not r.get('resourceNames') for r in role['rules'])
+
+
 @contextmanager
-def lookup_server(role):
+def lookup_server(role, clusterrole_lookup=False):
     requests = []
 
     class Handler(BaseHTTPRequestHandler):
@@ -30,18 +37,36 @@ def lookup_server(role):
 
         def do_GET(self):
             path = urlsplit(self.path).path
-            requests.append(path)
+            requests.append(self.path if clusterrole_lookup else path)
             status = 200
             if path == '/version':
                 body = {'major': '1', 'minor': '36', 'gitVersion': 'v1.36.5'}
             elif path == '/api':
                 body = {'apiVersion': 'v1', 'kind': 'APIVersions', 'versions': ['v1'], 'serverAddressByClientCIDRs': []}
             elif path == '/apis':
-                body = {'apiVersion': 'v1', 'kind': 'APIGroupList', 'groups': []}
+                body = {'apiVersion': 'v1', 'kind': 'APIGroupList', 'groups': ([{
+                    'name': 'rbac.authorization.k8s.io',
+                    'versions': [{'groupVersion': 'rbac.authorization.k8s.io/v1', 'version': 'v1'}],
+                    'preferredVersion': {'groupVersion': 'rbac.authorization.k8s.io/v1', 'version': 'v1'}
+                }] if clusterrole_lookup else [])}
             elif path == '/api/v1':
                 body = {'apiVersion': 'v1', 'kind': 'APIResourceList', 'groupVersion': 'v1', 'resources': [
                     {'name': 'secrets', 'singularName': 'secret', 'namespaced': True,
                      'kind': 'Secret', 'verbs': ['get', 'list']}]}
+            elif clusterrole_lookup and path == '/apis/rbac.authorization.k8s.io/v1':
+                body = {'apiVersion': 'v1', 'kind': 'APIResourceList',
+                        'groupVersion': 'rbac.authorization.k8s.io/v1', 'resources': [
+                    {'name': 'clusterroles', 'singularName': 'clusterrole', 'namespaced': False,
+                     'kind': 'ClusterRole', 'verbs': ['get', 'list']}]}
+            elif clusterrole_lookup and path == '/apis/rbac.authorization.k8s.io/v1/clusterroles':
+                if clusterrole_list_allowed(role):
+                    body = {'apiVersion': 'rbac.authorization.k8s.io/v1', 'kind': 'ClusterRoleList',
+                            'metadata': {}, 'items': []}
+                else:
+                    status = 403
+                    body = {'apiVersion': 'v1', 'kind': 'Status', 'status': 'Failure',
+                            'message': 'unnamed ClusterRole LIST forbidden by synthetic authorization model',
+                            'reason': 'Forbidden', 'code': status}
             elif path.startswith('/api/v1/namespaces/') and '/secrets/' in path:
                 parts = path.split('/')
                 namespace, name = parts[4], parts[6]

@@ -84,6 +84,12 @@ rules:
 - apiGroups: [rbac.authorization.k8s.io]
   resources: [clusterroles, clusterrolebindings]
   verbs: [create]
+# The pinned chart's validate-psp-install lookup lists ClusterRoles without a name.
+# resourceNames cannot authorize that collection request. Read-only list only;
+# all mutation/bind/escalate permissions below remain restricted to chart names.
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [clusterroles]
+  verbs: [list]
 - apiGroups: [rbac.authorization.k8s.io]
   resources: [clusterroles]
   resourceNames: [longhorn-role, longhorn-csi-role, longhorn-csi-secret-role]
