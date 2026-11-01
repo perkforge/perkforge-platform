@@ -14,6 +14,21 @@
   - name: Bootstrap requires separate live approval and complete target inputs
     when: bootstrap_apply | bool and not ansible_check_mode
     block:
+    - name: Check executing bootstrap checkout matches the reviewed release
+      ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', rev-parse, HEAD]
+      register: bootstrap_checkout
+      changed_when: false
+    - name: Check executing bootstrap checkout is clean
+      ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', status, --porcelain]
+      register: bootstrap_changes
+      changed_when: false
+    - name: Refuse unpublished or modified bootstrap code
+      ansible.builtin.assert:
+        that:
+        - bootstrap_checkout.stdout == config_release.resolvedCommit
+        - bootstrap_changes.stdout | length == 0
     - name: Refuse placeholders and ambiguous selection
       ansible.builtin.assert:
         that:
@@ -52,6 +67,8 @@
         that: bigbang_source.after == bigbang_expected_commit
     - name: Prepare selected Flux manifests with standard local tooling
       ansible.builtin.include_tasks: prepare-flux.yaml
+    - name: Prepare the pinned Flux namespace and required pull credential before controllers
+      ansible.builtin.include_tasks: flux-registry.yaml
     - name: Apply only the pinned Flux prerequisites
       ansible.builtin.command:
         argv:
