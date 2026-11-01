@@ -298,6 +298,10 @@ model {
     openbao = component 'OpenBao initial token administration — observed' {
       description 'OBSERVED v0.13.0: official chart 0.30.6/OpenBao 2.7.2, initialized once 3 shares / threshold 2, unsealed and initial root-token access verified. One TLS-required worker server, Longhorn-backed 10Gi PebbleDB, no ingress/injector/Kubernetes auth delegation or automatic init/unseal. No HA. Preserved pilot OIDC policies are not activated. Sealed/uninitialized is NotReady, not accepted.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/openbao-bootstrap/big-bang-bootstrap/configuration/packages/openbao/README.md 'OpenBao source and activation gates'
+      lan_route = component 'Exact-SNI TCP passthrough — candidate only' {
+        description 'PLANNED: Helm extraObjects owns one IngressRouteTCP for openbao.perkforge.home.arpa on existing websecure to openbao:8200. Browser TLS terminates only at OpenBao, verifies current CA/name; no extra key copy or Traefik token/TLS termination. Other SNI falls through to existing HTTP routers. Not live; no root-token browser login or human/OIDC role grant.'
+        link https://github.com/perkforge/perkforge-platform/blob/feat/openbao-lan-tls/big-bang-bootstrap/configuration/packages/openbao/values.yaml 'Chart-owned route values'
+      }
       initialization = component 'Workstation one-time Ansible initialization' {
         description 'OBSERVED: disabled-by-default openbao-initialize.yaml checked target, fresh custody and uninitialized status through verified TLS loopback; initialized 3/2 once, persisted private recovery, submitted two shares via stdin, verified root-token lookup-self. Never an automatic restart/recovery operation.'
         link /sources/openbao-initialize.yaml 'Executed Ansible source'
@@ -306,7 +310,7 @@ model {
         description 'Root token and all three unseal shares are separate subdirectories on one workstation. This is temporary single-location custody, not independent holders or backup. Operator migration/cleanup and scoped recovery remain pending; no values in Git or logs.'
       }
       installer = component 'openbao-installer — namespaced Helm identity' {
-        description 'Administrator-applied Ansible prerequisite creates this bigbang service account and namespaced chart/release-storage bindings. No cluster RBAC, bind/escalate or Kubernetes-auth delegation; app root cannot grant its own installer authority.'
+        description 'Administrator-applied Ansible prerequisite creates this bigbang service account and namespaced chart/release-storage bindings. No cluster RBAC, bind/escalate or Kubernetes-auth delegation; app root cannot grant its own installer authority. Candidate adds only namespaced ingressroutetcps CRUD before any later promotion.'
       }
       runtime = component 'openbao runtime account and sealed server' {
         description 'Chart creates a non-root server account without a persistent SA token or RoleBinding. Initial human admin uses an approved bearer token, not a password. Unseal shares are separate recovery custody; later OIDC group-to-policy mappings remain gated Ansible API configuration.'

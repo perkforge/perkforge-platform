@@ -87,6 +87,14 @@ class Documentation(unittest.TestCase):
         for term in ['openbao_initialize_apply: false','no_log: true','127.0.0.1:18200','secret_threshold','Refuse initialization of existing data']:
             self.assertIn(term,play)
 
+    def test_openbao_lan_flow_keeps_tls_and_activation_boundaries(self):
+        flow=(ROOT/'views.c4').read_text().split('dynamic view openbao_lan_https {',1)[1].split('\n  dynamic view',1)[0]
+        for term in ['proposed','namespaced IngressRouteTCP CRUD','other apps remain off','no automatic token login','OpenBao alone terminates TLS','Rancher route']:
+            self.assertIn(term,flow)
+        page=(ROOT/'public/runbook.html').read_text().split('<section id="openbao-lan">',1)[1]
+        self.assertIn('not activated',page)
+        self.assertIn('not runtime routing',page)
+
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
         copies={
          'openbao-initialize.yaml': 'big-bang-bootstrap/configuration/ansible/openbao-initialize.yaml',

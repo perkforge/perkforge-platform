@@ -212,3 +212,13 @@ root is a bootstrap/recovery authority, not the platform-admin daily identity;
 retirement/scoped recovery and independent custody remain pending. The one-time
 [Ansible procedure](../ansible/openbao-initialize.yaml) and its synthetic refusal
 and success tests preserve that boundary; no OIDC or tenant grants were applied.
+
+### OpenBao LAN routing candidate boundary
+
+Exact-SNI Traefik TCP passthrough exposes the existing native token-authenticated
+UI/API without introducing a human role, proxy identity or OIDC grant. Browser
+TLS terminates at Bao; possession of a valid CA/hostname is not user authorization.
+The existing root token remains bootstrap-only, not ordinary platform-admin SSO.
+The chart installer gains only namespaced IngressRouteTCP CRUD; no cluster/Secret
+rights. No token is passed by routing config or automatically entered in a browser.
+Current v0.13.0 remains unexposed; see the separately approved activation gates.

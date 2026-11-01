@@ -280,6 +280,19 @@ views {
     platform.openbao.runtime -> engineer '10. Verify Ready and cluster resource delta; close port-forward; custody transfer/backup and OIDC remain pending'
   }
 
+  dynamic view openbao_lan_https {
+    title 'OpenBao LAN HTTPS — proposed, separate activation'
+    description 'Who does what and why: TLS stays end to end; routing is not human authorization. Exact SNI only, no token/key forwarding configuration, global controller change or live action.'
+    link /runbook.html#openbao-lan 'Approval, ownership and verification boundaries'
+    engineer -> platform.prerequisite_applier '1. Approve exposure; verify exact target, published release, initialized store, TLS and existing routes'
+    platform.prerequisite_applier -> platform.openbao.installer '2. Add only namespaced IngressRouteTCP CRUD; no cluster/Secret grant'
+    engineer -> platform.flux '3. Conditional source promotion; root stays local, other apps remain off'
+    platform.openbao.installer -> platform.openbao.lan_route '4. Helm creates the exact-SNI route from pinned chart extraObjects'
+    engineer -> platform.openbao.lan_route '5. Browser connects to exact hostname on existing 443; no automatic token login'
+    platform.openbao.lan_route -> platform.openbao.runtime '6. Forward encrypted bytes to existing 8200; OpenBao alone terminates TLS'
+    platform.openbao.runtime -> engineer '7. Verify CA/name/leaf and unauthenticated health/UI, Rancher route and resource report; stop on mismatch'
+  }
+
   dynamic view rancher_local_admin {
     title 'Rancher installation observed — first login pending'
     description 'Observed at v0.12.0: root/umbrella/Rancher Ready, runtime controllers available and trusted HTTPS ping passed; no first login. Big Bang/Flux owns installation; Ansible applies approved prerequisites/TLS, not a competing Helm deployment. Vendor matrix covers RKE2 1.36 but lists Longhorn 1.12, not the separately managed 1.13 lab combination. One replica/control-plane is not HA. No SSO or test-volume cleanup.'
