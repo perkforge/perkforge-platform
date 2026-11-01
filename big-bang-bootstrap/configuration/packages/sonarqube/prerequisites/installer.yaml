@@ -1,4 +1,4 @@
-# Inactive candidate; installer identity belongs beside its HelmRelease.
+# Inactive candidate; Helm readiness observations are read-only.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -57,6 +57,22 @@ rules:
   - update
   - patch
   - delete
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  verbs:
+  - get
+  - list
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
