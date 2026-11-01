@@ -113,7 +113,13 @@ class AuthorizationReview(unittest.TestCase):
       self.assertTrue(bao_permitted(policy,f'tenants/data/{tenant}/item','delete')) # soft delete only
 
    self.assertFalse(bao_permitted(bao['policies']['proposed-platform-viewer'],'platform/data/service/password','read'))
-   self.assertEqual({x['name'] for x in realm['groups'][0]['subGroups']},{'admins','viewers'})
+   # Engineer scope is not decided: group representation must not self-grant.
+   self.assertFalse(permitted('oidc:/platform/engineers','','','nodes','get'))
+   self.assertFalse(permitted('oidc:/platform/engineers','tenant-a','','secrets','get'))
+   self.assertNotIn('platform-engineer',bao['roles'])
+   self.assertNotIn('proposed-platform-engineer',bao['policies'])
+
+   self.assertEqual({x['name'] for x in realm['groups'][0]['subGroups']},{'admins','engineers','viewers'})
    self.assertTrue(all({x['name'] for x in t['subGroups']}=={'admins','developers','viewers'} for t in realm['groups'][1]['subGroups']))
    self.assertTrue((REVIEW/'desired.yaml').is_file())
    p=self.run_play(d,extra);self.assertNotEqual(p.returncode,0) # Never overwrite evidence.
@@ -127,7 +133,7 @@ class AuthorizationReview(unittest.TestCase):
 
  def test_matrix_and_c4_cover_apps_without_claiming_live_implementation(self):
   matrix=(REVIEW/'MATRIX.md').read_text()
-  for label in ['platform-admin','platform-viewer','tenant-admin','tenant-developer','tenant-viewer','Keycloak','OpenBao','Rancher','Headlamp','Longhorn','Grafana','Mattermost','GitLab','Harbor','SonarQube','portal','Nextcloud','Prometheus','Loki','Alloy','Alertmanager','ntfy','Velero','Trivy','Istio','Gateway API']:
+  for label in ['platform-admin','platform-engineer','platform-viewer','tenant-admin','tenant-developer','tenant-viewer','Keycloak','OpenBao','Rancher','Headlamp','Longhorn','Grafana','Mattermost','GitLab','Harbor','SonarQube','portal','Nextcloud','Prometheus','Loki','Alloy','Alertmanager','ntfy','Velero','Trivy','Istio','Gateway API']:
    self.assertIn(label,matrix)
   self.assertIn('not deployed authorization',matrix)
   self.assertIn('not an all-app apply payload',matrix)
@@ -136,3 +142,8 @@ class AuthorizationReview(unittest.TestCase):
   views=(ROOT.parent/'docs/architecture/views.c4').read_text()
   for view in ['authorization_roles','authorization_core_apps','authorization_observability','authorization_collaboration','authorization_tenant_apps']:
    self.assertIn('view '+view,views)
+
+ def test_contributor_checklist_keeps_matrix_c4_and_permission_tests_together(self):
+  guide=(ROOT.parent/'docs/platform/README.md').read_text()
+  for contract in ['same MR','role/app matrix','C4 ownership/trust-boundary','positive/negative','proposed / implemented / tested','exceptions or gaps']:
+   self.assertIn(contract,guide)

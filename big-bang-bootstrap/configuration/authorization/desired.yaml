@@ -44,6 +44,13 @@ authorization_roles:
     scope: platform
     realm_admin: false
     identity_scope: shared-realm-user-administration-mechanism-pending
+  platform-engineer:
+    group: /platform/engineers
+    scope: platform-code-mrs-and-proposed-scoped-diagnostics
+    inherits_platform_admin: false
+    direct_live_writes: undecided
+    secret_values: explicit-scope-review-required
+    realm_admin: false
   platform-viewer:
     group: /platform/viewers
     scope: platform-status-no-secret-values

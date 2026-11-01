@@ -5,11 +5,12 @@ No app is enabled by this matrix. Existing pilot patterns, offline renders and
 current physical evidence are different evidence classes. Integration, migration,
 revocation and adversarial acceptance remain separate per-app work and approvals.
 
-## Five roles and shared identity
+## Six roles and shared identity
 
 | Role | Canonical group | Intended scope |
 |---|---|---|
 | PA: platform-admin | `/platform/admins` | Cluster/platform administration and shared PerkForge user administration; platform secret values read/edit, tenant secret-name discovery only in the nominal OpenBao policy. Tenant value access requires a tenant grant or explicit emergency elevation. |
+| PE: platform-engineer | `/platform/engineers` | Everyday platform code/MRs and proposed scoped diagnostics, not inherited PA. No global identity/RBAC/auth-policy or break-glass authority; no automatic platform/tenant secret values. Direct live writes and exact diagnostic scopes remain undecided. |
 | PV: platform-viewer | `/platform/viewers` | Read approved platform health/status, no operational changes or secret values; not automatic access to tenant business data/private conversations. |
 | TA: tenant-admin | `/tenants/<t>/admins` | Own namespace/apps/secrets and own approved group memberships; no cross-tenant/global account reset/deletion or promotion into platform roles. |
 | TD: tenant-developer | `/tenants/<t>/developers` | Own deployment-related resources and standing read/list of own secret values; no secret creation/edit/deletion or permission administration. |
@@ -23,6 +24,16 @@ memberships; each grants only that explicit scope. Parent groups grant nothing.
 No one global tenant-admin group binds every namespace. Claim disclosure must be
 client-specific: the existing full-path mapper is a review specimen, not proof
 that every app may see every other tenant membership.
+
+Platform-engineer is a distinct role, not an alias for platform-admin or a grant
+of all platform-viewer scopes. GitOps is the proposed change path: code/MRs still
+need protected branch/owner review, especially identity, permission, credential,
+pipeline and controller changes. It must not become self-grant through GitOps.
+Exact diagnostic APIs, business-data visibility, secret paths and any direct live
+writes remain explicit decisions; the renderer adds **no engineer Kubernetes or
+OpenBao grant** while these are unresolved. Tenant portal/Nextcloud access is not
+implicitly granted by operating their platform code. Machine/controller identities
+and break-glass custody are separate from this human role.
 
 PA's intended cluster/shared-identity power is an **administrative trust boundary**.
 Standing Kubernetes cluster-admin can read Secrets or change workloads; identity
@@ -38,13 +49,13 @@ Never represent a cluster-admin binding as enforcing that privacy requirement.
 Cells describe intended native scope, not grants already applied. A dash means no
 standing human access; any additional scope needs review.
 
-| Application | PA | PV | TA | TD | TV |
-|---|---|---|---|---|---|
-| Keycloak | Shared realm user/group administration through reviewed APIs | Approved identity audit/status only | Own tenant membership and allowlisted role assignments only | Own profile | Own profile |
-| Kubernetes / Headlamp | Cluster administration (powerful bypass caveat above) | Read cluster status; no Secret API/exec | Own namespace resources/secrets; approved workload identities only | Own Deployments/scale, Services, ConfigMaps, Ingresses; own Secret get/list | Own workload/status reads; no Secret API/exec |
-| Rancher | Global administration and cluster lifecycle | Reviewed read-only platform role, not admin | —; use Headlamp | — | — |
-| OpenBao | Platform KV values CRUD; LIST tenant names, no tenant data read | Proposed platform names/status only | Own KV value management | Own KV values read/list, no writes | Proposed own names/status only, no values |
-| Longhorn | Platform storage-admin entry only | No standing UI until a safe read-only method exists | — | — | — |
+| Application | PA | PE | PV | TA | TD | TV |
+|---|---|---|---|---|---|---|
+| Keycloak | Shared realm user/group administration through reviewed APIs | Own profile; no identity administration | Approved identity audit/status only | Own tenant membership and allowlisted role assignments only | Own profile | Own profile |
+| Kubernetes / Headlamp | Cluster administration (powerful bypass caveat above) | Proposed scoped diagnostic reads; GitOps MRs; live writes undecided | Read cluster status; no Secret API/exec | Own namespace resources/secrets; approved workload identities only | Own Deployments/scale, Services, ConfigMaps, Ingresses; own Secret get/list | Own workload/status reads; no Secret API/exec |
+| Rancher | Global administration and cluster lifecycle | No default access; scoped diagnostics require review | Reviewed read-only platform role, not admin | —; use Headlamp | — | — |
+| OpenBao | Platform KV values CRUD; LIST tenant names, no tenant data read | No default value grant; explicit path/scope decision required | Proposed platform names/status only | Own KV value management | Own KV values read/list, no writes | Proposed own names/status only, no values |
+| Longhorn | Platform storage-admin entry only | Proposed metrics/diagnostics only; no storage-admin mutations | No standing UI until a safe read-only method exists | — | — | — |
 
 ### Enforcement and unresolved mechanics
 
@@ -87,13 +98,13 @@ standing human access; any additional scope needs review.
 
 ## Observability and collaboration applications
 
-| Application | PA | PV | TA | TD | TV |
-|---|---|---|---|---|---|
-| Grafana | Server administration explicitly approved; platform/tenant organizations | Explicit approved org Viewer | Admin of own tenant org, not server admin | Editor of own tenant org | Viewer of own tenant org |
-| Mattermost | Explicit System Admin | Ordinary member of assigned teams/channels only | Own Team Admin, not System Admin | Assigned team/channel member | Assigned team/channel member; chat allowed |
-| GitLab | Explicit instance admin | Approved read-only membership; no automatic paid Auditor | Owner of own tenant group/projects | Developer in own projects | Reporter/read-only project access as reviewed |
-| Harbor | Explicit system administrator | Explicit approved projects/read-only role | Project Admin of own private projects | Developer/push-pull in own projects | Guest/pull in own projects |
-| SonarQube | Explicit Administer System | Browse approved projects | Administer own project, not system | Own project analysis/issue capabilities with scoped CI identity | Browse own project reports |
+| Application | PA | PE | PV | TA | TD | TV |
+|---|---|---|---|---|---|---|
+| Grafana | Server administration explicitly approved; platform/tenant organizations | Proposed scoped platform-org Viewer; dashboard MRs, no server admin | Explicit approved org Viewer | Admin of own tenant org, not server admin | Editor of own tenant org | Viewer of own tenant org |
+| Mattermost | Explicit System Admin | Ordinary assigned team/channel member; chat allowed | Ordinary member of assigned teams/channels only | Own Team Admin, not System Admin | Assigned team/channel member | Assigned team/channel member; chat allowed |
+| GitLab | Explicit instance admin | Developer on approved platform code projects; MRs, not instance admin | Approved read-only membership; no automatic paid Auditor | Owner of own tenant group/projects | Developer in own projects | Reporter/read-only project access as reviewed |
+| Harbor | Explicit system administrator | Explicit approved build-project scope only; no all-project administration | Explicit approved projects/read-only role | Project Admin of own private projects | Developer/push-pull in own projects | Guest/pull in own projects |
+| SonarQube | Explicit Administer System | Explicit project Browse/analysis scope; no system administration | Browse approved projects | Administer own project, not system | Own project analysis/issue capabilities with scoped CI identity | Browse own project reports |
 
 ### Product and isolation gates
 
@@ -134,7 +145,7 @@ standing human access; any additional scope needs review.
 
 | Component | Human scope and enforcement | State / decision |
 |---|---|---|
-| PerkForge tenant portal | Own app client/audience; backend checks token and tenant/resource ownership. PA operational administration; TA own app membership/admin; TD own app/deployment role; TV read features. Exact business actions belong to that app. | Existing server verifies issuer/audience/RS256/sub/expiry, `azp`, `tenant-reader` and explicit home/platform groups for tenant listing. It does **not** implement this full five-role management model. |
+| PerkForge tenant portal | Own app client/audience; backend checks token and tenant/resource ownership. PA operational administration; TA own app membership/admin; TD own app/deployment role; TV read features. Exact business actions belong to that app. | Existing server verifies issuer/audience/RS256/sub/expiry, `azp`, `tenant-reader` and explicit home/platform groups for tenant listing. It does **not** implement this full six-role management model. |
 | Nextcloud tenant example | Native app roles/shares/group administration need tenant-instance boundaries; TA is not shared-server super-admin. TD/TV business file access follows explicit shares, not Kubernetes role names. | Example only; inspect supported OIDC/user backend and edition/version before configuration. No physical deployment or new client claimed. |
 | Prometheus / Loki | No ordinary direct tenant admin endpoints. Grafana access must use tenant-scoped query enforcement; names/labels/namespace collection opt-in are not data authorization. | Machine collectors and scoped query/ingest identities; Loki trusted tenant headers/proxy and Prometheus tenant separation remain implementation gates. |
 | Alloy | Collector SA/token permissions only; no human role mapped to collector identity. Limit namespace/log discovery, redact secrets and audit collection. | Draft collection scope is not tenant RBAC isolation; no token generation. |
@@ -172,8 +183,8 @@ access boundary. An ID token for another app is not an authorized API access tok
    emergency recovery. Keep durable local recovery outside Keycloak/cluster in
    the operator password manager; bootstrap secrets are not automatically durable.
 
-The disabled renderer implements review examples for five groups and bounded
-Kubernetes/OpenBao policies only. It creates no users, tokens, clients, mounts or
+The disabled renderer implements six role-group definitions and bounded Kubernetes/OpenBao
+review policies for already specified scopes only. It creates no users, tokens, clients, mounts or
 grants. Other per-app mappings above are **design**, not an all-app apply payload.
 Initial deployment can proceed app-by-app under separate approval without waiting
 for every integration implementation. After foundation patch/stage gating: initial

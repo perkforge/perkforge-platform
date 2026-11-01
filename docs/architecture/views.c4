@@ -179,32 +179,32 @@ views {
   }
 
   view authorization_roles {
-    title 'Who does what and why — five human roles and trust boundaries'
+    title 'Who does what and why — six human roles and trust boundaries'
     description 'Proposed shared realm and role intent; no live grants. Zoom into core apps, observability, collaboration and tenant examples. App policies cannot promise secrecy against cluster/shared-identity administrators.'
     link /runbook.html#authorization-matrix 'Matrix, evidence classes and implementation gates'
-    include platform.authorization.roles.pa, platform.authorization.roles.pv, platform.authorization.roles.ta, platform.authorization.roles.td, platform.authorization.roles.tv, platform.authorization.groups, platform.authorization.clients, platform.authorization.ownership
+    include platform.authorization.roles.pa, platform.authorization.roles.pe, platform.authorization.roles.pv, platform.authorization.roles.ta, platform.authorization.roles.td, platform.authorization.roles.tv, platform.authorization.groups, platform.authorization.clients, platform.authorization.ownership
   }
   view authorization_core_apps {
     title 'Role mappings — Core identity/infrastructure'
-    description 'Design matrix, not deployed integrations. Select each app for PA/PV/TA/TD/TV scope, edition limits and missing enforcement. Every app validates its client/token and resource ownership; machine identities are separate.'
+    description 'Design matrix, not deployed integrations. Select each app for PA/PE/PV/TA/TD/TV scope, edition limits and missing enforcement. Every app validates its client/token and resource ownership; machine identities are separate.'
     link /runbook.html#authorization-matrix 'Role matrix and source/test links'
     include platform.authorization.clients, platform.authorization.ownership, platform.authorization.mappings.keycloak, platform.authorization.mappings.kubernetes, platform.authorization.mappings.rancher, platform.authorization.mappings.openbao, platform.authorization.mappings.longhorn
   }
   view authorization_observability {
     title 'Role mappings — Observability query and notification boundaries'
-    description 'Design matrix, not deployed integrations. Select each app for PA/PV/TA/TD/TV scope, edition limits and missing enforcement. Every app validates its client/token and resource ownership; machine identities are separate.'
+    description 'Design matrix, not deployed integrations. Select each app for PA/PE/PV/TA/TD/TV scope, edition limits and missing enforcement. Every app validates its client/token and resource ownership; machine identities are separate.'
     link /runbook.html#authorization-matrix 'Role matrix and source/test links'
     include platform.prerequisite_applier, platform.authorization.clients, platform.authorization.ownership, platform.authorization.mappings.grafana, platform.authorization.mappings.prometheus, platform.authorization.mappings.loki, platform.authorization.mappings.alloy, platform.authorization.mappings.alerts
   }
   view authorization_collaboration {
     title 'Role mappings — Collaboration project/team permissions'
-    description 'Design matrix, not deployed integrations. Select each app for PA/PV/TA/TD/TV scope, edition limits and missing enforcement. Every app validates its client/token and resource ownership; machine identities are separate.'
+    description 'Design matrix, not deployed integrations. Select each app for PA/PE/PV/TA/TD/TV scope, edition limits and missing enforcement. Every app validates its client/token and resource ownership; machine identities are separate.'
     link /runbook.html#authorization-matrix 'Role matrix and source/test links'
     include platform.authorization.clients, platform.authorization.ownership, platform.authorization.mappings.mattermost, platform.authorization.mappings.gitlab, platform.authorization.mappings.harbor, platform.authorization.mappings.sonarqube
   }
   view authorization_tenant_apps {
     title 'Role mappings — Tenant app and control-component examples'
-    description 'Design matrix, not deployed integrations. Select each app for PA/PV/TA/TD/TV scope, edition limits and missing enforcement. Every app validates its client/token and resource ownership; machine identities are separate.'
+    description 'Design matrix, not deployed integrations. Select each app for PA/PE/PV/TA/TD/TV scope, edition limits and missing enforcement. Every app validates its client/token and resource ownership; machine identities are separate.'
     link /runbook.html#authorization-matrix 'Role matrix and source/test links'
     include platform.prerequisite_applier, platform.authorization.clients, platform.authorization.ownership, platform.authorization.mappings.portal, platform.authorization.mappings.nextcloud, platform.authorization.mappings.velero, platform.authorization.mappings.trivy, platform.authorization.mappings.traffic
   }
@@ -218,7 +218,7 @@ views {
     platform.authorization.groups -> platform.authorization.bao_policies '5. OpenBao: PA platform values/tenant names; TD own value read; consent/emergency still unimplemented'
     platform.authorization.groups -> platform.rancher.runtime '6. Rancher allows platform-admin group only; retain local break-glass, no tenant grants'
     platform.authorization.groups -> platform.authorization.storage_admin '7. Longhorn has no native OIDC RBAC; proxy/access decision remains blocked'
-    platform.authorization.tenant_rbac -> engineer '8. Verify five roles, multi-tenant/client replay, query isolation and malicious workload/mapper deny cases before enabling'
+    platform.authorization.tenant_rbac -> engineer '8. Verify six roles, multi-tenant/client replay, query isolation and malicious workload/mapper deny cases before enabling'
     platform.authorization.bao_policies -> engineer '9. Verify native capabilities and revocation; everyday operator access uses platform-admin SSO'
     engineer -> custody '10. Keep durable local recovery in independent password-manager custody; bootstrap access may be temporary'
     custody -> engineer '11. Test local emergency access with SSO unavailable; custody stays off cluster; no live test claimed'

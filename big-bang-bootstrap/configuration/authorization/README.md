@@ -13,8 +13,8 @@ migration and new app integration wiring remain incomplete.
 
 ## Review contract and current implementation
 
-One PerkForge realm (`perkforge`) holds shared identities. Five canonical role
-groups are proposed: `/platform/admins`, `/platform/viewers`, and tenant-qualified
+One PerkForge realm (`perkforge`) holds shared identities. Six canonical role
+groups are proposed: `/platform/admins`, `/platform/engineers`, `/platform/viewers`, and tenant-qualified
 `/tenants/<id>/{admins,developers,viewers}`. Multi-tenant memberships intentionally
 grant their explicit scopes; parent groups grant nothing. Use separate clients
 for supported platform/tenant apps, not one shared client or blanket realm roles.
@@ -26,6 +26,9 @@ Protocol/edition exceptions and client-specific claim disclosure remain decision
   (Headlamp, Rancher, OpenBao). No users, members, passwords, client secrets or
   realm-management grants. The all-app client inventory is design in the matrix,
   not fabricated clients for unsupported protocols.
+- Platform-engineer adds only a disabled group specimen. Scoped diagnostics,
+  secret access and direct live writes remain decisions; there is no engineer
+  Kubernetes/OpenBao binding or inherited admin, identity or recovery authority.
 - `kubernetes.yaml`: explicit platform-admin cluster-admin trust, a separate
   read-only platform-viewer role and per-tenant admin/developer/viewer examples.
   TD can read/list own Secret values and manage listed deployment resources but

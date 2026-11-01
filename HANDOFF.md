@@ -134,12 +134,14 @@ Ansible retains realm API ownership separately from Helm deployment. See the
 
 ## Queued authorization review
 
-The authorization draft now has a [five-role/app matrix](big-bang-bootstrap/configuration/authorization/MATRIX.md)
+The authorization draft now has a [six-role/app matrix](big-bang-bootstrap/configuration/authorization/MATRIX.md)
 and zoomable C4 role → group → client/app mapping → tenant/resource views. One shared
 PerkForge realm, per-app clients and multi-tenant memberships are design intent;
 unsupported native protocols/edition features are explicitly gated. PA controls
 platform/shared identity and platform values; tenant values need grant/emergency
-in nominal OpenBao policy, with administrator bypass acknowledged. TD reads own
+in nominal OpenBao policy, with administrator bypass acknowledged. Platform-engineer is a distinct code/MR and proposed scoped-diagnostics role,
+with no inherited identity/RBAC/secret/break-glass authority; direct live writes
+remain undecided. TD reads own
 values without writes; viewers perform no operational changes or value reads,
 but may chat in assigned channels. Tenant membership ownership must not reset or
 delete shared identities or grant platform authority.
