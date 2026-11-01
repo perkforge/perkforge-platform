@@ -1,5 +1,6 @@
 """Render the actual ordered stage roots; never contact a cluster or apply objects."""
 import os
+import json
 from pathlib import Path
 import unittest
 import yaml
@@ -10,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class AppStages(unittest.TestCase):
     def test_same_artifact_forward_selection_and_database_boundary(self):
         sources = Path(os.environ['PREFLIGHT_SOURCES_DIR'])
+        evidence = json.loads((ROOT/'tests/fixtures/keycloak-image-evidence.json').read_text())
         previous = set()
         stable = None
         for path, expected in [
@@ -20,6 +22,9 @@ class AppStages(unittest.TestCase):
             with self.subTest(stage=path):
                 objects = build(ROOT / 'clusters' / path)
                 parent = next(o for o in objects if o['kind'] == 'HelmRelease')
+                config = next(o for o in objects if o['metadata']['name']=='values-keycloak')
+                image = yaml.safe_load(config['data']['values.yaml'])['addons']['keycloak']['values']['upstream']['image']
+                self.assertEqual(image, {'tag':'26.8.1','digest':evidence['indexDigest']})
                 refs = parent['spec']['valuesFrom']
                 self.assertEqual(refs[-1], {'kind': 'ConfigMap', 'name': 'values-app-stage', 'valuesKey': 'values.yaml'})
                 self.assertNotIn('values', parent['spec'])
@@ -38,6 +43,8 @@ class AppStages(unittest.TestCase):
                     hr = children['keycloak']
                     rendered = helm(sources / 'keycloak/chart', release_name(hr), 'keycloak', child_values(outer, 'keycloak'))
                     self.assertEqual({o['metadata']['name'] for o in rendered if o['kind'] == 'StatefulSet'}, {'keycloak-keycloak', 'keycloak-postgresql'})
+                    app=next(o for o in rendered if o['kind']=='StatefulSet' and o['metadata']['name']=='keycloak-keycloak')
+                    self.assertEqual(app['spec']['template']['spec']['containers'][0]['image'],evidence['repository']+'@'+evidence['indexDigest'])
                 else:
                     self.assertFalse(any(o['kind'] in ['StatefulSet', 'PersistentVolumeClaim'] for o in outer))
 
