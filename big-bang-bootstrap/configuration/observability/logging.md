@@ -9,7 +9,7 @@ The separately approved Ansible actor runs the default-off
 [`logging-prerequisites.yaml`](../ansible/logging-prerequisites.yaml). It prepares
 logging/alloy namespaces, installer identities, an opt-in pilot namespace, scoped
 runtime log reader and ingress policies. Helm-controller impersonates separate
-`logging:loki-installer` and `alloy:alloy-installer` accounts. Helm history stays in
+`bigbang:loki-installer` and `bigbang:alloy-installer` accounts. Helm history stays in
 each namespace. Installers can manage namespace Secrets; treat them as trusted
 infrastructure, not ordinary human users. Alloy installer has named CRD rights
 (create cannot be name-limited) and named Role bind/escalate, not cluster-admin.
