@@ -13,6 +13,10 @@ groups:
   subGroups:
   - name: admins
     attributes: {perkforge-managed: ['true'], perkforge-role: [platform-admin]}
+  - name: engineers
+    attributes: {perkforge-managed: ['true'], perkforge-role: [platform-engineer]}
+  - name: viewers
+    attributes: {perkforge-managed: ['true'], perkforge-role: [platform-viewer]}
 - name: tenants
   attributes: {perkforge-managed: ['true']}
 {% if not authorization_tenants %}
@@ -28,6 +32,8 @@ groups:
       attributes: {perkforge-managed: ['true'], perkforge-role: [tenant-admin]}
     - name: developers
       attributes: {perkforge-managed: ['true'], perkforge-role: [tenant-developer]}
+    - name: viewers
+      attributes: {perkforge-managed: ['true'], perkforge-role: [tenant-viewer]}
 {% endfor %}
 # No members/passwords or realm-management roles. Clients remain disabled.
 clients:

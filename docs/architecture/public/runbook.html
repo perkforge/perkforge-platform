@@ -30,4 +30,26 @@ its database. Each stage needs its own inputs, prerequisite approval and accepta
 Realm/group/OIDC application is separate. Never move backward as automatic rollback:
 disabling a package can uninstall it.</p>
 <p><a href="https://github.com/perkforge/perkforge-platform/blob/main/big-bang-bootstrap/configuration/ansible/README.md#ordered-app-stages">Reviewed procedure and exact stage paths</a></p></section>
+<section id="authorization-matrix"><h2>Who does what and why — role/app review</h2>
+<p><strong>Design and disabled offline examples, not deployed authorization.</strong>
+Use <code>authorization_roles</code> to follow platform-admin/engineer/viewer and tenant-admin/developer/viewer →
+one PerkForge realm → separate client/audience → native app permissions → tenant/resource enforcement.
+Then zoom into <code>authorization_core_apps</code>, <code>authorization_observability</code>,
+<code>authorization_collaboration</code> or <code>authorization_tenant_apps</code>.
+Each app node states intended scope, edition/mechanic gaps and evidence limits.</p>
+<p>Platform-engineer is a separate code/MR and proposed scoped-diagnostics role, without admin inheritance, blanket secret access or break-glass authority; direct live writes remain a decision. Platform admins edit platform secrets but have no standing tenant value grant in
+nominal OpenBao policy; tenant developers read/list own values without editing;
+viewers have no secret-value access and may chat in assigned channels. Standing
+cluster/identity administrators remain powerful bypass actors: the matrix does
+not claim absolute tenant privacy. Tenant membership changes must not reset/delete
+shared identities or grant global app administration. Client claims alone do not
+isolate Grafana queries, Loki data or portal resources.</p>
+<p><a href="https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md">Complete role-by-app matrix and primary guidance</a> ·
+<a href="https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/README.md">Review contract and phased rollout</a> ·
+<a href="https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/preview.yaml">Actual Ansible review entrypoint</a> ·
+<a href="https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/tests/security/test_authorization_review.py">Offline tests, not live authorizer proof</a></p>
+<p>Future integration uses small per-app MRs and separate approval. Durable local
+recovery custody stays independent of SSO/cluster in the operator password manager;
+initial bootstrap credentials are not automatically permanent recovery accounts.
+No live SSO, users, clients, tokens or grants are created by viewing these diagrams.</p></section>
 </body></html>

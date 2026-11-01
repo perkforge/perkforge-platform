@@ -66,3 +66,12 @@ python3 -m unittest discover -s docs/architecture -p 'test_*.py'
 Keep model.c4, views.c4, the HTML notes, source-copy helper, package lock and focused
 checks. Generated sources/dist/dependencies are disposable. Do not add planning,
 session journals, historical copies or archive folders here.
+
+## Authorization review navigation
+
+Start with `authorization_roles`, then the smaller `authorization_core_apps`,
+`authorization_observability`, `authorization_collaboration` and
+`authorization_tenant_apps` views. `authorization_review` gives ordered ownership
+and acceptance gates. The [role/app matrix](../../big-bang-bootstrap/configuration/authorization/MATRIX.md)
+separates confirmed intent, offline examples, existing code evidence and unimplemented
+app/edition/enforcement decisions. These views create no identities or permissions.

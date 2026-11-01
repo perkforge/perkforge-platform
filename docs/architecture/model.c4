@@ -6,8 +6,8 @@ specification {
 }
 
 model {
-  engineer = actor 'Platform engineer' {
-    description 'Selects the physical target, approves disk/data loss and access scope, operates firmware/installer and verifies trusted host identity. Enters credentials locally.'
+  engineer = actor 'Platform operator' {
+    description 'Selects the physical target, approves disk/data loss and access scope, operates firmware/installer and verifies trusted host identity. Enters credentials locally. This authorized human operator actor does not imply privileges for the proposed platform-engineer SSO group.'
     link /runbook.html#operator 'Operator responsibilities'
   }
   router = system 'Existing LAN router' {
@@ -159,10 +159,10 @@ model {
       }
     }
     authorization = component 'Authorization plan — disabled review' {
-      description 'PROPOSED only: Ansible renders review artifacts; no live apply or integration. Existing pilot mappings are retained. Keycloak realm administration is distinct from Kubernetes/platform administration. Activation also requires admission/workload identity and credential custody decisions.'
+      description 'PROPOSED only: Ansible renders review artifacts; no live apply or integration. Existing pilot mappings are retained. Keycloak realm administration is distinct from Kubernetes/platform administration. Everyday operator access is intended through Keycloak platform-admin SSO. Durable local recovery credentials belong in the operator password manager, independent of cluster/Keycloak; test local emergency access with SSO unavailable. Temporary bootstrap credentials are not automatically durable recovery identities. Activation also requires admission/workload identity and custody decisions.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/README.md 'Who does what and why'
       groups = component 'Human groups and app clients — proposed' {
-        description 'PerkForge display name/perkforge realm. platform-admin uses canonical /platform/admins; each tenant has /tenants/<id>/admins and developers. Parents grant nothing, no users/default memberships or realm-admin mappings. Clients disabled. Full-path group mapper claim disclosure needs review.'
+        description 'PerkForge display name/perkforge realm. One shared PerkForge realm; platform-admin/engineer/viewer and tenant-qualified admin/developer/viewer groups. Multiple tenant memberships grant only explicit scopes. Separate supported app clients/audiences; client-specific group disclosure and delegated membership mechanics remain proposed. No users or memberships created.'
         link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/templates/realm.yaml.j2 'Reviewable realm/group/client template'
       }
       api_owner = component 'Ansible realm/API configuration owner' {
@@ -170,11 +170,103 @@ model {
         link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/preview.yaml 'Actual offline Ansible review entrypoint'
       }
       tenant_rbac = component 'Kubernetes authorization and admission boundary — proposed' {
-        description 'Exact oidc: group bindings: platform cluster-admin; tenant-qualified namespace roles; developer Deployment/scale management without direct Secret/SA/token/exec. Deployment edits can indirectly access mounted credentials or workload SAs. Restricted Pod Security/admission/identity/network controls are required before activation; RBAC alone is not isolation.'
+        description 'Exact oidc: group bindings: platform cluster-admin; tenant-qualified namespace roles; developer listed deployment-resource management plus own Secret get/list, no Secret writes/SA/token/exec; viewers status-only with no Secret API. Deployment edits can indirectly access mounted credentials or workload SAs. Restricted Pod Security/admission/identity/network controls are required before activation; RBAC alone is not isolation.'
         link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/templates/kubernetes.yaml.j2 'Disabled reviewable Kubernetes roles/bindings'
       }
       bao_policies = component 'OpenBao claim-bound roles and ACLs — proposed' {
-        description 'Reuse proven exact bound_claims.groups role-to-policy pattern. Proposed platform administrative sudo is stronger than prior KV-only pilot; root/unseal recovery stays separate. Tenant admin only its KV paths, no default developer secret role. groups_claim does not itself create Identity aliases or authorization.'
+        description 'Disabled exact group-bound review: PA edits platform KV values and LISTs tenant names, never standing tenant data read or auth/policy self-grant. TA manages own values; TD reads own values without writes; viewers proposed names-only. Root/unseal recovery separate. Cluster/identity administrators can bypass nominal app policy; consent/emergency elevation not implemented.'
+      }
+      roles = component 'Six human role scopes — intent' {
+        pa = component 'Platform-admin' { description 'Cluster/platform and shared identity administration; platform values editable, tenant values only by explicit grant/emergency in nominal app policy. Powerful administrator bypass is acknowledged.' }
+        pe = component 'Platform-engineer' { description 'Everyday platform code/MRs and proposed scoped diagnostics, not inherited admin. No global identity/RBAC/auth-policy, implicit secret-value or break-glass authority. GitOps protections, exact diagnostics and direct live writes remain decisions; no K8s/OpenBao grant is rendered.' }
+        pv = component 'Platform-viewer' { description 'Read approved platform status, no operational mutation or secret values. No automatic access to tenant private data/chats.' }
+        ta = component 'Tenant-admin' { description 'Own namespace/apps/secrets and allowlisted own group memberships. No cross-tenant privileges, global shared-user reset/deletion or platform elevation.' }
+        td = component 'Tenant-developer' { description 'Own deployment-related resources and standing own secret-value read/list, never secret writes or permission changes.' }
+        tv = component 'Tenant-viewer' { description 'Own status/reports, no operational changes or secret values. Ordinary messaging in assigned channels is allowed.' }
+      }
+      clients = boundary 'Per-app token and claim boundary' {
+        description 'One realm is not one client. Each supported platform/tenant app needs an explicit audience/client and reviewed claims. Unsupported native protocols remain decisions, not fabricated OIDC clients. Wrong-client token replay must fail.'
+      }
+      ownership = boundary 'Tenant/resource enforcement and administrative trust' {
+        description 'App APIs enforce namespace/org/project/tenant ownership independently of UI. Multiple memberships have explicit union, not global tenant administration. Shared identity/cluster administrators remain trusted bypass actors; least-standing access and emergency elevation need separate design.'
+      }
+      mappings = component 'Application-native role mappings — design' {
+        keycloak = component 'Keycloak membership administration' {
+          description 'PA shared user administration; TA only own allowlisted memberships, no shared-account reset/delete. TD/TV own profile. PV audit-only if explicitly supported. FGAP or broker mechanics unimplemented; fixed-image/security and adversarial tests required. PE: own profile, no identity administration.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        kubernetes = component 'Kubernetes and Headlamp' {
+          description 'Offline examples: PA cluster-admin bypass acknowledged; PV read status without Secret API; TA own namespace; TD own deployments/services/configmaps/ingresses and Secret get/list; TV own status only. Workload admission/SA controls and API OIDC remain acceptance gates. PE: proposed scoped diagnostics and GitOps MRs only; no rendered grant or agreed live-write scope.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        rancher = component 'Rancher platform lifecycle' {
+          description 'PA global administration only. PV read-only role is proposed, existing configurator admits PA only. No tenant roles or Fleet app ownership. Local recovery remains independent. PE: no default access; scoped diagnostic mapping needs review.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        openbao = component 'OpenBao KV policy and elevation' {
+          description 'Offline examples: PA platform values editable, tenant LIST metadata only; TA own values manage, TD own values read; viewers names-only proposed. No global sudo/self-grant. Tenant consent/emergency, mount migration and real capability tests unimplemented. PE: no default secret values or policy-management grant; explicit per-path decision required.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        longhorn = component 'Longhorn storage administration' {
+          description 'PA entry only through a later verified proxy/access choice. No native password/OIDC/group RBAC. PV safe read-only route undecided; tenants no storage-admin UI. UI ingress remains off. PE: proposed metrics/diagnostics, no admin UI or volume mutations.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        grafana = component 'Grafana organization and query access' {
+          description 'Design: PA explicit server admin; PV explicit org Viewer; TA own org Admin; TD Editor; TV Viewer. Tenant-scoped backend datasources required; folder ACLs are not query isolation. OSS org mapping differs from Enterprise Team Sync; no global role escalation via multi-org membership. PE: proposed scoped platform-org Viewer and dashboard MRs; no server administration.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        mattermost = component 'Mattermost team and channel membership' {
+          description 'Design: PA System Admin; TA own Team Admin; PV/TD/TV assigned ordinary Member, chat allowed. No automatic private-channel visibility. Verify pinned 11.11 edition/OIDC entitlement; group claims are not native team-role synchronization. No assumed 12.1 ABAC. PE: ordinary assigned member, no team/system administration.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        gitlab = component 'GitLab group/project authorization' {
+          description 'Design: PA explicit instance admin; TA own group Owner; TD own project Developer; TV Reporter/read access; PV explicit memberships only. Free OIDC login does not include paid group-derived admin/auditor controls or automatic group memberships. API reconciliation and CI-secret scope pending. PE: Developer on approved platform-code projects for MRs, no instance administration; protected ownership reviews required.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        harbor = component 'Harbor private projects' {
+          description 'Design: PA system admin only; TA own Project Admin; TD own Developer push/pull; TV Guest pull; PV explicit project read-only scope. OIDC groups map native project roles, not tenant groups to system admin. Robot identities/migration separately reviewed. PE: explicitly approved build-project scope only, no blanket registry/robot credential access.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        sonarqube = component 'SonarQube project permissions' {
+          description 'Design: PA System Admin; TA own project administrator; TD scoped analysis/issue capabilities; TV/PV approved project Browse. Community Build native generic Keycloak OIDC is not established; supported SAML/GitLab/header or edition decision pending. No paid MR-analysis promise. PE: approved project analysis/Browse only, no system administration.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        portal = component 'Tenant portal example — API enforcement' {
+          description 'Observed code at portal89f3637 checks issuer/audience/client/RS256 and tenant-reader plus home/platform group for tenant listing. Full six-role administration/mutations and generalized tenant ownership are NOT implemented. Per-app access token and server resource checks required; hidden UI is not security. PE: code/MRs and approved diagnostics, no implicit portal business-data or tenant-admin access.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        nextcloud = component 'Nextcloud tenant app example' {
+          description 'Design only: own tenant instance/app client and native file/share/group scopes. TA is not shared-server super-admin. TD/TV business data follows explicit shares, not Kubernetes role names. Supported version/backend/edition must be inspected before implementation. PE: approved code/config MRs, no implicit tenant file/share access.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        prometheus = component 'Prometheus query boundary' {
+          description 'Machine scrape identity and reviewed Grafana query access; no standing direct tenant mutation/API grant. Cross-tenant query separation needs enforcement, not namespace labels. Human app roles do not become collector credentials. PE diagnostics require explicit query scope, not broad store access.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        loki = component 'Loki ingest and query boundary' {
+          description 'Machine ingest identity and trusted tenant-scoped query/headers/proxy. Collector namespace opt-in is not tenant data authorization. Grafana Viewer must not query a platform-wide datasource. Live isolation/retention tests pending. PE diagnostics require explicit query scope, not tenant log access by default.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        alloy = component 'Alloy collector identity' {
+          description 'Machine SA/token with reviewed discovery/log scope, redaction and egress. No human role inherits collector credentials. Draft collector scope is not tenant RBAC isolation. PE may propose config MRs; collector credentials are not inherited.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        alerts = component 'Alertmanager and ntfy routing' {
+          description 'Machine notification sender versus approved recipients/topic subscribers. Native rules retained; Grafana-managed forwarding/ntfy bridge off and unimplemented. No unauthenticated alert mutation/publish or invented native OIDC. PE may propose routing/rule MRs; publishing/mutation credentials remain separate.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        velero = component 'Velero recovery operator — ticket only' {
+          description 'Separate scoped backup/restore identity and off-cluster credential custody. Backups contain Secrets; tenant restore cannot overwrite others or race Flux. Evaluation only, no deployment or grants. PE receives no backup/restore or backup-secret authority by default.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        trivy = component 'Trivy scanner — evaluation only' {
+          description 'Machine scan identity for approved registries/images; report access follows project policy. No global pull credential or cross-tenant report access inherited by human viewer roles. PE receives no blanket scan/registry credentials by default.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
+        traffic = component 'Istio and Gateway API — ticket only' {
+          description 'Future explicit platform network administration and constrained delegated tenant routes/listeners/references. No controller, CRD, gateway or route implementation in this authorization draft. PE may propose network-config MRs; direct control-plane writes remain undecided.'
+          link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
+        }
       }
       storage_admin = component 'Longhorn admin entry boundary — undecided' {
         description 'No native password/OIDC/group RBAC. Ingress stays off. Verify an existing Rancher proxy path or choose an external authenticated platform-admin-only proxy later; no tenant storage administration or fabricated client.'
@@ -297,4 +389,51 @@ model {
   platform.flux -> platform.bigbang 'Reconcile platform packages'
   platform.flux -> platform.enrollment 'Optional later enrollment; currently excluded locally'
   platform.flux -> platform.applications 'Reconcile application configuration'
+  platform.authorization.roles.pa -> platform.authorization.groups 'Exact role group and explicit memberships'
+  platform.authorization.roles.pe -> platform.authorization.groups 'Distinct engineering group; no admin inheritance'
+  platform.authorization.roles.pv -> platform.authorization.groups 'Exact role group and explicit memberships'
+  platform.authorization.roles.ta -> platform.authorization.groups 'Exact role group and explicit memberships'
+  platform.authorization.roles.td -> platform.authorization.groups 'Exact role group and explicit memberships'
+  platform.authorization.roles.tv -> platform.authorization.groups 'Exact role group and explicit memberships'
+  platform.authorization.groups -> platform.authorization.clients 'Client-specific claims; no blanket realm roles'
+  platform.authorization.clients -> platform.authorization.ownership 'Each app must enforce scope; expand native mapping views'
+  platform.authorization.clients -> platform.authorization.mappings.keycloak 'Native protocol/role mapping needs review and acceptance'
+  platform.authorization.mappings.keycloak -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.authorization.clients -> platform.authorization.mappings.kubernetes 'Native protocol/role mapping needs review and acceptance'
+  platform.authorization.mappings.kubernetes -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.authorization.clients -> platform.authorization.mappings.rancher 'Native protocol/role mapping needs review and acceptance'
+  platform.authorization.mappings.rancher -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.authorization.clients -> platform.authorization.mappings.openbao 'Native protocol/role mapping needs review and acceptance'
+  platform.authorization.mappings.openbao -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.authorization.clients -> platform.authorization.mappings.longhorn 'Native protocol/role mapping needs review and acceptance'
+  platform.authorization.mappings.longhorn -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.authorization.clients -> platform.authorization.mappings.grafana 'Native protocol/role mapping needs review and acceptance'
+  platform.authorization.mappings.grafana -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.authorization.clients -> platform.authorization.mappings.mattermost 'Native protocol/role mapping needs review and acceptance'
+  platform.authorization.mappings.mattermost -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.authorization.clients -> platform.authorization.mappings.gitlab 'Native protocol/role mapping needs review and acceptance'
+  platform.authorization.mappings.gitlab -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.authorization.clients -> platform.authorization.mappings.harbor 'Native protocol/role mapping needs review and acceptance'
+  platform.authorization.mappings.harbor -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.authorization.clients -> platform.authorization.mappings.sonarqube 'Native protocol/role mapping needs review and acceptance'
+  platform.authorization.mappings.sonarqube -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.authorization.clients -> platform.authorization.mappings.portal 'Native protocol/role mapping needs review and acceptance'
+  platform.authorization.mappings.portal -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.authorization.clients -> platform.authorization.mappings.nextcloud 'Native protocol/role mapping needs review and acceptance'
+  platform.authorization.mappings.nextcloud -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.authorization.mappings.grafana -> platform.authorization.mappings.prometheus 'Tenant-scoped backend query identity; not a blanket human role'
+  platform.authorization.mappings.prometheus -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.authorization.mappings.grafana -> platform.authorization.mappings.loki 'Tenant-scoped backend query identity; not a blanket human role'
+  platform.authorization.mappings.loki -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.prerequisite_applier -> platform.authorization.mappings.alloy 'Separately review machine/operator authority; no human OIDC role grant'
+  platform.authorization.mappings.alloy -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.prerequisite_applier -> platform.authorization.mappings.alerts 'Separately review machine/operator authority; no human OIDC role grant'
+  platform.authorization.mappings.alerts -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.prerequisite_applier -> platform.authorization.mappings.velero 'Separately review machine/operator authority; no human OIDC role grant'
+  platform.authorization.mappings.velero -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.prerequisite_applier -> platform.authorization.mappings.trivy 'Separately review machine/operator authority; no human OIDC role grant'
+  platform.authorization.mappings.trivy -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+  platform.prerequisite_applier -> platform.authorization.mappings.traffic 'Separately review machine/operator authority; no human OIDC role grant'
+  platform.authorization.mappings.traffic -> platform.authorization.ownership 'Enforce permitted tenant/resource scope; test deny paths'
+
 }
