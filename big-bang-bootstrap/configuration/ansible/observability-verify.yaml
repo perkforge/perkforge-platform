@@ -1,0 +1,57 @@
+- name: Capture bounded observability readiness evidence without repair or activation
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars:
+    observability_verify: false
+    observability_evidence_dir: /UNCONFIGURED/observability-evidence
+  tasks:
+  - name: Safe default and check mode use no credentials, API or output directory
+    ansible.builtin.debug:
+      msg: 'observability verify={{ observability_verify | bool }}; check={{ ansible_check_mode }}'
+  - name: Run only separately approved read-only cluster checks
+    when: observability_verify | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - inventory_hostname == 'local'
+        - ansible_play_hosts_all | length == 1
+        - target_kubeconfig != '/UNCONFIGURED/kubeconfig'
+        - target_context != 'UNCONFIGURED'
+        - expected_cluster_uid != 'UNCONFIGURED'
+        - observability_evidence_dir is match('^/.+/[a-zA-Z0-9._-]+$')
+        - not observability_evidence_dir.startswith('/UNCONFIGURED/')
+        - "'..' not in observability_evidence_dir.split('/')"
+    - ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: verify_uid
+      changed_when: false
+    - ansible.builtin.assert:
+        that: verify_uid.stdout == expected_cluster_uid
+    - name: Refuse replacing prior evidence or following a leaf symlink
+      ansible.builtin.stat:
+        path: '{{ observability_evidence_dir }}'
+        follow: false
+      register: evidence_stat
+    - ansible.builtin.assert:
+        that: not evidence_stat.stat.exists
+    - ansible.builtin.file:
+        path: '{{ observability_evidence_dir }}'
+        state: directory
+        mode: '0700'
+    - name: Collect only safe readiness conditions, not Secrets, PodSpecs or logs
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', -n, bigbang, wait, '--for=condition=Ready', 'helmrelease/{{ item }}', --timeout=2m]
+      loop: [prometheus-operator-crds, monitoring, grafana, alloy, loki]
+      register: verify_releases
+      changed_when: false
+      failed_when: false
+    - name: Save every bounded check and status even on a failed readiness gate
+      ansible.builtin.copy:
+        dest: '{{ observability_evidence_dir }}/readiness.json'
+        mode: '0600'
+        content: '{{ verify_releases.results | to_nice_json }}'
+      no_log: true
+    - name: Readiness failure stops here; no automatic retry, reconcile or deletion
+      ansible.builtin.assert:
+        that: verify_releases.results | map(attribute='rc') | reject('equalto',0) | list | length == 0
+        fail_msg: 'A release was not Ready; private readiness.json retained. This is not ingestion/alert/restore acceptance.'
