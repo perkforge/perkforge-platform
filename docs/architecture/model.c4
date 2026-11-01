@@ -157,8 +157,14 @@ model {
     rancher = component 'Rancher cluster lifecycle administration' {
       description 'Optional Big Bang custom package, reconciled by Flux; unselected/suspended until reviewed DNS/TLS and external bootstrap credentials. No Longhorn/PVC prerequisite for the server Helm deployment. Ansible handles gated OIDC/admin API configuration after Keycloak is ready; host/RKE2 recovery remains independent.'
     }
-    flux = component 'Flux GitOps reconciliation'
-    bigbang = component 'Big Bang platform packages'
+    flux = component 'Flux GitOps reconciliation' {
+      description 'CURRENT: reconciles the explicitly selected immutable configuration tag. Publishing a release does not promote the running source or approve activation. The ordinary application root has no direct RBAC-management authority. DEFERRED: evaluate a separately bootstrapped, scoped foundation and release/promotion simplification after cluster stability; issues #95 and #14. No self-grant by the application root.'
+      link /runbook.html#bootstrap-ownership 'Installer ownership and release promotion'
+    }
+    bigbang = component 'Big Bang platform packages' {
+      description 'CURRENT: Helm renders selected packages after versioned installer prerequisites are separately approved and applied by Ansible. Chart lookups may need permissions before rendering; values cannot grant their own pre-render authority. Runtime chart RBAC is separate from installer delegation. This is an ownership choice, not a requirement that all prerequisites remain outside GitOps.'
+      link /runbook.html#bootstrap-ownership 'Pre-render prerequisite boundary'
+    }
     enrollment = component 'Tenant enrollment repository' {
       // Not selected in the local root until core platform readiness.
       description 'Owns tenant foundations and registration.'
