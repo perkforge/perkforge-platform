@@ -1,6 +1,10 @@
 # OpenBao initial administration stage
 
-This candidate adds OpenBao after the Rancher source stage. Publishing it does not
+Observed 2026-11-01: v0.13.0 default stage deployed OpenBao; one-time approved
+3-share/threshold-2 initialization, unseal, root-token API access and fresh
+root/umbrella/package readiness passed. Headlamp/Keycloak stay disabled.
+
+This package adds OpenBao after the Rancher source stage. Publishing it does not
 promote the physical cluster's release or authorize credentials, TLS delivery,
 initialization or unseal. No Keycloak integration is activated. Existing proven
 OIDC roles, policies and Ansible API configuration under `operations/` are retained
@@ -52,7 +56,8 @@ No certificate or private key is generated or delivered by this MR.
    this is a new uninitialized store**. Never reinitialize an existing store.
 5. Securely capture the initial root token and separate unseal shares using the
    approved private workflow. OpenBao has token administration, not a native admin
-   username/password. Do not put unseal/recovery material in the generic app cache.
+   username/password. Use the separately approved protected recovery subdirectories, never generic
+   username/password flat files.
    Unseal and verify token/UI access privately; record only safe results. Root-token
    retirement/scoped break-glass design and audit/backup remain explicit follow-up.
 
@@ -60,3 +65,25 @@ The chart does not operate or recover the server for us. Until initialization,
 unseal, verified client access and independent custody are completed, installation
 alone does not meet the admin-login acceptance goal. Real activation and these
 security operations require their own approval; this draft performs none.
+
+## Executed one-time Ansible procedure
+
+[openbao-initialize.yaml](../../ansible/openbao-initialize.yaml) runs on the
+workstation, disabled by default. Explicit apply verifies cluster identity and
+protected fresh custody, then checks `/sys/init` over a separately established
+127.0.0.1-only TLS port-forward. Existing initialized data refuses execution.
+It initializes exactly 3 shares / threshold 2, persists the response before any
+further operation, separates root-token custody from unseal shares, submits two
+shares through stdin, and verifies unsealed health plus root-token lookup-self.
+Secret tasks use `no_log`; no token/share is placed in command arguments.
+The temporary full response is rewritten to share-only after root custody saves.
+A failure during initialization or custody is **uncertain**, requiring inspection;
+never rerun automatically. This playbook is not a restart/unseal recovery tool.
+
+The approved temporary custody is `~/src/perkforge-tmp-secrets/openbao-v0130-<run>/`
+with `root/` and `unseal/`, owner-only 0700/0600. Keeping every share together is
+single-location custody, not independent holders; the operator owns migration
+and explicit cleanup. Root-token retirement, scoped recovery, audit/backup and
+restart/recovery testing remain separate work. No live realm/policy mappings.
+[Synthetic tests](../../../tests/security/test_openbao_initialization.py) exercise
+actual Ansible success, initialized-store refusal and default-no-action paths.

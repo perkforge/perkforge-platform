@@ -203,3 +203,12 @@ is a plan, not deployment authorization or automatic retargeting of stacked MRs.
 - [GitLab OIDC](https://docs.gitlab.com/administration/auth/oidc/) — login versus paid membership-derived controls.
 - [Harbor OIDC](https://goharbor.io/docs/administration/configure-authentication/oidc-auth/) — app-native project role mapping/migration.
 - [SonarQube Community authentication](https://docs.sonarsource.com/sonarqube-community-build/instance-administration/authentication/overview) — supported protocols and JIT provisioning.
+
+### Current OpenBao administration evidence
+
+v0.13.0 initial root-token administration and 3-share/threshold-2 unseal passed
+2026-11-01. This does **not** implement the role-policy mappings above. Initial
+root is a bootstrap/recovery authority, not the platform-admin daily identity;
+retirement/scoped recovery and independent custody remain pending. The one-time
+[Ansible procedure](../ansible/openbao-initialize.yaml) and its synthetic refusal
+and success tests preserve that boundary; no OIDC or tenant grants were applied.

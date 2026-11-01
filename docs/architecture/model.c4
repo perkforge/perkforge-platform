@@ -142,10 +142,10 @@ model {
       }
     }
     storage = component 'Longhorn application storage' {
-      description 'OBSERVED: Longhorn 1.13.0, Big Bang and the root are Ready at v0.11.3. The first approved 1Gi persistence, recreation and cross-worker reattachment test passed with two healthy replicas. UI ingress stays absent; Rancher is now Ready at v0.12.0 with first login pending; identity/tenants remain deferred. Recovery, backup/restore and cleanup need separate approval. A diagram authorizes no live action.'
+      description 'OBSERVED: Longhorn 1.13.0, Big Bang and the root remain Ready at v0.13.0 after OpenBao activation. The first approved 1Gi persistence, recreation and cross-worker reattachment test passed with two healthy replicas. UI ingress stays absent; Rancher first installed at v0.12.0 remains Ready with first login pending; identity/tenants remain deferred. Recovery, backup/restore and cleanup need separate approval. A diagram authorizes no live action.'
       link /runbook.html#storage 'Storage ownership, rollout and testing'
       volumes = component 'Retained expandable application volumes' {
-        description 'Nondefault StorageClass, two replicas, WaitForFirstConsumer. Keycloak depends on Longhorn and its alternate PVC overlay removes the old static PV binding. Future Harbor, portal, Nextcloud and OpenBao claims need explicit sizing.'
+        description 'Nondefault StorageClass, two replicas, WaitForFirstConsumer. Keycloak depends on Longhorn and its alternate PVC overlay removes the old static PV binding. Observed OpenBao 10Gi claim is healthy with two worker replicas; future Harbor, portal and Nextcloud claims need explicit sizing.'
       }
       replica_pair = component 'Replicas on two distinct workers' {
         description 'Worker-only placement and disk labels exclude control-1 from application-data replicas. V1 engine, no overprovisioning, root-disk headroom and bounded snapshots; add dedicated disks as measured growth requires. One worker outage leaves a single surviving copy until rebuild.'
@@ -295,9 +295,16 @@ model {
         description 'UI forwards the human token; Kubernetes authenticates/authorizes it. Unsafe service-account token use and chart cluster-role binding are disabled. Prior proven OIDC group mappings are retained only for later review.'
       }
     }
-    openbao = component 'OpenBao token administration — candidate' {
-      description 'PLANNED only: official chart 0.30.6/OpenBao 2.7.2. One TLS-required worker server, Longhorn-backed 10Gi PebbleDB, no ingress/injector/Kubernetes auth delegation or automatic init/unseal. No HA. Preserved pilot OIDC policies are not activated. Sealed/uninitialized is NotReady, not accepted.'
+    openbao = component 'OpenBao initial token administration — observed' {
+      description 'OBSERVED v0.13.0: official chart 0.30.6/OpenBao 2.7.2, initialized once 3 shares / threshold 2, unsealed and initial root-token access verified. One TLS-required worker server, Longhorn-backed 10Gi PebbleDB, no ingress/injector/Kubernetes auth delegation or automatic init/unseal. No HA. Preserved pilot OIDC policies are not activated. Sealed/uninitialized is NotReady, not accepted.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/openbao-bootstrap/big-bang-bootstrap/configuration/packages/openbao/README.md 'OpenBao source and activation gates'
+      initialization = component 'Workstation one-time Ansible initialization' {
+        description 'OBSERVED: disabled-by-default openbao-initialize.yaml checked target, fresh custody and uninitialized status through verified TLS loopback; initialized 3/2 once, persisted private recovery, submitted two shares via stdin, verified root-token lookup-self. Never an automatic restart/recovery operation.'
+        link /sources/openbao-initialize.yaml 'Executed Ansible source'
+      }
+      custody = component 'Temporary owner-only root and unseal custody' {
+        description 'Root token and all three unseal shares are separate subdirectories on one workstation. This is temporary single-location custody, not independent holders or backup. Operator migration/cleanup and scoped recovery remain pending; no values in Git or logs.'
+      }
       installer = component 'openbao-installer — namespaced Helm identity' {
         description 'Administrator-applied Ansible prerequisite creates this bigbang service account and namespaced chart/release-storage bindings. No cluster RBAC, bind/escalate or Kubernetes-auth delegation; app root cannot grant its own installer authority.'
       }
@@ -312,7 +319,7 @@ model {
         description 'OBSERVED: server, webhook, fleet-controller and helmops deployments available; Continuous Delivery remains off. Trusted HTTPS ping passed. No local-admin login or password setup has been attempted.'
       }
       inputs = component 'Protected TLS and bootstrap references' {
-        description 'OBSERVED separately approved Rancher-only delivery: cattle-system current physical leaf/key and public CA Secrets; bigbang rancher-bootstrap-values contains a nonempty privately cached bootstrapPassword. No signing key, plaintext Git value or credential URL. No other app credential or CA signing key was delivered.'
+        description 'OBSERVED separately approved Rancher-only delivery: cattle-system current physical leaf/key and public CA Secrets; bigbang rancher-bootstrap-values contains a nonempty privately cached bootstrapPassword. No signing key, plaintext Git value or credential URL. That historical Rancher batch delivered no other app credential or CA signing key; later separately approved OpenBao backend TLS delivery is shown in its own flow.'
       }
       installer = component 'Delegated Rancher installer and runtime trust' {
         description 'Ansible applies reviewed prerequisites; helm-controller uses bigbang:rancher-installer. Chart binds cattle-system:rancher to cluster-admin and uses a named pre-upgrade hook role. This is administrative trust, not least privilege. Optional destructive post-delete hook is off; uninstall is separately reviewed.'

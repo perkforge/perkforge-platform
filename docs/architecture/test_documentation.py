@@ -79,8 +79,17 @@ class Documentation(unittest.TestCase):
         self.assertIn('same immutable release',step)
         self.assertNotIn('selects OpenBao and Headlamp',step)
 
+    def test_openbao_observed_flow_links_real_one_time_procedure(self):
+        views=(ROOT/'views.c4').read_text().split('dynamic view openbao_initial_admin {',1)[1].split('\n  dynamic view',1)[0]
+        for term in ['observed v0.13.0','openbao-initialize.yaml','3/2','custody','stdin','close port-forward']:
+            self.assertIn(term,views)
+        play=(REPO/'big-bang-bootstrap/configuration/ansible/openbao-initialize.yaml').read_text()
+        for term in ['openbao_initialize_apply: false','no_log: true','127.0.0.1:18200','secret_threshold','Refuse initialization of existing data']:
+            self.assertIn(term,play)
+
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
         copies={
+         'openbao-initialize.yaml': 'big-bang-bootstrap/configuration/ansible/openbao-initialize.yaml',
          'longhorn-storage-smoke.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-storage-smoke.yaml',
          'longhorn-smoke-stage.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-smoke-stage.yaml',
          'verify-longhorn-smoke.py': 'big-bang-bootstrap/configuration/ansible/files/verify-longhorn-smoke.py',

@@ -2,7 +2,7 @@
 
 ## Current checkpoint — 2026-11-01
 
-Rancher installation and the first Longhorn storage test passed. **No further live
+OpenBao initial administration, Rancher installation and the first Longhorn storage test passed. **No further live
 action is authorized by this handoff.** Never push main or merge for the operator;
 preserve protected evidence, retained test data and other worktrees.
 
@@ -10,9 +10,11 @@ preserve protected evidence, retained test data and other worktrees.
   conservative scheduling headroom passed the Rancher preflight. One control-plane/
   embedded-etcd server means no control-plane HA. Previous key-only SSH/password-
   sudo, networking and sequential connected OS reboot checks passed.
-- Flux source and root now select **v0.12.0**, exact commit
-  `44083aa4413a135ddc65eb6664d92851057b9e6f`. Publication and CI were verified
-  before the separately approved promotion. Rancher Ready at **03:23:32Z**, Big Bang
+- Flux source and root now select **v0.13.0**, exact commit
+  `9bf49bb7421d49610ff9cc125b01cc18caa438ac`, default OpenBao-only app stage
+  (retaining Longhorn/Rancher). Publication/CI and exact artifact were verified.
+  Root/umbrella/OpenBao/Rancher/Longhorn fresh Ready at **15:29:57Z**.
+  Historical first Rancher installation: Rancher Ready at **03:23:32Z**, Big Bang
   at **03:23:35Z**, root Ready/Healthy at **03:23:39Z**. Longhorn stayed Ready.
 - Rancher **2.15.2** server, webhook, fleet-controller and helmops deployments were
   available. Trusted HTTPS hostname/current physical CA verification and `/ping`
@@ -28,9 +30,12 @@ preserve protected evidence, retained test data and other worktrees.
   class with Retain/WaitForFirstConsumer. UI ingress remains absent. Root-disk
   reservations are not filesystem quotas. The accepted diagnostic cluster-admin
   delegation and powerful manager RBAC remain the explicit lab trust decision.
-- OpenBao, Headlamp and Keycloak are queued source candidates, **not deployed**.
-  Ordinary publication does not promote the pinned live source. No credentials
-  or identity integrations were created for them.
+- OpenBao **2.7.2**, chart **0.30.6**, is deployed: one worker-hosted TLS server,
+  10 GiB Longhorn/PebbleDB claim with two healthy replicas. The approved one-time
+  operation proved an uninitialized store, initialized with **3 Shamir shares /
+  threshold 2**, unsealed and verified initial root-token administration through
+  trusted loopback TLS. Temporary port-forward closed; no ingress/OIDC/Kubernetes
+  auth or policy mappings enabled. Headlamp/Keycloak remain disabled and undeployed.
 
 The Rancher/RKE2 matrix includes our Kubernetes/OS versions, but lists Longhorn
 1.12 rather than independent 1.13. This lab combination is not claimed fully
@@ -47,21 +52,48 @@ approved app credential saves use this location, not the former `.rke2-state/`
 cache. No values belong in Git/chat.
 The operator owns proper-store migration and explicit temporary-copy cleanup;
 changing a cached file is not server password rotation. Other app entries remain
-pending or not applicable; no CA signing key, unseal or SSH material is bundled
-there. Everyday operator access is intended to use Keycloak platform-admin SSO;
+pending or not applicable. OpenBao custody is deliberately separate: an
+`openbao-v0130-<run>/root/root-token.txt` and `unseal/` with three share files plus
+a share-only recovery response. Directory 0700/files 0600; this is temporary
+**single-workstation custody**, not independent split custody. CA signing/SSH
+material remains outside this cache. Everyday operator access is intended to use Keycloak platform-admin SSO;
 durable local break-glass credential custody stays independent of the cluster/Keycloak in
 the operator's password manager and requires a tested emergency path. Bootstrap
 credentials are not automatically permanent recovery identities. No SSO, account
 creation, credential rotation or deletion was performed for this custody move.
 
-## Next app selection — source candidate, not live
+## Next app selection — Headlamp requires separate approval
 
-OpenBao source merged; Headlamp and Keycloak/auth remain review stages. A combined
+OpenBao initial administration acceptance passed; independent custody transfer,
+root-token retirement/scoped recovery design and backup/restore remain pending.
+Headlamp and Keycloak are merged source stages, not live deployments. A combined
 release must use the [ordered app stage roots](big-bang-bootstrap/configuration/ansible/README.md#ordered-app-stages):
 OpenBao-only default (retaining Rancher/Longhorn), then Headlamp, then Keycloak/database.
 Each forward root-path promotion requires separate approval and successful access,
 custody and health/capacity acceptance. The immutable source stays identical;
-publication does not activate apps. No new live actions were performed for this change.
+publication does not activate apps. The OpenBao stage was separately approved and completed; later stages are not authorized.
+
+## OpenBao acceptance evidence — 2026-11-01 15:29:57 UTC
+
+Private evidence is in the OpenBao implementation worktree under
+`infrastructure/ansible/inventory/.rke2-state/openbao-v0130-<run>/`:
+`summary.txt` exit 0/complete, redacted Ansible output, exact release evidence,
+readiness and before/after resource summaries. No credential values are in Git.
+The [executed init/unseal playbook](big-bang-bootstrap/configuration/ansible/openbao-initialize.yaml)
+and [synthetic success/refusal tests](big-bang-bootstrap/tests/security/test_openbao_initialization.py)
+are reusable; this is a one-time operation, never a restart/recovery command.
+
+All three nodes Ready/no pressure; 52 Running pods, zero Pending/Failed (nine
+completed jobs). Immediate actual usage: control-1 0.656 CPU / 4.85 GiB RAM;
+worker-1 0.173 / 1.75 GiB; worker-2 0.261 / 1.61 GiB. Versus baseline, RAM changed
++0.01/+0.07/+0.00 GiB; short CPU samples fluctuate, not attributable solely to Bao.
+Per-node memory requests/finite limits: 3.66/5.04, 1.46/3.08, 1.25/2.12 GiB;
+CPU requests: 2.085/2.020/2.220 of 6 allocatable each. Some containers have no
+CPU/memory limits; summed finite limits are not a cluster-wide usage ceiling.
+Longhorn each worker: 11 GiB logical scheduled (10 GiB Bao + retained 1 GiB test),
+~221.9/222.8 GiB physically available with 70.7 GiB configured reserve. Replication
+is not a backup. Bao volume attached/healthy; historical completed test remains
+detached/unknown as previously explained. No test cleanup was performed.
 
 ## Acceptance requirement for every subsequent app
 
@@ -111,17 +143,14 @@ Repeat only after new action-specific approval, with a fresh namespace/output an
 reviewed target inputs: [storage test procedure](big-bang-bootstrap/configuration/packages/longhorn/README.md#disposable-storage-acceptance).
 The [C4 storage flow](docs/architecture/README.md) links the actual Ansible code.
 
-## Queued OpenBao candidate
+## OpenBao deployment complete; recovery work remains
 
-This feature adds OpenBao 2.7.2/chart 0.30.6 after the merged Rancher source stage.
-It is not deployed. TLS-required single-server PebbleDB on a 10Gi Longhorn claim
-is a non-HA lab choice; no ingress, Kubernetes auth delegation, auto-init/unseal
-or OIDC integration is enabled. Namespaced installer prerequisites are separate
-from Flux deployment. New-store initialization, unseal shares, admin token custody
-and verified client login require explicit future approval. A sealed server is
-NotReady; the draft does not claim admin access is already usable. See the
+Initial administration is observed above, not a queued deployment. The server is
+non-HA, has no ingress/Kubernetes-auth/OIDC integration, and remains manually
+unsealed after restart. Root retirement/scoped recovery, independent custody,
+audit/backup and restore testing need separate approval. Existing proven role/API
+configuration stays retained for later review, not applied automatically. See the
 [OpenBao procedure](big-bang-bootstrap/configuration/packages/openbao/README.md).
-Existing proven policy/role/API configuration is retained for later review.
 
 ## Queued Headlamp candidate
 
