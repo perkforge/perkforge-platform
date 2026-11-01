@@ -30,4 +30,6 @@ class HarborReview(unittest.TestCase):
 
  def test_installer_identity_namespace_matches_flux_helmrelease(self):
   name=self.hr['spec']['serviceAccountName'];namespace=self.hr['metadata']['namespace'];sa=next(x for x in self.foundation if x['kind']=='ServiceAccount' and x['metadata']['name']==name);self.assertEqual(sa['metadata']['namespace'],namespace);self.assertFalse(sa['automountServiceAccountToken'])
+  role=next(x for x in self.foundation if x['kind']=='Role' and x['metadata']['name']==name)
+  for group,res in [('', 'pods'),('apps','replicasets')]:self.assertTrue(any(group in r['apiGroups'] and res in r['resources'] and set(['get','list','watch']).issubset(r['verbs']) and not set(['create','patch','update','delete']).intersection(r['verbs']) for r in role['rules']))
   subjects=[q for x in self.foundation if x['kind'].endswith('RoleBinding') for q in x['subjects'] if q['name']==name];self.assertTrue(subjects);self.assertTrue(all(q['namespace']==namespace for q in subjects))
