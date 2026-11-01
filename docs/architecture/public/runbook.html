@@ -52,4 +52,4 @@ isolate Grafana queries, Loki data or portal resources.</p>
 recovery custody stays independent of SSO/cluster in the operator password manager;
 initial bootstrap credentials are not automatically permanent recovery accounts.
 No live SSO, users, clients, tokens or grants are created by viewing these diagrams.</p></section>
-</body></html>
+<section id="openbao-unseal"><h2>OpenBao initialization and unseal — observed</h2><p>Approved v0.13.0: one worker server, trusted backend TLS, 10 GiB replicated claim, 3 Shamir shares requiring 2. The <a href="sources/openbao-initialize.yaml">actual workstation Ansible playbook</a> refuses initialized stores, saves private recovery before proceeding, unseals through stdin-only shares over verified loopback TLS, and verifies root-token API access without logging credentials. Root/umbrella/packages Ready and per-node resources passed; temporary port-forward closed. Separate root/unseal directories on one workstation are not independent custody. Operator transfer/cleanup, root retirement/scoped recovery, audit/backup and recovery testing remain pending. No ingress/OIDC or tenant-policy grant.</p></section></body></html>

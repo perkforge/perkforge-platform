@@ -265,16 +265,19 @@ views {
   }
 
   dynamic view openbao_initial_admin {
-    title 'OpenBao initial token administration — proposed'
-    description 'Who does what and why: separate reviewed prerequisites, Helm runtime identity and human token custody. No deployment or initialization approval is conveyed.'
+    title 'OpenBao initialization and unseal — observed v0.13.0'
+    description 'Who does what and why: observed approved 2026-11-01, code-linked one-time init/unseal, separate installer/runtime/root identities and temporary single-workstation recovery custody. No future initialization or recovery approval is conveyed.'
+    link /sources/openbao-initialize.yaml 'Actual Ansible initialization/unseal source'
     engineer -> platform.prerequisite_applier '1. Review published release, target, capacity and current physical PKI; approve scoped actions'
     platform.prerequisite_applier -> platform.openbao.installer '2. Ansible applies namespaced installer/release-storage delegation, no cluster grants'
     engineer -> platform.flux '3. Deliver separately approved backend TLS Secret, then promote exact release'
     platform.flux -> platform.bigbang '4. Reconcile selected package; existing storage and Rancher unchanged'
     platform.bigbang -> platform.openbao.installer '5. HelmRelease selects delegated installer before rendering'
     platform.openbao.installer -> platform.openbao.runtime '6. Helm creates TLS server/SA and retained Longhorn claim; sealed state stays NotReady'
-    engineer -> platform.openbao.runtime '7. Separately approved verified-TLS loopback access, new-store init, separate share/token custody and unseal'
-    platform.openbao.runtime -> engineer '8. Verify readiness and private admin login; stop before OIDC/policy changes'
+    engineer -> platform.openbao.initialization '7. Explicit apply: verify target and uninitialized store via TLS loopback; never reinitialize'
+    platform.openbao.initialization -> platform.openbao.custody '8. Initialize once 3/2; save owner-only root token separately from shares before proceeding'
+    platform.openbao.initialization -> platform.openbao.runtime '9. Submit two shares via stdin; verify unsealed health and initial root-token policy privately'
+    platform.openbao.runtime -> engineer '10. Verify Ready and cluster resource delta; close port-forward; custody transfer/backup and OIDC remain pending'
   }
 
   dynamic view rancher_local_admin {
