@@ -26,3 +26,8 @@ class MattermostReview(unittest.TestCase):
  def test_operator_power_and_unrestricted_wait_egress_are_not_hidden(self):
   role=next(x for x in self.render['mattermost-operator'][1] if x['kind']=='ClusterRole');self.assertTrue(any('secrets' in r['resources'] and '*' in r['verbs'] for r in role['rules']))
   self.assertTrue(any(x['kind']=='NetworkPolicy' and 'anywhere-any-port' in x['metadata']['name'] for x in self.render['mattermost'][1]))
+
+ def test_both_installers_match_their_helmrelease_namespace(self):
+  for _,(hr,_) in self.render.items():
+   name=hr['spec']['serviceAccountName'];namespace=hr['metadata']['namespace'];sa=next(x for x in self.foundation if x['kind']=='ServiceAccount' and x['metadata']['name']==name);self.assertEqual(sa['metadata']['namespace'],namespace);self.assertFalse(sa['automountServiceAccountToken'])
+   subjects=[q for x in self.foundation if x['kind'].endswith('RoleBinding') for q in x['subjects'] if q['name']==name];self.assertTrue(subjects);self.assertTrue(all(q['namespace']==namespace for q in subjects))
