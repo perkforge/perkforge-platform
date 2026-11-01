@@ -1,10 +1,12 @@
 # Rancher local-admin management stage
 
-This source candidate selects Rancher alongside Longhorn in `clusters/local` and
-authors an active child HelmRelease. **The live source is still pinned to
-v0.11.3, where Rancher is not selected.** Merging/publishing this candidate does not
-promote that source, apply prerequisites, deliver credentials or install Rancher.
-Local administrator login only: no Keycloak/SSO, group/role mapping or tenants.
+Rancher 2.15.2 was separately activated at **v0.12.0** on 2026-11-01. The
+Rancher/Big Bang/root readiness, required runtime controller availability and
+trusted HTTPS ping checks passed. **First login/password setup has not been
+attempted.** Local administration only: no Keycloak/SSO, group/role mapping or
+tenants. Publication alone never promotes the live source or authorizes another
+credential/prerequisite operation; the procedure below records those separate
+initial-install gates and must not be blindly repeated on this installed cluster.
 
 Big Bang generates Rancher 2.15.2 from the official stable HelmRepository; Flux
 owns reconciliation. Keep Longhorn 1.13.0 unchanged and its UI ingress disabled.
@@ -46,7 +48,8 @@ Checked against current vendor guidance on 2026-11-01:
 The recorded DNS/private-CA design is retained: `rancher.perkforge.home.arpa`,
 Traefik ingress, existing-Secret TLS, privateCA true, additionalTrustedCAs true,
 and strict agent TLS. Existing-Secret TLS needs no second cert-manager installer.
-Browser HTTPS, runtime controllers and real local-admin login are **not tested**.
+Trusted HTTPS ping and required runtime controller availability passed in the
+approved installation. Browser login and first-password setup are **not tested**.
 
 | Protected input/reference | Purpose |
 |---|---|
