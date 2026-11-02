@@ -116,6 +116,10 @@ class Documentation(unittest.TestCase):
 
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
         copies={
+         'api-oidc.md': 'infrastructure/ansible/API-OIDC.md',
+         'api-oidc.yml': 'infrastructure/ansible/playbooks/configure-api-oidc.yml',
+         'api-oidc-tasks.yml': 'infrastructure/ansible/tasks/api-oidc.yml',
+         'headlamp-routing.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-headlamp-routing.yaml',
          'platform-sso.md': 'big-bang-bootstrap/configuration/authorization/sso/README.md',
          'sso-client.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-client.yaml',
          'sso-headlamp.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-headlamp.yaml',

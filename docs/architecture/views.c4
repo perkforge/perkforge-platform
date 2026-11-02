@@ -376,6 +376,18 @@ views {
   }
 
 
+  dynamic view headlamp_activation_prerequisites {
+    title 'Headlamp prerequisites — source only, owner-local sudo'
+    description 'Operator-approved local Ansible, not installer reuse. Root-only host transaction and isolated ingress; no live restart, TLS delivery or activation observed. Publish/review release before owner runs with a private sudo prompt.'
+    link /runbook.html#headlamp-maintenance 'Exact operations, source and rollback'
+    engineer -> platform.rke2.server '1. From released source inspect owned config/service and certificate recovery using local ask-become-pass; review base hash'
+    engineer -> platform.headlamp '2. Approve existing leaf/public-CA delivery and only owned Headlamp ingress; validate trusted HTTPS before OIDC'
+    engineer -> platform.rke2.server '3. Approve append-only API args/CA and root-only backup journal; controlled rke2-server restart interrupts sole API'
+    platform.rke2.server -> engineer '4. Verify certificate API recovery, exact OIDC args/CA mount, nodes Ready and unrelated config unchanged; active repeat does not restart'
+    engineer -> platform.flux '5. Only then approve released SSO stage; native/client gates stay independent with owner MFA and negative acceptance'
+    engineer -> platform.rke2.server '6. Separately approved owned rollback removes only new files, restarts and verifies recovery; no initial API needed, keep backups'
+  }
+
   dynamic view production_tls_lifecycle {
     title 'Who does what and why — production TLS lifecycle (proposed)'
     description 'Design only: no production issuer/renewal automation deployed. Keep target/profile trust separate from shared artifacts; current lab internal HTTP and database gaps remain explicit.'
