@@ -4,26 +4,26 @@
   register: human_flows
 - ansible.builtin.set_fact:
     human_top: "{{ human_flows.json | selectattr('alias', 'equalto', human_flow_alias) | list }}"
-    human_forms: "{{ human_flows.json | selectattr('alias', 'equalto', human_forms_alias) | list }}"
     human_constructing: "{{ human_realm.json.browserFlow == 'browser' and human_found | length == 0 }}"
 - name: Refuse unknown or duplicated flow ownership; bound policy cannot be rebuilt
   ansible.builtin.assert:
     that:
-    - human_top | length <= 1 and human_forms | length <= 1
+    - human_top | length <= 1
     - human_top | length > 0 or human_constructing | bool
-    - human_forms | length > 0 or human_constructing | bool
 - ansible.builtin.assert:
     that:
     - item.description == human_flow_description
     - item.providerId == 'basic-flow'
     - not item.builtIn
-  loop: '{{ human_top + human_forms }}'
+  loop: '{{ human_top }}'
 - ansible.builtin.assert:
     that: human_top[0].topLevel
   when: human_top | length == 1
-- ansible.builtin.assert:
-    that: not human_forms[0].topLevel
-  when: human_forms | length == 1
+- name: Resolve an existing nested flow through its execution ID, not the top-level list
+  ansible.builtin.include_tasks: human-subflow.yaml
+  vars:
+    human_subflow_may_be_missing: '{{ human_constructing }}'
+  when: human_top | length == 1
 - name: Create only the missing owned top-level browser flow
   ansible.builtin.uri:
     url: '{{ human_api }}/authentication/flows'
@@ -47,6 +47,9 @@
   - {parent: '{{ human_forms_alias }}', provider: auth-username-password-form, requirement: REQUIRED, kind: authenticator}
   - {parent: '{{ human_forms_alias }}', provider: auth-otp-form, requirement: REQUIRED, kind: authenticator}
   loop_control: {loop_var: human_step}
+- name: Verify nested metadata after construction and before any realm binding
+  ansible.builtin.include_tasks: human-subflow.yaml
+  vars: {human_subflow_may_be_missing: false}
 - name: Verify exact nested structure, ordering and unconditional OTP before binding
   ansible.builtin.uri:
     url: '{{ human_api }}/authentication/flows/{{ item }}/executions'

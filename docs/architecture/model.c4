@@ -175,9 +175,10 @@ model {
         link /runbook.html#realm-foundation 'Who does what and why; approval and recovery gates'
       }
       human_enrollment = component 'Named-human IL2 TOTP — partial, stopped' {
-        description 'OBSERVED PARTIAL: browser flow bound and pending user created; undeclared ownership markers filtered, guard stopped before membership. CORRECTION NOT APPLIED: two managed admin-only profile fields and explicit exact-UUID marker-only resume; no password reset/adoption. Explicit username, no inferred email, private supplied temporary password and immutable ownership UUID. Observed PerkForge realm-wide browser flow: existing MFA SSO cookie OR required password then required TOTP. Initial profile/password/TOTP remain human actions; reruns never reset them. No app rights or Headlamp client. Master/direct recovery preserved. Current IL2 TOTP; future intended IL5 CAC is not implemented or a compliance claim.'
+        description 'OBSERVED PARTIAL: browser flow/user created; separately approved admin-only profile and exact-UUID marker repair passed without password/action changes. STOPPED before membership: top-level flow list excludes nested forms, contrary to code/fixture. MFA executions/master/apps unchanged. No zero-write repeat or browser acceptance; Prepared read-only nested lookup by verified execution flowId is not applied; no flow rebuild. Explicit username, no inferred email, private supplied temporary password and immutable ownership UUID. Observed PerkForge realm-wide browser flow: existing MFA SSO cookie OR required password then required TOTP. Initial profile/password/TOTP remain human actions; reruns never reset them. No app rights or Headlamp client. Master/direct recovery preserved. Current IL2 TOTP; future intended IL5 CAC is not implemented or a compliance claim.'
         link /sources/enroll-human.yaml 'Actual gated Ansible entrypoint'
-        link /sources/human-profile.yaml 'Managed admin-only ownership fields; proposed correction'
+        link /sources/human-profile.yaml 'Applied admin-only ownership fields'
+        link /sources/human-subflow.yaml 'Prepared nested metadata lookup; no policy rebuild'
         link /runbook.html#human-totp 'Human actions, scope and evidence gate'
       }
       tenant_rbac = component 'Kubernetes authorization and admission boundary — proposed' {
