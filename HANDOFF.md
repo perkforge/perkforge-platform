@@ -2,28 +2,52 @@
 
 ## Current checkpoint — 2026-11-02
 
-**Human enrollment remains partially applied and stopped.** #131 merged and both
-post-merge workflows passed. Its separately approved live batch added the two
-administrator-only profile definitions and repaired the exact recorded account's
-ownership markers. Readback verified unchanged user fields/required actions and
-password credential metadata. No credential reset or new password was used.
+**Human enrollment configuration passed at 02:52:34 UTC.** #132 merged at
+`4dd6481b351ed2f254c09df490e241d1d8b11c18`; both post-merge workflows passed.
+The separately approved normal run verified the exact recorded account, existing
+admin-only ownership fields and nested flow metadata, then added only nominal
+`/platform/admins` membership: **123 ok / 1 changed / 0 failed**. The second run
+passed **122 ok / 0 changed / 0 failed**. This group has no application role mappings.
 
-The batch then stopped before membership on the existing flow-ownership check:
-Keycloak 26.8.1 lists only top-level authentication flows, while the code/fixture
-incorrectly expected the nested forms flow in that list. The bound password/TOTP
-executions are unchanged; do not rebuild, delete or weaken the flow. The prepared source
-correction resolves the nested flow by its verified execution flow ID and
-retains exact alias/description/provider/structure checks. Read-only live
-inspection confirmed the expected child metadata; the correction is not applied. No retry is authorized
-by this handoff, and no automatic retry/rollback occurred.
+Readback verified unchanged user profile, password credential metadata, pending
+`UPDATE_PASSWORD`/`CONFIGURE_TOTP` actions, password/TOTP executions and master
+recovery flow. No new password, seed, app client/grant, flow rebuild, reset or
+control-plane restart occurred. Three nodes were Ready without pressure; six
+selected releases remained Ready. Source/root and Keycloak/database pod identities
+were unchanged; deployed Flux remains v0.14.0/local-keycloak. Direct Kubernetes
+administration worked; SSH settings were untouched, not separately retested.
 
-The account still has no group membership or app rights. Three nodes were Ready
-without pressure, all six releases remained Ready, and source/root/application
-pod identities plus master recovery flow were unchanged. The normal no-write
-rerun was **not reached**. Private evidence preserves both attempts and the
-original temporary password/ownership record; no values belong here. Operator
-first login, profile/password/TOTP completion, fresh-factor denial and lost-TOTP
-recovery remain pending. Wait for the correction before first login.
+**Operator report — 13:08 UTC:** the operator reports account setup with a new
+password and TOTP. That report alone is not proof of a fresh MFA challenge; independent metadata
+verification is recorded below. At 13:09 UTC the operator also reported signing
+out and back in. At 13:15 UTC the operator explicitly confirmed both the new password and a fresh
+TOTP code were prompted. **Fresh password+TOTP login passed by user report**;
+the automation did not authenticate as the user. Wrong/missing-
+factor denials, SSO reuse and lost-TOTP recovery also remain pending.
+
+**Read-only metadata — 13:12:58 UTC:** using the existing master credential,
+GET-only checks of the protected recorded UUID confirmed exactly `/platform/admins`,
+**no remaining required actions**, and credential type names **password / otp**.
+The automation did not attempt user login; no personal profile values or credential contents
+were inspected/persisted, no token retained locally, and no account/permission or
+session configuration changed. This supports the enrollment report, but does not
+prove fresh browser factor enforcement, negative-factor denial or recovery.
+The health evidence above remains the 02:52 snapshot; no new cluster health claim
+is made by this metadata check.
+
+The original temporary-password file is retained untouched; after the reported
+password change it is historical custody, not a recommendation to use it again.
+No deletion/rotation or user-session action was performed. Use the user's new password
+for the later human login test; never send passwords or TOTP QR/seeds through chat.
+App SSO/authorization and durable recovery/bootstrap retirement remain separate
+reviews. No additional live work is implied by this checkpoint.
+
+Historical failures are preserved in protected evidence: undeclared ownership
+attributes were filtered by the default profile, then the flow-list check wrongly
+expected nested forms in a top-level-only collection. The reviewed fixes declare
+only admin-owned markers and resolve child metadata by verified execution flowId.
+The existing account/password and MFA flow survived both stops; no automatic
+rollback/recreation or guard weakening was used.
 
 PerkForge platform-only realm/group foundation, Keycloak initial master administration, OpenBao LAN HTTPS, Headlamp temporary-admin acceptance, Rancher installation and the first Longhorn storage test passed. **No further live
 action is authorized by this handoff.** Never push main or merge for the operator;
