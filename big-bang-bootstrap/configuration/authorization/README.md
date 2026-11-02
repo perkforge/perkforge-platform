@@ -231,17 +231,44 @@ not fake values, mark email verified or weaken realm profile rules to hide it.
 The first approved physical run bound the owned browser policy and created the
 pending human, then stopped before group membership: Keycloak 26.8.1 filtered
 both undeclared ownership markers. The old HTTPS fixture accepted arbitrary
-attributes and therefore missed the default profile behavior. Read-only diagnosis
-found only username/email/firstName/lastName and no unmanaged-attribute policy.
-The account, initial password and protected UUID record remain; **do not log in or
-rerun the old code**. No app permissions were granted.
+attributes and missed the default profile behavior. The separately approved
+#131 live repair then declared both admin-only fields and restored the markers,
+verifying other returned user fields and password credential metadata unchanged.
+
+**Current stop:** the flow ownership check expects the nested forms flow in
+`GET authentication/flows`, but Keycloak 26.8.1 filters that collection to
+**top-level** flows. The nested executions and bound password/TOTP policy remain
+unchanged. The fixture again overstated the API response. [human-subflow.yaml](tasks/human-subflow.yaml) now resolves nested metadata
+through the parent execution flow ID, verifies exact ID/alias/description/provider/
+non-top-level ownership, and preserves the existing execution/order requirements.
+Read-only live metadata inspection confirmed this endpoint/shape. The source
+correction has not run live; it does not rebuild or weaken the flow. No group membership was assigned and
+the zero-write repeat was not reached. Existing password/record and all evidence
+remain protected. Do not retry or ask the operator to log in yet.
+
+Source: [26.8.1 flow-list filtering and flow-by-ID endpoint](https://github.com/keycloak/keycloak/blob/26.8.1/services/src/main/java/org/keycloak/services/resources/admin/AuthenticationManagementResource.java).
+
+The smallest remaining live batch uses normal enrollment with the existing UUID
+record and restored markers: verify the unchanged profile/credentials/flow and
+recovery, add only nominal `/platform/admins` membership, then verify a zero-write
+repeat. No missing-marker repair flag or initial-password read is needed. No
+expected profile/flow/password writes, app grants, client creation, restart or
+manual first login. Stop on any unexpected state instead of repairing it.
+
+The realistic HTTPS fixture now lists only top-level flows, serves nested metadata
+by ID and omits authenticator `authenticationFlow=false` fields, while the default
+profile filters undeclared attributes. Full playbook tests cover first creation,
+normal no-write rerun after modeled human completion, original missing-marker
+repair, the current already-repaired account before membership, another no-write
+rerun, and foreign/dangling nested metadata refusal. These remain orchestration
+fixtures, not live browser factor/recovery validation.
 
 [human-profile.yaml](tasks/human-profile.yaml) declares only `perkforge-managed`
 and `perkforge-enrollment`, each view/edit **admin only**, optional/single-valued.
 It preserves every existing profile field/group/requirement and leaves unmanaged
 attributes disabled. Existing conflicting definitions stop; there is no blanket
-`ADMIN_EDIT`/`ENABLED` switch. This is a new realm-profile policy change requiring
-explicit live approval. Synthetic tests verify authored permissions, not actual
+`ADMIN_EDIT`/`ENABLED` switch. This realm-profile change was explicitly approved and applied; future changes
+need their own approval. Synthetic tests verify authored permissions, not actual
 Keycloak end-user write denial.
 
 Normal reruns still require both markers. A separately approved repair may set

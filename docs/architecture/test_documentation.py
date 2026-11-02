@@ -108,6 +108,7 @@ class Documentation(unittest.TestCase):
          'human-preflight.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-preflight.yaml',
          'human-profile.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-profile.yaml',
          'human-flow.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-flow.yaml',
+         'human-subflow.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-subflow.yaml',
          'human-execution.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-execution.yaml',
          'human-user.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-user.yaml',
          'human-access-check.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-access-check.yaml',

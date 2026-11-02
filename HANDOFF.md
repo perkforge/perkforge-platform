@@ -2,23 +2,28 @@
 
 ## Current checkpoint — 2026-11-02
 
-**Human enrollment is partially applied and stopped.** The approved operation
-bound the PerkForge password/TOTP browser flow and created one enabled human with
-mandatory password change/TOTP enrollment. Keycloak filtered both undeclared
-ownership attributes under its default managed-profile policy. The ownership
-guard stopped before group membership; no app grants, clients or recovery changes.
-Protected UUID/password evidence is preserved; do not retry or ask the operator
-to log in until the correction is reviewed and separately approved.
+**Human enrollment remains partially applied and stopped.** #131 merged and both
+post-merge workflows passed. Its separately approved live batch added the two
+administrator-only profile definitions and repaired the exact recorded account's
+ownership markers. Readback verified unchanged user fields/required actions and
+password credential metadata. No credential reset or new password was used.
 
-The source correction declares only two administrator-view/edit ownership fields,
-preserving unmanaged-attribute restrictions and all standard profile requirements.
-A missing-marker resume additionally requires the exact recorded/server UUID,
-unchanged pending actions, empty profile/memberships and a single password
-credential. It restores only markers, verifies all returned user fields and
-credential metadata unchanged, then uses normal guarded enrollment. No password
-reset, unknown-account adoption, TOTP seed handling or automatic rollback. This
-correction and real-browser acceptance remain **not executed**.
+The batch then stopped before membership on the existing flow-ownership check:
+Keycloak 26.8.1 lists only top-level authentication flows, while the code/fixture
+incorrectly expected the nested forms flow in that list. The bound password/TOTP
+executions are unchanged; do not rebuild, delete or weaken the flow. The prepared source
+correction resolves the nested flow by its verified execution flow ID and
+retains exact alias/description/provider/structure checks. Read-only live
+inspection confirmed the expected child metadata; the correction is not applied. No retry is authorized
+by this handoff, and no automatic retry/rollback occurred.
 
+The account still has no group membership or app rights. Three nodes were Ready
+without pressure, all six releases remained Ready, and source/root/application
+pod identities plus master recovery flow were unchanged. The normal no-write
+rerun was **not reached**. Private evidence preserves both attempts and the
+original temporary password/ownership record; no values belong here. Operator
+first login, profile/password/TOTP completion, fresh-factor denial and lost-TOTP
+recovery remain pending. Wait for the correction before first login.
 
 PerkForge platform-only realm/group foundation, Keycloak initial master administration, OpenBao LAN HTTPS, Headlamp temporary-admin acceptance, Rancher installation and the first Longhorn storage test passed. **No further live
 action is authorized by this handoff.** Never push main or merge for the operator;

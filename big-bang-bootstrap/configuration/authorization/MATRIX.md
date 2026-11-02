@@ -251,9 +251,13 @@ update this matrix, ownership C4 and allowed/denied tests in each implementation
 
 ## Human authentication implementation boundary
 
-[Named-human enrollment](enroll-human.yaml) is implemented as a **default-off draft**,
-not executed: one owned PerkForge user/nominal platform-admin membership and a
-proposed realm-wide password+required-TOTP browser flow for current **IL2**. Initial
+[Named-human enrollment](enroll-human.yaml) is default-off in source. Approved live execution has created the pending user,
+bound the browser flow and repaired admin-only ownership markers, but stopped
+before nominal group membership because the nested-flow lookup assumed a
+top-level list also contains subflows. Password/actions/flow/recovery are
+unchanged; no app rights or no-write repeat is claimed. The approved realm-wide
+password+required-TOTP browser flow targets current **IL2**; nominal group
+membership remains incomplete. Initial
 temporary password changes, profile completion and TOTP registration belong to the
 human; no email is inferred/verified from a username. Real browser MFA acceptance
 and independent recovery remain pending. Group membership creates no app grant.

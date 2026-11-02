@@ -46,7 +46,11 @@ class HumanAPI(unittest.TestCase):
     if p.endswith('/clients'):return self.respond(200,[{'clientId':x,'id':x+'-id','authenticationFlowBindingOverrides':{}} for x in ['account','account-console','admin-cli','broker','realm-management','security-admin-console']])
     if p.endswith('/roles/default-roles-perkforge/composites'):return self.respond(200,[{'id':'self','name':'offline_access','clientRole':False,'composite':False},{'id':'account-manage','name':'manage-account','clientRole':True,'containerId':'account-id','composite':True}])
     if p.endswith('/roles-by-id/account-manage/composites'):return self.respond(200,[{'name':'manage-account-links','clientRole':True,'containerId':'account-id','composite':False}])
-    if p.endswith('/authentication/flows'):return self.respond(200,list(state['flows'].values()))
+    # Actual Keycloak collection filters subflows out; fetch them only by flowId.
+    if p.endswith('/authentication/flows'):return self.respond(200,[f for f in state['flows'].values() if f.get('topLevel')])
+    if '/authentication/flows/' in p and not p.endswith('/executions'):
+     matches=[f for f in state['flows'].values() if f['id']==p.rsplit('/',1)[-1]]
+     return self.respond(200,matches[0]) if len(matches)==1 else self.respond(404,{})
     if '/authentication/flows/' in p and p.endswith('/executions'):return self.respond(200,executions(p.split('/')[-2]))
     if p.endswith('/users/owned-human/groups'):return self.respond(200,state['members'])
     if p.endswith('/users/owned-human/role-mappings'):return self.respond(200,state['userRoles'])
@@ -137,3 +141,16 @@ class HumanAPI(unittest.TestCase):
   self.s['profile']['attributes'].pop();p=self.run_play();self.assertEqual(p.returncode,0,p.stdout+p.stderr)
   self.s['user']['attributes']={};self.s['members']=[];self.s['user']['requiredActions']=[];before=copy.deepcopy(self.s['writes'])
   p=self.run_play(human_resume_missing_ownership_id='owned-human');self.assertNotEqual(p.returncode,0);self.assertEqual(self.s['writes'],before)
+
+ def test_existing_marked_account_and_top_level_only_listing_resume_without_rebuilding_flow(self):
+  p=self.run_play();self.assertEqual(p.returncode,0,p.stdout+p.stderr)
+  self.s['members']=[];before=copy.deepcopy(self.s['writes']);flows=copy.deepcopy(self.s['flows']);creds=copy.deepcopy(self.s['credentials'])
+  p=self.run_play();self.assertEqual(p.returncode,0,p.stdout+p.stderr)
+  self.assertEqual(self.s['writes'][len(before):],[('PUT','/auth/admin/realms/perkforge/users/owned-human/groups/admin-group',{})])
+  self.assertEqual(self.s['flows'],flows);self.assertEqual(self.s['credentials'],creds)
+  before=copy.deepcopy(self.s['writes']);p=self.run_play();self.assertEqual(p.returncode,0,p.stdout+p.stderr);self.assertEqual(self.s['writes'],before);self.assertIn('changed=0',p.stdout)
+  # Child metadata and the parent execution pointer must both be trusted, not alias alone.
+  alias='perkforge-browser-password-totp-forms-v1';self.s['flows'][alias]['description']='foreign owner'
+  p=self.run_play();self.assertNotEqual(p.returncode,0);self.assertEqual(self.s['writes'],before)
+  self.s['flows'][alias]['description']=flows[alias]['description'];self.s['execs']['perkforge-browser-password-totp-v1'][1]['flowId']='missing-flow-id'
+  p=self.run_play();self.assertNotEqual(p.returncode,0);self.assertEqual(self.s['writes'],before)
