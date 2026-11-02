@@ -273,14 +273,14 @@ or inferred from this IL2 choice. Master recovery is separate and preserved.
 Platform-engineer and tenant rights, app claims and Kubernetes/OpenBao bindings are
 unchanged. Headlamp OIDC/API-server enforcement remains the next separate review.
 
-## Full PerkForge realm mapping — revised source-only proposal
+## Full PerkForge realm mapping — applied; rerun guard pending
 
 The user explicitly clarified everything within PerkForge, not just users and
 clients. [administer-perkforge.yaml](administer-perkforge.yaml) and the
 [scope/acceptance procedure](PERKFORGE-ADMIN.md) propose the single built-in
 `realm-management/realm-admin` composite on `/platform/admins` only. PA intent in
 `desired.yaml` explicitly changes from `realm_admin: false` to true, with
-`master_admin: false`. No live grant occurred; other role families are unchanged.
+`master_admin: false`. The separately approved corrected #136 run applied one mapping; direct realm-admin/22-role closure readback passed. Other role families are unchanged. The normal repeat failed with zero writes at the remaining group-representation guard; successful merged-source idempotence remains pending. The local exact-representation/coherence correction passes actual GET-only validation (changed 0) and realistic synthetic repeat tests; no access change is part of that fix.
 
 This includes all PerkForge users, clients, groups, roles, authentication flows,
 realm settings, identity providers and impersonation. It does not grant master

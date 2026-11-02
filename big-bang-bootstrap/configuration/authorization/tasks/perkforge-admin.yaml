@@ -20,7 +20,7 @@
     - pa_surface.results[1].json.realmRoles | default([]) | length == 0
     - pa_surface.results[1].json.clientRoles | default({}) | length == 0
     - pa_surface.results[2].json.realmRoles | default([]) | length == 0
-    - pa_surface.results[2].json.clientRoles | default({}) | length == 0
+    - pa_surface.results[2].json.clientRoles | default({}) in [{}, {'realm-management':['realm-admin']}]
     - pa_surface.results[3].json | length == 0
     - pa_surface.results[4].json | length == 1
     - pa_surface.results[4].json[0].clientId == 'realm-management'
@@ -137,6 +137,10 @@
     - pa_direct | length <= 1
     - pa_direct | map(attribute='name') | difference(['realm-admin']) | length == 0
     - pa_direct | map(attribute='id') | difference([pa_role.json.id]) | length == 0
+- name: Require group representation to agree with independent direct-role metadata
+  ansible.builtin.assert:
+    that:
+    - pa_surface.results[2].json.clientRoles | default({}) == ({'realm-management':['realm-admin']} if pa_direct | length == 1 else {})
 - ansible.builtin.assert:
     that:
     - item.clientRole and item.containerId == pa_client_id and item.composite
@@ -168,4 +172,4 @@
     - pa_verified.results[0].json | map(attribute='id') | list == [pa_role.json.id]
     - pa_verified.results[1].json | map(attribute='name') | sort == pa_effective_definitions | map(attribute='name') | sort
     - pa_verified.results[1].json | map(attribute='id') | sort == pa_effective_definitions | map(attribute='id') | sort
-  when: perkforge_admin_apply | bool
+  when: perkforge_admin_apply | bool or pa_direct | length == 1

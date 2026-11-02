@@ -446,12 +446,12 @@ browser-form/OIDC behavior, not JavaScript rendering across all browsers/apps.
 Deletion plus userinfo/refresh denial is not universal immediate revocation at
 external offline JWT verifiers; no test identity had privileged app access.
 
-## Proposed full PerkForge realm administration
+## PerkForge realm administration — applied; rerun follow-up
 
 [Exact composite and review gates](PERKFORGE-ADMIN.md) describe separately invoked,
 default-off `administer-perkforge.yaml`. The clarified PA intent is full authority
 inside PerkForge through `realm-management/realm-admin`, including impersonation,
 authentication flows and realm settings. This explicitly supersedes PA's earlier
-`realm_admin: false`; master/other realms remain excluded. No live grant occurred.
+`realm_admin: false`; master/other realms remain excluded. A separately approved #136 run applied one mapping; exact readback passed. The no-change rerun failed safely at a remaining group-representation guard, so successful merged-source idempotence is not yet claimed. A local narrow fix passes the active state in GET-only mode (38 ok, changed 0, failed 0) and realistic apply/repeat fixtures; review/publication is pending.
 Earlier empty-mapping workflows remain pre-delegation checks and intentionally
 refuse after a grant. Publication is not live approval.
