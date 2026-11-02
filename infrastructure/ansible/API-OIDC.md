@@ -1,7 +1,9 @@
 # Headlamp API OIDC maintenance — separate approval required
 
 `playbooks/configure-api-oidc.yml` is maintenance, not installation. It selects
-only `control-1` from the explicitly supplied private physical inventory. Default
+only `control-1` from the explicitly supplied private physical inventory. A reset
+controller-approval fact guards every host task; a pre-existing reserved inventory
+group or failed controller gate cannot authorize SSH/become work. Default
 and check mode select no SSH hosts and read no credentials or APIs. It requires
 an immutable published release, its exact clean checkout, exact cluster/install
 identity, reviewed issuer/client/public CA and independent recovery approval.

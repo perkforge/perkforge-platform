@@ -14,6 +14,12 @@ class ApiOidcGates(unittest.TestCase):
    for flags,rc in (([],0),(['--check','-e','api_oidc_run=true'],0),(['-e','api_oidc_run=true'],2)):
     r=subprocess.run(['ansible-playbook','-i',str(inv),str(PLAY),*flags],capture_output=True,text=True,timeout=30,env={**os.environ,'PATH':td+':'+os.environ['PATH'],'ANSIBLE_LOCAL_TEMP':td+'/local','ANSIBLE_REMOTE_TEMP':td+'/remote'})
     self.assertEqual(r.returncode,rc,r.stdout+r.stderr);self.assertFalse(marker.exists())
+   # A reserved group injected by existing inventory cannot select a node in
+   # default/check mode or let a failed controller gate continue into host tasks.
+   inv.write_text(inv.read_text()+'    api_oidc_approved_server:\n      hosts:\n        control-1:\n')
+   for flags,rc in (([],0),(['--check','-e','api_oidc_run=true'],0),(['-e','api_oidc_run=true'],2)):
+    r=subprocess.run(['ansible-playbook','-i',str(inv),str(PLAY),*flags],capture_output=True,text=True,timeout=30,env={**os.environ,'PATH':td+':'+os.environ['PATH'],'ANSIBLE_LOCAL_TEMP':td+'/local','ANSIBLE_REMOTE_TEMP':td+'/remote'})
+    self.assertEqual(r.returncode,rc,r.stdout+r.stderr);self.assertFalse(marker.exists())
 
 @unittest.skipUnless(os.environ.get('RUN_PLATFORM_SSO_TESTS'),'isolated offline maintenance fixtures only')
 class ApiOidcTransaction(unittest.TestCase):
