@@ -477,3 +477,23 @@ Use the [platform operation order](big-bang-bootstrap/configuration/ansible/READ
 Do not rerun first-install provisioning on this installed cluster. Every new live
 operation needs concrete approval; these recorded results are not continuous
 monitoring or permission to repair unrelated systems.
+
+## PerkForge realm administration correction — source only
+
+#135 merged the default-off full-PerkForge `realm-management/realm-admin` proposal
+for `/platform/admins`, including impersonation and authentication/settings
+control, without master/other-realm delegation. No live grant has occurred.
+GET-only preparation found the merged blanket noncomposite-child guard rejects
+three legitimate Keycloak 26.8.1 view/query composites. The parent/admin mappings
+remain empty. Live approval/application is on hold while the narrow source
+correction is reviewed.
+
+The correction verifies the complete bounded canonical catalog and exact role
+DAG, accepting known nested edges while refusing cycles, identity/client drift
+and hidden expansion. Corrected forced inspect-only execution passed all real
+pre-write checks (35 tasks, changed=0, failed=0); mappings remain empty. This does
+not prove a live grant, delegated login or post-grant repeat. See the [scope and correction checkpoint](big-bang-bootstrap/configuration/authorization/PERKFORGE-ADMIN.md).
+Do not bypass the old guard, grant manually, weaken MFA, or create test people to
+force acceptance. Existing master recovery stays separate. Tests use synthetic
+IDs/credentials; operator fresh-MFA/full-realm and master-denial acceptance is
+still separate from API representation checks.

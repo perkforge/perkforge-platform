@@ -29,9 +29,14 @@ The previously prepared five-role users/clients subset was never applied. It is
 not the revised grant, and existing explicit child-role mappings cause refusal
 rather than automatic replacement/deletion. The approved intent is one exact
 composite. Its 21 expected built-in children are pinned to the reviewed Keycloak
-26.8.1 role set; each must be noncomposite and belong to the same PerkForge
-management client. Extra/missing/nested/cross-client/cross-realm children refuse
-before writes. A future upgrade changing that expansion requires review.
+26.8.1 role set; the complete 22-role catalog must belong to the same PerkForge management
+client. Keycloak 26.8.1 legitimately nests `view-users` → `query-users`,
+`query-groups`; `view-clients` → `query-clients`; and `view-organizations` →
+`query-organizations`. Each canonical role's name/ID/client/composite flag and
+every immediate edge (including empty leaf edges) must match that bounded DAG.
+Its transitive closure is exactly the root plus the 21 reviewed roles, with IDs
+deduplicated. Unexpected/missing edges, cycles, replaced IDs or cross-client/
+cross-realm references refuse before writes. A future upgrade changing that expansion requires review.
 
 ## Owner and approval gates
 
@@ -66,7 +71,7 @@ no verbose/callback/fact-cache dumps, credential output or inline secrets.
 
 The operation checks physical UID before authenticating, exact realm/group
 ownership and UUIDs, no nested admin groups, no default/parent role inheritance,
-exact built-in composite identity and its bounded expansion. Only the missing
+exact built-in composite identity, bounded canonical catalog and complete role graph. Only the missing
 single role mapping is added. Direct and effective readback plus a zero-write
 repeat verify representation. An uncertain response is inspected/resumed, never
 blindly resubmitted or automatically rolled back. Unexpected grants refuse
@@ -105,3 +110,33 @@ after. No live acceptance or credentials/SSO deployment is claimed here.
 
 References: [Keycloak administration](https://www.keycloak.org/docs/latest/server_admin/index.html),
 [26.8.1 effective client-role mappings](https://github.com/keycloak/keycloak/blob/26.8.1/services/src/main/java/org/keycloak/services/resources/admin/ClientRoleMappingsResource.java).
+
+## Current correction checkpoint — no grant
+
+#135 merged the intended full-realm operation, but GET-only preparation found a
+fixture mismatch: the old guard required all root children to be noncomposite.
+Actual Keycloak 26.8.1 and upstream `RealmManager.addQueryCompositeRoles` both
+contain the three nested view composites above. The merged guard would safely
+refuse them. Parent/admin group mappings remain empty; no role grant was made.
+
+The correction resolves canonical IDs from a bounded `roles?first=0&max=23`
+catalog and requires exactly the reviewed 22 roles, preventing truncated-page
+acceptance. It queries edges on all 22 nodes and verifies every target's exact
+name/ID/client/composite flag. The exact DAG permits the legitimate nesting but
+not arbitrary nested or cyclic authority. Existing direct/effective mapping and
+post-write identity checks remain. Fixtures model the real flags, edges and
+deduplicated effective closure; no real IDs or raw private evidence are copied.
+The corrected play also passed forced inspect-only execution against the actual
+service (35 tasks, changed=0, failed=0): target/file/ownership/catalog/graph guards
+accepted the real responses, while parent/admin mappings stayed empty. This is
+GET-only pre-write validation, not live grant, delegated login or post-grant
+idempotence evidence. Source correction and live approval are separate; live
+application stays on hold.
+
+Upstream edge definition: [Keycloak 26.8.1 RealmManager](https://github.com/keycloak/keycloak/blob/26.8.1/services/src/main/java/org/keycloak/services/managers/RealmManager.java).
+
+The strengthened real-Ansible fixture set takes 237.567s locally versus 112.260s
+for the old assumptions. Hosted baseline selection already took 18m42s under a
+20-minute job cap. The correction raises only that offline job budget to 30
+minutes; it preserves every test, timeout inside individual operations, and all
+release/live-approval boundaries. No test is skipped to hide the mismatch.

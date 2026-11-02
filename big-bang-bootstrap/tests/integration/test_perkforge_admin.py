@@ -18,6 +18,10 @@ INV = ROOT / 'configuration/ansible/inventory.yaml'
 NAMES = ['realm-admin']
 CHILDREN = ['create-client', 'impersonation', 'manage-authorization', 'manage-clients', 'manage-events', 'manage-identity-providers', 'manage-organizations', 'manage-realm', 'manage-users', 'query-clients', 'query-groups', 'query-organizations', 'query-realms', 'query-users', 'view-authorization', 'view-clients', 'view-events', 'view-identity-providers', 'view-organizations', 'view-realm', 'view-users']
 
+# Real 26.8.1 shape: RealmManager.addQueryCompositeRoles plus GET-only readback.
+EDGES = {'realm-admin': CHILDREN, 'view-users': ['query-users', 'query-groups'],
+         'view-clients': ['query-clients'], 'view-organizations': ['query-organizations']}
+
 
 class AdminDefaults(unittest.TestCase):
     def test_defaults_check_mode_and_unapproved_apply_make_no_connections(self):
@@ -44,7 +48,7 @@ class AdminAPI(unittest.TestCase):
                         '-keyout', str(self.d / 'key'), '-out', str(self.d / 'ca')], check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self.roles = {name: {'name': name, 'id': 'role-' + name, 'clientRole': True,
-                             'containerId': 'management-id', 'composite': name == 'realm-admin'} for name in NAMES + CHILDREN}
+                             'containerId': 'management-id', 'composite': name in EDGES} for name in NAMES + CHILDREN}
         parent = {'id': 'parent-id', 'name': 'platform', 'path': '/platform',
                   'attributes': {'perkforge-managed': ['true'], 'perkforge-foundation': ['v1']}}
         leaf = {'id': 'admin-id', 'name': 'admins', 'path': '/platform/admins',
@@ -54,6 +58,8 @@ class AdminAPI(unittest.TestCase):
                   'parentMappings': {}, 'otherClients': {}, 'realmMappings': [], 'mapped': [],
                   'defaults': [], 'children': [], 'tokenDeny': False, 'clients': [{'clientId': 'realm-management', 'id': 'management-id'}],
                   'compositeRoles': [copy.deepcopy(self.roles[name]) for name in CHILDREN],
+                  'nestedEdges': {name: [copy.deepcopy(self.roles[child]) for child in EDGES.get(name, [])] for name in CHILDREN},
+                  'catalogTruncated': False,
                   'writes': [], 'calls': [], 'deny': False, 'failAfterWrite': False}
         state, roles = self.s, self.roles
         class Handler(BaseHTTPRequestHandler):
@@ -83,8 +89,13 @@ class AdminAPI(unittest.TestCase):
                     return self.respond(200, state['children'])
                 if path == api + '/clients':
                     return self.respond(200, state['clients'])
+                if path == api + '/clients/management-id/roles':
+                    catalog = list(roles.values())
+                    return self.respond(200, catalog[:-1] if state['catalogTruncated'] else catalog)
                 if path == api + '/clients/management-id/roles/realm-admin/composites':
                     return self.respond(200, state['compositeRoles'])
+                if '/clients/management-id/roles/' in path and path.endswith('/composites'):
+                    return self.respond(200, state['nestedEdges'].get(path.split('/')[-2], []))
                 if '/clients/management-id/roles/' in path:
                     return self.respond(200, roles[path.rsplit('/', 1)[1]])
                 if path == api + '/groups/parent-id/role-mappings':
@@ -96,7 +107,17 @@ class AdminAPI(unittest.TestCase):
                                                       'mappings': state['mapped']}
                     return self.respond(200, {'realmMappings': state['realmMappings'], 'clientMappings': clients})
                 if path.startswith(api + '/groups/admin-id/role-mappings/clients/management-id'):
-                    effective = state['mapped'] + (state['compositeRoles'] if any(r['name'] == 'realm-admin' for r in state['mapped']) else [])
+                    # Keycloak's effective endpoint expands composites and deduplicates IDs.
+                    pending = copy.deepcopy(state['mapped'])
+                    seen = {}
+                    while pending:
+                        role = pending.pop()
+                        if role['id'] in seen:
+                            continue
+                        seen[role['id']] = role
+                        if role.get('composite'):
+                            pending.extend(state['compositeRoles'] if role['name']=='realm-admin' else state['nestedEdges'].get(role['name'], []))
+                    effective = [role for role in seen.values() if role.get('clientRole') and role.get('containerId')=='management-id']
                     return self.respond(200, effective if path.endswith('/composite') else state['mapped'])
                 return self.respond(404, {})
             def do_POST(self):
@@ -159,6 +180,11 @@ class AdminAPI(unittest.TestCase):
         self.assertEqual({r['name'] for r in self.s['compositeRoles']}, set(CHILDREN))
         self.assertIn('impersonation', CHILDREN)
         self.assertIn('manage-realm', CHILDREN)
+        for name in ('view-users','view-clients','view-organizations'):
+            self.assertTrue(self.roles[name]['composite'])
+        # This positive scenario fails the original blanket noncomposite guard.
+        for name in CHILDREN:
+            self.assertIn(('GET', '/auth/admin/realms/perkforge/clients/management-id/roles/'+name+'/composites'), self.s['calls'])
         before = copy.deepcopy(self.s['writes'])
         for extra in ({}, {'perkforge_admin_apply': False, 'perkforge_admin_inspect': True}):
             result = self.run_play(**extra)
@@ -193,7 +219,7 @@ class AdminAPI(unittest.TestCase):
     def test_refuse_direct_child_roles_other_clients_and_wrong_composite_id(self):
         for name in ('realm-admin', 'impersonation', 'manage-realm'):
             self.s['mapped'] = [{'name': name, 'id': 'unexpected', 'clientRole': True,
-                                 'containerId': 'management-id', 'composite': name == 'realm-admin'}]
+                                 'containerId': 'management-id', 'composite': name in EDGES}]
             self.assertNotEqual(self.run_play().returncode, 0)
             self.assertEqual(self.s['writes'], [])
         self.s['mapped'] = []
@@ -221,6 +247,32 @@ class AdminAPI(unittest.TestCase):
                     self.s['compositeRoles'].pop()
                 self.assertNotEqual(self.run_play().returncode, 0)
                 self.assertEqual(self.s['writes'], [])
+
+    def test_nested_cycles_foreign_ids_and_hidden_leaf_edges_are_refused(self):
+        baseline = copy.deepcopy(self.s['nestedEdges'])
+        for change in ('cycle', 'foreign-client', 'wrong-id', 'hidden-leaf', 'missing-edge'):
+            with self.subTest(change=change):
+                self.s['nestedEdges'] = copy.deepcopy(baseline)
+                if change == 'cycle':
+                    self.s['nestedEdges']['view-users'].append(copy.deepcopy(self.roles['realm-admin']))
+                elif change == 'foreign-client':
+                    self.s['nestedEdges']['view-users'][0]['containerId'] = 'master-or-other-client'
+                elif change == 'wrong-id':
+                    self.s['nestedEdges']['view-users'][0]['id'] = 'replaced-role-id'
+                elif change == 'hidden-leaf':
+                    self.s['nestedEdges']['query-users'] = [copy.deepcopy(self.roles['query-groups'])]
+                else:
+                    self.s['nestedEdges']['view-users'].pop()
+                self.assertNotEqual(self.run_play().returncode, 0)
+                self.assertEqual(self.s['writes'], [])
+
+    def test_catalog_truncation_and_role_identity_changes_refuse(self):
+        self.s['catalogTruncated'] = True
+        self.assertNotEqual(self.run_play().returncode, 0)
+        self.s['catalogTruncated'] = False
+        self.roles['query-users']['id'] = 'replaced-canonical-id'
+        self.assertNotEqual(self.run_play().returncode, 0)
+        self.assertEqual(self.s['writes'], [])
 
     def test_target_scope_auth_and_file_permissions_refuse_before_writes(self):
         for extra in ({'expected_cluster_uid': 'wrong'}, {'perkforge_admin_scope': 'realm-admin'},
