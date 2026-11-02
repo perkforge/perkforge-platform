@@ -17,10 +17,12 @@ tests/                             configuration/bootstrap/security/integration
 
 The default local root selects Longhorn, Rancher and OpenBao. The reviewed
 stage roots add Headlamp, then Keycloak and its database from the **same release**.
-Publication alone does not promote the live source. The last recorded deployment
-is v0.14.0 at `clusters/local-headlamp`: Rancher/Longhorn/OpenBao/Headlamp.
-OpenBao LAN passthrough and the revoked temporary Headlamp admin test passed;
-Keycloak/identity integration remain undeployed. See [ordered app stages](configuration/ansible/README.md#ordered-app-stages)
+An optional `clusters/local-headlamp-sso` root then selects only the reviewed
+Headlamp OIDC values, retaining all stage-3 packages. It requires a new immutable
+release plus separately approved credential delivery, API trust/restart and app
+activation. Publication alone does not promote the live source. The last verified
+deployment remains v0.14.0 at `clusters/local-keycloak`; Headlamp SSO is not active.
+See [ordered app stages](configuration/ansible/README.md#ordered-app-stages)
 for approval and acceptance boundaries. Initial seeds remain paused; never rerun
 bootstrap on the active cluster. This physical three-node lab is not HA or an IL2
 authorization claim.

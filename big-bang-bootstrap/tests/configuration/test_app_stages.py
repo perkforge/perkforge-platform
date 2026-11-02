@@ -18,6 +18,7 @@ class AppStages(unittest.TestCase):
             ('local', {'longhorn', 'rancher', 'openbao'}),
             ('local-headlamp', {'longhorn', 'rancher', 'openbao', 'headlamp'}),
             ('local-keycloak', {'longhorn', 'rancher', 'openbao', 'headlamp', 'keycloak'}),
+            ('local-headlamp-sso', {'longhorn', 'rancher', 'openbao', 'headlamp', 'keycloak'}),
         ]:
             with self.subTest(stage=path):
                 objects = build(ROOT / 'clusters' / path)
