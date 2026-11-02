@@ -10,7 +10,8 @@ permissions:
 jobs:
   selection:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # Preserve full API/graph regressions: baseline took 18m42s before this fix.
+    timeout-minutes: 30
     env:
       KUBECONFIG: /dev/null
     steps:
