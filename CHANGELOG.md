@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.15.0](https://github.com/perkforge/perkforge-platform/compare/v0.14.0...v0.15.0) (2026-11-02)
+
+
+### Features
+
+* **headlamp:** preserve temporary admin acceptance and cleanup ([#124](https://github.com/perkforge/perkforge-platform/issues/124)) ([66ac544](https://github.com/perkforge/perkforge-platform/commit/66ac5448b5ca489347ef4596344f386aaa794462))
+* **identity:** add gated PerkForge realm and empty role groups ([#127](https://github.com/perkforge/perkforge-platform/issues/127)) ([f2fa519](https://github.com/perkforge/perkforge-platform/commit/f2fa519434973197a12008805324c08d97a3644d))
+* **identity:** prepare gated IL2 human TOTP enrollment ([#129](https://github.com/perkforge/perkforge-platform/issues/129)) ([8290d22](https://github.com/perkforge/perkforge-platform/commit/8290d2233e5582d2170d1646dca2ada1a0f1edd2))
+
 ## [0.14.0](https://github.com/perkforge/perkforge-platform/compare/v0.13.0...v0.14.0) (2026-11-01)
 
 
