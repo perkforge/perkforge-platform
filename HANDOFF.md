@@ -571,3 +571,29 @@ approved tag/path promotion. Existing release PR #125 must include this source
 before it can serve that purpose. No credential generation, API provisioning,
 restart, deployment or app grant occurred. Follow the SSO runbook's release and
 activation gate; no Headlamp live compatibility/owner login is claimed.
+
+
+## Headlamp missing prerequisites — prepared source, not executed
+
+Owner approved one focused prerequisite MR and publication. It adds a dedicated
+default-off API OIDC host-maintenance/rollback entrypoint and a Headlamp-only HTTPS
+route gate. Existing Ansible become prompting is used locally; no password is
+stored or passwordless sudo added. Exact published source/target ownership,
+base/config/service checksums, root-only host backup journal and matching owned
+CA/drop-in content bound repeat/resume/rollback. Only rke2-server may restart.
+Rollback requires matching host journal, not initial API availability; unrelated
+config/service drift refuses automatic restoration.
+
+Read-only live preflight previously verified the unlocked expected SSH identity,
+strict known-host SSH and control-plane trusted Keycloak discovery. Sudo needs a
+local password; Headlamp lacked its TLS Secret/Ingress and served Traefik's default
+certificate. New routing reuses the authored ingress and emits only public
+leaf/type from kubectl and validates backend/trusted HTTPS; it never applies the shared identity bundle.
+Existing separately gated TLS delivery remains Headlamp-only with the existing
+leaf/key/public-root bundle. No issuance, signing-key copy, trust change, live host
+write/restart, route delivery, new SSO credential/grant or activation occurred.
+
+#125 candidate 19c8e4c includes #140; workflow 41532185238 passed selection, SSO
+and release checks. Hold release until this prerequisite change is included and
+checks pass again. The later live batch still needs owner-local read-only inspect,
+reviewed base hash/recovery, exact scope approval and human/native acceptance.

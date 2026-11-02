@@ -161,3 +161,17 @@ jobs:
         python3 -m unittest discover -s big-bang-bootstrap/tests/security -p test_platform_sso.py -v
         python3 -m unittest discover -s big-bang-bootstrap/tests/bootstrap -p 'test_sso_*.py' -v
         python3 -m unittest discover -s big-bang-bootstrap/tests/integration -p 'test_sso_*.py' -v
+
+  headlamp-prerequisites:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      KUBECONFIG: /dev/null
+      RUN_PLATFORM_SSO_TESTS: "1"
+    steps:
+    - uses: actions/checkout@v4
+    - run: python3 -m pip install PyYAML==6.0.3 -r big-bang-bootstrap/configuration/ansible/platform-config/requirements.txt
+    - name: Exercise offline host transactions and isolated HTTPS routing
+      run: |
+        python3 -m unittest discover -s infrastructure/ansible/tests -p test_api_oidc.py -v
+        python3 -m unittest discover -s big-bang-bootstrap/tests/bootstrap -p test_headlamp_routing.py -v

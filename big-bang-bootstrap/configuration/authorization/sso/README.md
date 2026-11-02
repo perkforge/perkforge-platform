@@ -231,3 +231,53 @@ Pinned compatibility references:
 - [Rancher 2.15.2 OIDC configuration fields](https://github.com/rancher/rancher/blob/v2.15.2/pkg/apis/management.cattle.io/v3/authn_types.go).
 - [Rancher certificate/system-root handling](https://github.com/rancher/rancher/blob/v2.15.2/pkg/auth/providers/oidc/oidc_client.go).
 - [OpenBao 2.7.2 native code-flow PKCE](https://github.com/openbao/openbao/blob/v2.7.2/internal/builtin/credential/jwt/path_oidc.go).
+
+## Headlamp activation prerequisites — focused maintenance and routing gates
+
+Keep the release PR on hold until it includes both entrypoints below. Verify the
+new immutable release's exact contents/checks; then request approval for the live
+batch, not just publication. Current preflight found trusted issuer discovery and
+SSH available, but sudo required a local password and Headlamp had no TLS/Ingress.
+Nothing was activated by that inspection.
+
+1. Owner runs the released [API maintenance procedure](../../../../infrastructure/ansible/API-OIDC.md)
+   locally with `--ask-become-pass`, initially `inspect` only after inspection
+   approval. Review its base hash, exact install/cluster identity and independent
+   certificate/SSH recovery before approving apply/restart. No passwordless sudo,
+   installation rerun, `/etc/hosts` mount, new credential or worker change.
+2. Reuse `configuration/ansible/platform-tls.yaml` with only
+   `platform_tls_applications: [headlamp]` and the existing reviewed leaf/key/public
+   root bundle. Explicit TLS-delivery approval creates `headlamp/headlamp-local-tls`
+   and the existing public `headlamp/identity-ca` contract; no issuance or global
+   trust change. Do not run the PKI issuance play again. Validate bundle ownership,
+   hostname, lifetime and current public fingerprint first.
+3. Separately approve `reconcile-headlamp-routing.yaml` with
+   `headlamp_route_run=true`, operation `apply`, scope `headlamp-https-route-v1`,
+   recovery verification, exact target kubeconfig/context/cluster UID, environment
+   HTTPS origin, public CA/fingerprint, and published `config_tag` plus nonsecret
+   `config_release_evidence`. It pins a clean matching checkout, emits only the
+   TLS certificate/type from kubectl, validates hostname/chain and backend
+   port, and creates only the missing authored `headlamp-identity` Ingress with
+   ownership label. It verifies trusted HTTPS; failed acceptance leaves the owned
+   route for inspection/retry. No shared routing kustomization, Keycloak route,
+   NetworkPolicy, Secret, RBAC or Deployment mutation. `inspect` is read-only and
+   requires the route already present; default/check mode makes no API calls.
+   Kubernetes Secret GET retrieves the full object inside kubectl; its private key
+   never leaves that process, enters Ansible output or gets copied by this gate.
+4. Prepare the disabled Headlamp client and versioned credential/CA objects through
+   the existing separate gates. Keep its issuer/client consistent with host inputs.
+   Approve API maintenance apply/restart and verify recovery before promoting the
+   released `local-headlamp-sso` stage. Verify native readiness before its binding,
+   exact expected-client contract and client/group enablement. Other app gates stay
+   off. Complete fresh owner MFA, positive/negative native authorization, independent
+   recovery and no-change repeats; fixtures are not live acceptance.
+
+Routing rollback uses operation `rollback` with the same exact target/origin and
+published source: only the owned matching Ingress is deleted with UID/resourceVersion
+preconditions, never a blind retry. It preserves TLS/public-CA objects and every
+other route. Native/client/GitOps rollback precedes removal of callback routing;
+API rollback is the separate owner-local maintenance operation. Neither rollback
+silently removes existing certificates, signing keys, shared trust or recovery.
+Source tests cover routing isolation, missing/mismatched trust, partial creation,
+repeat and concurrent-delete refusal. No live TLS delivery, privileged write,
+restart, SSO or owner-browser acceptance has occurred.

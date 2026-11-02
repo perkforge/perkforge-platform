@@ -1,0 +1,217 @@
+- name: Bound existing installation and immutable transaction paths
+  ansible.builtin.set_fact:
+    api_oidc_dropin: '{{ api_oidc_root }}/config.yaml.d/90-perkforge-oidc-v1.yaml'
+    api_oidc_ca: '{{ api_oidc_root }}/identity/ca.crt'
+    api_oidc_journal: '{{ api_oidc_root }}/perkforge-oidc-v1'
+    api_oidc_state: {}
+    api_oidc_cli:
+    - '{{ api_oidc_host_kubectl }}'
+    - --kubeconfig
+    - '{{ api_oidc_root }}/rke2.yaml'
+    - --request-timeout=10s
+    api_oidc_args:
+    - oidc-issuer-url={{ api_oidc_issuer }}
+    - oidc-client-id={{ api_oidc_client_id }}
+    - oidc-username-claim=sub
+    - 'oidc-username-prefix=oidc:'
+    - oidc-groups-claim=groups
+    - 'oidc-groups-prefix=oidc:'
+    - oidc-signing-algs=RS256
+    - oidc-required-claim=azp={{ api_oidc_client_id }}
+    - oidc-ca-file={{ api_oidc_root }}/identity/ca.crt
+  no_log: true
+- ansible.builtin.include_tasks: api-oidc-service.yml
+  no_log: true
+- ansible.builtin.stat:
+    path: '{{ api_oidc_root }}/config.yaml'
+    follow: false
+    checksum_algorithm: sha256
+  register: api_oidc_base
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - api_oidc_base.stat.isreg | default(false)
+    - not (api_oidc_base.stat.islnk | default(false))
+    - api_oidc_base.stat.uid == api_oidc_uid
+    - api_oidc_operation == 'inspect' or api_oidc_base.stat.checksum == api_oidc_expected_base_sha256
+  no_log: true
+- ansible.builtin.stat:
+    path: '{{ api_oidc_root }}/perkforge-owner.json'
+    follow: false
+  register: api_oidc_marker
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - api_oidc_marker.stat.isreg | default(false)
+    - not (api_oidc_marker.stat.islnk | default(false))
+    - api_oidc_marker.stat.uid == api_oidc_uid
+  no_log: true
+- ansible.builtin.slurp:
+    src: '{{ api_oidc_root }}/perkforge-owner.json'
+  register: api_oidc_install_owner
+  no_log: true
+- ansible.builtin.assert:
+    that: api_oidc_install_owner.content | b64decode | from_json == {'owner':'perkforge-infrastructure','cluster':api_oidc_cluster_id,'role':'server'}
+  no_log: true
+- name: Inspect all config directories and journal without following links
+  ansible.builtin.stat:
+    path: '{{ item }}'
+    follow: false
+  loop:
+  - '{{ api_oidc_root }}'
+  - '{{ api_oidc_root }}/config.yaml.d'
+  - '{{ api_oidc_root }}/identity'
+  - '{{ api_oidc_journal }}'
+  register: api_oidc_dirs
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - not item.stat.exists or (item.stat.isdir | default(false) and not (item.stat.islnk | default(false)) and item.stat.uid
+      == api_oidc_uid)
+  loop: '{{ api_oidc_dirs.results }}'
+  no_log: true
+- ansible.builtin.assert:
+    that: not api_oidc_dirs.results[3].stat.exists or api_oidc_dirs.results[3].stat.mode == '0700'
+  no_log: true
+- ansible.builtin.command:
+    argv:
+    - realpath
+    - '{{ api_oidc_root }}'
+  register: api_oidc_real_root
+  changed_when: false
+  no_log: true
+- ansible.builtin.assert:
+    that: api_oidc_real_root.stdout == api_oidc_root
+  no_log: true
+- ansible.builtin.find:
+    paths: '{{ api_oidc_root }}/config.yaml.d'
+    patterns: '*.yaml'
+    file_type: any
+    follow: false
+  register: api_oidc_configs
+  when: api_oidc_dirs.results[1].stat.exists
+  no_log: true
+- ansible.builtin.set_fact:
+    api_oidc_baseline_paths: '{{ ([api_oidc_root ~ ''/config.yaml''] + (api_oidc_configs.files | default([]) | map(attribute=''path'')
+      | list | difference([api_oidc_dropin]))) | sort }}'
+  no_log: true
+- name: Pin unrelated config files without ever rewriting them
+  ansible.builtin.stat:
+    path: '{{ item }}'
+    follow: false
+    checksum_algorithm: sha256
+  loop: '{{ api_oidc_baseline_paths }}'
+  register: api_oidc_baseline_stats
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - item.stat.isreg | default(false)
+    - not (item.stat.islnk | default(false))
+    - item.stat.uid == api_oidc_uid
+  loop: '{{ api_oidc_baseline_stats.results }}'
+  no_log: true
+- ansible.builtin.set_fact:
+    api_oidc_baseline: '{{ dict(api_oidc_baseline_paths | zip(api_oidc_baseline_stats.results | map(attribute="stat.checksum")))
+      }}'
+  no_log: true
+- ansible.builtin.slurp:
+    src: '{{ item }}'
+  loop: '{{ api_oidc_baseline_paths }}'
+  register: api_oidc_config_text
+  no_log: true
+- name: Refuse conflicting authentication in any pre-existing file
+  ansible.builtin.assert:
+    that:
+    - parsed is mapping
+    - '''kube-apiserver-arg'' not in parsed or parsed[''kube-apiserver-arg''] is sequence and parsed[''kube-apiserver-arg'']
+      is not string'
+    - '''kube-apiserver-arg+'' not in parsed or parsed[''kube-apiserver-arg+''] is sequence and parsed[''kube-apiserver-arg+'']
+      is not string'
+    - (parsed.get('kube-apiserver-arg',[]) + parsed.get('kube-apiserver-arg+',[])) | select('search','^(--)?(oidc-|authentication-config)')
+      | list | length == 0
+    - not (item.item.startswith(api_oidc_root ~ '/config.yaml.d/') and item.item > api_oidc_dropin and 'kube-apiserver-arg'
+      in parsed)
+    - (parsed.get('kube-apiserver-extra-mount',[]) + parsed.get('kube-apiserver-extra-mount+',[])) | select('search',api_oidc_ca)
+      | list | length == 0
+  vars:
+    parsed: '{{ item.content | b64decode | from_yaml }}'
+  loop: '{{ api_oidc_config_text.results }}'
+  no_log: true
+- ansible.builtin.stat:
+    path: '{{ api_oidc_journal }}/owner.json'
+    follow: false
+  register: api_oidc_state_stat
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - not api_oidc_dirs.results[3].stat.exists or (api_oidc_state_stat.stat.isreg | default(false) and not (api_oidc_state_stat.stat.islnk
+      | default(false)) and api_oidc_state_stat.stat.uid == api_oidc_uid and api_oidc_state_stat.stat.mode == '0600')
+  no_log: true
+- when: api_oidc_state_stat.stat.exists
+  block:
+  - ansible.builtin.slurp:
+      src: '{{ api_oidc_journal }}/owner.json'
+    register: api_oidc_state_read
+    no_log: true
+  - ansible.builtin.set_fact:
+      api_oidc_state: '{{ api_oidc_state_read.content | b64decode | from_json }}'
+    no_log: true
+  - ansible.builtin.assert:
+      that:
+      - api_oidc_state.owner == 'perkforge-api-oidc-v1'
+      - api_oidc_state.cluster_id == api_oidc_cluster_id
+      - api_oidc_state.cluster_uid == api_oidc_cluster_uid
+      - api_oidc_state.node == inventory_hostname
+      - api_oidc_state.baseline == api_oidc_baseline
+      - api_oidc_state.phase in ['prepared','active','rollback-pending','rolled-back']
+      - api_oidc_state.service_digest == api_oidc_service_digest
+      - api_oidc_state.source_commit == api_oidc_release_commit
+    no_log: true
+  no_log: true
+- ansible.builtin.stat:
+    path: '{{ item }}'
+    follow: false
+    checksum_algorithm: sha256
+  loop:
+  - '{{ api_oidc_dropin }}'
+  - '{{ api_oidc_ca }}'
+  register: api_oidc_owned
+  no_log: true
+- name: Never adopt or overwrite existing files, including links
+  ansible.builtin.assert:
+    that:
+    - not item.stat.exists or (api_oidc_state | length > 0 and item.stat.isreg | default(false) and not (item.stat.islnk
+      | default(false)) and item.stat.uid == api_oidc_uid and item.stat.checksum == api_oidc_state.owned[item.item])
+    - not item.stat.exists or item.stat.mode == ('0600' if item.item == api_oidc_dropin else '0644')
+  loop: '{{ api_oidc_owned.results }}'
+  no_log: true
+- ansible.builtin.assert:
+    that: item.stat.exists
+  loop: '{{ api_oidc_owned.results }}'
+  when: api_oidc_state.phase | default('unmanaged') == 'active'
+  no_log: true
+- name: Inspection is read-only, including sudo; no backup or config creation
+  when: api_oidc_operation == 'inspect'
+  block:
+  - ansible.builtin.command:
+      argv:
+      - systemctl
+      - is-active
+      - rke2-server
+    changed_when: false
+    no_log: true
+  - ansible.builtin.command:
+      argv: '{{ api_oidc_cli + [''get'',''namespace'',''kube-system'',''-o'',''jsonpath={.metadata.uid}''] }}'
+    register: api_oidc_target_uid
+    changed_when: false
+    no_log: true
+  - ansible.builtin.assert:
+      that: api_oidc_target_uid.stdout == api_oidc_cluster_uid
+    no_log: true
+  no_log: true
+- ansible.builtin.include_tasks: api-oidc-apply.yml
+  when: api_oidc_operation == 'apply'
+  no_log: true
+- ansible.builtin.include_tasks: api-oidc-rollback.yml
+  when: api_oidc_operation == 'rollback'
+  no_log: true

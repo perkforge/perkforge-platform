@@ -1,0 +1,62 @@
+- name: Reconcile only the authored Headlamp HTTPS ingress
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    headlamp_route_run: false
+    headlamp_route_operation: inspect
+    headlamp_route_scope: UNAPPROVED
+    headlamp_route_recovery_verified: false
+    headlamp_route_origin: https://headlamp.perkforge.home.arpa
+    headlamp_route_public_ca: /UNCONFIGURED/ca.crt
+    headlamp_route_ca_fingerprint: UNCONFIGURED
+    headlamp_route_kubectl: kubectl
+    headlamp_route_kubeconfig: /UNCONFIGURED/kubeconfig
+    headlamp_route_context: UNCONFIGURED
+    headlamp_route_cluster_uid: UNCONFIGURED
+    config_tag: UNCONFIGURED
+    config_release_evidence: /UNCONFIGURED/platform-release.json
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Headlamp HTTPS route run={{ headlamp_route_run | bool }} operation={{ headlamp_route_operation }} check={{ ansible_check_mode }}. No other routes, credentials, RBAC, NetworkPolicy or workloads are changed.'
+  - when: headlamp_route_run | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - headlamp_route_operation in ['inspect','apply','rollback']
+        - headlamp_route_scope == 'headlamp-https-route-v1'
+        - headlamp_route_recovery_verified | bool
+        - headlamp_route_cluster_uid is match('^[0-9a-f-]{36}$')
+        - headlamp_route_origin is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+        - headlamp_route_kubeconfig is match('^/') and not headlamp_route_kubeconfig.startswith('/UNCONFIGURED/')
+        - headlamp_route_context != 'UNCONFIGURED'
+        - config_tag is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+    - ansible.builtin.set_fact:
+        headlamp_route_release: "{{ lookup('file',config_release_evidence) | from_json }}"
+    - ansible.builtin.assert:
+        that:
+        - headlamp_route_release.repository == 'perkforge/perkforge-platform'
+        - headlamp_route_release.tag == config_tag
+        - headlamp_route_release.resolvedCommit is match('^[0-9a-f]{40}$')
+    - ansible.builtin.command:
+        argv: [bash, '{{ playbook_dir }}/../../../../scripts/verify-release-ref.sh', perkforge/perkforge-platform, '{{ config_tag }}', '{{ headlamp_route_release.resolvedCommit }}']
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../../..', rev-parse, HEAD]
+      register: headlamp_route_head
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../../..', status, --porcelain]
+      register: headlamp_route_dirty
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - headlamp_route_head.stdout == headlamp_route_release.resolvedCommit
+        - headlamp_route_dirty.stdout | length == 0
+    - ansible.builtin.set_fact:
+        headlamp_route_cli: ['{{ headlamp_route_kubectl }}', --kubeconfig, '{{ headlamp_route_kubeconfig }}', --context, '{{ headlamp_route_context }}', --request-timeout=15s]
+        headlamp_route_owner: {platform.perkforge.io/https-owner: headlamp-v1}
+        headlamp_route_candidate: "{{ lookup('file',playbook_dir ~ '/../../identity/routing/headlamp.yaml') | from_yaml }}"
+    - ansible.builtin.set_fact:
+        headlamp_route_candidate: "{{ headlamp_route_candidate | combine({'metadata':headlamp_route_candidate.metadata | combine({'labels':headlamp_route_owner}), 'spec':headlamp_route_candidate.spec | combine({'tls':[{'hosts':[headlamp_route_origin | urlsplit('hostname')],'secretName':'headlamp-local-tls'}], 'rules':[{'host':headlamp_route_origin | urlsplit('hostname'),'http':headlamp_route_candidate.spec.rules[0].http}]})},recursive=false) }}"
+    - ansible.builtin.include_tasks: tasks/headlamp-routing.yaml
