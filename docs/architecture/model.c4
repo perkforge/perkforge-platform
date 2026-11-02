@@ -162,7 +162,7 @@ model {
       description 'OBSERVED PLATFORM-ONLY FOUNDATION: Ansible created the owned PerkForge realm and five empty groups; repeat changed zero. Tenant groups, human memberships, app mappings and permissions remain proposed. Review rendering never applies. Existing pilot mappings are retained. Keycloak realm administration is distinct from Kubernetes/platform administration. Everyday operator access is intended through Keycloak platform-admin SSO. Durable local recovery credentials belong in the operator password manager, independent of cluster/Keycloak; test local emergency access with SSO unavailable. Temporary bootstrap credentials are not automatically durable recovery identities. Activation also requires admission/workload identity and custody decisions.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/README.md 'Who does what and why'
       groups = component 'Human groups and app clients — proposed' {
-        description 'PerkForge display name/perkforge realm. One shared PerkForge realm; platform-admin/engineer/viewer and tenant-qualified admin/developer/viewer groups. Multiple tenant memberships grant only explicit scopes. Separate supported app clients/audiences; client-specific group disclosure and delegated membership mechanics remain proposed. No users or memberships created.'
+        description 'PerkForge display name/perkforge realm. One shared PerkForge realm; platform-admin/engineer/viewer and tenant-qualified admin/developer/viewer groups. Multiple tenant memberships grant only explicit scopes. Separate supported app clients/audiences; client-specific group disclosure and delegated membership mechanics remain proposed. One pending human now exists; group membership stopped on missing ownership markers. No app mappings or permissions applied.'
         link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/templates/realm.yaml.j2 'Reviewable realm/group/client template'
       }
       api_owner = component 'Ansible realm/API configuration owner' {
@@ -174,9 +174,10 @@ model {
         link /sources/realm-foundation.yaml 'Actual Ansible entrypoint'
         link /runbook.html#realm-foundation 'Who does what and why; approval and recovery gates'
       }
-      human_enrollment = component 'Named-human IL2 TOTP — draft, default off' {
-        description 'IMPLEMENTED/OFFLINE TESTED, NOT LIVE: explicit username, no inferred email, private supplied temporary password and immutable ownership UUID. Proposed PerkForge realm-wide browser flow: existing MFA SSO cookie OR required password then required TOTP. Initial profile/password/TOTP remain human actions; reruns never reset them. No app rights or Headlamp client. Master/direct recovery preserved. Current IL2 TOTP; future intended IL5 CAC is not implemented or a compliance claim.'
+      human_enrollment = component 'Named-human IL2 TOTP — partial, stopped' {
+        description 'OBSERVED PARTIAL: browser flow bound and pending user created; undeclared ownership markers filtered, guard stopped before membership. CORRECTION NOT APPLIED: two managed admin-only profile fields and explicit exact-UUID marker-only resume; no password reset/adoption. Explicit username, no inferred email, private supplied temporary password and immutable ownership UUID. Observed PerkForge realm-wide browser flow: existing MFA SSO cookie OR required password then required TOTP. Initial profile/password/TOTP remain human actions; reruns never reset them. No app rights or Headlamp client. Master/direct recovery preserved. Current IL2 TOTP; future intended IL5 CAC is not implemented or a compliance claim.'
         link /sources/enroll-human.yaml 'Actual gated Ansible entrypoint'
+        link /sources/human-profile.yaml 'Managed admin-only ownership fields; proposed correction'
         link /runbook.html#human-totp 'Human actions, scope and evidence gate'
       }
       tenant_rbac = component 'Kubernetes authorization and admission boundary — proposed' {

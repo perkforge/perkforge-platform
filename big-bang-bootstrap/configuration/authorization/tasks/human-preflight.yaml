@@ -92,6 +92,74 @@
     that:
     - human_parent_roles.json.realmMappings | default([]) | length == 0
     - human_parent_roles.json.clientMappings | default({}) | length == 0
+- name: Identify only the explicitly reviewed missing-marker recovery case
+  ansible.builtin.set_fact:
+    human_repair_markers: "{{ human_found | length == 1 and human_found[0].get('attributes', {}) == {} }}"
+- name: Validate exact known partial account before any profile or account write
+  when: human_repair_markers | bool
+  block:
+  - ansible.builtin.assert:
+      that:
+      - human_resume_missing_ownership_id != 'UNCONFIGURED'
+      - human_resume_missing_ownership_id == human_record.id == human_found[0].id
+      - human_found[0].enabled
+      - human_found[0].requiredActions | sort == ['CONFIGURE_TOTP','UPDATE_PASSWORD']
+      - not (human_found[0].emailVerified | default(false))
+      - not (human_found[0].email | default(''))
+      - not (human_found[0].firstName | default(''))
+      - not (human_found[0].lastName | default(''))
+  - ansible.builtin.uri:
+      url: '{{ human_api }}/users/{{ human_found[0].id }}/{{ item }}'
+      headers: '{{ human_headers }}'
+    loop: [groups, role-mappings, credentials]
+    register: human_partial
+  - ansible.builtin.assert:
+      that:
+      - human_partial.results[0].json | length == 0
+      - human_partial.results[1].json.clientMappings | default({}) | length == 0
+      - human_partial.results[1].json.realmMappings | default([]) | map(attribute='name') | difference(['default-roles-perkforge']) | length == 0
+      - human_partial.results[2].json | length == 1
+      - human_partial.results[2].json[0].type == 'password'
+- name: Validate normal existing ownership and access before profile writes
+  vars: {human_user: '{{ human_found[0] }}'}
+  ansible.builtin.include_tasks: human-access-check.yaml
+  when: human_found | length == 1 and not human_repair_markers
+- ansible.builtin.include_tasks: human-profile.yaml
+- name: Restore only administrator-owned markers on the exact approved partial UUID
+  ansible.builtin.uri:
+    url: '{{ human_api }}/users/{{ human_found[0].id }}'
+    method: PUT
+    headers: '{{ human_headers }}'
+    body_format: json
+    body:
+      username: '{{ human_found[0].username }}' # required profile validation; unchanged
+      attributes: {perkforge-managed: ['true'], perkforge-enrollment: [human-totp-il2-v1]}
+    status_code: 204
+  when: human_repair_markers | bool
+  changed_when: true
+- name: Read back the recorded identity after any marker-only repair
+  ansible.builtin.uri:
+    url: '{{ human_api }}/users?username={{ human_username | urlencode }}&exact=true'
+    headers: '{{ human_headers }}'
+  register: human_refreshed
+  when: human_repair_markers | bool
+- name: Verify marker-only repair preserved every returned user field and credential
+  when: human_repair_markers | bool
+  block:
+  - ansible.builtin.assert:
+      that:
+      - human_refreshed.json | length == 1
+      - >-
+        human_refreshed.json[0] == human_found[0] | combine({'attributes': {'perkforge-managed':['true'], 'perkforge-enrollment':['human-totp-il2-v1']}})
+  - ansible.builtin.uri:
+      url: '{{ human_api }}/users/{{ human_found[0].id }}/credentials'
+      headers: '{{ human_headers }}'
+    register: human_partial_credentials_after
+  - ansible.builtin.assert:
+      that: human_partial_credentials_after.json == human_partial.results[2].json
+- ansible.builtin.set_fact:
+    human_found: '{{ human_refreshed.json }}'
+  when: human_repair_markers | bool
 - name: Validate any existing recorded human before policy writes
   vars: {human_user: '{{ human_found[0] }}'}
   ansible.builtin.include_tasks: human-access-check.yaml

@@ -215,7 +215,7 @@ still require review and action-specific approval. Nothing here authorizes rerun
 or expands platform-engineer rights. No cluster release promotion was required;
 source remains v0.14.0/local-keycloak, while reviewed Ansible came from merged #127.
 
-## Named-human IL2 TOTP enrollment — draft, not applied
+## Named-human IL2 TOTP enrollment — partial live state; correction pending
 
 [enroll-human.yaml](enroll-human.yaml) supersedes the historical hard-coded test
 user entrypoint. [Nonsecret inputs](human.example.yaml) leave identity and scope
@@ -223,13 +223,46 @@ explicit; an email-shaped **username is not an email address or verified mailbox
 No personal identity is embedded in source. Email/name fields are omitted from the
 API payload, no email-as-username/SMTP configuration changes occur, and no email
 is marked verified. Keycloak 26.8.1's default user profile requires email/first/last
-name for user login: that first-browser profile decision remains unresolved. Do
+name for user login: private first-browser completion was approved but is pending. Do
 not fake values, mark email verified or weaken realm profile rules to hide it.
+
+### Ownership profile correction and known partial resume
+
+The first approved physical run bound the owned browser policy and created the
+pending human, then stopped before group membership: Keycloak 26.8.1 filtered
+both undeclared ownership markers. The old HTTPS fixture accepted arbitrary
+attributes and therefore missed the default profile behavior. Read-only diagnosis
+found only username/email/firstName/lastName and no unmanaged-attribute policy.
+The account, initial password and protected UUID record remain; **do not log in or
+rerun the old code**. No app permissions were granted.
+
+[human-profile.yaml](tasks/human-profile.yaml) declares only `perkforge-managed`
+and `perkforge-enrollment`, each view/edit **admin only**, optional/single-valued.
+It preserves every existing profile field/group/requirement and leaves unmanaged
+attributes disabled. Existing conflicting definitions stop; there is no blanket
+`ADMIN_EDIT`/`ENABLED` switch. This is a new realm-profile policy change requiring
+explicit live approval. Synthetic tests verify authored permissions, not actual
+Keycloak end-user write denial.
+
+Normal reruns still require both markers. A separately approved repair may set
+`human_resume_missing_ownership_id` to the exact UUID already in the private record.
+It must also match the server account and verify no attributes/profile/email
+verification, exactly pending password/TOTP actions, no memberships/custom roles
+and one existing password credential. Otherwise stop before any write. It sends the unchanged username for profile validation and adds
+only the two marker attributes, then checks all other returned user fields and
+credential metadata unchanged. No credential reset, seed, user adoption/deletion,
+required-action rewrite or profile completion occurs. A second normal run must
+write nothing; future completed enrollment is not eligible for marker repair.
+
+Version-specific sources: [default profile](https://github.com/keycloak/keycloak/blob/26.8.1/services/src/main/resources/org/keycloak/userprofile/config/keycloak-default-user-profile.json),
+[attribute filtering and access](https://github.com/keycloak/keycloak/blob/26.8.1/server-spi-private/src/main/java/org/keycloak/userprofile/DefaultAttributes.java),
+[profile permissions](https://github.com/keycloak/keycloak/blob/26.8.1/core/src/main/java/org/keycloak/representations/userprofile/config/UPAttributePermissions.java),
+[profile Admin API](https://www.keycloak.org/docs-api/26.8.1/rest-api/index.html).
 
 ### Who does what and why
 
 1. Review exact username, IL2 target/HTTPS, existing master recovery/custody and
-   proposed `human_mfa_scope=perkforge-browser`. Both apply and this scope are
+   approved initial `human_mfa_scope=perkforge-browser`. Both apply and this scope are
    explicit gates; default/check mode does not read credentials or call APIs.
 2. Validate existing foundation ownership, exact account collision/record, allowed
    self-service default roles, empty parent/admin-group role mappings, no automatic
@@ -241,8 +274,8 @@ not fake values, mark email verified or weaken realm profile rules to hide it.
    containing Password **Required** then OTP **Required**. No conditional OTP,
    identity-provider/passwordless shortcut or copied built-in flow is imported.
    Verify exact order/provider/requirements before binding the realm. Binding is
-   proposed **realm-wide for future PerkForge browser users**, not just this account;
-   approve that scope first. Master, direct-grant/service authentication and other
+   approved and bound **realm-wide for future PerkForge browser users**, not just this account;
+   future changes require renewed review. Master, direct-grant/service authentication and other
    realms are unchanged; this is not a claim every authentication path requires MFA.
 4. Only when the flow is verified, create the missing owned human using a supplied
    owner-only temporary-password file. It is temporary, with `UPDATE_PASSWORD` and
@@ -260,7 +293,7 @@ not fake values, mark email verified or weaken realm profile rules to hide it.
    and presence of an OTP credential alone do not prove that. SSO-cookie reuse is
    intentional, not a promise of a new OTP prompt for every app/page.
 7. Reruns preserve user UUID, human-entered profile/password/required-action state,
-   OTP and memberships. They never PUT/reset an existing user or re-add completed
+   OTP and memberships. Normal reruns never PUT/reset an existing user or re-add completed
    enrollment actions; the initial password file may be retired before rerun.
    Bound-flow drift (conditional/disabled OTP, unknown provider or wrong ownership)
    stops rather than repairs. Partial unbound flow construction can be resumed;

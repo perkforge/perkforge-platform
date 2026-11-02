@@ -106,6 +106,7 @@ class Documentation(unittest.TestCase):
          'human-example.yaml': 'big-bang-bootstrap/configuration/authorization/human.example.yaml',
          'test-human-totp.py': 'big-bang-bootstrap/tests/integration/test_human_totp.py',
          'human-preflight.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-preflight.yaml',
+         'human-profile.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-profile.yaml',
          'human-flow.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-flow.yaml',
          'human-execution.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-execution.yaml',
          'human-user.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-user.yaml',
