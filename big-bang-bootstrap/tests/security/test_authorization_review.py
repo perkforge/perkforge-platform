@@ -25,6 +25,16 @@ class AuthorizationReview(unittest.TestCase):
    self.assertTrue(all(f.stat().st_mode&0o777==0o600 for f in output.iterdir()))
    realm=yaml.safe_load((output/'realm.yaml').read_text());self.assertEqual(realm['realm'],'perkforge');self.assertEqual(realm['displayName'],'PerkForge')
    self.assertNotIn('users',realm);self.assertNotIn('roles',realm)
+   intent=yaml.safe_load((REVIEW/'desired.yaml').read_text())['authorization_roles']
+   self.assertTrue(intent['platform-admin']['realm_admin'])
+   self.assertFalse(intent['platform-admin']['master_admin'])
+   self.assertTrue(all(not role['realm_admin'] for name,role in intent.items() if name!='platform-admin'))
+   # Revised full-realm intent must not activate grants through the offline renderer.
+   def assert_no_role_mapping(groups):
+    for group in groups:
+     self.assertNotIn('clientRoles',group);self.assertNotIn('realmRoles',group)
+     assert_no_role_mapping(group.get('subGroups',[]))
+   assert_no_role_mapping(realm['groups'])
    self.assertEqual({c['clientId'] for c in realm['clients']},{'headlamp-local','rancher','openbao'})
    for c in realm['clients']:
     self.assertFalse(c['enabled']);self.assertFalse(c['fullScopeAllowed']);self.assertFalse(c['serviceAccountsEnabled']);self.assertFalse(c['directAccessGrantsEnabled']);self.assertNotIn('secret',c)

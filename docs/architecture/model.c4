@@ -181,6 +181,12 @@ model {
         link /sources/human-subflow.yaml 'Observed nested metadata lookup; no policy rebuild'
         link /runbook.html#human-totp 'Human actions, scope and evidence gate'
       }
+      perkforge_admin = component 'Full PerkForge realm administration — default off' {
+        description 'SOURCE ONLY, revised explicit PA intent: Ansible maps the existing PerkForge realm-management/realm-admin composite to the exact owned /platform/admins leaf. Full users/clients/groups/roles, authentication flows, realm settings, identity providers and impersonation. Supersedes earlier PA realm_admin=false; no master or other-realm delegation. Verify physical UID, trusted TLS, existing private master authentication, group UUIDs/ownership and exact composite plus same-client expansion before a missing-only mapping/readback. No default/parent/other group grants; independent recovery preserved. Admin authority can bypass nominal app/privacy boundaries. Synthetic tests are not live authorization; default/check contacts no API, publication is not live approval.'
+        link /sources/administer-perkforge.yaml 'Actual default-off Ansible operation'
+        link /sources/perkforge-admin.yaml 'Exact composite inspection and bounded mapping tasks'
+        link /runbook.html#perkforge-admin 'Full scope, owner, approval and acceptance'
+      }
       tenant_rbac = component 'Kubernetes authorization and admission boundary — proposed' {
         description 'Exact oidc: group bindings: platform cluster-admin; tenant-qualified namespace roles; developer listed deployment-resource management plus own Secret get/list, no Secret writes/SA/token/exec; viewers status-only with no Secret API. Deployment edits can indirectly access mounted credentials or workload SAs. Restricted Pod Security/admission/identity/network controls are required before activation; RBAC alone is not isolation.'
         link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/templates/kubernetes.yaml.j2 'Disabled reviewable Kubernetes roles/bindings'

@@ -387,3 +387,13 @@ Update this matrix/C4 with that evidence before calling daily access accepted.
 Sources: [26.8.1 authentication Admin API](https://www.keycloak.org/docs-api/26.8.1/rest-api/index.html),
 [Keycloak authentication/MFA guide](https://www.keycloak.org/docs/latest/server_admin/index.html),
 [26.8.1 default user profile](https://github.com/keycloak/keycloak/blob/26.8.1/services/src/main/resources/org/keycloak/userprofile/config/keycloak-default-user-profile.json).
+
+## Proposed full PerkForge realm administration
+
+[Exact composite and review gates](PERKFORGE-ADMIN.md) describe separately invoked,
+default-off `administer-perkforge.yaml`. The clarified PA intent is full authority
+inside PerkForge through `realm-management/realm-admin`, including impersonation,
+authentication flows and realm settings. This explicitly supersedes PA's earlier
+`realm_admin: false`; master/other realms remain excluded. No live grant occurred.
+Earlier empty-mapping workflows remain pre-delegation checks and intentionally
+refuse after a grant. Publication is not live approval.

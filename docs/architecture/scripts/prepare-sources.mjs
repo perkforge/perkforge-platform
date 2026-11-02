@@ -7,6 +7,10 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../../..')
 const output = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(here, '../public/sources')
 const files = {
+  'administer-perkforge.yaml': 'big-bang-bootstrap/configuration/authorization/administer-perkforge.yaml',
+  'perkforge-admin.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/perkforge-admin.yaml',
+  'perkforge-admin.md': 'big-bang-bootstrap/configuration/authorization/PERKFORGE-ADMIN.md',
+  'test-perkforge-admin.py': 'big-bang-bootstrap/tests/integration/test_perkforge_admin.py',
   'enroll-human.yaml': 'big-bang-bootstrap/configuration/authorization/enroll-human.yaml',
   'human-example.yaml': 'big-bang-bootstrap/configuration/authorization/human.example.yaml',
   'test-human-totp.py': 'big-bang-bootstrap/tests/integration/test_human_totp.py',
