@@ -59,7 +59,7 @@ class AdminAPI(unittest.TestCase):
                   'defaults': [], 'children': [], 'tokenDeny': False, 'clients': [{'clientId': 'realm-management', 'id': 'management-id'}],
                   'compositeRoles': [copy.deepcopy(self.roles[name]) for name in CHILDREN],
                   'nestedEdges': {name: [copy.deepcopy(self.roles[child]) for child in EDGES.get(name, [])] for name in CHILDREN},
-                  'catalogTruncated': False, 'groupRepresentations': [],
+                  'catalogTruncated': False, 'groupRepresentations': [], 'ssoApps': {},
                   'writes': [], 'calls': [], 'deny': False, 'failAfterWrite': False}
         state, roles = self.s, self.roles
         class Handler(BaseHTTPRequestHandler):
@@ -100,6 +100,15 @@ class AdminAPI(unittest.TestCase):
                     return self.respond(200, state['children'])
                 if path == api + '/clients':
                     return self.respond(200, state['clients'])
+                for app in state['ssoApps'].values():
+                    if path == api + '/clients/' + app['client']['id']:
+                        return self.respond(200, app['client'])
+                    if path == api + '/clients/' + app['client']['id'] + '/roles':
+                        return self.respond(200, [app['role']])
+                    if path == api + '/roles-by-id/' + app['role']['id'] + '/composites':
+                        return self.respond(200, app.get('edges', []))
+                    if path == api + '/groups/admin-id/role-mappings/clients/' + app['client']['id']:
+                        return self.respond(200, state['otherClients'].get(app['client']['clientId'],{}).get('mappings',[]))
                 if path == api + '/clients/management-id/roles':
                     catalog = list(roles.values())
                     return self.respond(200, catalog[:-1] if state['catalogTruncated'] else catalog)
@@ -286,6 +295,32 @@ class AdminAPI(unittest.TestCase):
         self.roles['query-users']['id'] = 'replaced-canonical-id'
         self.assertNotEqual(self.run_play().returncode, 0)
         self.assertEqual(self.s['writes'], [])
+
+    def test_explicit_owned_app_contract_preserves_sso_but_rejects_foreign_or_expanded_roles(self):
+        self.s['mapped'] = [copy.deepcopy(self.roles['realm-admin'])]
+        client = {'id':'app-id','clientId':'headlamp-local','enabled':True,'fullScopeAllowed':False,'serviceAccountsEnabled':False,
+                  'attributes':{'perkforge-managed':'true','perkforge-purpose':'coordinated-sso-v1'}}
+        role = {'id':'app-role','name':'/platform/admins','clientRole':True,'containerId':'app-id','composite':False}
+        self.s['ssoApps'] = {'headlamp':{'client':client,'role':role}}
+        self.s['otherClients'] = {'headlamp-local':{'id':'app-id','client':'headlamp-local','mappings':[role]}}
+        # The unchanged default still rejects every undeclared app mapping.
+        self.assertNotEqual(self.run_play().returncode,0)
+        self.vars['perkforge_admin_expected_sso_clients'] = {'headlamp':{'client_name':'headlamp-local','client_id':'app-id','role_id':'app-role'}}
+        r=self.run_play();self.assertEqual(r.returncode,0,r.stdout+r.stderr);self.assertIn('changed=0',r.stdout)
+        # A completed own-app rollback plus the matching reviewed contract removal
+        # must restore the default zero-change realm-admin path.
+        client['enabled']=False;self.s['otherClients']={}
+        self.vars['perkforge_admin_expected_sso_clients']={}
+        r=self.run_play();self.assertEqual(r.returncode,0,r.stdout+r.stderr);self.assertIn('changed=0',r.stdout)
+        self.assertEqual([r['name'] for r in self.s['mapped']],['realm-admin'])
+        client['enabled']=True
+        self.s['otherClients']={'headlamp-local':{'id':'app-id','client':'headlamp-local','mappings':[role]}}
+        self.vars['perkforge_admin_expected_sso_clients']={'headlamp':{'client_name':'headlamp-local','client_id':'app-id','role_id':'app-role'}}
+        role['composite']=True
+        self.assertNotEqual(self.run_play().returncode,0)
+        role['composite']=False;client['attributes']['perkforge-purpose']='foreign'
+        self.assertNotEqual(self.run_play().returncode,0)
+        self.assertEqual(self.s['writes'],[])
 
     def test_group_representation_rejects_extra_roles_clients_and_inconsistent_direct_state(self):
         baseline = copy.deepcopy(self.s['leaf'])

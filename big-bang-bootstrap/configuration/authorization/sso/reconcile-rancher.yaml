@@ -1,0 +1,139 @@
+- name: Reconcile only reviewed Rancher Generic OIDC and PA binding
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [desired.yaml]
+  vars:
+    sso_rancher_run: false
+    sso_rancher_operation: inspect
+    sso_rancher_reviewed_scope: UNAPPROVED
+    sso_rancher_recovery_verified: false
+    rancher_kubectl: kubectl
+    rancher_kubeconfig: /UNCONFIGURED/kubeconfig
+    rancher_context: UNCONFIGURED
+    rancher_cluster_uid: UNCONFIGURED
+    rancher_oidc_secret_file: /UNCONFIGURED/client-secret
+    sso_rancher_expected_image: rancher/rancher:v2.15.2
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Rancher stage only; run={{ sso_rancher_run | bool }} operation={{ sso_rancher_operation }} check={{ ansible_check_mode }}. No provider migration or native Keycloak provider settings.'
+  - when: sso_rancher_run | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - sso_rancher_operation in ['inspect', 'apply', 'rollback']
+        - sso_rancher_reviewed_scope == 'rancher-sso-v1'
+        - sso_rancher_recovery_verified | bool
+        - sso_apps.rancher.origin is match('^https://[A-Za-z0-9.-]+$')
+        - sso_keycloak_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - sso_keycloak_path in ['', '/auth']
+        - sso_realm == 'perkforge'
+        - sso_rancher_expected_image is search(':v2\.15\.2$')
+    - ansible.builtin.set_fact:
+        rancher_hostname: '{{ sso_apps.rancher.origin | regex_replace("^https://", "") }}'
+        rancher_oidc_client_id: '{{ sso_apps.rancher.client_id }}'
+        rancher_oidc_issuer: '{{ sso_keycloak_origin }}{{ sso_keycloak_path }}/realms/{{ sso_realm }}'
+        rancher_oidc_pkce_method: S256
+        rancher_oidc_preserve_existing_secret: true
+        rancher_management_groups: [genericoidc_group:///platform/admins]
+        rancher_management_bindings:
+        - {name: perkforge-sso-v1-platform-admins, groupPrincipalName: 'genericoidc_group:///platform/admins', globalRoleName: admin}
+    - ansible.builtin.include_tasks: ../../ansible/tasks/rancher-target.yml
+    - name: Keep provider, trust and binding metadata private
+      no_log: true
+      block:
+      - ansible.builtin.command:
+          argv: ['{{ rancher_kubectl }}', --kubeconfig, '{{ rancher_kubeconfig }}', --context, '{{ rancher_context }}', --request-timeout=20s, get, '{{ item.kind }}', '{{ item.name }}', -n, cattle-system, -o, json]
+        loop:
+        - {kind: deployment, name: rancher}
+        - {kind: secret, name: tls-ca-additional}
+        register: rancher_trust
+        changed_when: false
+      - ansible.builtin.assert:
+          that:
+          - sso_public_ca_file is match('^/') and not sso_public_ca_file.startswith('/UNCONFIGURED/')
+          - "'PRIVATE KEY' not in lookup('file',sso_public_ca_file)"
+          - (rancher_trust.results[0].stdout | from_json).spec.template.spec.containers | selectattr('image','equalto',sso_rancher_expected_image) | list | length == 1
+          - (rancher_trust.results[0].stdout | from_json).spec.template.spec.volumes | selectattr('secret','defined') | selectattr('secret.secretName','equalto','tls-ca-additional') | list | length == 1
+          - (rancher_trust.results[1].stdout | from_json).data['ca-additional.pem'] | b64decode | trim == lookup('file', sso_public_ca_file) | trim
+      - ansible.builtin.set_fact:
+          rancher_ca_volume: '{{ ((rancher_trust.results[0].stdout | from_json).spec.template.spec.volumes | selectattr("secret","defined") | selectattr("secret.secretName","equalto","tls-ca-additional") | first).name }}'
+      - ansible.builtin.assert:
+          that: ((rancher_trust.results[0].stdout | from_json).spec.template.spec.containers | selectattr('image','equalto',sso_rancher_expected_image) | first).volumeMounts | selectattr('name','equalto',rancher_ca_volume) | selectattr('mountPath','equalto','/etc/ssl/certs/ca-additional.pem') | selectattr('readOnly','equalto',true) | list | length == 1
+      - ansible.builtin.command:
+          argv: ['{{ rancher_kubectl }}', --kubeconfig, '{{ rancher_kubeconfig }}', --context, '{{ rancher_context }}', --request-timeout=20s, get, '{{ item }}', -o, json]
+        loop: [authconfigs.management.cattle.io, globalrolebindings.management.cattle.io]
+        register: rancher_stage_reads
+        changed_when: false
+      - ansible.builtin.set_fact:
+          rancher_stage_auth: '{{ (rancher_stage_reads.results[0].stdout | from_json)["items"] }}'
+          rancher_stage_bindings: '{{ (rancher_stage_reads.results[1].stdout | from_json)["items"] }}'
+      - ansible.builtin.assert:
+          that:
+          - rancher_stage_auth | selectattr('metadata.name','equalto','local') | selectattr('enabled','equalto',true) | list | length == 1
+          - rancher_stage_auth | selectattr('enabled','defined') | selectattr('enabled','equalto',true) | rejectattr('metadata.name','in',['local','genericoidc']) | list | length == 0
+          - rancher_stage_auth | selectattr('metadata.name','equalto','genericoidc') | list | length == 1
+      - ansible.builtin.set_fact:
+          rancher_stage_provider: '{{ rancher_stage_auth | selectattr("metadata.name","equalto","genericoidc") | first }}'
+          rancher_stage_owned_bindings: '{{ rancher_stage_bindings | selectattr("metadata.name","equalto","perkforge-sso-v1-platform-admins") | list }}'
+      - ansible.builtin.assert:
+          that:
+          - rancher_stage_provider.type == 'genericOIDCConfig'
+          - not (rancher_stage_provider.certificate | default(''))
+          - not (rancher_stage_provider.privateKey | default(''))
+          - rancher_stage_owned_bindings | length <= 1
+      - name: Refuse adoption of another identity or provider configuration
+        ansible.builtin.assert:
+          that:
+          - rancher_stage_provider.metadata.labels.get('platform.perkforge.io/managed-by','') == 'platform-ansible'
+          - rancher_stage_provider.clientId == rancher_oidc_client_id
+          - rancher_stage_provider.issuer == rancher_oidc_issuer
+          - rancher_stage_provider.allowedPrincipalIds == rancher_management_groups
+          - rancher_stage_provider.groupsClaim == 'groups'
+          - rancher_stage_provider.pkceMethod == 'S256'
+        when: rancher_stage_provider.enabled | default(false) or rancher_stage_provider.clientId | default('') | length > 0
+      - ansible.builtin.assert:
+          that:
+          - item.metadata.labels.get('platform.perkforge.io/managed-by','') == 'platform-ansible'
+          - item.groupPrincipalName == 'genericoidc_group:///platform/admins'
+          - item.globalRoleName == 'admin'
+          - not (item.userName | default('')) and not (item.userPrincipalName | default(''))
+        loop: '{{ rancher_stage_owned_bindings }}'
+      - ansible.builtin.include_tasks: ../../ansible/tasks/rancher-oidc.yml
+        when: sso_rancher_operation == 'apply'
+      - name: Independent rollback disables only the owned external provider
+        when: sso_rancher_operation == 'rollback'
+        block:
+        - ansible.builtin.assert:
+            that: rancher_stage_provider.metadata.labels.get('platform.perkforge.io/managed-by','') == 'platform-ansible'
+        - ansible.builtin.command:
+            argv: ['{{ rancher_kubectl }}', --kubeconfig, '{{ rancher_kubeconfig }}', --context, '{{ rancher_context }}', --request-timeout=20s, patch, authconfig.management.cattle.io, genericoidc, --type=merge, --patch-file=/dev/stdin]
+            stdin: "{{ {'metadata':{'resourceVersion':rancher_stage_provider.metadata.resourceVersion}, 'enabled':false} | to_json }}"
+          when: rancher_stage_provider.enabled | default(false)
+        - name: Remove only exact owned group binding using UID and resource-version preconditions
+          ansible.builtin.command:
+            argv: ['{{ rancher_kubectl }}', --kubeconfig, '{{ rancher_kubeconfig }}', --context, '{{ rancher_context }}', --request-timeout=20s, delete, '--raw=/apis/management.cattle.io/v3/globalrolebindings/perkforge-sso-v1-platform-admins', -f, '-']
+            stdin: "{{ {'apiVersion':'v1','kind':'DeleteOptions','preconditions':{'uid':item.metadata.uid,'resourceVersion':item.metadata.resourceVersion}} | to_json }}"
+          loop: '{{ rancher_stage_owned_bindings }}'
+      - ansible.builtin.command:
+          argv: ['{{ rancher_kubectl }}', --kubeconfig, '{{ rancher_kubeconfig }}', --context, '{{ rancher_context }}', --request-timeout=20s, get, authconfigs.management.cattle.io, -o, json]
+        register: rancher_final_auth
+        changed_when: false
+      - ansible.builtin.command:
+          argv: ['{{ rancher_kubectl }}', --kubeconfig, '{{ rancher_kubeconfig }}', --context, '{{ rancher_context }}', --request-timeout=20s, get, globalrolebindings.management.cattle.io, -o, json]
+        register: rancher_final_bindings
+        changed_when: false
+        when: sso_rancher_operation == 'rollback'
+      - ansible.builtin.assert:
+          that: (rancher_final_bindings.stdout | from_json)["items"] | selectattr('metadata.name','equalto','perkforge-sso-v1-platform-admins') | list | length == 0
+        when: sso_rancher_operation == 'rollback'
+      - ansible.builtin.assert:
+          that:
+          - (rancher_final_auth.stdout | from_json)["items"] | selectattr('metadata.name','equalto','local') | selectattr('enabled','equalto',true) | list | length == 1
+          - (rancher_final_auth.stdout | from_json)["items"] | selectattr('metadata.name','equalto','genericoidc') | selectattr('enabled','equalto',false) | list | length == 1
+        when: sso_rancher_operation == 'rollback'
+      always:
+      - ansible.builtin.set_fact:
+          rancher_oidc_secret_value: ''
+          cacheable: false
+        no_log: true

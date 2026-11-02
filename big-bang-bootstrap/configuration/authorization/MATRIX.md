@@ -289,3 +289,16 @@ not brokered or assigned. Admins can alter identities and auth policy; this is a
 trusted administrative boundary, not tenant privacy/isolation against PA.
 Default-off scope/ownership gates, reviewed composite expansion, fresh MFA and
 positive/negative live acceptance remain separate action-specific requirements.
+
+## Coordinated initial SSO source
+
+The [Headlamp/Rancher/OpenBao procedure](sso/README.md) prepares a single coordinated
+source change with separate disabled native stages and independent live approvals.
+Initial payloads map PA only, not every design role in this matrix. Public CA and
+environment inputs stay external; no API-server restart/deployment is automatic.
+Own-client claim scopes avoid disclosing every tenant membership. OpenBao uses no
+external-group aliases and refuses existing inherited policy ambiguity; nominal
+PA remains platform values plus tenant names, never legacy broad tenant values.
+The explicit app-ID/role-ID coexistence contract must track approved activation
+and rollback while preserving realm-admin-only writes. Offline fixture results do
+not establish native token enforcement or live positive/negative acceptance.

@@ -1,0 +1,41 @@
+# Nonsecret Keycloak 26.8.1 definitions verified GET-only on 2026-11-02.
+# Own-client role claims remain separate. Never adopt a group/role mapper here.
+sso_scope_standard_flags: &flags
+  introspection.token.claim: 'true'
+  userinfo.token.claim: 'true'
+  id.token.claim: 'true'
+  access.token.claim: 'true'
+sso_expected_client_scopes:
+  basic:
+  - name: auth_time
+    protocol: openid-connect
+    protocolMapper: oidc-usersessionmodel-note-mapper
+    config: {<<: *flags, user.session.note: AUTH_TIME, claim.name: auth_time, jsonType.label: long}
+  - name: sub
+    protocol: openid-connect
+    protocolMapper: oidc-sub-mapper
+    config: {introspection.token.claim: 'true', access.token.claim: 'true'}
+  email:
+  - name: email verified
+    protocol: openid-connect
+    protocolMapper: oidc-usermodel-property-mapper
+    config: {<<: *flags, user.attribute: emailVerified, claim.name: email_verified, jsonType.label: boolean}
+  - name: email
+    protocol: openid-connect
+    protocolMapper: oidc-usermodel-attribute-mapper
+    config: {<<: *flags, user.attribute: email, claim.name: email, jsonType.label: String}
+  profile:
+  - {name: zoneinfo, protocol: openid-connect, protocolMapper: oidc-usermodel-attribute-mapper, config: {<<: *flags, user.attribute: zoneinfo, claim.name: zoneinfo, jsonType.label: String}}
+  - {name: nickname, protocol: openid-connect, protocolMapper: oidc-usermodel-attribute-mapper, config: {<<: *flags, user.attribute: nickname, claim.name: nickname, jsonType.label: String}}
+  - {name: profile, protocol: openid-connect, protocolMapper: oidc-usermodel-attribute-mapper, config: {<<: *flags, user.attribute: profile, claim.name: profile, jsonType.label: String}}
+  - {name: middle name, protocol: openid-connect, protocolMapper: oidc-usermodel-attribute-mapper, config: {<<: *flags, user.attribute: middleName, claim.name: middle_name, jsonType.label: String}}
+  - {name: website, protocol: openid-connect, protocolMapper: oidc-usermodel-attribute-mapper, config: {<<: *flags, user.attribute: website, claim.name: website, jsonType.label: String}}
+  - {name: username, protocol: openid-connect, protocolMapper: oidc-usermodel-attribute-mapper, config: {<<: *flags, user.attribute: username, claim.name: preferred_username, jsonType.label: String}}
+  - {name: locale, protocol: openid-connect, protocolMapper: oidc-usermodel-attribute-mapper, config: {<<: *flags, user.attribute: locale, claim.name: locale, jsonType.label: String}}
+  - {name: picture, protocol: openid-connect, protocolMapper: oidc-usermodel-attribute-mapper, config: {<<: *flags, user.attribute: picture, claim.name: picture, jsonType.label: String}}
+  - {name: full name, protocol: openid-connect, protocolMapper: oidc-full-name-mapper, config: *flags}
+  - {name: updated at, protocol: openid-connect, protocolMapper: oidc-usermodel-attribute-mapper, config: {<<: *flags, user.attribute: updatedAt, claim.name: updated_at, jsonType.label: long}}
+  - {name: birthdate, protocol: openid-connect, protocolMapper: oidc-usermodel-attribute-mapper, config: {<<: *flags, user.attribute: birthdate, claim.name: birthdate, jsonType.label: String}}
+  - {name: gender, protocol: openid-connect, protocolMapper: oidc-usermodel-attribute-mapper, config: {<<: *flags, user.attribute: gender, claim.name: gender, jsonType.label: String}}
+  - {name: family name, protocol: openid-connect, protocolMapper: oidc-usermodel-attribute-mapper, config: {<<: *flags, user.attribute: lastName, claim.name: family_name, jsonType.label: String}}
+  - {name: given name, protocol: openid-connect, protocolMapper: oidc-usermodel-attribute-mapper, config: {<<: *flags, user.attribute: firstName, claim.name: given_name, jsonType.label: String}}

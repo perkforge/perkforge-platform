@@ -183,3 +183,29 @@ changed=0. Actual corrected GET-only execution passed 38 tasks, changed=0,
 failed=0, including all later guards. This is not a new normal merged-source
 rerun, and no live write was performed for the correction. Source publication
 and subsequent merged-source verification remain separate.
+
+## Merged-source no-change acceptance — 2026-11-02
+
+MR #137 merged as `e7cac52fcc328249de9ef7d704757d6484996b4a`.
+Both exact post-merge workflows passed (`41494971414`, `41494971826`), including
+configuration/release checks and the release job. The separately approved normal
+Ansible invocation from that clean merged checkout passed: **38 ok, changed=0,
+failed=0, skipped=1**. This supersedes the historical rerun failure above; no
+additional mapping was written. Independent before/after metadata again verified
+realm-admin only, exactly 22 effective roles, unchanged non-target/master mappings,
+management definitions/edges, realm security and master verifier access. All three
+nodes Ready; Keycloak/database Ready with zero restarts. No personal authentication,
+credential reset, new identity or application SSO grant occurred. The owner separately
+reports fresh MFA console access; not every management operation/master-denial
+scenario was tested. Local documentation of this final result is unpublished.
+
+## Explicit SSO coexistence (disabled by default)
+
+After a separately approved app stage, the optional
+`perkforge_admin_expected_sso_clients` input records only reviewed headlamp/rancher/
+openbao client names, UUIDs and noncomposite app-role UUIDs. The empty default retains
+the original refusal of every app role. The play independently checks canonical
+ownership, role catalog/edges and exact direct/aggregate role mappings; it never
+grants, repairs or removes app roles. Unexpected/foreign/expanded roles still stop.
+Remove only the expected entry after that app's completed rollback, then verify
+realm-admin repeat changed=0. See [the coordinated procedure](sso/README.md).

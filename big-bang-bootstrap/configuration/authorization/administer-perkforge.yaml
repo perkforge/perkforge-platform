@@ -12,6 +12,9 @@
     perkforge_admin_password_file: /UNCONFIGURED/master-password
     perkforge_admin_group_id: UNCONFIGURED
     perkforge_admin_parent_id: UNCONFIGURED
+    # Explicit reviewed app UUIDs only after separately approved SSO activation.
+    # Empty default preserves the original realm-admin-only contract.
+    perkforge_admin_expected_sso_clients: {}
   module_defaults:
     ansible.builtin.uri:
       validate_certs: true
@@ -80,6 +83,15 @@
           pa_headers: {Authorization: 'Bearer {{ pa_login.json.access_token }}'}
           pa_role_names: [realm-admin]
           pa_child_names: [create-client, impersonation, manage-authorization, manage-clients, manage-events, manage-identity-providers, manage-organizations, manage-realm, manage-users, query-clients, query-groups, query-organizations, query-realms, query-users, view-authorization, view-clients, view-events, view-identity-providers, view-organizations, view-realm, view-users]
+      - ansible.builtin.set_fact:
+          pa_app_group_names: {}
+      - ansible.builtin.assert:
+          that:
+          - perkforge_admin_expected_sso_clients.keys() | list | difference(['headlamp','rancher','openbao']) | length == 0
+          - perkforge_admin_expected_sso_clients.values() | map(attribute='client_name') | unique | length == perkforge_admin_expected_sso_clients | length
+      - ansible.builtin.include_tasks: tasks/perkforge-admin-app.yaml
+        loop: '{{ perkforge_admin_expected_sso_clients | dict2items }}'
+        loop_control: {loop_var: pa_app}
       - ansible.builtin.include_tasks: tasks/perkforge-admin.yaml
       always:
       - name: Discard administrator authentication facts without persistence
