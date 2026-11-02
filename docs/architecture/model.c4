@@ -174,6 +174,11 @@ model {
         link /sources/realm-foundation.yaml 'Actual Ansible entrypoint'
         link /runbook.html#realm-foundation 'Who does what and why; approval and recovery gates'
       }
+      human_enrollment = component 'Named-human IL2 TOTP — draft, default off' {
+        description 'IMPLEMENTED/OFFLINE TESTED, NOT LIVE: explicit username, no inferred email, private supplied temporary password and immutable ownership UUID. Proposed PerkForge realm-wide browser flow: existing MFA SSO cookie OR required password then required TOTP. Initial profile/password/TOTP remain human actions; reruns never reset them. No app rights or Headlamp client. Master/direct recovery preserved. Current IL2 TOTP; future intended IL5 CAC is not implemented or a compliance claim.'
+        link /sources/enroll-human.yaml 'Actual gated Ansible entrypoint'
+        link /runbook.html#human-totp 'Human actions, scope and evidence gate'
+      }
       tenant_rbac = component 'Kubernetes authorization and admission boundary — proposed' {
         description 'Exact oidc: group bindings: platform cluster-admin; tenant-qualified namespace roles; developer listed deployment-resource management plus own Secret get/list, no Secret writes/SA/token/exec; viewers status-only with no Secret API. Deployment edits can indirectly access mounted credentials or workload SAs. Restricted Pod Security/admission/identity/network controls are required before activation; RBAC alone is not isolation.'
         link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/templates/kubernetes.yaml.j2 'Disabled reviewable Kubernetes roles/bindings'

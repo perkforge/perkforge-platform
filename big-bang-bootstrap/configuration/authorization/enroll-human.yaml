@@ -1,0 +1,111 @@
+- name: Enroll one explicitly reviewed human with enforced PerkForge browser TOTP
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars:
+    human_apply: false
+    human_username: UNCONFIGURED
+    human_mfa_scope: UNDECIDED
+    human_recovery_preserved: false
+    human_url: https://keycloak.perkforge.home.arpa/auth
+    human_ca_file: /UNCONFIGURED/root-ca.crt
+    human_admin_username_file: /UNCONFIGURED/master-username
+    human_admin_password_file: /UNCONFIGURED/master-password
+    human_initial_password_file: /UNCONFIGURED/initial-temporary-password
+    human_record_file: /UNCONFIGURED/enrollment.json
+    human_flow_alias: perkforge-browser-password-totp-v1
+    human_forms_alias: perkforge-browser-password-totp-forms-v1
+    human_flow_description: PerkForge Ansible human password and TOTP v1
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ human_ca_file }}'
+      follow_redirects: none
+      unredirected_headers: [Authorization]
+      use_netrc: false
+      use_proxy: false
+      timeout: 20
+  tasks:
+  - name: Default and check mode never read credentials, create accounts or contact APIs
+    ansible.builtin.debug:
+      msg: 'Named-human preparation; apply={{ human_apply | bool }} check={{ ansible_check_mode }}. No Headlamp/client/RBAC/recovery retirement.'
+  - name: Operate only after separate approval of identity, browser-policy scope and recovery
+    when: human_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - ansible_play_hosts_all == ['local']
+        - deployment_environment == 'local' and impact_profile == 'il2'
+        - human_username != 'UNCONFIGURED'
+        - human_username is match('^[a-z0-9][a-z0-9@._+-]{2,127}$')
+        - human_mfa_scope == 'perkforge-browser'
+        - human_recovery_preserved | bool
+        - human_url is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?/auth$')
+        - expected_cluster_uid != 'UNCONFIGURED'
+        - target_kubeconfig != '/UNCONFIGURED/kubeconfig' and target_context != 'UNCONFIGURED'
+        - human_flow_alias == 'perkforge-browser-password-totp-v1'
+        - human_forms_alias == 'perkforge-browser-password-totp-forms-v1'
+        - human_record_file is match('^/') and not human_record_file.startswith('/UNCONFIGURED/')
+    - name: Verify the existing physical target before authenticating
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: human_target
+      changed_when: false
+    - ansible.builtin.assert:
+        that: human_target.stdout == expected_cluster_uid
+    - name: Keep all authentication, user data and private input out of logs/diff
+      no_log: true
+      block:
+      - ansible.builtin.stat:
+          path: '{{ item }}'
+          follow: false
+        loop: ['{{ human_admin_username_file }}', '{{ human_admin_password_file }}', '{{ human_record_file }}', '{{ human_record_file | dirname }}']
+        register: human_files
+      - ansible.builtin.assert:
+          that:
+          - item.stat.isreg | default(false)
+          - not (item.stat.islnk | default(false))
+          - item.stat.mode == '0600'
+          - item.stat.pw_name == lookup('env', 'USER')
+          - item.stat.size > 0
+        loop: '{{ human_files.results[:2] }}'
+      - ansible.builtin.assert:
+          that:
+          - human_files.results[3].stat.isdir | default(false)
+          - not (human_files.results[3].stat.islnk | default(false))
+          - human_files.results[3].stat.mode == '0700'
+          - human_files.results[3].stat.pw_name == lookup('env', 'USER')
+          - not human_files.results[2].stat.exists or (human_files.results[2].stat.isreg and not human_files.results[2].stat.islnk and human_files.results[2].stat.mode == '0600' and human_files.results[2].stat.pw_name == lookup('env', 'USER'))
+      - ansible.builtin.set_fact:
+          human_record: "{{ (lookup('file', human_record_file) | from_json) if human_files.results[2].stat.exists else {} }}"
+      - name: Authenticate existing master recovery; never create/reset/delete it
+        ansible.builtin.uri:
+          url: '{{ human_url }}/realms/master/protocol/openid-connect/token'
+          method: POST
+          body_format: form-urlencoded
+          body:
+            client_id: admin-cli
+            grant_type: password
+            username: "{{ lookup('file', human_admin_username_file) | trim }}"
+            password: "{{ lookup('file', human_admin_password_file) | trim }}"
+        register: human_login
+      - ansible.builtin.set_fact:
+          human_headers: {Authorization: 'Bearer {{ human_login.json.access_token }}'}
+          human_api: '{{ human_url }}/admin/realms/perkforge'
+      - ansible.builtin.include_tasks: tasks/human-preflight.yaml
+      - name: Build/verify owned browser enforcement before creating a human
+        ansible.builtin.include_tasks: tasks/human-flow.yaml
+      - ansible.builtin.include_tasks: tasks/human-user.yaml
+      always:
+      - name: Discard administrator session facts; no token/seed persistence
+        ansible.builtin.set_fact:
+          human_login: {}
+          human_headers: {}
+          cacheable: false
+        no_log: true
+    - name: Report structural enrollment only, never claim completed MFA from API metadata
+      ansible.builtin.debug:
+        msg:
+          owned_user_and_group_verified: true
+          password_and_totp_browser_flow_verified: true
+          human_browser_enrollment_and_negative_login_acceptance: pending
+          app_permissions_and_recovery_retirement: false

@@ -248,3 +248,16 @@ groups when separately approved. Shared-user membership and
 multi-tenant scope are never edited by this step. Platform-engineer powers remain
 unsettled and ungranted. App and delegated membership integrations remain proposed;
 update this matrix, ownership C4 and allowed/denied tests in each implementation MR.
+
+## Human authentication implementation boundary
+
+[Named-human enrollment](enroll-human.yaml) is implemented as a **default-off draft**,
+not executed: one owned PerkForge user/nominal platform-admin membership and a
+proposed realm-wide password+required-TOTP browser flow for current **IL2**. Initial
+temporary password changes, profile completion and TOTP registration belong to the
+human; no email is inferred/verified from a username. Real browser MFA acceptance
+and independent recovery remain pending. Group membership creates no app grant.
+User-intended future **IL5 uses CAC**; CAC/X.509/IL5 and compliance are not implemented
+or inferred from this IL2 choice. Master recovery is separate and preserved.
+Platform-engineer and tenant rights, app claims and Kubernetes/OpenBao bindings are
+unchanged. Headlamp OIDC/API-server enforcement remains the next separate review.

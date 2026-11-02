@@ -1,0 +1,111 @@
+- ansible.builtin.uri:
+    url: '{{ human_api }}'
+    headers: '{{ human_headers }}'
+  register: human_realm
+- ansible.builtin.assert:
+    that:
+    - human_realm.json.realm == 'perkforge'
+    - human_realm.json.attributes['perkforge-managed'] == 'true'
+    - human_realm.json.attributes['perkforge-purpose'] == 'realm-foundation-v1'
+    - not (human_realm.json.registrationEmailAsUsername | default(false))
+    - human_realm.json.browserFlow in ['browser', human_flow_alias]
+    - human_realm.json.otpPolicyType == 'totp'
+- name: Inspect exact username, total human count, defaults and required actions
+  ansible.builtin.uri:
+    url: '{{ human_api }}/{{ item }}'
+    headers: '{{ human_headers }}'
+  loop:
+  - 'users?username={{ human_username | urlencode }}&exact=true'
+  - users/count
+  - default-groups
+  - authentication/required-actions
+  register: human_surface
+- ansible.builtin.set_fact:
+    human_found: '{{ human_surface.results[0].json }}'
+- name: Refuse account adoption, extra users and automatic memberships before any writes
+  ansible.builtin.assert:
+    that:
+    - human_found | length <= 1
+    - human_surface.results[1].json == human_found | length
+    - human_surface.results[2].json | length == 0
+    - human_found | length == 0 or (human_record.get('id') == human_found[0].id and human_record.get('username') == human_username and human_record.get('realm') == 'perkforge')
+    - human_found | length != 0 or human_record | length == 0
+    - human_found | length == 0 or human_realm.json.browserFlow == human_flow_alias
+- ansible.builtin.assert:
+    that: human_surface.results[3].json | selectattr('alias', 'equalto', item) | selectattr('enabled', 'equalto', true) | list | length == 1
+  loop: [UPDATE_PASSWORD, CONFIGURE_TOTP, VERIFY_PROFILE]
+- ansible.builtin.uri:
+    url: '{{ human_api }}/group-by-path/platform/admins'
+    headers: '{{ human_headers }}'
+  register: human_group
+- ansible.builtin.assert:
+    that:
+    - human_group.json.path == '/platform/admins'
+    - human_group.json.attributes == {'perkforge-managed':['true'], 'perkforge-foundation':['v1'], 'perkforge-role':['platform-admin']}
+- ansible.builtin.uri:
+    url: '{{ human_api }}/{{ item }}'
+    headers: '{{ human_headers }}'
+  loop:
+  - 'groups/{{ human_group.json.id }}/role-mappings'
+  - clients
+  - roles/default-roles-perkforge/composites
+  register: human_privileges
+- name: Refuse role inheritance, app/client overrides and privileged default roles
+  ansible.builtin.assert:
+    that:
+    - human_privileges.results[0].json.realmMappings | default([]) | length == 0
+    - human_privileges.results[0].json.clientMappings | default({}) | length == 0
+    - human_privileges.results[1].json | map(attribute='clientId') | sort == ['account','account-console','admin-cli','broker','realm-management','security-admin-console'] | sort
+- ansible.builtin.assert:
+    that: item.authenticationFlowBindingOverrides | default({}, true) | length == 0
+  loop: '{{ human_privileges.results[1].json }}'
+- ansible.builtin.set_fact:
+    human_account_client: "{{ (human_privileges.results[1].json | selectattr('clientId', 'equalto', 'account') | first).id }}"
+- ansible.builtin.assert:
+    that: >-
+      (not item.clientRole and item.name in ['offline_access','uma_authorization'] and not item.composite)
+      or (item.clientRole and item.containerId == human_account_client and item.name in ['view-profile','manage-account','manage-account-links'] and (not item.composite or item.name == 'manage-account'))
+  loop: '{{ human_privileges.results[2].json }}'
+- ansible.builtin.uri:
+    url: '{{ human_api }}/roles-by-id/{{ item.id }}/composites'
+    headers: '{{ human_headers }}'
+  loop: "{{ human_privileges.results[2].json | selectattr('composite') | list }}"
+  register: human_default_children
+- ansible.builtin.assert:
+    that:
+    - item.clientRole and item.containerId == human_account_client
+    - item.name == 'manage-account-links' and not item.composite
+  loop: "{{ human_default_children.results | map(attribute='json') | flatten }}"
+
+- name: Verify parent group cannot confer hidden privileges
+  ansible.builtin.uri:
+    url: '{{ human_api }}/group-by-path/platform'
+    headers: '{{ human_headers }}'
+  register: human_parent
+- ansible.builtin.assert:
+    that: human_parent.json.attributes == {'perkforge-managed':['true'], 'perkforge-foundation':['v1']}
+- ansible.builtin.uri:
+    url: '{{ human_api }}/groups/{{ human_parent.json.id }}/role-mappings'
+    headers: '{{ human_headers }}'
+  register: human_parent_roles
+- ansible.builtin.assert:
+    that:
+    - human_parent_roles.json.realmMappings | default([]) | length == 0
+    - human_parent_roles.json.clientMappings | default({}) | length == 0
+- name: Validate any existing recorded human before policy writes
+  vars: {human_user: '{{ human_found[0] }}'}
+  ansible.builtin.include_tasks: human-access-check.yaml
+  when: human_found | length == 1
+- name: Inspect initial temporary input only before first creation
+  ansible.builtin.stat:
+    path: '{{ human_initial_password_file }}'
+    follow: false
+  register: human_initial
+  when: human_found | length == 0
+- ansible.builtin.assert:
+    that:
+    - human_initial.stat.isreg | default(false)
+    - not (human_initial.stat.islnk | default(false))
+    - human_initial.stat.mode == '0600' and human_initial.stat.pw_name == lookup('env','USER')
+    - lookup('file', human_initial_password_file) | trim | length >= 32
+  when: human_found | length == 0

@@ -207,6 +207,23 @@ Tenant delegation, multi-tenant shared-user changes and engineer scope remain
 unimplemented. Foundation creation/idempotence is live-tested; actual human/app
 role enforcement, cross-tenant authorization and recovery drill are **not proven**.
 
+## Prepared named-human IL2 TOTP enrollment — not executed
+
+A default-off [Ansible entrypoint](big-bang-bootstrap/configuration/authorization/enroll-human.yaml)
+prepares one explicitly named human and owned PerkForge password+required-TOTP
+browser flow. Existing test-user enrollment is default-off/localhost-fixture-only;
+its useful evidence remains. Proposed username is an external input, never assumed
+to be email or verified mailbox. Default Keycloak profile requires email and name
+fields during user login; no fake fields/profile-policy relaxation is supplied.
+Realm-wide browser scope, profile completion and permanent recovery decisions
+must be confirmed before live execution. Existing master/direct recovery stay intact.
+
+Current IL2 uses TOTP; intended future IL5 CAC is a design requirement only, with
+no CAC/X.509 implementation or compliance claim. Structural HTTPS tests are not
+live factor proof. Human password/TOTP completion and fresh wrong/missing-factor
+denials are unexecuted. No user, credential, flow, membership, client, permission,
+restart or app SSO has changed during this preparation. Headlamp remains separate.
+
 ## Next configuration — recovery and identity remain separately gated
 
 OpenBao, Headlamp and Keycloak initial acceptance are complete on the same v0.14.0
