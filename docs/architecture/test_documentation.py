@@ -100,8 +100,24 @@ class Documentation(unittest.TestCase):
         for term in ['observed v0.14.0','headlamp-access-smoke.yaml','3600s','Always UID-check/delete','old token denied','personal browser']:
             self.assertIn(term,flow)
 
+    def test_production_tls_design_preserves_current_and_proposed_boundaries(self):
+        design=(REPO/'docs/platform/tls.md').read_text()
+        for term in ['Proposed production contract', 'Keycloak-to-PostgreSQL',
+                     'unencrypted', 'Headlamp', 'passthrough', 'revocation',
+                     'rotation', 'profile', 'signing key', 'not compliance evidence',
+                     'user-reported tablet acceptance', 'CA certificate',
+                     'Trusted credentials → User', 'Restart Chrome',
+                     'not a one-host', 'D6:A5:96:0A']:
+            self.assertIn(term,design)
+        view=(ROOT/'views.c4').read_text().split('dynamic view production_tls_lifecycle {',1)[1]
+        self.assertEqual(re.findall(r"-> [A-Za-z0-9_.]+ '([1-5])\.",view),list('12345'))
+        self.assertIn('Design only',view)
+        self.assertIn('No Istio/Gateway API implementation',design)
+
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
         copies={
+         'production-tls.md': 'docs/platform/tls.md',
+         'platform-tls.yaml': 'big-bang-bootstrap/configuration/ansible/platform-tls.yaml',
          'administer-perkforge.yaml': 'big-bang-bootstrap/configuration/authorization/administer-perkforge.yaml',
          'perkforge-admin.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/perkforge-admin.yaml',
          'perkforge-admin.md': 'big-bang-bootstrap/configuration/authorization/PERKFORGE-ADMIN.md',

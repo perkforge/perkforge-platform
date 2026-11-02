@@ -6,6 +6,11 @@ specification {
 }
 
 model {
+  production_pki = system 'Approved production PKI and trust lifecycle — proposed' {
+    description 'PROPOSED: organizational security authority approves profile-specific issuer and trust. PKI operator protects signing keys and renews/revokes leaf certificates. Operators deliver only approved leaf keys and public bundles; client administrators manage trust. Current lab manual root trust is separate: operator-reported Pixel HTTPS success after verified public-root installation, not independent tablet inspection; internal HTTP/database plaintext gaps remain. No production compliance claim.'
+    link /runbook.html#production-tls 'Who does what and why; current gaps and acceptance'
+  }
+
   engineer = actor 'Platform operator' {
     description 'Selects the physical target, approves disk/data loss and access scope, operates firmware/installer and verifies trusted host identity. Enters credentials locally. This authorized human operator actor does not imply privileges for the proposed platform-engineer SSO group.'
     link /runbook.html#operator 'Operator responsibilities'
