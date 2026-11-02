@@ -1,6 +1,24 @@
 # Current operator handoff
 
-## Current checkpoint — 2026-11-01
+## Current checkpoint — 2026-11-02
+
+**Human enrollment is partially applied and stopped.** The approved operation
+bound the PerkForge password/TOTP browser flow and created one enabled human with
+mandatory password change/TOTP enrollment. Keycloak filtered both undeclared
+ownership attributes under its default managed-profile policy. The ownership
+guard stopped before group membership; no app grants, clients or recovery changes.
+Protected UUID/password evidence is preserved; do not retry or ask the operator
+to log in until the correction is reviewed and separately approved.
+
+The source correction declares only two administrator-view/edit ownership fields,
+preserving unmanaged-attribute restrictions and all standard profile requirements.
+A missing-marker resume additionally requires the exact recorded/server UUID,
+unchanged pending actions, empty profile/memberships and a single password
+credential. It restores only markers, verifies all returned user fields and
+credential metadata unchanged, then uses normal guarded enrollment. No password
+reset, unknown-account adoption, TOTP seed handling or automatic rollback. This
+correction and real-browser acceptance remain **not executed**.
+
 
 PerkForge platform-only realm/group foundation, Keycloak initial master administration, OpenBao LAN HTTPS, Headlamp temporary-admin acceptance, Rancher installation and the first Longhorn storage test passed. **No further live
 action is authorized by this handoff.** Never push main or merge for the operator;

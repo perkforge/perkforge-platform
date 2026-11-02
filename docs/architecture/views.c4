@@ -325,14 +325,14 @@ views {
   }
 
   dynamic view human_totp_enrollment {
-    title 'IL2 named-human password/TOTP — draft, not executed'
-    description 'Who does what and why: current IL2 TOTP is profile-scoped; future IL5 CAC is intended policy, not implemented. Proposed PerkForge browser-wide scope requires review. No live identity/flow or Headlamp changes.'
+    title 'IL2 named-human password/TOTP — partial, correction pending'
+    description 'Who does what and why: current IL2 TOTP is profile-scoped; future IL5 CAC is intended policy, not implemented. Initial PerkForge browser-wide scope was approved and bound. Observed flow/user created; missing markers stopped membership. Proposed admin-only profile/exact-UUID repair is not applied; no Headlamp changes.'
     link /runbook.html#human-totp 'Code, decisions and acceptance'
     engineer -> platform.authorization.human_enrollment '1. Review exact username, profile completion, IL2 scope and independent recovery; approve writes separately'
     platform.authorization.human_enrollment -> platform.keycloak.master_admin '2. Verify target/TLS; use existing protected master credential without changing recovery'
-    platform.authorization.human_enrollment -> platform.keycloak.runtime '3. Check owned realm, account collisions, defaults and empty role mappings before any writes'
+    platform.authorization.human_enrollment -> platform.keycloak.runtime '3. Check ownership/defaults; proposed admin-only marker schema and explicit exact-UUID partial repair; no credential reset'
     platform.authorization.human_enrollment -> platform.keycloak.runtime '4. Build/verify owned browser policy: MFA SSO cookie OR required password plus required TOTP; bind only PerkForge'
-    platform.authorization.human_enrollment -> platform.authorization.groups '5. Create one owned pending human and nominal platform-admin membership; no app/client/RBAC grants'
+    platform.authorization.human_enrollment -> platform.authorization.groups '5. Observed pending user; membership stopped on filtered markers. After reviewed correction: verify ownership then nominal membership'
     engineer -> platform.keycloak.runtime '6. Human privately completes required profile/password/TOTP; no password, seed or QR enters automation/chat'
     platform.keycloak.runtime -> engineer '7. Require actual fresh wrong/missing-OTP denial and successful MFA/SSO; API flags alone are not acceptance'
     platform.authorization.human_enrollment -> engineer '8. Verify no-reset rerun/recovery; stop before bootstrap retirement, IL5 or separate Headlamp OIDC'

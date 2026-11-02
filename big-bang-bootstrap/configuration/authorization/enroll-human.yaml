@@ -6,6 +6,7 @@
     human_username: UNCONFIGURED
     human_mfa_scope: UNDECIDED
     human_recovery_preserved: false
+    human_resume_missing_ownership_id: UNCONFIGURED
     human_url: https://keycloak.perkforge.home.arpa/auth
     human_ca_file: /UNCONFIGURED/root-ca.crt
     human_admin_username_file: /UNCONFIGURED/master-username
