@@ -351,14 +351,15 @@ views {
   }
 
   dynamic view perkforge_realm_administration {
-    title 'Full PerkForge realm administration — source proposal only'
-    description 'Who does what and why: full PerkForge scope maps realm-management/realm-admin only to the admin leaf. GET-only preparation found legitimate nested view/query composites; source correction validates their exact DAG, not blanket rejection or arbitrary expansion. Includes impersonation/authentication/settings; no master or other realms. Live grant remains on hold.'
-    engineer -> platform.authorization.perkforge_admin '1. Review full realm scope including impersonation, exact group/physical IDs and independent recovery; approve apply separately'
-    platform.authorization.perkforge_admin -> platform.keycloak.master_admin '2. Verify UID/TLS; privately authenticate existing recovery, never delegate or replace it'
-    platform.authorization.perkforge_admin -> platform.authorization.groups '3. Verify parent/leaf UUIDs and ownership, no default/nested-group grants, canonical role IDs and exact DAG including three built-in view/query composites'
-    platform.authorization.perkforge_admin -> platform.keycloak.runtime '4. Proposed apply adds one missing composite mapping; no master, other-group or user/client-definition writes'
-    platform.keycloak.runtime -> platform.authorization.perkforge_admin '5. Verify direct root plus effective children; repeat writes zero; inspect uncertain writes before resume'
-    platform.authorization.perkforge_admin -> engineer '6. Fresh-MFA full-realm controls and master/other-realm negative acceptance pending; preserve recovery and separate app grants'
+    title 'PerkForge realm administration — mapping applied; rerun guard pending'
+    description 'Approved #136 source applied one exact realm-admin group mapping; independent scope/preservation passed. Normal repeat made zero writes but failed the old empty group-representation guard. No successful idempotence or personal browser login claim.'
+    engineer -> platform.authorization.perkforge_admin '1. Approved full PerkForge scope including impersonation; feature/post-merge CI and fresh baseline passed'
+    platform.authorization.perkforge_admin -> platform.keycloak.master_admin '2. Verified exact merged source, UID/TLS/private existing recovery; did not delegate or alter master'
+    platform.authorization.perkforge_admin -> platform.authorization.groups '3. Applied one mapping only to owned /platform/admins: changed 1, failed 0'
+    platform.keycloak.runtime -> platform.authorization.perkforge_admin '4. Independent direct root and 22-role closure verified; non-target/master mappings, realm security and role graph unchanged'
+    platform.authorization.perkforge_admin -> platform.keycloak.runtime '5. Normal repeat changed 0 but failed early: legitimate group clientRoles representation violates empty guard; no further writes'
+    platform.authorization.perkforge_admin -> platform.keycloak.runtime '6. Local exact representation/direct-metadata coherence correction passed GET-only active-state validation: 38 ok, changed 0, failed 0; realistic synthetic repeats passed'
+    platform.authorization.perkforge_admin -> engineer '7. Recovery and cluster health passed; preserve grant. Review/publish fix before normal merged-source idempotence claim. Operator fresh-MFA console test pending'
   }
 
   dynamic view production_tls_lifecycle {
