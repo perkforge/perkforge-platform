@@ -361,4 +361,14 @@ views {
     platform.authorization.perkforge_admin -> engineer '6. Fresh-MFA full-realm controls and master/other-realm negative acceptance pending; preserve recovery and separate app grants'
   }
 
+  dynamic view production_tls_lifecycle {
+    title 'Who does what and why — production TLS lifecycle (proposed)'
+    description 'Design only: no production issuer/renewal automation deployed. Keep target/profile trust separate from shared artifacts; current lab internal HTTP and database gaps remain explicit.'
+    link /runbook.html#production-tls 'Ownership, trust boundaries, code and acceptance'
+    engineer -> production_pki '1. Review target/profile issuer, names and per-hop transport requirements'
+    production_pki -> custody '2. Protect issuer keys; issue approved leaf certificates and public trust separately'
+    custody -> platform '3. Approved operator delivers scoped leaf keys/references; Flux configures consumers'
+    production_pki -> engineer '4. Client administrators distribute public trust; verify browser and machine clients'
+    platform -> production_pki '5. Monitor expiry/renewal; rotate, revoke and verify every transport hop'
+  }
 }
