@@ -272,8 +272,8 @@ enforcement, negative-factor denial, SSO behavior or recovery.
 
 The old temporary-password file remains untouched; the reported change makes it
 historical custody, not a current login instruction. No cleanup/reset/session or
-permission change is authorized by the report. User-reported fresh positive MFA is now accepted; negative-factor browser tests,
-SSO reuse and lost-TOTP recovery remain distinct pending acceptance steps. Anonymous
+permission change is authorized by the report. User-reported fresh positive MFA and same-browser fresh-tab SSO reuse are now
+accepted. The separate disposable-identity factor/recovery drill below also passed. Anonymous
 page HTTP 200 is not personal-login evidence. Preserve independent master/direct
 recovery; Headlamp OIDC/application grants remain separate approvals.
 
@@ -387,3 +387,61 @@ Update this matrix/C4 with that evidence before calling daily access accepted.
 Sources: [26.8.1 authentication Admin API](https://www.keycloak.org/docs-api/26.8.1/rest-api/index.html),
 [Keycloak authentication/MFA guide](https://www.keycloak.org/docs/latest/server_admin/index.html),
 [26.8.1 default user profile](https://github.com/keycloak/keycloak/blob/26.8.1/services/src/main/resources/org/keycloak/userprofile/config/keycloak-default-user-profile.json).
+
+## Bounded factor and recovery acceptance — observed
+
+[factor-acceptance.yaml](factor-acceptance.yaml) is default/check-mode inert.
+An explicit, separately approved run creates exactly one unique `mfa-check-` test
+identity, synthetic `.invalid` profile, no groups/custom roles and only reviewed
+standard self-service defaults. Existing master credentials are used only locally;
+all API payloads are no-log. The playbook preserves realm/lockout/flow settings and
+Corey's identity/session/password/MFA. Ansible owns creation, test-only factor
+removal/re-enrollment requirement and exact-UID deletion; the
+[browser verifier](files/verify-factor-browser.py) performs protocol verification.
+
+Observed run: initial enrollment/PKCE login succeeded; exactly one wrong-password,
+one missing-OTP and one wrong-OTP submission were rejected; valid factor login
+then succeeded. Administrator removal of only the test OTP and `CONFIGURE_TOTP`
+was followed by a different test seed and successful recovery login. No realm
+flow repair, warning bypass or privileged memberships were used. Cleanup deleted
+the exact owned UID, proved its absence and rejected all three issued access/refresh
+pairs at userinfo/refresh, then removed the generated password/seed/token file.
+Protected nonsecret UID/source-hash/cleanup evidence remains. Ansible temp and
+private credential directories were empty afterward. Health at 14:19:15 UTC
+remained three Ready/no-pressure nodes and six Ready releases at the same stage.
+
+### Reproduce only after a new explicit approval
+
+1. Reuse protected human/target input **references**, public CA and existing master
+   credential references from the accepted enrollment. Never use the human password.
+2. Under umask 077, make a fresh ignored `infrastructure/ansible/inventory/.rke2-state/`
+   run directory (0700) and `private/` (0700). Create `private/test.json` exclusively
+   (0600): username `mfa-check-` plus 12 cryptographically random hex characters,
+   and a unique strong random password of at least 32 characters. Do not print either
+   secret. This is controller-generated disposable test custody, not an app account.
+3. Set `factor_evidence_dir` to that directory in protected runtime inputs; execute
+   the standard inventory's `local` target with `factor-acceptance.yaml`, the private
+   input file and explicit `factor_apply=true`. Normal callers must never enable
+   this from CI/default tests. A public login-form probe and default-role/collision
+   checks precede the one create request. Do not retry an uncertain create.
+4. Each browser phase has a 180-second deadline, same-HTTPS-origin redirect checks,
+   CA verification and PKCE. Test password/TOTP/token values stay only in that new
+   private file/memory. Three failed submissions maximum; pacing honors the existing
+   quick-login interval. The test refuses insufficient lockout budget/unsupported
+   policy rather than changing it. Recovery affects only the owned test UID.
+5. Inspect sanitized phase JSON plus cleanup and final health, and retain the exact
+   source checksums. On failure, `always` attempts guarded exact-owned-UID cleanup;
+   do not claim success or secret removal unless cleanup evidence confirms it.
+   Stop on unexpected identity/state; never delete an unrelated object or rerun blindly.
+
+The [offline verifier tests](../../tests/integration/test_factor_browser.py) cover
+RFC TOTP math, pinned form parsing, redirect/state safety and default/check-mode
+inertness. They do not replace the observed live protocol drill. Official form
+contracts: [26.8.1 TOTP setup](https://github.com/keycloak/keycloak/blob/26.8.1/themes/src/main/resources/theme/keycloak.v2/login/login-config-totp.ftl),
+[OTP challenge](https://github.com/keycloak/keycloak/blob/26.8.1/themes/src/main/resources/theme/keycloak.v2/login/login-otp.ftl).
+
+Scope limits: no actual Corey factor reset, no IdP/database outage recovery,
+recovery-code/CAC test or new app authorization. This verifies server-side
+browser-form/OIDC behavior, not JavaScript rendering across all browsers/apps.
+Deletion plus userinfo/refresh denial is not universal immediate revocation at
+external offline JWT verifiers; no test identity had privileged app access.
