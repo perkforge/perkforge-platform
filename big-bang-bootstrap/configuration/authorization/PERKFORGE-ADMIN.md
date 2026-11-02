@@ -1,4 +1,4 @@
-# Full PerkForge realm administration — source proposal
+# Full PerkForge realm administration — mapping applied; rerun blocked
 
 The user explicitly clarified full authority over everything within PerkForge,
 not only users/clients. This supersedes the earlier `realm_admin: false` intent
@@ -140,3 +140,46 @@ for the old assumptions. Hosted baseline selection already took 18m42s under a
 20-minute job cap. The correction raises only that offline job budget to 30
 minutes; it preserves every test, timeout inside individual operations, and all
 release/live-approval boundaries. No test is skipped to hide the mismatch.
+
+## Applied mapping and remaining rerun guard
+
+The separately approved corrected #136 operation applied one mapping (37 ok,
+changed 1, failed 0). Independent direct/effective readback confirms realm-admin
+only and exactly 22 canonical roles. Non-target/master/other-realm group mappings,
+master verifier mappings/access, realm security settings, role definitions/edges
+and node/Keycloak health were preserved. No human authentication, extra identities,
+credential resets or other app grants occurred.
+
+The normal second run made no changes but failed (11 ok, changed 0, failed 1):
+`group-by-path` now includes the intended `clientRoles` representation, while the
+early guard still requires that field empty. This is a remaining API fixture/
+representation mismatch, not an unwanted role grant. Preserve the correct grant;
+do not bypass or remove it. Successful idempotence is NOT claimed. The follow-up
+must recognize only the exact intended representation while retaining independent
+UUID/client/direct/effective checks and rejection of every unrelated role.
+
+The owner reports signing out, signing back in with MFA and seeing the expected
+Keycloak console access. This is user-reported fresh-login/console acceptance,
+not automated personal login evidence or proof of every management operation.
+Master-denial checks remain an operator action. Current access is active; earlier
+source/pre-write checkpoints above are historical. Publication of this correction
+and acceptance evidence is separately approved.
+
+## Prepared post-grant representation correction
+
+The local correction accepts only `{}` or
+`{realm-management: [realm-admin]}` on the owned admin leaf, then requires that
+name-only representation to agree exactly with independent direct-role metadata.
+All UUID/client/composite/expanded-role checks remain. Parent and realm-role
+representations remain empty; extra roles/clients, fabricated or hidden mappings
+and foreign authority refuse. Readback assertions also run in inspect mode when
+the existing root mapping is present, so the entire post-grant guard path is
+checked without enabling writes.
+
+Fixtures now derive group `realmRoles`/`clientRoles` from direct mappings, matching
+real pre/post-grant responses. The merged apply succeeds and its second call
+reproduces the failure; the corrected source accepts the same mapped state with
+changed=0. Actual corrected GET-only execution passed 38 tasks, changed=0,
+failed=0, including all later guards. This is not a new normal merged-source
+rerun, and no live write was performed for the correction. Source publication
+and subsequent merged-source verification remain separate.

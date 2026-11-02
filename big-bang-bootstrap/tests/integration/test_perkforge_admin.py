@@ -59,7 +59,7 @@ class AdminAPI(unittest.TestCase):
                   'defaults': [], 'children': [], 'tokenDeny': False, 'clients': [{'clientId': 'realm-management', 'id': 'management-id'}],
                   'compositeRoles': [copy.deepcopy(self.roles[name]) for name in CHILDREN],
                   'nestedEdges': {name: [copy.deepcopy(self.roles[child]) for child in EDGES.get(name, [])] for name in CHILDREN},
-                  'catalogTruncated': False,
+                  'catalogTruncated': False, 'groupRepresentations': [],
                   'writes': [], 'calls': [], 'deny': False, 'failAfterWrite': False}
         state, roles = self.s, self.roles
         class Handler(BaseHTTPRequestHandler):
@@ -80,9 +80,20 @@ class AdminAPI(unittest.TestCase):
                 if path == api:
                     return self.respond(200, state['realm'])
                 if path == api + '/group-by-path/platform':
-                    return self.respond(200, state['parent'])
+                    parent = copy.deepcopy(state['parent'])
+                    parent.setdefault('realmRoles', [r['name'] for r in state['parentMappings'].get('realmMappings', [])])
+                    parent.setdefault('clientRoles', {name:[r['name'] for r in mapping.get('mappings', [])] for name,mapping in state['parentMappings'].get('clientMappings', {}).items()})
+                    return self.respond(200, parent)
                 if path == api + '/group-by-path/platform/admins':
-                    return self.respond(200, state['leaf'])
+                    # Real group-by-path includes direct role NAMES after a grant.
+                    leaf = copy.deepcopy(state['leaf'])
+                    clients = {name:[r['name'] for r in mapping.get('mappings', [])] for name,mapping in state['otherClients'].items()}
+                    if state['mapped']:
+                        clients['realm-management'] = [r['name'] for r in state['mapped']]
+                    leaf.setdefault('realmRoles', [r['name'] for r in state['realmMappings']])
+                    leaf.setdefault('clientRoles', clients)
+                    state['groupRepresentations'].append(copy.deepcopy(leaf))
+                    return self.respond(200, leaf)
                 if path == api + '/default-groups':
                     return self.respond(200, state['defaults'])
                 if path == api + '/groups/admin-id/children':
@@ -191,6 +202,8 @@ class AdminAPI(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn('changed=0', result.stdout)
             self.assertEqual(self.s['writes'], before)
+        self.assertEqual(self.s['groupRepresentations'][0]['clientRoles'], {})
+        self.assertTrue(any(g['clientRoles']=={'realm-management':['realm-admin']} for g in self.s['groupRepresentations'][1:]))
         self.assertFalse(any('/users' in path or '/authentication' in path for _, path in self.s['calls']))
         self.assertFalse(any('/admin/realms/master' in path for _, path in self.s['calls']))
 
@@ -271,6 +284,24 @@ class AdminAPI(unittest.TestCase):
         self.assertNotEqual(self.run_play().returncode, 0)
         self.s['catalogTruncated'] = False
         self.roles['query-users']['id'] = 'replaced-canonical-id'
+        self.assertNotEqual(self.run_play().returncode, 0)
+        self.assertEqual(self.s['writes'], [])
+
+    def test_group_representation_rejects_extra_roles_clients_and_inconsistent_direct_state(self):
+        baseline = copy.deepcopy(self.s['leaf'])
+        for role_map in ({'realm-management':['manage-users']},
+                         {'realm-management':['realm-admin','manage-users']},
+                         {'other-app':['realm-admin']},
+                         {'realm-management':['realm-admin'],'other-app':[]}):
+            with self.subTest(role_map=role_map):
+                self.s['leaf'] = {**copy.deepcopy(baseline), 'clientRoles':role_map}
+                self.assertNotEqual(self.run_play().returncode, 0)
+                self.assertEqual(self.s['writes'], [])
+        # Neither API representation may hide or fabricate the approved mapping.
+        self.s['leaf'] = {**copy.deepcopy(baseline), 'clientRoles':{'realm-management':['realm-admin']}}
+        self.assertNotEqual(self.run_play().returncode, 0)
+        self.s['mapped'] = [copy.deepcopy(self.roles['realm-admin'])]
+        self.s['leaf'] = {**copy.deepcopy(baseline), 'clientRoles':{}}
         self.assertNotEqual(self.run_play().returncode, 0)
         self.assertEqual(self.s['writes'], [])
 

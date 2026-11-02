@@ -478,22 +478,35 @@ Do not rerun first-install provisioning on this installed cluster. Every new liv
 operation needs concrete approval; these recorded results are not continuous
 monitoring or permission to repair unrelated systems.
 
-## PerkForge realm administration correction — source only
+## PerkForge realm administration — applied, rerun guard follow-up
 
-#135 merged the default-off full-PerkForge `realm-management/realm-admin` proposal
-for `/platform/admins`, including impersonation and authentication/settings
-control, without master/other-realm delegation. No live grant has occurred.
-GET-only preparation found the merged blanket noncomposite-child guard rejects
-three legitimate Keycloak 26.8.1 view/query composites. The parent/admin mappings
-remain empty. Live approval/application is on hold while the narrow source
-correction is reviewed.
+At 2026-11-02 16:24:03 UTC, the separately approved corrected merged #136 operation
+(`9398fb5`) applied exactly one PerkForge realm-management/realm-admin mapping to
+/platform/admins: 37 ok, changed 1, failed 0. Direct readback is realm-admin only;
+effective closure is the reviewed 22 roles. Full PerkForge administration includes
+impersonation and authentication/realm settings, not master/other realms.
 
-The correction verifies the complete bounded canonical catalog and exact role
-DAG, accepting known nested edges while refusing cycles, identity/client drift
-and hidden expansion. Corrected forced inspect-only execution passed all real
-pre-write checks (35 tasks, changed=0, failed=0); mappings remain empty. This does
-not prove a live grant, delegated login or post-grant repeat. See the [scope and correction checkpoint](big-bang-bootstrap/configuration/authorization/PERKFORGE-ADMIN.md).
-Do not bypass the old guard, grant manually, weaken MFA, or create test people to
-force acceptance. Existing master recovery stays separate. Tests use synthetic
-IDs/credentials; operator fresh-MFA/full-realm and master-denial acceptance is
-still separate from API representation checks.
+Independent before/after checks preserved non-target group mappings across both
+realms, master role/composite definitions and verifier role mappings, captured
+realm security settings and the built-in management role graph. Fresh master
+recovery authentication passed; three nodes Ready and both Keycloak/database pods
+Ready with unchanged zero restarts. No human authentication, new identities,
+password/MFA resets or other app grants occurred.
+
+The normal rerun stopped at the early group-representation guard: 11 ok,
+changed 0, failed 1. Keycloak now correctly represents the approved mapping as
+clientRoles={realm-management: [realm-admin]}, but the merged guard still requires
+that field empty. Independent verification confirms the desired mapping remains
+correct and all preservation checks pass. Do not claim successful idempotence,
+remove the grant, bypass the guard or perform further live writes to hide this.
+A narrow local representation/fixture correction is prepared; current granted
+access is not rolled back. It allows only empty or exact realm-management realm-admin
+representation and cross-checks independent direct metadata. Forced GET-only
+execution against the active state passed (38 ok, changed 0, failed 0), including
+all subsequent guards. Realistic synthetic apply/second-invocation tests cover the
+previous mismatch; a new merged normal rerun remains pending review and merge.
+The owner reports signing out, signing back in with MFA and seeing the expected
+Keycloak console access. This is user-reported fresh-login/console acceptance,
+not proof of every management operation or master-denial behavior. Automation
+did not authenticate as the human. Publication of this correction and acceptance
+evidence is separately approved; no additional live writes are authorized.
