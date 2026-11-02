@@ -2,6 +2,36 @@
 
 ## Current checkpoint — 2026-11-02
 
+**Identity checkpoint #1 passed within the scoped lab acceptance.** The operator
+confirmed fresh password+TOTP login and same-browser fresh-tab SSO reuse. A
+separately approved real Keycloak OIDC/browser-form protocol drill used exactly
+one disposable, unprivileged identity: wrong password, missing OTP and wrong OTP
+were each rejected (three failed submissions total), followed by valid login.
+Existing master administration removed only that identity's old OTP and required
+re-enrollment; a new independent factor then authenticated successfully.
+
+Cleanup verified the exact test UID absent (404/name lookup empty), all three
+issued access/refresh pairs denied at userinfo/refresh endpoints, and the generated
+password/seed/token file removed. The private credential and Ansible temporary
+directories were empty afterward. Corey was never authenticated by automation;
+his membership/credential IDs were unchanged. Realm configuration (including
+lockout settings) and bound MFA executions compared equal before/after.
+
+Post-test health passed at **14:19:15 UTC**: three nodes Ready without pressure,
+six selected releases Ready, v0.14.0/local-keycloak and Keycloak/database pod
+identities unchanged. The reproducible default-off test is
+[authorization/factor-acceptance.yaml](big-bang-bootstrap/configuration/authorization/factor-acceptance.yaml),
+with Ansible owning test-only API writes and Python verifying trusted-HTTPS forms,
+PKCE/token acceptance and cleanup. No new app clients, group/role grants or restarts.
+
+Limits: this is admin-assisted factor replacement while Keycloak/master access
+is available, not IdP/database outage restoration, durable credential-custody
+validation or recovery-code/CAC testing. Userinfo/refresh rejection is not proof
+that every external offline JWT verifier immediately revokes an unexpired token.
+No test identity had platform/tenant app permissions. Headlamp SSO and app-specific
+authorization are the next separate scoped implementation/approval; do not rerun
+the drill or retire independent recovery merely because this checkpoint passed.
+
 **Human enrollment configuration passed at 02:52:34 UTC.** #132 merged at
 `4dd6481b351ed2f254c09df490e241d1d8b11c18`; both post-merge workflows passed.
 The separately approved normal run verified the exact recorded account, existing
@@ -23,22 +53,23 @@ verification is recorded below. At 13:09 UTC the operator also reported signing
 out and back in. At 13:15 UTC the operator explicitly confirmed both the new password and a fresh
 TOTP code were prompted. **Fresh password+TOTP login passed by user report**;
 the automation did not authenticate as the user. Wrong/missing-
-factor denials, SSO reuse and lost-TOTP recovery also remain pending.
+factor denials and admin-assisted recovery were subsequently tested only on the
+approved disposable identity; same-browser SSO reuse was confirmed by the operator.
 
 **Read-only metadata — 13:12:58 UTC:** using the existing master credential,
 GET-only checks of the protected recorded UUID confirmed exactly `/platform/admins`,
 **no remaining required actions**, and credential type names **password / otp**.
 The automation did not attempt user login; no personal profile values or credential contents
 were inspected/persisted, no token retained locally, and no account/permission or
-session configuration changed. This supports the enrollment report, but does not
-prove fresh browser factor enforcement, negative-factor denial or recovery.
+session configuration changed. This supports the enrollment report; the later separately approved disposable
+identity drill above provides bounded negative-factor/recovery evidence.
 The health evidence above remains the 02:52 snapshot; no new cluster health claim
 is made by this metadata check.
 
 The original temporary-password file is retained untouched; after the reported
 password change it is historical custody, not a recommendation to use it again.
 No deletion/rotation or user-session action was performed. Use the user's new password
-for the later human login test; never send passwords or TOTP QR/seeds through chat.
+for human access; never send passwords or TOTP QR/seeds through chat.
 App SSO/authorization and durable recovery/bootstrap retirement remain separate
 reviews. No additional live work is implied by this checkpoint.
 

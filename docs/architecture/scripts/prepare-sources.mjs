@@ -7,6 +7,11 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../../..')
 const output = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(here, '../public/sources')
 const files = {
+  'factor-acceptance.yaml': 'big-bang-bootstrap/configuration/authorization/factor-acceptance.yaml',
+  'verify-factor-browser.py': 'big-bang-bootstrap/configuration/authorization/files/verify-factor-browser.py',
+  'factor-admin-login.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/factor-admin-login.yaml',
+  'factor-owned.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/factor-owned.yaml',
+  'test-factor-browser.py': 'big-bang-bootstrap/tests/integration/test_factor_browser.py',
   'enroll-human.yaml': 'big-bang-bootstrap/configuration/authorization/enroll-human.yaml',
   'human-example.yaml': 'big-bang-bootstrap/configuration/authorization/human.example.yaml',
   'test-human-totp.py': 'big-bang-bootstrap/tests/integration/test_human_totp.py',
