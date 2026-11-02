@@ -9,7 +9,7 @@ revocation and adversarial acceptance remain separate per-app work and approvals
 
 | Role | Canonical group | Intended scope |
 |---|---|---|
-| PA: platform-admin | `/platform/admins` | Cluster/platform administration and shared PerkForge user administration; platform secret values read/edit, tenant secret-name discovery only in the nominal OpenBao policy. Tenant value access requires a tenant grant or explicit emergency elevation. |
+| PA: platform-admin | `/platform/admins` | Cluster/platform administration and full PerkForge realm administration, including impersonation/authentication/settings; platform secret values read/edit, tenant secret-name discovery only in the nominal OpenBao policy. Tenant value access requires a tenant grant or explicit emergency elevation. |
 | PE: platform-engineer | `/platform/engineers` | Everyday platform code/MRs and proposed scoped diagnostics, not inherited PA. No global identity/RBAC/auth-policy or break-glass authority; no automatic platform/tenant secret values. Direct live writes and exact diagnostic scopes remain undecided. |
 | PV: platform-viewer | `/platform/viewers` | Read approved platform health/status, no operational changes or secret values; not automatic access to tenant business data/private conversations. |
 | TA: tenant-admin | `/tenants/<t>/admins` | Own namespace/apps/secrets and own approved group memberships; no cross-tenant/global account reset/deletion or promotion into platform roles. |
@@ -51,7 +51,7 @@ standing human access; any additional scope needs review.
 
 | Application | PA | PE | PV | TA | TD | TV |
 |---|---|---|---|---|---|---|
-| Keycloak | Shared realm user/group administration through reviewed APIs | Own profile; no identity administration | Approved identity audit/status only | Own tenant membership and allowlisted role assignments only | Own profile | Own profile |
+| Keycloak | Full PerkForge realm administration via separately gated realm-admin composite; includes impersonation, no master/other realms | Own profile; no identity administration | Approved identity audit/status only | Own tenant membership and allowlisted role assignments only | Own profile | Own profile |
 | Kubernetes / Headlamp | Cluster administration (powerful bypass caveat above) | Proposed scoped diagnostic reads; GitOps MRs; live writes undecided | Read cluster status; no Secret API/exec | Own namespace resources/secrets; approved workload identities only | Own Deployments/scale, Services, ConfigMaps, Ingresses; own Secret get/list | Own workload/status reads; no Secret API/exec |
 | Rancher | Global administration and cluster lifecycle | No default access; scoped diagnostics require review | Reviewed read-only platform role, not admin | —; use Headlamp | — | — |
 | OpenBao | Platform KV values CRUD; LIST tenant names, no tenant data read | No default value grant; explicit path/scope decision required | Proposed platform names/status only | Own KV value management | Own KV values read/list, no writes | Proposed own names/status only, no values |
@@ -59,10 +59,10 @@ standing human access; any additional scope needs review.
 
 ### Enforcement and unresolved mechanics
 
-- **Keycloak:** PA is not automatically master-realm administration. Shared user
-  administration needs a reviewed permission model; TA must not reset/delete a
-  user shared with other tenants. Native fine-grained administration versus a
-  constrained membership API remains a decision. Test membership creation/removal,
+- **Keycloak:** PA is not automatically master-realm administration. Full PerkForge realm
+  administration now has a separately gated source proposal; TA must not reset/delete a
+  user shared with other tenants. For tenant delegation, native fine-grained
+  administration versus a constrained membership API remains a decision. Test membership creation/removal,
   role-mapper injection, user creation into privileged groups, nested groups,
   cross-tenant users and self-elevation. Resolve the 26.8.0→fixed-image patch before
   delegation; a patched version alone is not authorization proof. Per-app clients
@@ -272,3 +272,20 @@ User-intended future **IL5 uses CAC**; CAC/X.509/IL5 and compliance are not impl
 or inferred from this IL2 choice. Master recovery is separate and preserved.
 Platform-engineer and tenant rights, app claims and Kubernetes/OpenBao bindings are
 unchanged. Headlamp OIDC/API-server enforcement remains the next separate review.
+
+## Full PerkForge realm mapping — revised source-only proposal
+
+The user explicitly clarified everything within PerkForge, not just users and
+clients. [administer-perkforge.yaml](administer-perkforge.yaml) and the
+[scope/acceptance procedure](PERKFORGE-ADMIN.md) propose the single built-in
+`realm-management/realm-admin` composite on `/platform/admins` only. PA intent in
+`desired.yaml` explicitly changes from `realm_admin: false` to true, with
+`master_admin: false`. No live grant occurred; other role families are unchanged.
+
+This includes all PerkForge users, clients, groups, roles, authentication flows,
+realm settings, identity providers and impersonation. It does not grant master
+or other realms. The existing master recovery credential stays separate and is
+not brokered or assigned. Admins can alter identities and auth policy; this is a
+trusted administrative boundary, not tenant privacy/isolation against PA.
+Default-off scope/ownership gates, reviewed composite expansion, fresh MFA and
+positive/negative live acceptance remain separate action-specific requirements.

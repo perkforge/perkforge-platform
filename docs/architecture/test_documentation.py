@@ -102,6 +102,10 @@ class Documentation(unittest.TestCase):
 
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
         copies={
+         'administer-perkforge.yaml': 'big-bang-bootstrap/configuration/authorization/administer-perkforge.yaml',
+         'perkforge-admin.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/perkforge-admin.yaml',
+         'perkforge-admin.md': 'big-bang-bootstrap/configuration/authorization/PERKFORGE-ADMIN.md',
+         'test-perkforge-admin.py': 'big-bang-bootstrap/tests/integration/test_perkforge_admin.py',
          'factor-acceptance.yaml': 'big-bang-bootstrap/configuration/authorization/factor-acceptance.yaml',
          'verify-factor-browser.py': 'big-bang-bootstrap/configuration/authorization/files/verify-factor-browser.py',
          'factor-admin-login.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/factor-admin-login.yaml',

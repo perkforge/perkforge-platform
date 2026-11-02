@@ -350,4 +350,15 @@ views {
     platform.authorization.factor_acceptance -> engineer '6. Generated password/seed/token file removed; human metadata, realm/flow/lockout and health unchanged; preserve sanitized evidence'
   }
 
+  dynamic view perkforge_realm_administration {
+    title 'Full PerkForge realm administration — source proposal only'
+    description 'Who does what and why: revised explicit full PerkForge scope maps realm-management/realm-admin only to the admin leaf. Includes impersonation/authentication/settings; no master or other realms. Not applied.'
+    engineer -> platform.authorization.perkforge_admin '1. Review full realm scope including impersonation, exact group/physical IDs and independent recovery; approve apply separately'
+    platform.authorization.perkforge_admin -> platform.keycloak.master_admin '2. Verify UID/TLS; privately authenticate existing recovery, never delegate or replace it'
+    platform.authorization.perkforge_admin -> platform.authorization.groups '3. Verify parent/leaf UUIDs and ownership, no defaults/nesting, exact realm-admin and same-client composite closure'
+    platform.authorization.perkforge_admin -> platform.keycloak.runtime '4. Proposed apply adds one missing composite mapping; no master, other-group or user/client-definition writes'
+    platform.keycloak.runtime -> platform.authorization.perkforge_admin '5. Verify direct root plus effective children; repeat writes zero; inspect uncertain writes before resume'
+    platform.authorization.perkforge_admin -> engineer '6. Fresh-MFA full-realm controls and master/other-realm negative acceptance pending; preserve recovery and separate app grants'
+  }
+
 }

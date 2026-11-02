@@ -42,8 +42,11 @@ authorization_roles:
   platform-admin:
     group: /platform/admins
     scope: platform
-    realm_admin: false
-    identity_scope: shared-realm-user-administration-mechanism-pending
+    # Explicit revised intent: full administration ONLY inside perkforge.
+    # No template/default workflow applies this; administer-perkforge.yaml is gated.
+    realm_admin: true
+    master_admin: false
+    identity_scope: full-perkforge-realm-administration-separate-approval
   platform-engineer:
     group: /platform/engineers
     scope: platform-code-mrs-and-proposed-scoped-diagnostics
