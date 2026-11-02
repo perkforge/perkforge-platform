@@ -3,6 +3,7 @@ human_apply: false
 human_username: person@lab.example.invalid # username only, never inferred email
 human_mfa_scope: UNDECIDED # proposed explicit choice: perkforge-browser
 human_recovery_preserved: false
+human_resume_missing_ownership_id: UNCONFIGURED # separate exact-UUID partial repair approval only
 human_url: https://keycloak.perkforge.home.arpa/auth
 human_ca_file: /UNCONFIGURED/public-root-ca.crt
 human_admin_username_file: /UNCONFIGURED/existing-master-username

@@ -17,7 +17,7 @@ class HumanAPI(unittest.TestCase):
  def setUp(self):
   t=tempfile.TemporaryDirectory();self.addCleanup(t.cleanup);self.d=Path(t.name)
   subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN=localhost','-addext','subjectAltName=DNS:localhost','-keyout',str(self.d/'key'),'-out',str(self.d/'ca')],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-  self.s={'realm':{'realm':'perkforge','attributes':{'perkforge-managed':'true','perkforge-purpose':'realm-foundation-v1'},'registrationEmailAsUsername':False,'otpPolicyType':'totp','browserFlow':'browser','unrelated':'preserve'},'flows':{},'execs':{},'user':None,'members':[],'userRoles':{'realmMappings':[{'name':'default-roles-perkforge'}]},'groupRoles':{},'parentRoles':{},'writes':[],'calls':[]}
+  self.s={'realm':{'realm':'perkforge','attributes':{'perkforge-managed':'true','perkforge-purpose':'realm-foundation-v1'},'registrationEmailAsUsername':False,'otpPolicyType':'totp','browserFlow':'browser','unrelated':'preserve'},'profile':{'attributes':[{'name':'username','multivalued':False},{'name':'email','multivalued':False,'required':{'roles':['user']}},{'name':'firstName','multivalued':False},{'name':'lastName','multivalued':False}],'groups':[{'name':'user-metadata'}]},'credentials':[],'flows':{},'execs':{},'user':None,'members':[],'userRoles':{'realmMappings':[{'name':'default-roles-perkforge'}]},'groupRoles':{},'parentRoles':{},'writes':[],'calls':[]}
   state=self.s
   def executions(alias,level=0):
    out=[]
@@ -32,6 +32,8 @@ class HumanAPI(unittest.TestCase):
    def do_GET(self):
     parsed=urlsplit(self.path);p=parsed.path;state['calls'].append(('GET',p))
     if p=='/auth/admin/realms/perkforge':return self.respond(200,state['realm'])
+    if p.endswith('/users/profile'):return self.respond(200,state['profile'])
+    if p.endswith('/users/owned-human/credentials'):return self.respond(200,state['credentials'])
     if p.endswith('/users/count'):return self.respond(200,1 if state['user'] else 0)
     if p.endswith('/users'):
      return self.respond(200,[state['user']] if state['user'] and parse_qs(parsed.query).get('username')==[state['user']['username']] else [])
@@ -68,8 +70,18 @@ class HumanAPI(unittest.TestCase):
       e=next(e for e in state['execs'][alias] if e['id']==value['id']);e['requirement']=value['requirement'];return self.respond(204)
     if p=='/auth/admin/realms/perkforge':
      assert set(value)=={'browserFlow'};state['realm'].update(value);return self.respond(204)
+    if p.endswith('/users/profile'):
+     for a in value['attributes']:a.setdefault('multivalued',False)
+     state['profile']=value;return self.respond(200,value)
+    if p.endswith('/users/owned-human'):
+     assert set(value)=={'username','attributes'} and value['username']==state['user']['username'];state['user'].update(value);return self.respond(204)
     if p.endswith('/users'):
-     state['user']={k:v for k,v in value.items() if k!='credentials'};state['user']['id']='owned-human';return self.respond(201)
+     state['credentials']=[{'id':'password-id','type':'password','createdDate':123}]
+     state['user']={k:v for k,v in value.items() if k!='credentials'};state['user']['id']='owned-human'
+     # Real default Keycloak profile silently filters undeclared attributes.
+     managed={a['name'] for a in state['profile']['attributes']}
+     state['user']['attributes']={k:v for k,v in value.get('attributes',{}).items() if k in managed}
+     return self.respond(201)
     if p.endswith('/users/owned-human/groups/admin-group'):state['members']=[{'id':'admin-group','path':'/platform/admins'}];return self.respond(204)
     return self.respond(400,{})
   self.server=ThreadingHTTPServer(('127.0.0.1',0),Handler);ctx=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);ctx.load_cert_chain(str(self.d/'ca'),str(self.d/'key'));self.server.socket=ctx.wrap_socket(self.server.socket,server_side=True);threading.Thread(target=self.server.serve_forever,daemon=True).start();self.addCleanup(self.server.server_close);self.addCleanup(self.server.shutdown)
@@ -82,6 +94,8 @@ class HumanAPI(unittest.TestCase):
   return p
  def test_browser_enforcement_is_distinct_from_enrollment_and_repeat_preserves_user(self):
   p=self.run_play();self.assertEqual(p.returncode,0,p.stdout+p.stderr)
+  self.assertEqual({a['name'] for a in self.s['profile']['attributes']},{'username','email','firstName','lastName','perkforge-managed','perkforge-enrollment'})
+  for a in self.s['profile']['attributes'][-2:]:self.assertEqual(a['permissions'],{'view':['admin'],'edit':['admin']})
   created=next(body for method,path,body in self.s['writes'] if method=='POST' and path.endswith('/users'))
   self.assertNotIn('email',created);self.assertNotIn('emailVerified',created);self.assertTrue(created['credentials'][0]['temporary']);self.assertEqual(created['requiredActions'],['UPDATE_PASSWORD','CONFIGURE_TOTP'])
   alias=self.v.get('human_forms_alias','perkforge-browser-password-totp-forms-v1');execs=self.s['execs'][alias];self.assertEqual([e['providerId'] for e in execs],['auth-username-password-form','auth-otp-form']);self.assertEqual([e['requirement'] for e in execs],['REQUIRED','REQUIRED'])
@@ -100,3 +114,26 @@ class HumanAPI(unittest.TestCase):
   p=self.run_play(human_mfa_scope='UNDECIDED');self.assertNotEqual(p.returncode,0);self.assertEqual(self.s['calls'],calls)
   wrong=self.d/'wrong-ca';subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN=wrong','-keyout',str(self.d/'wrong-key'),'-out',str(wrong)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
   p=self.run_play(human_ca_file=str(wrong));self.assertNotEqual(p.returncode,0);self.assertEqual(self.s['calls'],calls);self.assertEqual(self.s['writes'],[])
+
+ def test_default_profile_filters_undeclared_markers_and_exact_partial_resume_preserves_credentials(self):
+  # Reproduce the actual failed run: UUID record exists, profile dropped both markers,
+  # flow bound, pending actions, password present, membership not yet assigned.
+  p=self.run_play();self.assertEqual(p.returncode,0,p.stdout+p.stderr)
+  self.s['profile']['attributes']=self.s['profile']['attributes'][:-2]
+  self.s['user']['attributes']={};self.s['members']=[]
+  before=copy.deepcopy(self.s['writes']);credentials=copy.deepcopy(self.s['credentials']);user=copy.deepcopy(self.s['user'])
+  p=self.run_play();self.assertNotEqual(p.returncode,0);self.assertEqual(self.s['writes'],before)
+  p=self.run_play(human_resume_missing_ownership_id='different-uuid');self.assertNotEqual(p.returncode,0);self.assertEqual(self.s['writes'],before)
+  p=self.run_play(human_resume_missing_ownership_id='owned-human');self.assertEqual(p.returncode,0,p.stdout+p.stderr)
+  self.assertEqual(self.s['credentials'],credentials)
+  self.assertEqual(self.s['user'],{**user,'attributes':{'perkforge-managed':['true'],'perkforge-enrollment':['human-totp-il2-v1']}})
+  repair=self.s['writes'][len(before):];self.assertEqual([path for _,path,_ in repair],['/auth/admin/realms/perkforge/users/profile','/auth/admin/realms/perkforge/users/owned-human','/auth/admin/realms/perkforge/users/owned-human/groups/admin-group'])
+  self.assertEqual(set(repair[1][2]),{'username','attributes'})
+  self.assertEqual(repair[1][2]['username'],user['username'])
+  before=copy.deepcopy(self.s['writes']);p=self.run_play();self.assertEqual(p.returncode,0,p.stdout+p.stderr);self.assertEqual(self.s['writes'],before);self.assertIn('changed=0',p.stdout)
+ def test_profile_conflict_or_progressed_partial_user_never_repaired(self):
+  self.s['profile']['attributes'].append({'name':'perkforge-managed','permissions':{'view':['admin','user'],'edit':['user']}})
+  p=self.run_play();self.assertNotEqual(p.returncode,0);self.assertEqual(self.s['writes'],[])
+  self.s['profile']['attributes'].pop();p=self.run_play();self.assertEqual(p.returncode,0,p.stdout+p.stderr)
+  self.s['user']['attributes']={};self.s['members']=[];self.s['user']['requiredActions']=[];before=copy.deepcopy(self.s['writes'])
+  p=self.run_play(human_resume_missing_ownership_id='owned-human');self.assertNotEqual(p.returncode,0);self.assertEqual(self.s['writes'],before)
