@@ -215,7 +215,7 @@ still require review and action-specific approval. Nothing here authorizes rerun
 or expands platform-engineer rights. No cluster release promotion was required;
 source remains v0.14.0/local-keycloak, while reviewed Ansible came from merged #127.
 
-## Named-human IL2 TOTP enrollment — partial live state; correction pending
+## Named-human IL2 TOTP enrollment — configured; manual acceptance pending
 
 [enroll-human.yaml](enroll-human.yaml) supersedes the historical hard-coded test
 user entrypoint. [Nonsecret inputs](human.example.yaml) leave identity and scope
@@ -226,7 +226,7 @@ is marked verified. Keycloak 26.8.1's default user profile requires email/first/
 name for user login: private first-browser completion was approved but is pending. Do
 not fake values, mark email verified or weaken realm profile rules to hide it.
 
-### Ownership profile correction and known partial resume
+### Observed configuration and historical partial recovery
 
 The first approved physical run bound the owned browser policy and created the
 pending human, then stopped before group membership: Keycloak 26.8.1 filtered
@@ -235,25 +235,47 @@ attributes and missed the default profile behavior. The separately approved
 #131 live repair then declared both admin-only fields and restored the markers,
 verifying other returned user fields and password credential metadata unchanged.
 
-**Current stop:** the flow ownership check expects the nested forms flow in
+The second historical stop occurred because the flow ownership check expected the nested forms flow in
 `GET authentication/flows`, but Keycloak 26.8.1 filters that collection to
 **top-level** flows. The nested executions and bound password/TOTP policy remain
 unchanged. The fixture again overstated the API response. [human-subflow.yaml](tasks/human-subflow.yaml) now resolves nested metadata
 through the parent execution flow ID, verifies exact ID/alias/description/provider/
 non-top-level ownership, and preserves the existing execution/order requirements.
-Read-only live metadata inspection confirmed this endpoint/shape. The source
-correction has not run live; it does not rebuild or weaken the flow. No group membership was assigned and
-the zero-write repeat was not reached. Existing password/record and all evidence
-remain protected. Do not retry or ask the operator to log in yet.
+Read-only live metadata inspection confirmed this endpoint/shape. The corrected
+#132 normal run subsequently passed and did not rebuild or weaken the flow.
+Historical failed-run evidence and the original password/record remain protected.
 
 Source: [26.8.1 flow-list filtering and flow-by-ID endpoint](https://github.com/keycloak/keycloak/blob/26.8.1/services/src/main/java/org/keycloak/services/resources/admin/AuthenticationManagementResource.java).
 
-The smallest remaining live batch uses normal enrollment with the existing UUID
-record and restored markers: verify the unchanged profile/credentials/flow and
-recovery, add only nominal `/platform/admins` membership, then verify a zero-write
-repeat. No missing-marker repair flag or initial-password read is needed. No
-expected profile/flow/password writes, app grants, client creation, restart or
-manual first login. Stop on any unexpected state instead of repairing it.
+**Observed 2026-11-02 02:52:34 UTC:** the separately approved normal run from merged
+#132 verified the existing recorded identity/profile/flow/recovery and added only
+nominal `/platform/admins` membership (123 ok, 1 changed, 0 failed). Its repeat
+passed with 122 ok, **0 changed**, 0 failed. Readback verified user fields,
+password credential metadata, pending actions, admin-only markers, master and MFA
+executions unchanged; group application-role mappings remain empty. Three nodes
+were Ready without pressure and all six selected releases Ready. Existing
+source/root and Keycloak/database pod identities were unchanged. No profile,
+flow, password, client, app-grant or restart changes occurred in this final batch.
+
+**Operator report, 2026-11-02 13:08 UTC:** a new password and TOTP were configured.
+That initial report alone was not independent credential metadata or fresh
+browser-challenge proof. At 13:09 UTC the operator reported signing out and back in; at 13:15 UTC explicitly confirmed both new-password and fresh-TOTP prompts.
+Fresh password+TOTP login therefore passed **by user report**, not automated
+authentication as the user.
+At 13:12:58 UTC, an independent GET-only check using existing master access
+confirmed the recorded account's exact `/platform/admins` membership, **empty
+required-actions list**, and credential **type names password / otp**. It did not
+use the user's credentials or retain profile values, credential contents or an
+admin token. No permission/reset/session-configuration change occurred.
+These metadata support completed enrollment; they do not prove fresh two-factor
+enforcement, negative-factor denial, SSO behavior or recovery.
+
+The old temporary-password file remains untouched; the reported change makes it
+historical custody, not a current login instruction. No cleanup/reset/session or
+permission change is authorized by the report. User-reported fresh positive MFA is now accepted; negative-factor browser tests,
+SSO reuse and lost-TOTP recovery remain distinct pending acceptance steps. Anonymous
+page HTTP 200 is not personal-login evidence. Preserve independent master/direct
+recovery; Headlamp OIDC/application grants remain separate approvals.
 
 The realistic HTTPS fixture now lists only top-level flows, serves nested metadata
 by ID and omits authenticator `authenticationFlow=false` fields, while the default
@@ -342,7 +364,7 @@ actual recovery tests. This draft does not enable recovery-code alternatives or
 create a permanent recovery account. No token expiry/session revocation claim is
 made by structural tests.
 
-### Proposed live approval, remaining decisions and acceptance
+### Execution boundaries and remaining browser acceptance
 
 Before any execution, confirm the exact username/profile completion decision,
 realm-wide browser TOTP scope and independent recovery custody. The username is

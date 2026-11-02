@@ -251,16 +251,20 @@ update this matrix, ownership C4 and allowed/denied tests in each implementation
 
 ## Human authentication implementation boundary
 
-[Named-human enrollment](enroll-human.yaml) is default-off in source. Approved live execution has created the pending user,
-bound the browser flow and repaired admin-only ownership markers, but stopped
-before nominal group membership because the nested-flow lookup assumed a
-top-level list also contains subflows. Password/actions/flow/recovery are
-unchanged; no app rights or no-write repeat is claimed. The approved realm-wide
-password+required-TOTP browser flow targets current **IL2**; nominal group
-membership remains incomplete. Initial
-temporary password changes, profile completion and TOTP registration belong to the
-human; no email is inferred/verified from a username. Real browser MFA acceptance
-and independent recovery remain pending. Group membership creates no app grant.
+[Named-human enrollment](enroll-human.yaml) is default-off in source. The approved
+live configuration passed at 2026-11-02 02:52:34 UTC: owned pending human,
+admin-only ownership markers, realm-wide password/TOTP browser flow and nominal
+platform-admin membership. Final run changed only membership; repeat changed
+zero. Group application-role mappings are empty: this is **not app authorization**.
+Profile, password credential metadata, pending password/TOTP actions, master
+recovery and MFA executions were preserved. At 13:08 UTC the operator reported a new password and TOTP configured. This is
+user report only; sign-out/back-in was also reported at 13:09 UTC, with both-factor
+prompt confirmation supplied at 13:15 UTC: fresh password+TOTP login passed by
+user report. Independent GET-only metadata at 13:12:58 UTC
+confirmed exact platform-admin membership, no required actions and password/otp
+credential types. Fresh positive browser MFA is user-confirmed; negative-factor and independent
+recovery testing remain pending. Metadata/page load alone is not enforcement proof. No email was inferred/verified from
+the login name. No clients, app grants or Headlamp SSO were added.
 User-intended future **IL5 uses CAC**; CAC/X.509/IL5 and compliance are not implemented
 or inferred from this IL2 choice. Master recovery is separate and preserved.
 Platform-engineer and tenant rights, app claims and Kubernetes/OpenBao bindings are
