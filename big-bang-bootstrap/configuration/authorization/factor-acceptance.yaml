@@ -1,0 +1,304 @@
+- name: Bounded real Keycloak factor and recovery test on one disposable identity
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars:
+    factor_apply: false
+    factor_evidence_dir: /UNCONFIGURED/evidence
+    factor_private_file: '{{ factor_evidence_dir }}/private/test.json'
+    factor_api: '{{ human_url }}/admin/realms/perkforge'
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ human_ca_file }}'
+      follow_redirects: none
+      unredirected_headers: [Authorization]
+      use_proxy: false
+      use_netrc: false
+      timeout: 20
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check mode is inert. Only an explicitly approved disposable account; never the human account.'
+  - when: factor_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - ansible_play_hosts_all == ['local'] and deployment_environment == 'local' and impact_profile == 'il2'
+        - factor_evidence_dir is match('^/') and not factor_evidence_dir.startswith('/UNCONFIGURED/')
+        - human_url == 'https://keycloak.perkforge.home.arpa/auth'
+    - ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: factor_target
+      changed_when: false
+    - ansible.builtin.assert:
+        that: factor_target.stdout == expected_cluster_uid
+    - no_log: true
+      block:
+      - ansible.builtin.stat:
+          path: '{{ item }}'
+          follow: false
+        loop: ['{{ factor_evidence_dir }}', '{{ factor_evidence_dir }}/private', '{{ factor_private_file }}']
+        register: factor_files
+      - ansible.builtin.assert:
+          that:
+          - item.stat.isdir and not item.stat.islnk and item.stat.mode == '0700'
+          - item.stat.pw_name == lookup('env','USER')
+        loop: '{{ factor_files.results[:2] }}'
+      - ansible.builtin.assert:
+          that:
+          - factor_files.results[2].stat.isreg and not factor_files.results[2].stat.islnk
+          - factor_files.results[2].stat.mode == '0600' and factor_files.results[2].stat.pw_name == lookup('env','USER')
+      - ansible.builtin.set_fact:
+          factor_secret: "{{ lookup('file',factor_private_file) | from_json }}"
+          factor_human_record: "{{ lookup('file',human_record_file) | from_json }}"
+      - ansible.builtin.assert:
+          that:
+          - factor_secret.username is match('^mfa-check-[0-9a-f]{12}$')
+          - factor_secret.username != human_username
+          - factor_secret.password | length >= 32
+      - ansible.builtin.set_fact:
+          factor_name: '{{ factor_secret.username }}'
+          factor_marker: "identity-checkpoint-{{ factor_secret.username[10:] }}"
+      - ansible.builtin.set_fact:
+          factor_secret: {}
+      - ansible.builtin.include_tasks: tasks/factor-admin-login.yaml
+      - ansible.builtin.uri:
+          url: '{{ factor_api }}'
+          headers: '{{ factor_headers }}'
+        register: factor_realm
+      - ansible.builtin.uri:
+          url: '{{ factor_api }}/authentication/flows/perkforge-browser-password-totp-v1/executions'
+          headers: '{{ factor_headers }}'
+        register: factor_flow
+      - ansible.builtin.assert:
+          that:
+          - factor_realm.json.browserFlow == 'perkforge-browser-password-totp-v1'
+          - factor_realm.json.otpPolicyType == 'totp' and not factor_realm.json.verifyEmail
+          - factor_realm.json.otpPolicyPeriod | int <= 60
+          - factor_realm.json.otpPolicyDigits | int in [6,8]
+          - factor_realm.json.otpPolicyLookAheadWindow | int <= 5
+          - factor_realm.json.otpPolicyAlgorithm in ['HmacSHA1','HmacSHA256','HmacSHA512']
+          - not factor_realm.json.bruteForceProtected or factor_realm.json.failureFactor | int >= 4
+          - factor_realm.json.quickLoginCheckMilliSeconds | int <= 10000
+      - name: Refuse automatic memberships or privileged default-role inheritance
+        ansible.builtin.uri:
+          url: '{{ factor_api }}/{{ item }}'
+          headers: '{{ factor_headers }}'
+        loop: [default-groups, clients, roles/default-roles-perkforge/composites]
+        register: factor_defaults
+      - ansible.builtin.assert:
+          that:
+          - factor_defaults.results[0].json | length == 0
+          - factor_defaults.results[1].json | selectattr('clientId','equalto','account') | list | length == 1
+          - factor_defaults.results[1].json | selectattr('clientId','equalto','account-console') | list | length == 1
+      - ansible.builtin.set_fact:
+          factor_account_client: "{{ (factor_defaults.results[1].json | selectattr('clientId','equalto','account') | first).id }}"
+      - ansible.builtin.assert:
+          that: >-
+            (not item.clientRole and item.name in ['offline_access','uma_authorization'] and not item.composite)
+            or (item.clientRole and item.containerId == factor_account_client and item.name in ['view-profile','manage-account','manage-account-links'] and (not item.composite or item.name == 'manage-account'))
+        loop: '{{ factor_defaults.results[2].json }}'
+      - ansible.builtin.uri:
+          url: '{{ factor_api }}/roles-by-id/{{ item.id }}/composites'
+          headers: '{{ factor_headers }}'
+        loop: "{{ factor_defaults.results[2].json | selectattr('composite') | list }}"
+        register: factor_default_children
+      - ansible.builtin.assert:
+          that:
+          - item.clientRole and item.containerId == factor_account_client
+          - item.name == 'manage-account-links' and not item.composite
+        loop: "{{ factor_default_children.results | map(attribute='json') | flatten }}"
+      - ansible.builtin.uri:
+          url: '{{ factor_api }}/users?username={{ factor_name }}&exact=true'
+          headers: '{{ factor_headers }}'
+        register: factor_collision
+      - ansible.builtin.assert:
+          that: factor_collision.json | length == 0
+      - ansible.builtin.uri:
+          url: '{{ factor_api }}/users/{{ factor_human_record.id }}/{{ item }}'
+          headers: '{{ factor_headers }}'
+        loop: [groups, credentials]
+        register: factor_human_before
+      - ansible.builtin.set_fact:
+          factor_browser_config:
+            url: '{{ human_url }}'
+            ca: '{{ human_ca_file }}'
+            redirect: '{{ human_url }}/realms/perkforge/account/'
+            username: '{{ factor_name }}'
+            uid: UNCONFIGURED
+            private_file: '{{ factor_private_file }}'
+            evidence_dir: '{{ factor_evidence_dir }}'
+            quick_login_ms: '{{ factor_realm.json.quickLoginCheckMilliSeconds | int }}'
+            policy:
+              algorithm: '{{ factor_realm.json.otpPolicyAlgorithm }}'
+              period: '{{ factor_realm.json.otpPolicyPeriod | int }}'
+              digits: '{{ factor_realm.json.otpPolicyDigits | int }}'
+              lookahead: '{{ factor_realm.json.otpPolicyLookAheadWindow | int }}'
+      - ansible.builtin.copy:
+          dest: '{{ factor_evidence_dir }}/browser.json'
+          content: '{{ factor_browser_config | to_nice_json }}'
+          mode: '0600'
+      - ansible.builtin.command:
+          argv: [python3, '{{ playbook_dir }}/files/verify-factor-browser.py', '{{ factor_evidence_dir }}/browser.json', probe]
+        changed_when: false
+      - name: One create request, always followed by exact-owned-UID cleanup
+        block:
+        - ansible.builtin.include_tasks: tasks/factor-admin-login.yaml
+        - ansible.builtin.uri:
+            url: '{{ factor_api }}/users'
+            method: POST
+            headers: '{{ factor_headers }}'
+            body_format: json
+            body:
+              username: '{{ factor_name }}'
+              enabled: true
+              firstName: Identity
+              lastName: Check
+              email: '{{ factor_name }}@example.invalid'
+              emailVerified: false
+              attributes: {perkforge-managed: ['true'], perkforge-enrollment: ['{{ factor_marker }}']}
+              requiredActions: [CONFIGURE_TOTP]
+              credentials: [{type: password, temporary: false, value: "{{ (lookup('file',factor_private_file) | from_json).password }}"}]
+            status_code: 201
+          changed_when: true
+        - ansible.builtin.uri:
+            url: '{{ factor_api }}/users?username={{ factor_name }}&exact=true'
+            headers: '{{ factor_headers }}'
+          register: factor_created
+        - ansible.builtin.assert:
+            that:
+            - factor_created.json | length == 1
+            - factor_created.json[0].attributes == {'perkforge-managed':['true'],'perkforge-enrollment':[factor_marker]}
+            - factor_created.json[0].id != factor_human_record.id
+        - ansible.builtin.set_fact:
+            factor_uid: '{{ factor_created.json[0].id }}'
+        - ansible.builtin.copy:
+            dest: '{{ factor_evidence_dir }}/test-uid.json'
+            content: '{{ {"id":factor_uid,"name":factor_name,"marker":factor_marker} | to_nice_json }}'
+            mode: '0600'
+            force: false
+        - ansible.builtin.copy:
+            dest: '{{ factor_evidence_dir }}/browser.json'
+            content: "{{ factor_browser_config | combine({'uid':factor_uid}) | to_nice_json }}"
+            mode: '0600'
+        - ansible.builtin.include_tasks: tasks/factor-owned.yaml
+        - name: Enroll test factor and prove initial PKCE login
+          ansible.builtin.command:
+            argv: [python3, '{{ playbook_dir }}/files/verify-factor-browser.py', '{{ factor_evidence_dir }}/browser.json', enroll]
+          changed_when: false
+        - name: Exactly three negative submissions and one positive login
+          ansible.builtin.command:
+            argv: [python3, '{{ playbook_dir }}/files/verify-factor-browser.py', '{{ factor_evidence_dir }}/browser.json', negative]
+          changed_when: false
+        - ansible.builtin.include_tasks: tasks/factor-admin-login.yaml
+        - ansible.builtin.include_tasks: tasks/factor-owned.yaml
+        - ansible.builtin.uri:
+            url: '{{ factor_api }}/users/{{ factor_uid }}/credentials'
+            headers: '{{ factor_headers }}'
+          register: factor_credentials
+        - ansible.builtin.assert:
+            that:
+            - factor_credentials.json | map(attribute='type') | sort == ['otp','password']
+        - ansible.builtin.set_fact:
+            factor_old_otp_id: "{{ (factor_credentials.json | selectattr('type','equalto','otp') | first).id }}"
+        - name: Remove only this test account's lost factor
+          ansible.builtin.uri:
+            url: '{{ factor_api }}/users/{{ factor_uid }}/credentials/{{ factor_old_otp_id }}'
+            method: DELETE
+            headers: '{{ factor_headers }}'
+            status_code: 204
+          changed_when: true
+        - name: Require test-only re-enrollment without resetting its password
+          ansible.builtin.uri:
+            url: '{{ factor_api }}/users/{{ factor_uid }}'
+            method: PUT
+            headers: '{{ factor_headers }}'
+            body_format: json
+            body: {username: '{{ factor_name }}', requiredActions: [CONFIGURE_TOTP]}
+            status_code: 204
+          changed_when: true
+        - name: Enroll new independent test factor and prove successful recovery
+          ansible.builtin.command:
+            argv: [python3, '{{ playbook_dir }}/files/verify-factor-browser.py', '{{ factor_evidence_dir }}/browser.json', recover]
+          changed_when: false
+        - ansible.builtin.set_fact:
+            factor_tests_passed: true
+        always:
+        - ansible.builtin.include_tasks: tasks/factor-admin-login.yaml
+        - ansible.builtin.uri:
+            url: '{{ factor_api }}/users?username={{ factor_name }}&exact=true'
+            headers: '{{ factor_headers }}'
+          register: factor_cleanup_found
+        - ansible.builtin.assert:
+            that: factor_cleanup_found.json | length <= 1
+        - when: factor_cleanup_found.json | length == 1
+          block:
+          - ansible.builtin.assert:
+              that:
+              - factor_cleanup_found.json[0].username == factor_name
+              - factor_cleanup_found.json[0].attributes == {'perkforge-managed':['true'],'perkforge-enrollment':[factor_marker]}
+              - factor_cleanup_found.json[0].id != factor_human_record.id
+              - factor_uid is not defined or factor_uid == factor_cleanup_found.json[0].id
+          - ansible.builtin.set_fact:
+              factor_uid: '{{ factor_cleanup_found.json[0].id }}'
+          - ansible.builtin.include_tasks: tasks/factor-owned.yaml
+          - name: Delete only the recorded disposable UID
+            ansible.builtin.uri:
+              url: '{{ factor_api }}/users/{{ factor_uid }}'
+              method: DELETE
+              headers: '{{ factor_headers }}'
+              status_code: 204
+            changed_when: true
+          - ansible.builtin.uri:
+              url: '{{ factor_api }}/users/{{ factor_uid }}'
+              headers: '{{ factor_headers }}'
+              status_code: 404
+          - ansible.builtin.command:
+              argv: [python3, '{{ playbook_dir }}/files/verify-factor-browser.py', '{{ factor_evidence_dir }}/browser.json', revoked]
+            changed_when: false
+        - when: factor_cleanup_found.json | length == 0
+          ansible.builtin.file:
+            path: '{{ factor_private_file }}'
+            state: absent
+        - ansible.builtin.uri:
+            url: '{{ factor_api }}/users?username={{ factor_name }}&exact=true'
+            headers: '{{ factor_headers }}'
+          register: factor_cleanup_final
+        - ansible.builtin.assert:
+            that: factor_cleanup_final.json | length == 0
+        - ansible.builtin.uri:
+            url: '{{ factor_api }}'
+            headers: '{{ factor_headers }}'
+          register: factor_realm_after
+        - ansible.builtin.assert:
+            that: factor_realm_after.json == factor_realm.json
+        - ansible.builtin.uri:
+            url: '{{ factor_api }}/authentication/flows/perkforge-browser-password-totp-v1/executions'
+            headers: '{{ factor_headers }}'
+          register: factor_flow_after
+        - ansible.builtin.assert:
+            that: factor_flow_after.json == factor_flow.json
+        - ansible.builtin.uri:
+            url: '{{ factor_api }}/users/{{ factor_human_record.id }}/{{ item }}'
+            headers: '{{ factor_headers }}'
+          loop: [groups, credentials]
+          register: factor_human_after
+        - ansible.builtin.assert:
+            that:
+            - factor_human_after.results[0].json == factor_human_before.results[0].json
+            - factor_human_after.results[1].json | map(attribute='id') | list == factor_human_before.results[1].json | map(attribute='id') | list
+        - ansible.builtin.stat:
+            path: '{{ factor_private_file }}'
+          register: factor_private_after
+        - ansible.builtin.assert:
+            that: not factor_private_after.stat.exists
+        - ansible.builtin.copy:
+            dest: '{{ factor_evidence_dir }}/cleanup.json'
+            content: '{{ {"exactTestUIDDeleted":true,"generatedCredentialFileRemoved":true,"realmAndFlowUnchanged":true,"humanMembershipAndCredentialIDsUnchanged":true,"testsPassed":factor_tests_passed | default(false)} | to_nice_json }}'
+            mode: '0600'
+      always:
+      - ansible.builtin.set_fact:
+          factor_login: {}
+          factor_headers: {}
+          cacheable: false
+    - ansible.builtin.debug:
+        msg: 'Bounded disposable identity checks completed; inspect phase JSON and cleanup evidence. No claim of global offline-JWT revocation or IdP-outage recovery.'

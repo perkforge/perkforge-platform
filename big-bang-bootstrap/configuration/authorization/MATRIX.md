@@ -262,8 +262,11 @@ user report only; sign-out/back-in was also reported at 13:09 UTC, with both-fac
 prompt confirmation supplied at 13:15 UTC: fresh password+TOTP login passed by
 user report. Independent GET-only metadata at 13:12:58 UTC
 confirmed exact platform-admin membership, no required actions and password/otp
-credential types. Fresh positive browser MFA is user-confirmed; negative-factor and independent
-recovery testing remain pending. Metadata/page load alone is not enforcement proof. No email was inferred/verified from
+credential types. Fresh positive browser MFA and same-browser fresh-tab SSO reuse are user-confirmed.
+A separately approved single unprivileged test identity passed bounded wrong-password,
+missing/wrong-OTP rejection and admin-assisted factor replacement/re-enrollment.
+UID/token/local-secret cleanup passed; realm/flow/Corey metadata were preserved.
+IdP-outage restoration, durable recovery custody and recovery-code/CAC remain untested. Metadata/page load alone is not enforcement proof. No email was inferred/verified from
 the login name. No clients, app grants or Headlamp SSO were added.
 User-intended future **IL5 uses CAC**; CAC/X.509/IL5 and compliance are not implemented
 or inferred from this IL2 choice. Master recovery is separate and preserved.

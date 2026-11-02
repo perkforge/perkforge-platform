@@ -325,8 +325,8 @@ views {
   }
 
   dynamic view human_totp_enrollment {
-    title 'IL2 named-human password/TOTP — user-confirmed MFA; negative/recovery pending'
-    description 'OBSERVED 02:52:34 UTC: exact ownership/flow verification, final membership-only change and zero-write repeat passed; profile/password/actions/master/apps preserved. No app grants. User reports new password/TOTP at 13:08 UTC; user also reports sign-out/back-in at 13:09 UTC, both-factor prompts confirmed at 13:15 UTC (user-reported fresh MFA success); GET-only metadata 13:12:58 UTC confirmed membership, no actions, password/otp types; negative/recovery checks pending. Current IL2 TOTP; future IL5 CAC not implemented.'
+    title 'IL2 identity checkpoint — fresh MFA, SSO and bounded recovery accepted'
+    description 'OBSERVED 02:52:34 UTC: exact ownership/flow verification, final membership-only change and zero-write repeat passed; profile/password/actions/master/apps preserved. No app grants. User reports new password/TOTP at 13:08 UTC; user also reports sign-out/back-in at 13:09 UTC, both-factor prompts confirmed at 13:15 UTC (user-reported fresh MFA success); GET-only metadata 13:12:58 UTC confirmed membership, no actions, password/otp types; same-browser SSO user-confirmed and separate disposable identity negative/recovery/cleanup checks passed. Current IL2 TOTP; future IL5 CAC not implemented.'
     link /runbook.html#human-totp 'Code, decisions and acceptance'
     engineer -> platform.authorization.human_enrollment '1. Review exact username, profile completion, IL2 scope and independent recovery; approve writes separately'
     platform.authorization.human_enrollment -> platform.keycloak.master_admin '2. Verify target/TLS; use existing protected master credential without changing recovery'
@@ -334,8 +334,20 @@ views {
     platform.authorization.human_enrollment -> platform.keycloak.runtime '4. Build/verify owned browser policy: MFA SSO cookie OR required password plus required TOTP; bind only PerkForge'
     platform.authorization.human_enrollment -> platform.authorization.groups '5. Observed: verify nested metadata by flowId, add nominal membership only (changed 1); no app rights or flow rebuild'
     engineer -> platform.keycloak.runtime '6. User reported new password/TOTP; metadata confirms no actions and password/otp types. User confirmed fresh password+TOTP login at 13:15 UTC'
-    platform.keycloak.runtime -> engineer '7. User-confirmed fresh password+TOTP success at 13:15 UTC; wrong/missing-OTP, SSO and recovery tests pending'
-    platform.authorization.human_enrollment -> engineer '8. Observed repeat changed 0; human/recovery acceptance pending. Stop before bootstrap retirement, IL5 or Headlamp OIDC'
+    platform.keycloak.runtime -> engineer '7. User-confirmed fresh password+TOTP success at 13:15 UTC; same-browser SSO confirmed; separate test-only denial/recovery passed'
+    platform.authorization.human_enrollment -> engineer '8. Observed repeat changed 0; bounded test-only recovery passed, IdP-outage/custody untested. Stop before bootstrap retirement, IL5 or Headlamp OIDC'
+  }
+
+  dynamic view factor_recovery_acceptance {
+    title 'Who does what and why — bounded identity checkpoint acceptance'
+    description 'OBSERVED: one disposable unprivileged identity, three negative submissions, successful new-factor recovery and exact cleanup. Human SSO success is separately user-reported. No realm/lockout changes, Corey session use or app grants.'
+    link /runbook.html#factor-recovery 'Results, actual code and scope limits'
+    engineer -> platform.authorization.factor_acceptance '1. Explicitly approve one unique test identity, private test secrets, bounded attempts and cleanup'
+    platform.authorization.factor_acceptance -> platform.keycloak.master_admin '2. Existing protected master credential: Ansible verifies target/defaults and creates only unprivileged owned test UID'
+    platform.authorization.factor_acceptance -> platform.keycloak.runtime '3. Python trusted-HTTPS PKCE forms: enroll; wrong password, missing OTP and wrong OTP rejected; valid login passes'
+    platform.keycloak.master_admin -> platform.keycloak.runtime '4. Ansible removes only test OTP and requires CONFIGURE_TOTP; Python enrolls different factor and recovery login passes'
+    platform.authorization.factor_acceptance -> platform.keycloak.runtime '5. UID/owner-checked test deletion; all three userinfo and refresh pairs rejected; no global offline JWT revocation claim'
+    platform.authorization.factor_acceptance -> engineer '6. Generated password/seed/token file removed; human metadata, realm/flow/lockout and health unchanged; preserve sanitized evidence'
   }
 
   dynamic view perkforge_realm_administration {
