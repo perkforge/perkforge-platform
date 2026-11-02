@@ -367,7 +367,7 @@ views {
     description 'One source review; Headlamp then Rancher then OpenBao acceptance. No SSO activation or API-server restart observed. Fixtures establish API/state behavior, not personal or native product acceptance.'
     engineer -> platform.authorization.platform_sso '1. Review environment, public CA, exact UID/UUIDs, independent recovery and private credential references; approve one app only'
     platform.authorization.platform_sso -> platform.keycloak.runtime '2. Prepare one disabled owned client and bounded noncomposite app role/claim; no human mapping yet'
-    engineer -> platform.headlamp '3. Separately approve immutable credential delivery, GitOps overlay and missing API trust provisioning; no automatic restart'
+    engineer -> platform.headlamp '3. Review optional local-headlamp-sso selection in a new immutable release; separately approve credential/public-CA delivery and API trust with sole-control-plane restart/recovery before tag/path promotion'
     platform.authorization.platform_sso -> platform.headlamp '4. Refuse missing API/workload trust; approved native stage binds PA only. Keep independent kubeadmin recovery'
     platform.authorization.platform_sso -> platform.rancher '5. Next approved stage: verified Generic OIDC schema/system trust, PA binding; local recovery preserved'
     platform.authorization.platform_sso -> platform.openbao '6. Next approved stage: versioned bounded human policy/role; reject inherited/legacy broad authority, preserve machine auth and recovery'

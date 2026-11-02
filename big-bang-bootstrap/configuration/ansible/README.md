@@ -249,11 +249,20 @@ One immutable published artifact contains these standard Kustomize roots:
 | 1 | `./big-bang-bootstrap/clusters/local` | Existing Longhorn/Rancher plus OpenBao |
 | 2 | `./big-bang-bootstrap/clusters/local-headlamp` | Stage 1 plus token-mode Headlamp |
 | 3 | `./big-bang-bootstrap/clusters/local-keycloak` | Stage 2 plus Keycloak and PostgreSQL |
+| 4 (optional, separate approval) | `./big-bang-bootstrap/clusters/local-headlamp-sso` | Stage 3 packages with externally delivered Headlamp OIDC credentials/public trust; API OIDC/restart prerequisites required |
 
 The required final `values-app-stage` ConfigMap overrides earlier package selection.
-It changes selection only: no new installer rights, credentials or OIDC integration.
-All stages use the same source tag/commit; adding a package does not require a new
-release. These are stage paths for the same physical target, not new clusters.
+Stages 1–3 change package selection without OIDC integration. Stage 4 selects
+Headlamp OIDC workload configuration; it does not create credentials, grants or
+installer rights. Roots already present in one verified release share its tag/commit.
+A newly authored root requires a new release containing it before selection.
+These are stage paths for the same physical target, not new clusters.
+
+Headlamp SSO selection requires a verified immutable release that contains stage 4,
+not merely the app adapters. Existing token-mode stages and the active source stay
+unchanged until explicit promotion approval. Follow the [Headlamp release and
+activation gate](../authorization/sso/README.md#headlamp-source-selection-and-release-gate)
+for credential delivery, sole-control-plane maintenance, acceptance and rollback.
 
 1. Review the exact release render at stage 1, existing target/UID and prerequisites.
    Deliver only separately approved TLS/bootstrap inputs and installer prerequisites.

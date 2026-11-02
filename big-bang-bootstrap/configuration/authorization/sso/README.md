@@ -75,6 +75,39 @@ hosts aliases, and must not duplicate RKE2's automatic CA mount. The native `act
 issuer, algorithm/claims/prefixes/CA mount, workload version/configuration/trust or
 credential contents before creating the single PA cluster-admin binding.
 
+### Headlamp source selection and release gate
+
+The optional `clusters/local-headlamp-sso` root retains every selected package in
+`local-keycloak` and replaces only the final `values-app-stage` Headlamp values
+with this adapter's nonsecret `gitops_values` contract. Earlier roots retain their
+token-mode behavior. This local target uses the versioned Secret/CA object names;
+issuer, callback, client ID and client secret remain external delivery inputs.
+Other environments must review their own target selection against rendered inputs.
+
+Publish an immutable release **containing this stage**, verify its tag/commit and
+review the tag/path promotion together. Publishing #139 or selecting a release
+that lacks this root cannot enable the overlay. The observed cluster remains
+v0.14.0/local-keycloak; neither adding this directory nor merging it changes Flux.
+Never repin to main/a feature branch, patch Flux-owned values or repeat bootstrap.
+
+Before selecting `./big-bang-bootstrap/clusters/local-headlamp-sso`, obtain a
+separate live-batch approval: independent certificate/SSH recovery; disabled
+Keycloak client and protected secret custody; immutable credential/public-CA
+delivery; exact API issuer/audience/required azp/claim prefixes/RS256/CA configuration;
+and a controlled RKE2 restart with API recovery. The lab has one control-plane,
+so that restart temporarily interrupts API/Flux control operations. Only then
+promote the approved release/stage and verify Headlamp workload readiness before
+native PA binding and client/group activation. No Rancher/OpenBao activation is
+implied. Operator fresh-MFA access and positive/negative native authorization,
+no-change repeats and independent recovery remain required live acceptance.
+
+For rollback, remove only owned native Headlamp authority and disable/unmap only
+its client, then restore the previously approved immutable GitOps tag/path.
+Preserve existing realm administration, other apps, independent certificate/SSH
+recovery and credential/CA objects until references are removed. Restore only the
+new API configuration over SSH with an explicitly approved restart if needed;
+rolling back app values alone does not remove API OIDC flags or revoke all JWTs.
+
 For Rancher, `apply` requires the supported v2.15.2 Generic OIDC shape, exact cluster,
 public system-trust material/mount, local recovery, no competing external provider,
 owned/empty Generic OIDC settings and exact PA-only GlobalRoleBinding. Native

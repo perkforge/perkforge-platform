@@ -548,3 +548,26 @@ GET-only installed-version/scope inspection informed pinned compatibility; no
 human authentication, app/client grants, credential generation, deployment,
 provisioning or restart ran. Publication of this reviewed combined source scope is approved. Live batches
 remain separately gated; obtain explicit staged activation/acceptance approvals.
+
+
+## Headlamp SSO source-selection follow-up — not activated
+
+#139 merged as 8214a169a38046d1dbccddbd95244cf3d9a4558c; feature checks and
+post-merge workflows 41519066282 / 41519066296 succeeded. Read-only preflight found
+three Ready nodes, available token-mode Headlamp and no API OIDC flags. Proposed
+Headlamp client/Secret/CA/binding were absent. Host SSH/sudo recovery was not
+verified because the execution environment had no usable SSH-agent identity.
+
+The follow-up source adds only the optional local-headlamp-sso stage, selecting
+the reviewed external-credential/public-trust Headlamp values. Old stages and
+live v0.14.0/local-keycloak are unchanged. Offline Kustomize comparison preserves
+all object identities and changes only bigbang/values-app-stage; pinned umbrella
+render changes only the Headlamp generated values and its checksum annotation.
+The pinned child consumes the versioned Secret and read-only public CA without
+creating credentials or a cluster-admin binding.
+
+A verified immutable release containing this stage is required before separately
+approved tag/path promotion. Existing release PR #125 must include this source
+before it can serve that purpose. No credential generation, API provisioning,
+restart, deployment or app grant occurred. Follow the SSO runbook's release and
+activation gate; no Headlamp live compatibility/owner login is claimed.
