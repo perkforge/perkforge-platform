@@ -143,3 +143,21 @@ jobs:
         GOMEMLIMIT: 512MiB
         GOFLAGS: -p=2
       run: go test -run TestFluxPortalAdmission -count=1 -v
+
+  # Separate offline state machines keep application fixtures from lengthening the
+  # existing full review-chain job. No kubeconfig, service credentials or live API.
+  platform-sso:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      KUBECONFIG: /dev/null
+      RUN_PLATFORM_CONFIG_TESTS: "1"
+      RUN_PLATFORM_SSO_TESTS: "1"
+    steps:
+    - uses: actions/checkout@v4
+    - run: python3 -m pip install PyYAML==6.0.3 -r big-bang-bootstrap/configuration/ansible/platform-config/requirements.txt
+    - name: Exercise per-app offline SSO state machines and configuration boundaries
+      run: |
+        python3 -m unittest discover -s big-bang-bootstrap/tests/security -p test_platform_sso.py -v
+        python3 -m unittest discover -s big-bang-bootstrap/tests/bootstrap -p 'test_sso_*.py' -v
+        python3 -m unittest discover -s big-bang-bootstrap/tests/integration -p 'test_sso_*.py' -v

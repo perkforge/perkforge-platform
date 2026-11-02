@@ -1,0 +1,103 @@
+- name: Read only the proposed PA binding, never all subjects or credentials
+  ansible.builtin.command:
+    argv: ['{{ sso_kubectl }}', --kubeconfig, '{{ sso_kubeconfig }}', --context, '{{ sso_context }}', --request-timeout=20s, get, clusterrolebinding, perkforge-sso-platform-admins, --ignore-not-found, -o, json]
+  register: headlamp_binding_read
+  changed_when: false
+- ansible.builtin.set_fact:
+    headlamp_binding: '{{ headlamp_binding_read.stdout | from_json if headlamp_binding_read.stdout | length > 0 else {} }}'
+- name: Refuse unowned or different immutable RBAC
+  ansible.builtin.assert:
+    that:
+    - headlamp_binding.metadata.labels == headlamp_owner
+    - headlamp_binding.roleRef == headlamp_candidate.rbac.roleRef
+    - headlamp_binding.subjects == headlamp_candidate.rbac.subjects
+  when: headlamp_binding | length > 0
+- name: Remove only the owned RBAC on independent rollback; keep app credentials and trust
+  ansible.builtin.command:
+    argv: ['{{ sso_kubectl }}', --kubeconfig, '{{ sso_kubeconfig }}', --context, '{{ sso_context }}', --request-timeout=20s, delete, --raw=/apis/rbac.authorization.k8s.io/v1/clusterrolebindings/perkforge-sso-platform-admins, -f, '-']
+    stdin: "{{ {'apiVersion':'v1','kind':'DeleteOptions','preconditions':{'uid':headlamp_binding.metadata.uid,'resourceVersion':headlamp_binding.metadata.resourceVersion}} | to_json }}"
+  when: sso_headlamp_operation == 'rollback' and headlamp_binding | length > 0
+- name: Activation requires existing matching API trust and separately deployed GitOps OIDC config
+  when: sso_headlamp_operation in ['inspect','activate']
+  block:
+  - ansible.builtin.include_tasks: headlamp-private.yaml
+  - ansible.builtin.command:
+      argv: ['{{ sso_kubectl }}', --kubeconfig, '{{ sso_kubeconfig }}', --context, '{{ sso_context }}', --request-timeout=20s, get, Secret, '{{ headlamp_secret_name }}', -n, headlamp, -o, json]
+    register: headlamp_runtime_secret
+    changed_when: false
+  - ansible.builtin.assert:
+      that:
+      - (headlamp_runtime_secret.stdout | from_json).metadata.labels == headlamp_owner
+      - (headlamp_runtime_secret.stdout | from_json).immutable
+      - (headlamp_runtime_secret.stdout | from_json).data == headlamp_secret_data
+  - ansible.builtin.command:
+      argv: ['{{ sso_kubectl }}', --kubeconfig, '{{ sso_kubeconfig }}', --context, '{{ sso_context }}', --request-timeout=20s, get, pods, -n, kube-system, -l, component=kube-apiserver, -o, json]
+    register: headlamp_api_pods
+    changed_when: false
+  - ansible.builtin.assert:
+      that: (headlamp_api_pods.stdout | from_json)["items"] | length > 0
+  - ansible.builtin.set_fact:
+      headlamp_api_args:
+      - '--oidc-issuer-url={{ headlamp_candidate.issuer }}'
+      - '--oidc-client-id={{ headlamp_candidate.client_id }}'
+      - --oidc-username-claim=sub
+      - '--oidc-username-prefix=oidc:'
+      - --oidc-groups-claim=groups
+      - '--oidc-groups-prefix=oidc:'
+      - --oidc-signing-algs=RS256
+      - '--oidc-required-claim=azp={{ headlamp_candidate.client_id }}'
+      - '--oidc-ca-file={{ sso_headlamp_apiserver_ca_path }}'
+  - ansible.builtin.assert:
+      that:
+      - item.spec.containers | length == 1
+      - headlamp_api_args | difference(item.spec.containers[0].args) | length == 0
+      - item.spec.containers[0].args | select('match','^--oidc-') | list | sort == headlamp_api_args | sort
+      - item.spec.containers[0].volumeMounts | selectattr('mountPath','equalto',sso_headlamp_apiserver_ca_path) | selectattr('readOnly','equalto',true) | list | length == 1
+    loop: '{{ (headlamp_api_pods.stdout | from_json)["items"] }}'
+  - ansible.builtin.command:
+      argv: ['{{ sso_kubectl }}', --kubeconfig, '{{ sso_kubeconfig }}', --context, '{{ sso_context }}', --request-timeout=20s, get, deployment, headlamp-headlamp, -n, headlamp, -o, json]
+    register: headlamp_workload
+    changed_when: false
+  - ansible.builtin.set_fact:
+      headlamp_containers: '{{ (headlamp_workload.stdout | from_json).spec.template.spec.containers | selectattr("image","equalto",sso_headlamp_expected_image) | list }}'
+  - ansible.builtin.assert:
+      that:
+      - headlamp_containers | length == 1
+      - headlamp_containers[0].envFrom == [{'secretRef':{'name':headlamp_secret_name}}]
+      - headlamp_containers[0].env | selectattr('name','match','^OIDC_') | list | length == 0
+      - headlamp_containers[0].args | select('match','^-oidc-') | list == ['-oidc-ca-file=/identity-ca/ca.crt']
+      - "'-unsafe-use-service-account-token' not in headlamp_containers[0].args"
+      - (headlamp_workload.stdout | from_json).status.availableReplicas | default(0) > 0
+  - name: Verify public workload trust and reference to the reviewed immutable Secret
+    ansible.builtin.command:
+      argv: ['{{ sso_kubectl }}', --kubeconfig, '{{ sso_kubeconfig }}', --context, '{{ sso_context }}', --request-timeout=20s, get, ConfigMap, '{{ headlamp_ca_name }}', -n, headlamp, -o, json]
+    register: headlamp_ca
+    changed_when: false
+  - ansible.builtin.assert:
+      that:
+      - (headlamp_ca.stdout | from_json).data['ca.crt'] | trim == lookup('file',sso_public_ca_file) | trim
+      - (headlamp_ca.stdout | from_json).metadata.labels == headlamp_owner
+  - ansible.builtin.assert:
+      that:
+      - (headlamp_workload.stdout | from_json).spec.template.spec.volumes | selectattr('configMap','defined') | selectattr('configMap.name','equalto',headlamp_ca_name) | list | length == 1
+      - headlamp_containers[0].volumeMounts | selectattr('name','equalto','identity-ca') | selectattr('mountPath','equalto','/identity-ca') | selectattr('readOnly','equalto',true) | list | length == 1
+      - (headlamp_workload.stdout | from_json).spec.template.spec.volumes | selectattr('name','equalto','identity-ca') | selectattr('configMap','defined') | selectattr('configMap.name','equalto',headlamp_ca_name) | list | length == 1
+  - name: Create missing PA RBAC only after all trust/runtime checks
+    ansible.builtin.command:
+      argv: ['{{ sso_kubectl }}', --kubeconfig, '{{ sso_kubeconfig }}', --context, '{{ sso_context }}', --request-timeout=20s, create, -f, '-']
+      stdin: "{{ headlamp_candidate.rbac | combine({'metadata':{'name':'perkforge-sso-platform-admins','labels':headlamp_owner}}) | to_json }}"
+    when: sso_headlamp_operation == 'activate' and headlamp_binding | length == 0
+- name: Verify final binding presence/absence
+  ansible.builtin.command:
+    argv: ['{{ sso_kubectl }}', --kubeconfig, '{{ sso_kubeconfig }}', --context, '{{ sso_context }}', --request-timeout=20s, get, clusterrolebinding, perkforge-sso-platform-admins, --ignore-not-found, -o, json]
+  register: headlamp_binding_final
+  changed_when: false
+- ansible.builtin.assert:
+    that: headlamp_binding_final.stdout | length == 0
+  when: sso_headlamp_operation == 'rollback'
+- ansible.builtin.assert:
+    that:
+    - (headlamp_binding_final.stdout | from_json).roleRef == headlamp_candidate.rbac.roleRef
+    - (headlamp_binding_final.stdout | from_json).subjects == headlamp_candidate.rbac.subjects
+    - (headlamp_binding_final.stdout | from_json).metadata.labels == headlamp_owner
+  when: sso_headlamp_operation in ['inspect','activate']

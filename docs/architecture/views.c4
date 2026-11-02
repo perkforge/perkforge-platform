@@ -351,16 +351,30 @@ views {
   }
 
   dynamic view perkforge_realm_administration {
-    title 'PerkForge realm administration — mapping applied; rerun guard pending'
-    description 'Approved #136 source applied one exact realm-admin group mapping; independent scope/preservation passed. Normal repeat made zero writes but failed the old empty group-representation guard. No successful idempotence or personal browser login claim.'
+    title 'PerkForge realm administration — mapping and repeat verified'
+    description 'Approved #136 source applied one exact realm-admin group mapping; independent scope/preservation passed. Normal repeat made zero writes but failed the old empty group-representation guard. #137 merged-source normal repeat subsequently passed changed 0, failed 0. Owner reports fresh MFA console access; no automated human login.'
     engineer -> platform.authorization.perkforge_admin '1. Approved full PerkForge scope including impersonation; feature/post-merge CI and fresh baseline passed'
     platform.authorization.perkforge_admin -> platform.keycloak.master_admin '2. Verified exact merged source, UID/TLS/private existing recovery; did not delegate or alter master'
     platform.authorization.perkforge_admin -> platform.authorization.groups '3. Applied one mapping only to owned /platform/admins: changed 1, failed 0'
     platform.keycloak.runtime -> platform.authorization.perkforge_admin '4. Independent direct root and 22-role closure verified; non-target/master mappings, realm security and role graph unchanged'
     platform.authorization.perkforge_admin -> platform.keycloak.runtime '5. Normal repeat changed 0 but failed early: legitimate group clientRoles representation violates empty guard; no further writes'
     platform.authorization.perkforge_admin -> platform.keycloak.runtime '6. Local exact representation/direct-metadata coherence correction passed GET-only active-state validation: 38 ok, changed 0, failed 0; realistic synthetic repeats passed'
-    platform.authorization.perkforge_admin -> engineer '7. Recovery and cluster health passed; preserve grant. Review/publish fix before normal merged-source idempotence claim. Operator fresh-MFA console test pending'
+    platform.authorization.perkforge_admin -> engineer '7. #137 merged; both post-merge workflows passed. Normal merged-source repeat: 38 ok, changed 0, failed 0; independent scope/recovery/health preserved. Owner reports fresh MFA console access'
   }
+
+  dynamic view platform_app_sso {
+    title 'Coordinated app SSO — disabled source, independent live gates'
+    description 'One source review; Headlamp then Rancher then OpenBao acceptance. No SSO activation or API-server restart observed. Fixtures establish API/state behavior, not personal or native product acceptance.'
+    engineer -> platform.authorization.platform_sso '1. Review environment, public CA, exact UID/UUIDs, independent recovery and private credential references; approve one app only'
+    platform.authorization.platform_sso -> platform.keycloak.runtime '2. Prepare one disabled owned client and bounded noncomposite app role/claim; no human mapping yet'
+    engineer -> platform.headlamp '3. Separately approve immutable credential delivery, GitOps overlay and missing API trust provisioning; no automatic restart'
+    platform.authorization.platform_sso -> platform.headlamp '4. Refuse missing API/workload trust; approved native stage binds PA only. Keep independent kubeadmin recovery'
+    platform.authorization.platform_sso -> platform.rancher '5. Next approved stage: verified Generic OIDC schema/system trust, PA binding; local recovery preserved'
+    platform.authorization.platform_sso -> platform.openbao '6. Next approved stage: versioned bounded human policy/role; reject inherited/legacy broad authority, preserve machine auth and recovery'
+    platform.authorization.platform_sso -> platform.keycloak.runtime '7. After native readiness approval, map only that app role and enable only that client; verify no-change repeat and other mappings'
+    platform.authorization.platform_sso -> engineer '8. Owner fresh MFA and positive/negative native acceptance; independent rollback removes own native grant and client mapping. Measure stale-session limits'
+  }
+
 
   dynamic view production_tls_lifecycle {
     title 'Who does what and why — production TLS lifecycle (proposed)'

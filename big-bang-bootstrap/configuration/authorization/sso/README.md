@@ -1,0 +1,200 @@
+# Independent application SSO stages
+
+One coordinated source change; three independently reviewed live batches in order
+Headlamp, Rancher, OpenBao. Nothing here has been activated. `prepare.yaml` is a
+no-contact nonsecret renderer. The four `reconcile-*.yaml` entrypoints default to
+no contact, including check mode. They use built-in Ansible modules and existing
+operator credentials only. No play installs software, deploys a HelmRelease, restarts
+RKE2, imports a realm, creates a person or resets any password/factor.
+
+## Environment and credential delivery
+
+Copy `operator.example.yaml` to a private location outside the repository. Review
+all origins, realm, exact callback paths, distinct client IDs, cluster UID/context,
+canonical parent/leaf group UUIDs, OpenBao cluster ID/accessor and trusted public CA bundle.
+Place existing independently authorized recovery credentials and three distinct
+client secrets in owned regular mode-0600 files; no symlinks. These plays do not
+mint, print, rotate or commit client secrets. Supplying/generating new credentials
+and live application are separate approvals. Never put credential values into
+`-e`, shell history, tracked vars, logs or MR/CI artifacts. Retain the designated
+private files through acceptance/rollback; final custody/removal is operator owned.
+
+The same client-secret file is passed to the shared Keycloak adapter and the
+corresponding native adapter. Keycloak inspection compares the existing server
+credential privately; it never calls a secret-generation endpoint. Headlamp's
+separate `deliver` operation creates only its dedicated immutable Secret and
+public ConfigMap through private stdin. Repeats compare exactly; changed material
+or unowned objects stop instead of rotation/adoption. A public bundle must contain
+certificates and no private key. Rancher stores the supplied secret using its
+existing provider machinery; public trust must already be mounted in the server's
+system CA directory. Its `certificate` field is not a CA-only field; unexpected client-certificate or
+private-key settings refuse instead of adopting another credential. OpenBao sends
+the same supplied secret only for an initially empty OIDC configuration; existing
+public configuration must already agree. The SSO Rancher adapter also omits `clientSecret` on every update to an already
+configured provider, including public-setting drift and re-enable; it never
+rotates the existing credential implicitly. Credential rotation is not hidden in
+a repeat or drift repair.
+
+No secret is rendered. Ansible protects credential and object contents with
+`no_log`, redirects are disabled for URI operations, and native command inputs
+containing credentials use stdin. Ansible local/remote temp paths and caches must
+remain private. Never enable debug/diff or retain failed task payload dumps.
+
+## Approval and sequencing
+
+Set exactly the entrypoint's `*_run` flag and explicit scope for one reviewed
+operation; keep all other flags false. `sso_apps.*.apply` remains false because
+those are review-renderer flags, not live switches. No orchestrator advances stages.
+
+| Entrypoint | Operations | Exact scope input |
+|---|---|---|
+| `reconcile-client.yaml` | `prepare`, `inspect`, `activate`, `rollback` | `<app>-client-<operation>-v1` in `sso_client_reviewed_scope` |
+| `reconcile-headlamp.yaml` | `deliver` | `headlamp-sso-delivery-v1` |
+| `reconcile-headlamp.yaml` | `inspect`, `activate`, `rollback` | `headlamp-sso-v1` |
+| `reconcile-rancher.yaml` | `inspect`, `apply`, `rollback` | `rancher-sso-v1` |
+| `reconcile-openbao.yaml` | `prepare` | `openbao-sso-prepare-v1` |
+| `reconcile-openbao.yaml` | `inspect`, `apply`, `rollback` | `openbao-sso-v1` |
+
+First render/review the four nonsecret payloads in a fresh private output directory.
+For each app, verify independent recovery without authenticating as the owner.
+Then obtain approval for the exact private inputs and intended writes. Run the
+shared client `prepare`: a disabled owned client, two exact bounded mappers, one
+noncomposite own-client role and exact scope mapping. No human group role is added
+by preparation. Wrong/duplicate/unowned clients, mapper/scope drift, credential
+mismatch and unexpected roles stop. A partial disabled preparation can be inspected
+and resumed; never delete/recreate it merely because a request was uncertain.
+
+For Headlamp, separately approve `deliver`, review the generated `gitops_values`
+overlay and promote it through normal GitOps review. Do not manually patch the
+Deployment. API OIDC trust is a provisioning prerequisite, not an application
+side effect; absent trust requires separate approved RKE2 work and restart/health
+acceptance. The rendered `provisioning_fragment` is an append-only RKE2 candidate
+parameterized from the same reviewed environment/issuer/client/CA-path inputs;
+it is not installed by an app play, does not replace base RKE2 config or inject
+hosts aliases, and must not duplicate RKE2's automatic CA mount. The native `activate` refuses missing/mismatched API flags, azp/audience,
+issuer, algorithm/claims/prefixes/CA mount, workload version/configuration/trust or
+credential contents before creating the single PA cluster-admin binding.
+
+For Rancher, `apply` requires the supported v2.15.2 Generic OIDC shape, exact cluster,
+public system-trust material/mount, local recovery, no competing external provider,
+owned/empty Generic OIDC settings and exact PA-only GlobalRoleBinding. Native
+Keycloak OIDC is a different implementation; no provider migration is automatic.
+PKCE uses the actual `pkceMethod: S256` field. No Keycloak user-directory query grant
+is needed for this Generic OIDC configuration.
+
+For installed OpenBao 2.7.2, a separately approved `prepare` can enable only a missing OIDC method
+with an ownership description and bounded lease defaults. It returns only the
+nonsecret accessor for review; no client config, role, policy or identity is added.
+Repeat preparation accepts only that owned mount and verifies non-target methods
+unchanged. Existing unrelated mounts require migration review, not adoption.
+Record the accessor in external inputs before the next batch. `apply` requires the exact healthy cluster/accessor and an existing OIDC
+mount; it never enables mounts itself or touches Kubernetes/machine auth, retention,
+unseal/recovery or secret engines. It creates only versioned PA policy/role and an
+initial matching public OIDC config with explicit code/query flow (native PKCE),
+verbose token logging disabled and policy-claim templating disabled. Existing different role/policy/configuration
+stops; the legacy broader platform/tenant policies are not adopted. Any unrelated login
+role on this accessor also blocks activation; re-enabling the same issuer/client
+must not revive a legacy broad role. No automatic role migration or deletion. Existing `platform/` and `tenants/` mounts must be KV-v2; missing/wrong data
+engines stop before policy writes and require separate provisioning approval.
+No default login role or default token policy, no tenant values or auth/policy
+self-grant.
+Role `bound_claims` uses the bounded groups claim; `groups_claim` is deliberately
+absent so it does not create external group aliases. Existing aliases on this
+accessor are checked for entity/group policy inheritance; ambiguity requires a
+separate migration decision, never automatic entity cleanup or privilege removal.
+
+After the native stage is ready, separately approve shared client `activate`.
+`sso_client_native_ready` records operator-reviewed native readiness, not an
+automated personal login assertion. Only then does it add the own-client role to
+exact `/platform/admins` and enable that app. Canonical client lookup is by UUID;
+brief list responses are not assumed complete. The exact owned parent must remain
+unprivileged, defaults empty and the admin leaf without nested inheritors. Standard
+basic/profile/email scope definitions are checked against nonsecret 26.8.1 mapper
+shapes; unexpected group/role disclosure refuses before client creation. Actual
+assigned default/optional scope UUIDs are checked independently. `basic` is retained
+for access-token subject/auth-time; create-time userinfo normalization is explicit.
+No authentication-flow override may bypass the realm browser MFA contract. Enable/disable PUT contains only
+`clientId` and `enabled`, never masked or server-managed credential fields. Repeats
+must report changed=0 and independent readback must preserve all other mappings.
+
+## Coexistence with realm administration
+
+The realm-admin play's default still rejects every app mapping. After an approved
+SSO stage, supply `perkforge_admin_expected_sso_clients` in reviewed external vars:
+keys are only headlamp/rancher/openbao; each value has `client_name`, `client_id`
+(canonical UUID) and `role_id` (canonical UUID). This permits recognition only,
+not an app grant. It verifies the owned enabled client, sole noncomposite canonical
+role, empty composite edges and exact direct/aggregate binding IDs. Unexpected,
+unowned or expanded roles still refuse. Update this contract only after independent
+readback of actual approved state; never infer trust from live names or labels alone.
+After app rollback removes the role, remove only that entry from the reviewed
+expected-state input. Re-run realm administration with changed=0; its root grant
+and 22-role expansion must remain unchanged throughout. No master delegation.
+
+## Live acceptance and independent rollback
+
+Offline fixtures establish API request/state-machine behavior, not actual product
+token enforcement or UI usability. Live acceptance remains gated. Use the owner's
+manual fresh MFA login for PA UI checks; never automate their password, factor or
+session. Record user-reported UI evidence separately from API authorization checks.
+No disposable users, tenants, values or production mutations are authorized merely
+by this source. If existing approved negative identities/test data are unavailable,
+request that bounded test batch separately; do not borrow another person's account.
+
+For each app verify PA positive and no-group/tenant/engineer negative, correct
+issuer/audience/azp/signature/expiry, client-specific claim disclosure, callback
+state/nonce/PKCE and rejection of another client's token/code through the native
+flow. A UI menu or a mocked server accepting a policy is not authorization proof.
+For Kubernetes use token-specific SelfSubjectAccessReview decisions and reviewed
+read-only API requests, including wrong-audience rejection. Do not create workloads
+or read real Secrets merely to prove write or secret authority. Rancher requires
+native protected API/group authorization and re-login after membership removal.
+OpenBao requires native capability checks plus separately approved disposable
+platform/tenant test paths: PA denied tenant values, no policy/auth self-grant,
+no default-policy inheritance, own-tenant versus cross-tenant and deletion/destroy
+boundaries. Initial payloads grant PA only; tenant/engineer/PV roles stay deferred.
+
+Test wrong role/group and stale sessions as well as successful admission. Measure
+native enforcement after removal: old issued ID/access tokens, refresh tokens,
+Rancher sessions and OpenBao tokens are not universally revoked by disabling a
+Keycloak client. Record observed expiry/revocation limits; never promise universal
+instant invalidation. Keep local recovery available and confirm it after each stage.
+
+Rollback one app only: remove the native grant first, then run that client's
+`rollback`. Headlamp deletes only its exact owned binding with UID/resource-version
+preconditions; leaves credential/CA objects for GitOps references and recovery.
+Rancher disables only its owned Generic OIDC provider and deletes only its exact
+owned group binding with preconditions, preserving local auth. OpenBao deletes only
+the exact versioned human role/policy, retaining OIDC config, machine auth, mounts
+and independent operator recovery. Shared client rollback disables only that client
+and removes only its direct app-role mapping, preserving the realm-admin grant and
+other applications. Poll native protected authorization until denial, then repeat
+rollback and verify changed=0. Never remove another app's client or global user
+sessions. Flux rollback of Headlamp values is a separately reviewed source change;
+no play restarts it. Unexpected object identity/drift stops for review.
+
+## Offline checks
+
+`RUN_PLATFORM_SSO_TESTS=1` enables the new fixture suites. Synthetic HTTPS suites
+also require `RUN_PLATFORM_CONFIG_TESTS=1`. `.github/workflows/gitops-selection.yml`
+runs them in a separate offline `platform-sso` job, with KUBECONFIG=/dev/null and
+no service credentials. The existing long selection job retains all existing core
+regressions and the explicit realm-admin/app coexistence test. Fixtures cover
+apply/repeat/inspection, interrupted preparation/delivery/binding/config writes,
+independent rollback, private-input handling, foreign identities/roles/providers,
+CA/UID/issuer mismatch and inherited OpenBao policy refusal. Actual live acceptance
+and recovery outcomes must be added only after separately approved execution.
+
+Transport trust follows [the TLS lifecycle contract](../../../../docs/platform/tls.md).
+Client-to-ingress TLS checks do not close the documented internal HTTP/database
+transport gaps or establish production compliance. Before any API-server OIDC
+change, verify issuer DNS/trust from the static API-server environment without
+personal hosts aliases, direct recovery and the approved restart/rollback window.
+
+Pinned compatibility references:
+
+- [Keycloak 26.8.1 client-role mapper](https://github.com/keycloak/keycloak/blob/26.8.1/services/src/main/java/org/keycloak/protocol/oidc/mappers/UserClientRoleMappingMapper.java).
+- [Keycloak create-time mapper normalization](https://github.com/keycloak/keycloak/blob/26.8.1/server-spi-private/src/main/java/org/keycloak/migration/migrators/MigrationUtils.java).
+- [Rancher 2.15.2 OIDC configuration fields](https://github.com/rancher/rancher/blob/v2.15.2/pkg/apis/management.cattle.io/v3/authn_types.go).
+- [Rancher certificate/system-root handling](https://github.com/rancher/rancher/blob/v2.15.2/pkg/auth/providers/oidc/oidc_client.go).
+- [OpenBao 2.7.2 native code-flow PKCE](https://github.com/openbao/openbao/blob/v2.7.2/internal/builtin/credential/jwt/path_oidc.go).

@@ -1,0 +1,9 @@
+- name: Inspect existing human auth mount; never create or disable mounts
+  ansible.builtin.uri:
+    url: '{{ bao_api }}/sys/auth'
+    headers: '{{ bao_headers }}'
+  register: bao_mounts
+- ansible.builtin.include_tasks: openbao-prepare.yaml
+  when: sso_openbao_operation == 'prepare'
+- ansible.builtin.include_tasks: openbao-active.yaml
+  when: sso_openbao_operation != 'prepare'

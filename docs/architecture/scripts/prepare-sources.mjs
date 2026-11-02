@@ -7,6 +7,12 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../../..')
 const output = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(here, '../public/sources')
 const files = {
+  'platform-sso.md': 'big-bang-bootstrap/configuration/authorization/sso/README.md',
+  'sso-client.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-client.yaml',
+  'sso-headlamp.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-headlamp.yaml',
+  'sso-rancher.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-rancher.yaml',
+  'sso-openbao.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-openbao.yaml',
+  'perkforge-admin-app.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/perkforge-admin-app.yaml',
   'production-tls.md': 'docs/platform/tls.md',
   'platform-tls.yaml': 'big-bang-bootstrap/configuration/ansible/platform-tls.yaml',
   'administer-perkforge.yaml': 'big-bang-bootstrap/configuration/authorization/administer-perkforge.yaml',

@@ -71,6 +71,7 @@
       emailClaim: email
       groupSearchEnabled: true
       clientAuthenticatedSearch: false
+      pkceMethod: "{{ rancher_oidc_pkce_method | default('') }}"
 - name: Reconcile approved provider and management bindings without logging credentials
   no_log: true
   block:
@@ -132,7 +133,7 @@
     when: rancher_oidc_drift | bool
     ansible.builtin.command:
       argv: ['{{ rancher_kubectl }}', --kubeconfig, '{{ rancher_kubeconfig }}', --context, '{{ rancher_context }}', --request-timeout=20s, patch, authconfig.management.cattle.io, genericoidc, --type=merge, --patch-file=/dev/stdin]
-      stdin: "{{ rancher_oidc_settings | combine({'metadata': {'resourceVersion': rancher_oidc_current.metadata.resourceVersion, 'labels': {'platform.perkforge.io/managed-by': 'platform-ansible'}}, 'clientSecret': rancher_oidc_secret_value}) | to_json }}"
+      stdin: "{{ rancher_oidc_settings | combine({'metadata': {'resourceVersion': rancher_oidc_current.metadata.resourceVersion, 'labels': {'platform.perkforge.io/managed-by': 'platform-ansible'}}}) | combine({} if ((rancher_oidc_preserve_existing_secret | default(false) | bool) and (rancher_oidc_current.clientId | default('') | length > 0)) else {'clientSecret':rancher_oidc_secret_value}) | to_json }}"
   - name: Apply only explicit management group bindings
     ansible.builtin.command:
       argv: ['{{ rancher_kubectl }}', --kubeconfig, '{{ rancher_kubeconfig }}', --context, '{{ rancher_context }}', --request-timeout=20s, apply, -f, '-']

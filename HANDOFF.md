@@ -510,3 +510,41 @@ Keycloak console access. This is user-reported fresh-login/console acceptance,
 not proof of every management operation or master-denial behavior. Automation
 did not authenticate as the human. Publication of this correction and acceptance
 evidence is separately approved; no additional live writes are authorized.
+
+## Merged-source no-change acceptance — 2026-11-02
+
+MR #137 merged as `e7cac52fcc328249de9ef7d704757d6484996b4a`.
+Both exact post-merge workflows passed (`41494971414`, `41494971826`), including
+configuration/release checks and the release job. The separately approved normal
+Ansible invocation from that clean merged checkout passed: **38 ok, changed=0,
+failed=0, skipped=1**. This supersedes the historical rerun failure above; no
+additional mapping was written. Independent before/after metadata again verified
+realm-admin only, exactly 22 effective roles, unchanged non-target/master mappings,
+management definitions/edges, realm security and master verifier access. All three
+nodes Ready; Keycloak/database Ready with zero restarts. No personal authentication,
+credential reset, new identity or application SSO grant occurred. The owner separately
+reports fresh MFA console access; not every management operation/master-denial
+scenario was tested. Local documentation of this final result is unpublished.
+
+## Coordinated application SSO — local source ready for publication review
+
+The local feat/platform-apps-sso branch is based on merged #138 (`fd36dfa`),
+preserving TLS lifecycle/Pixel trust documentation and the successful #137 normal
+rerun evidence above. Shared Keycloak and independent Headlamp, Rancher and OpenBao
+adapters default to no contact. Existing private credential delivery, bounded
+claims/roles, explicit app-UUID coexistence, independent rollback and native
+acceptance procedures are in configuration/authorization/sso/README.md.
+Headlamp has no deployment/restart side effects; its missing API OIDC trust still
+needs separate approval. OpenBao can separately prepare only a missing owned OIDC
+method; it refuses legacy/inherited authority and missing/wrong KV-v2 data engines.
+Rancher preserves existing provider credentials on public-setting updates.
+
+31 distinct SSO tests passed (7 render, 10 native CLI, 6 shared-client HTTPS,
+8 OpenBao HTTPS), plus 12 core realm-admin regressions, targeted completed-app
+rollback/coexistence, 6 legacy Rancher, 5 authorization, 10 workflow and 13 docs
+checks. Syntax/C4 validation/build and diff checks passed. These are synthetic
+state/contract checks, not live native token/UI enforcement evidence. Nonsecret
+GET-only installed-version/scope inspection informed pinned compatibility; no
+human authentication, app/client grants, credential generation, deployment,
+provisioning or restart ran. Publication of this reviewed combined source scope is approved. Live batches
+remain separately gated; obtain explicit staged activation/acceptance approvals.

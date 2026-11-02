@@ -20,7 +20,7 @@
     - pa_surface.results[1].json.realmRoles | default([]) | length == 0
     - pa_surface.results[1].json.clientRoles | default({}) | length == 0
     - pa_surface.results[2].json.realmRoles | default([]) | length == 0
-    - pa_surface.results[2].json.clientRoles | default({}) in [{}, {'realm-management':['realm-admin']}]
+    - pa_surface.results[2].json.clientRoles | default({}) in [pa_app_group_names, pa_app_group_names | combine({'realm-management':['realm-admin']})]
     - pa_surface.results[3].json | length == 0
     - pa_surface.results[4].json | length == 1
     - pa_surface.results[4].json[0].clientId == 'realm-management'
@@ -128,7 +128,15 @@
     - pa_mappings.results[0].json.realmMappings | default([]) | length == 0
     - pa_mappings.results[0].json.clientMappings | default({}) | length == 0
     - pa_mappings.results[1].json.realmMappings | default([]) | length == 0
-    - pa_mappings.results[1].json.clientMappings | default({}) | list | difference(['realm-management']) | length == 0
+    - pa_mappings.results[1].json.clientMappings | default({}) | list | difference(['realm-management'] + (pa_app_group_names | list)) | length == 0
+- name: Bind each explicitly reviewed app mapping in the aggregate response to canonical IDs
+  ansible.builtin.assert:
+    that:
+    - pa_mappings.results[1].json.clientMappings[item.value.client_name].id == item.value.client_id
+    - pa_mappings.results[1].json.clientMappings[item.value.client_name].client == item.value.client_name
+    - pa_mappings.results[1].json.clientMappings[item.value.client_name].mappings | map(attribute='id') | list == [item.value.role_id]
+    - pa_mappings.results[1].json.clientMappings[item.value.client_name].mappings | map(attribute='name') | list == ['/platform/admins']
+  loop: '{{ perkforge_admin_expected_sso_clients | dict2items }}'
 - ansible.builtin.set_fact:
     pa_direct: "{{ (pa_mappings.results[1].json.clientMappings | default({})).get('realm-management', {}).get('mappings', []) }}"
 - name: Existing direct state is empty or the one exact owned composite mapping
@@ -140,7 +148,7 @@
 - name: Require group representation to agree with independent direct-role metadata
   ansible.builtin.assert:
     that:
-    - pa_surface.results[2].json.clientRoles | default({}) == ({'realm-management':['realm-admin']} if pa_direct | length == 1 else {})
+    - pa_surface.results[2].json.clientRoles | default({}) == (pa_app_group_names | combine({'realm-management':['realm-admin']} if pa_direct | length == 1 else {}))
 - ansible.builtin.assert:
     that:
     - item.clientRole and item.containerId == pa_client_id and item.composite
