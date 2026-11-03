@@ -1,0 +1,78 @@
+# Nondeployable identity review; not Helm values or a realm import.
+enabled: false
+review_only: true
+live_apply_implemented: false
+protocol: oidc
+application: grafana
+keycloak:
+  realm: perkforge
+  client_id: grafana
+  enabled: false
+  flow: authorization-code
+  pkce: S256
+  full_scope_allowed: false
+  direct_access_grants: false
+  service_accounts: false
+  redirect_uri: https://grafana.UNCONFIGURED.invalid/login/generic_oauth
+  claim: groups
+  claim_source: bounded own-client role mappings; never every realm group
+mappings:
+  tenant_global_admin: false
+  platform_admin: explicit Grafana server admin after approval
+  platform_engineer: Viewer initially; direct editing pending review
+  platform_viewer: Viewer
+  tenant_roles: disabled until org/datasource isolation and per-tenant tests
+transport:
+  verify_tls: true
+  skip_certificate_verification: false
+  public_ca_ref: UNCONFIGURED/public-ca
+recovery:
+  independent_local_access: true
+  custody: protected external credential reference; test before SSO and rollback
+activation_gates:
+- separate reviewed client/app apply wiring
+- TLS and private client Secret delivery
+- data-source/org boundaries
+- fresh MFA and native role tests
+acceptance:
+  positive:
+  - platform admin and explicit viewer login
+  negative:
+  - unmapped group denied
+  - cross-tenant data denied
+  - engineer cannot become server admin
+  rollback:
+  - disable only owned provider/client mapping
+  - local recovery works
+  - measure existing sessions/tokens
+machine_components:
+  prometheus:
+    independent_browser_client: false
+    scoped_machine_credentials: true
+    operator_auth: Grafana UI or separately reviewed operator API access
+    public_ingress: false
+  loki:
+    independent_browser_client: false
+    scoped_machine_credentials: true
+    operator_auth: Grafana UI or separately reviewed operator API access
+    public_ingress: false
+  alloy:
+    independent_browser_client: false
+    scoped_machine_credentials: true
+    operator_auth: Grafana UI or separately reviewed operator API access
+    public_ingress: false
+  alertmanager:
+    independent_browser_client: false
+    scoped_machine_credentials: true
+    operator_auth: Grafana UI or separately reviewed operator API access
+    public_ingress: false
+  ntfy:
+    independent_browser_client: false
+    scoped_machine_credentials: true
+    operator_auth: Grafana UI or separately reviewed operator API access
+    public_ingress: false
+  velero:
+    independent_browser_client: false
+    scoped_machine_credentials: true
+    operator_auth: kubernetes-api-rbac
+    public_ingress: false
