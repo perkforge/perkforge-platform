@@ -19,7 +19,7 @@ PLAY=ROOT/'configuration/authorization/sso/reconcile-openbao.yaml'
 class Defaults(unittest.TestCase):
  def test_default_and_check_do_not_read_credentials(self):
   with tempfile.TemporaryDirectory() as d:
-   for extra,check in (({},False),({'sso_openbao_run':True},True)):
+   for extra,check in (({},False),({'sso_openbao_run':True},True),({'sso_openbao_run':True,'sso_openbao_operation':'prepare-data'},True)):
     r=subprocess.run(['ansible-playbook',str(PLAY),'-e',json.dumps(extra)]+(['--check'] if check else []),env={**os.environ,'ANSIBLE_LOCAL_TEMP':d+'/local'},capture_output=True,text=True,timeout=30)
     self.assertEqual(r.returncode,0,r.stdout+r.stderr);self.assertIn('changed=0',r.stdout)
 
@@ -57,6 +57,11 @@ class OpenBaoAPI(unittest.TestCase):
     p=urlsplit(self.path).path
     if not self.authorized():return self.respond(403,{'errors':['permission denied']})
     body=json.loads(self.rfile.read(int(self.headers.get('Content-Length',0))) or b'{}')
+    if p in ['/v1/sys/mounts/platform','/v1/sys/mounts/tenants']:
+     name=p.rsplit('/',1)[-1]+'/'
+     assert method=='POST' and name not in state['dataMounts'] and body=={'type':'kv','description':'PerkForge coordinated-sso-v1 data mount','options':{'version':'2'}}
+     if state.get('denyTenantMount') and name=='tenants/':return self.respond(403,{'errors':['fixture interruption']})
+     state['dataMounts'][name]=body;state['writes'].append((method,p));return self.respond(204)
     if p=='/v1/sys/auth/oidc':
      assert not state['mount'] and method=='POST' and body['type']=='oidc'
      state['mount']=True;state['mountDescription']=body['description'];state['mountConfig']=body['config'];state['writes'].append((method,p));return self.respond(204)
@@ -83,6 +88,26 @@ class OpenBaoAPI(unittest.TestCase):
   r=subprocess.run(['ansible-playbook',str(PLAY),'-e',json.dumps({**self.v,**(extra or {})})],env={**os.environ,'ANSIBLE_LOCAL_TEMP':str(self.d/'local'),'ANSIBLE_REMOTE_TEMP':str(self.d/'remote')},capture_output=True,text=True,timeout=90)
   self.assertNotIn('fixture-operator-token',r.stdout+r.stderr);self.assertNotIn('fixture-confidential-client-secret',r.stdout+r.stderr)
   return r
+ def test_prepare_data_creates_only_missing_owned_engines_and_repeats(self):
+  self.s['dataMounts']={'unrelated/':{'type':'transit','options':{}}};self.s['mount']=False;(self.d/'secret').unlink()
+  extra={'sso_openbao_operation':'prepare-data','sso_openbao_reviewed_scope':'openbao-data-v1','sso_openbao_accessor':'UNCONFIGURED'}
+  r=self.run_play(extra);self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+  self.assertEqual(self.s['writes'],[('POST','/v1/sys/mounts/platform'),('POST','/v1/sys/mounts/tenants')])
+  self.assertEqual(self.s['dataMounts']['unrelated/'],{'type':'transit','options':{}})
+  self.assertFalse(self.s['mount']);self.assertIsNone(self.s['role']);self.assertIsNone(self.s['policy']);self.assertIsNone(self.s['config'])
+  r=self.run_play(extra);self.assertEqual(r.returncode,0,r.stdout+r.stderr);self.assertIn('changed=0',r.stdout);self.assertEqual(len(self.s['writes']),2)
+ def test_prepare_data_refuses_foreign_mount_or_wrong_scope_before_writes(self):
+  extra={'sso_openbao_operation':'prepare-data','sso_openbao_reviewed_scope':'openbao-data-v1'}
+  for existing in [{'platform/':{'type':'kv','options':{'version':'2'},'description':'foreign'}},{'tenants/':{'type':'transit','options':{}}}]:
+   self.s['dataMounts']=existing;r=self.run_play(extra);self.assertNotEqual(r.returncode,0);self.assertEqual(self.s['writes'],[])
+  self.s['dataMounts']={};r=self.run_play({**extra,'sso_openbao_reviewed_scope':'openbao-sso-v1'});self.assertNotEqual(r.returncode,0);self.assertEqual(self.s['writes'],[])
+ def test_prepare_data_partial_create_resumes_without_replacing_first_engine(self):
+  self.s['dataMounts']={};self.s['denyTenantMount']=True
+  extra={'sso_openbao_operation':'prepare-data','sso_openbao_reviewed_scope':'openbao-data-v1'}
+  r=self.run_play(extra);self.assertNotEqual(r.returncode,0);first=copy.deepcopy(self.s['dataMounts']['platform/']);self.assertEqual(len(self.s['writes']),1)
+  self.s['denyTenantMount']=False;r=self.run_play(extra);self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+  self.assertEqual(self.s['dataMounts']['platform/'],first);self.assertEqual(len(self.s['writes']),2)
+
  def test_prepare_missing_mount_is_independent_idempotent_and_preserves_machine_auth(self):
   self.s['mount']=False;foreign=copy.deepcopy(self.s['foreign'])
   extra={'sso_openbao_operation':'prepare','sso_openbao_reviewed_scope':'openbao-sso-prepare-v1','sso_openbao_accessor':'UNCONFIGURED'}

@@ -23,18 +23,18 @@
       timeout: 20
   tasks:
   - ansible.builtin.debug:
-      msg: 'OpenBao stage only; run={{ sso_openbao_run | bool }} operation={{ sso_openbao_operation }} check={{ ansible_check_mode }}. No machine auth, user identities or credential generation. prepare enables only a missing owned OIDC mount.'
+      msg: 'OpenBao stage only; run={{ sso_openbao_run | bool }} operation={{ sso_openbao_operation }} check={{ ansible_check_mode }}. No machine auth, user identities or credential generation. prepare enables only a missing owned OIDC mount; prepare-data creates only missing owned platform/tenants KV-v2 engines.'
   - name: Inspect or operate only with explicit application-specific inputs
     when: sso_openbao_run | bool and not ansible_check_mode
     block:
     - ansible.builtin.assert:
         that:
-        - sso_openbao_operation in ['prepare', 'inspect', 'apply', 'rollback']
-        - sso_openbao_reviewed_scope == ('openbao-sso-prepare-v1' if sso_openbao_operation == 'prepare' else 'openbao-sso-v1')
+        - sso_openbao_operation in ['prepare', 'prepare-data', 'inspect', 'apply', 'rollback']
+        - sso_openbao_reviewed_scope == ('openbao-sso-prepare-v1' if sso_openbao_operation == 'prepare' else 'openbao-data-v1' if sso_openbao_operation == 'prepare-data' else 'openbao-sso-v1')
         - sso_openbao_recovery_verified | bool
         - sso_realm == 'perkforge'
         - sso_openbao_cluster_id != 'UNCONFIGURED'
-        - sso_openbao_operation == 'prepare' or sso_openbao_accessor != 'UNCONFIGURED'
+        - sso_openbao_operation in ['prepare','prepare-data'] or sso_openbao_accessor != 'UNCONFIGURED'
         - sso_apps.openbao.origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
         - sso_keycloak_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
         - sso_keycloak_path in ['', '/auth']
@@ -73,7 +73,10 @@
           that:
           - bao_health.json.cluster_id == sso_openbao_cluster_id
           - bao_health.json.initialized and not bao_health.json.sealed
+      - ansible.builtin.include_tasks: tasks/openbao-data.yaml
+        when: sso_openbao_operation == 'prepare-data'
       - ansible.builtin.include_tasks: tasks/openbao.yaml
+        when: sso_openbao_operation != 'prepare-data'
       always:
       - ansible.builtin.set_fact:
           bao_headers: {}

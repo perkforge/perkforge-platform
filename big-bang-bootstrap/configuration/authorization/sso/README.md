@@ -52,6 +52,7 @@ those are review-renderer flags, not live switches. No orchestrator advances sta
 | `reconcile-headlamp.yaml` | `deliver` | `headlamp-sso-delivery-v1` |
 | `reconcile-headlamp.yaml` | `inspect`, `activate`, `rollback` | `headlamp-sso-v1` |
 | `reconcile-rancher.yaml` | `inspect`, `apply`, `rollback` | `rancher-sso-v1` |
+| `reconcile-openbao.yaml` | `prepare-data` | `openbao-data-v1` |
 | `reconcile-openbao.yaml` | `prepare` | `openbao-sso-prepare-v1` |
 | `reconcile-openbao.yaml` | `inspect`, `apply`, `rollback` | `openbao-sso-v1` |
 
@@ -129,6 +130,17 @@ stops; the legacy broader platform/tenant policies are not adopted. Any unrelate
 role on this accessor also blocks activation; re-enabling the same issuer/client
 must not revive a legacy broad role. No automatic role migration or deletion. Existing `platform/` and `tenants/` mounts must be KV-v2; missing/wrong data
 engines stop before policy writes and require separate provisioning approval.
+The default-off `prepare-data` operation fills that prerequisite only after explicit
+`openbao-data-v1` approval: create missing `platform/` and `tenants/` KV-v2 engines,
+with a versioned ownership description and otherwise upstream defaults. It requires
+the verified healthy cluster, public CA and existing protected operator credential,
+but no OIDC accessor/client secret. It never creates values, edits retention, enables
+auth or grants policies. Existing engines must match type/version/ownership; foreign
+engines stop before any creation. Partial creation resumes without replacing the
+first engine; repeat must report changed=0. Other engine representations compare
+equal before/after. There is deliberately no engine-delete rollback: disabling an
+engine can destroy data. Leave engines intact during SSO rollback and request
+separate reviewed data cleanup only if needed. See the [2.7.x mount API](https://openbao.org/docs/api/system/mounts/).
 No default login role or default token policy, no tenant values or auth/policy
 self-grant.
 Role `bound_claims` uses the bounded groups claim; `groups_claim` is deliberately
@@ -281,3 +293,34 @@ silently removes existing certificates, signing keys, shared trust or recovery.
 Source tests cover routing isolation, missing/mismatched trust, partial creation,
 repeat and concurrent-delete refusal. No live TLS delivery, privileged write,
 restart, SSO or owner-browser acceptance has occurred.
+
+## Remaining Rancher and OpenBao activation batches
+
+The adapters and shared Keycloak client lifecycle were already merged in #139;
+this change does not duplicate them or require a Rancher Helm selection overlay.
+Both applications remain on their existing deployment and independently gated
+native configuration path. Publishing/merging this code activates neither.
+
+1. **Rancher:** review exact environment/cluster/provider image and mounted issuer
+   CA, existing local recovery, dedicated confidential client/secret and current
+   provider state. Approve disabled-client preparation separately from native
+   `apply`/PA global binding and client activation. Stop on foreign provider or
+   secret drift. Prove owner fresh-MFA login, intended global authority, rejection
+   outside the approved group and no-change repeats. Disable only the owned provider
+   and remove only the owned binding before rolling back that client's activation;
+   recheck local recovery and other apps. Existing native fixtures cover these
+   configuration transactions, not real browser login or live RBAC acceptance.
+2. **OpenBao:** inspect exact initialized/unsealed cluster and independent operator
+   recovery. If the two logical engines are absent, approve `prepare-data` alone;
+   review persistent storage/backup implications before enabling empty engines.
+   Separately approve owned OIDC-mount `prepare`, record its public accessor, then
+   approve versioned human policy/role and client activation. No reinitialization,
+   unseal changes, root-token browser login or machine-auth migration. Prove platform
+   values CRUD with a separately approved disposable path, tenant-name LIST, tenant
+   value and policy/auth self-grant denial; no real tenant values are needed. Measure
+   old-token/session behavior. Roll back only the owned human role/policy and client
+   grant; preserve engines, machine auth, recovery and other apps.
+3. Finish each app's health/resource report and recovery check before the next.
+   Live acceptance, disposable test values and cleanup each need exact approval;
+   fixture passes are not deployed evidence. No automatic orchestration advances
+   these stages, and Headlamp correction/acceptance remains independently owned.

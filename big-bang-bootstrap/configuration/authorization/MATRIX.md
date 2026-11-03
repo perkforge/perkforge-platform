@@ -78,7 +78,7 @@ standing human access; any additional scope needs review.
   only PA; PV mapping is proposed and requires a tested read-only custom/global
   role and access restriction update. Never map tenant admins to global admin;
   no tenant Fleet/application ownership.
-- **OpenBao:** proposed KV-v2 mounts `platform/` and `tenants/` separate data. LIST
+- **OpenBao:** proposed KV-v2 mounts `platform/` and `tenants/` separate data. The independently approved, default-off `prepare-data` gate prepares only missing owned engines; no values or human privileges are added, and SSO rollback retains engines. LIST
   `tenants/metadata[/...]` discovers names; it is not READ `tenants/data/...`.
   READ metadata can expose custom metadata and version details and is separately
   scoped. Never put secret values in names/custom metadata. PA receives no

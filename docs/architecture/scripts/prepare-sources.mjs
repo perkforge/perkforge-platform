@@ -7,6 +7,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../../..')
 const output = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(here, '../public/sources')
 const files = {
+  'openbao-data.yaml': 'big-bang-bootstrap/configuration/authorization/sso/tasks/openbao-data.yaml',
   'api-oidc.md': 'infrastructure/ansible/API-OIDC.md',
   'api-oidc.yml': 'infrastructure/ansible/playbooks/configure-api-oidc.yml',
   'api-oidc-tasks.yml': 'infrastructure/ansible/tasks/api-oidc.yml',
