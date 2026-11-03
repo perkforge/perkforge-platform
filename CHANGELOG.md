@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/perkforge/perkforge-platform/compare/v0.11.3...v0.12.0) (2026-11-01)
+
+
+### Features
+
+* **rancher:** select local-admin Big Bang stage ([#100](https://github.com/perkforge/perkforge-platform/issues/100)) ([870d042](https://github.com/perkforge/perkforge-platform/commit/870d04296b51bb1cf285e831f503260cbb9f5d6d))
+
 ## [0.11.3](https://github.com/perkforge/perkforge-platform/compare/v0.11.2...v0.11.3) (2026-11-01)
 
 
