@@ -319,4 +319,12 @@ views {
     platform.rancher.runtime -> engineer '8. Verify readiness, trusted HTTPS and local-admin password reset; stop before SSO/lifecycle actions'
   }
 
+  dynamic view queued_app_identity {
+    title 'Queued app identity — proposed, no live grants'
+    link /runbook.html#queued-sso 'App-specific contracts, native mappings and acceptance gates'
+    description 'Dedicated disabled client per human app; app API enforces tenant/resource roles. Grafana front door does not secure exposed Loki/Prometheus. Velero uses Kubernetes RBAC and separate backup credentials, no browser client. Native apply wiring, recovery and denial acceptance remain gates.'
+    engineer -> platform.keycloak.runtime '1. Review app protocol, edition, exact callback and bounded group claims; no client enabled'
+    platform.keycloak.runtime -> platform.queued_app_access '2. Proposed app consumes claims; native role/resource boundaries must enforce access'
+    platform.queued_app_access -> engineer '3. Approve one app only; verify MFA, allow/deny, independent recovery and rollback before activation'
+  }
 }

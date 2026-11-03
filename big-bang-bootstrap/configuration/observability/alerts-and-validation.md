@@ -60,3 +60,14 @@ change tenant rights or send notifications without the concrete action approval.
 [Grafana external Alertmanager behavior](https://grafana.com/docs/grafana/latest/alerting/set-up/configure-alertmanager/),
 [Alertmanager configuration](https://prometheus.io/docs/alerting/latest/configuration/),
 [ntfy publishing](https://docs.ntfy.sh/publish/).
+
+## SSO and notification identity
+
+`alerts-sso-review.yaml` separates Grafana human OIDC from evaluation, publisher
+and subscriber identities. Only approved platform administrators manage initial
+shared alerting; engineer/viewer access remains read-only pending reviewed edit
+rights. Tenant alert operations need native tenant/data boundaries and denial
+tests, not labels or hidden dashboards. Do not expose backend admin APIs directly.
+Grafana-managed forwarding/ntfy remains unimplemented and disabled; SSO does not
+supply the missing adapter or credentials. Retain upstream rules and bundled
+Alertmanager, with one intentional notification path and independent recovery.

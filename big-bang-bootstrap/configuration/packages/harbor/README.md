@@ -49,3 +49,22 @@ restore. User owns any eventual temporary credential-cache migration.
 [Exact package](https://repo1.dso.mil/big-bang/product/packages/harbor/-/tree/1.19.2-bb.3),
 [Harbor chart](https://github.com/goharbor/harbor-helm/tree/v1.19.2),
 [Harbor administration](https://goharbor.io/docs/).
+
+## Keycloak OIDC review — native API ownership
+
+`sso-review.yaml` records a disabled dedicated client and public Harbor
+configuration payload. Future explicitly approved Ansible configuration owns the
+API settings and protected client-secret delivery; no Helm hook, config-overwrite
+secret literal or live apply is added. Verify the pinned server/schema first.
+
+Configure OIDC before creating local non-admin users: those users block mode
+migration. Keep and test the built-in local admin. Groups must be in the **ID
+token**; the OIDC group filter does not restrict login. Only the explicit platform
+admin group proposes system administration. Tenant admin/developer/viewer map to
+own private project Admin/Developer/Guest, with membership/offboarding still
+unimplemented. Project creation is admin-only; no public-project or unassigned-user
+access claim is made. Rollback must preserve images/projects/robots and recovery,
+not blindly switch authentication modes or assume issued tokens are revoked.
+
+[Harbor OIDC](https://goharbor.io/docs/2.15.0/administration/configure-authentication/oidc-auth/),
+[system settings](https://goharbor.io/docs/2.15.0/install-config/configure-system-settings-cli/).
