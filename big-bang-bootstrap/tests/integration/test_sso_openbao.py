@@ -128,6 +128,8 @@ class OpenBaoAPI(unittest.TestCase):
   self.assertNotIn('groups_claim',self.s['role']);self.assertEqual(self.s['role']['bound_claims'],{'groups':['/platform/admins']})
   self.assertEqual(self.s['role']['token_policies'],['perkforge-sso-v1-platform-admin']);self.assertTrue(self.s['role']['token_no_default_policy'])
   self.assertNotIn('tenants/data',self.s['policy']['policy'])
+  self.assertIn('path "auth/token/revoke-self" { capabilities = ["update"] }',self.s['policy']['policy'])
+  self.assertNotIn('path "auth/token/*"',self.s['policy']['policy'])
   for op in ('apply','inspect'):
    r=self.run_play({'sso_openbao_operation':op});self.assertEqual(r.returncode,0,r.stdout+r.stderr);self.assertIn('changed=0',r.stdout);self.assertEqual(len(self.s['writes']),3)
   r=self.run_play({'sso_openbao_operation':'rollback'});self.assertEqual(r.returncode,0,r.stdout+r.stderr)

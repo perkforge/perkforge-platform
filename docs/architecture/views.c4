@@ -370,7 +370,7 @@ views {
     engineer -> platform.headlamp '3. Review optional local-headlamp-sso selection in a new immutable release; separately approve credential/public-CA delivery and API trust with sole-control-plane restart/recovery before tag/path promotion'
     platform.authorization.platform_sso -> platform.headlamp '4. Refuse missing API/workload trust; approved native stage binds PA only. Keep independent kubeadmin recovery'
     platform.authorization.platform_sso -> platform.rancher '5. OBSERVED Rancher Generic OIDC and PA binding; zero-change repeats, local recovery preserved; owner reports named login and local-cluster/pod visibility; one real no-grant S256/TOTP native denial and exact cleanup passed'
-    platform.authorization.platform_sso -> platform.openbao '6. Separately approve missing owned KV-v2 engine preparation, then OIDC mount and versioned human policy/role; preserve engines on SSO rollback, machine auth and recovery'
+    platform.authorization.platform_sso -> platform.openbao '6. PROPOSED ONLY: approve owned empty KV-v2 engines, OIDC mount and human policy; exact own-token/UI permissions, no tenant values; preserve engines, machine auth and recovery'
     platform.authorization.platform_sso -> platform.keycloak.runtime '7. After native readiness approval, map only that app role and enable only that client; verify no-change repeat and other mappings'
     platform.authorization.platform_sso -> engineer '8. Owner fresh MFA and positive/negative native acceptance; independent rollback removes own native grant and client mapping. Measure stale-session limits'
   }

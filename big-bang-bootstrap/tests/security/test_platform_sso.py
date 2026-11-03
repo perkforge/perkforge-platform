@@ -100,7 +100,18 @@ class PlatformSSO(unittest.TestCase):
         policy = bao['policies']['perkforge-sso-platform-admin']
         self.assertNotIn('tenants/data', policy)
         self.assertIn('path "tenants/metadata/*" { capabilities = ["list"] }', policy)
-        for forbidden in ('sys/', 'auth/', 'destroy/', 'human-platform-tenant-access'):
+        import re
+        rules = dict(re.findall(r'path "([^"]+)" \{ capabilities = \[([^]]+)\] \}', policy))
+        self_paths = {
+            'auth/token/lookup-self': '"read"',
+            'auth/token/renew-self': '"update"',
+            'auth/token/revoke-self': '"update"',
+            'sys/capabilities-self': '"update"',
+            'sys/internal/ui/resultant-acl': '"read"',
+        }
+        self.assertEqual({path: caps for path, caps in rules.items()
+                          if path.startswith(('auth/', 'sys/'))}, self_paths)
+        for forbidden in ('destroy/', 'human-platform-tenant-access'):
             self.assertNotIn(forbidden, policy)
 
     def test_live_activation_bad_targets_and_duplicate_clients_refuse(self):

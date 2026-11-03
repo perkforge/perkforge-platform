@@ -83,6 +83,9 @@ standing human access; any additional scope needs review.
   no tenant Fleet/application ownership.
 - **OpenBao:** proposed KV-v2 mounts `platform/` and `tenants/` separate data. The independently approved, default-off `prepare-data` gate prepares only missing owned engines; no values or human privileges are added, and SSO rollback retains engines. LIST
   `tenants/metadata[/...]` discovers names; it is not READ `tenants/data/...`.
+  The prepared OIDC policy adds five exact current-token/UI endpoints while
+  keeping the default policy disabled; no other-token management, auth/policy
+  editing or tenant-value authority follows from those self-session operations.
   READ metadata can expose custom metadata and version details and is separately
   scoped. Never put secret values in names/custom metadata. PA receives no
   standing `sys/auth`, ACL-policy management, tenant value grant or global `*`/sudo
