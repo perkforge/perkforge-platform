@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/perkforge/perkforge-platform/compare/v0.16.1...v0.17.0) (2026-11-03)
+
+
+### Features
+
+* **gitlab:** prepare coordinated SSO, data services and runner ([#156](https://github.com/perkforge/perkforge-platform/issues/156)) ([7aeb06c](https://github.com/perkforge/perkforge-platform/commit/7aeb06c3c69d828159af15514ab94251ce28bd94))
+
 ## [0.16.1](https://github.com/perkforge/perkforge-platform/compare/v0.16.0...v0.16.1) (2026-11-03)
 
 
