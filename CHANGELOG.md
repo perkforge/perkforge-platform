@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/perkforge/perkforge-platform/compare/v0.15.0...v0.15.1) (2026-11-03)
+
+
+### Bug Fixes
+
+* **identity:** accept canonical empty mapper prefix ([#142](https://github.com/perkforge/perkforge-platform/issues/142)) ([5366e1a](https://github.com/perkforge/perkforge-platform/commit/5366e1ab4f2d88fa7a6d180773a08cd4c2d09c86))
+
 ## [0.15.0](https://github.com/perkforge/perkforge-platform/compare/v0.14.0...v0.15.0) (2026-11-03)
 
 
