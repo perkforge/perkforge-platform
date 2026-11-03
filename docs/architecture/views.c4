@@ -153,7 +153,7 @@ views {
 
   dynamic view bootstrap_installer_flow {
     title 'Big Bang bootstrap — release, prerequisites and delegated package installation'
-    description 'General bootstrap ownership with Longhorn as the current concrete package. Each package needs its own reviewed installer contract; Longhorn diagnostic cluster-admin is an accepted lab exception, not a global default. Rancher first installed at v0.12.0 remains Ready at v0.14.0 with first login pending and identity/tenants remain unselected. This is a procedure model, not live approval.'
+    description 'General bootstrap ownership with Longhorn as the current concrete package. Each package needs its own reviewed installer contract; Longhorn diagnostic cluster-admin is an accepted lab exception, not a global default. The historical v0.14.0 installation checkpoint predates current app SSO acceptance; current status is in platform_app_sso. This is a procedure model, not live approval.'
     link /runbook.html#longhorn-rbac 'Bootstrap ownership, code and Longhorn trust example'
     engineer -> platform.prerequisite_applier '1. Review exact published release, target and shared/per-package prerequisites'
     platform.prerequisite_applier -> platform.longhorn_installer '2. Approved Ansible applies shared and selected package RBAC; Longhorn example'
@@ -299,7 +299,7 @@ views {
 
   dynamic view rancher_local_admin {
     title 'Rancher installation history — current SSO acceptance separate'
-    description 'Historical v0.12.0 installation flow: root/umbrella/Rancher Ready, runtime controllers and trusted HTTPS. Current Generic OIDC configuration and reported login are in platform_app_sso; effective admin/denial acceptance remains pending. Big Bang/Flux owns installation; Ansible applies approved prerequisites/TLS, not a competing Helm deployment. Vendor matrix covers RKE2 1.36 but lists Longhorn 1.12, not the separately managed 1.13 lab combination. One replica/control-plane is not HA. This historical install flow is not permission to repeat installation or clean test volumes.'
+    description 'Historical v0.12.0 installation flow: root/umbrella/Rancher Ready, runtime controllers and trusted HTTPS. Current Generic OIDC configuration and reported login are in platform_app_sso; bounded no-grant denial and exact cleanup passed; all admin operations/rollback remain untested. Big Bang/Flux owns installation; Ansible applies approved prerequisites/TLS, not a competing Helm deployment. Vendor matrix covers RKE2 1.36 but lists Longhorn 1.12, not the separately managed 1.13 lab combination. One replica/control-plane is not HA. This historical install flow is not permission to repeat installation or clean test volumes.'
     link /runbook.html#rancher-stage 'Source, necessary inputs and acceptance gates'
     engineer -> platform.prerequisite_applier '1. Review new release, target/capacity, vendor gaps and privileged action scope'
     platform.prerequisite_applier -> platform.rancher.inputs '2. Separately approve namespace, checked TLS/public CA and bootstrap Secret delivery'
@@ -364,12 +364,12 @@ views {
 
   dynamic view platform_app_sso {
     title 'Coordinated app SSO — Headlamp accepted, Rancher login reported'
-    description 'Headlamp v0.15.2 is active: exact native/client gates and no-change repeats passed. Owner confirms named login and nodes/pods. Real no-grant OIDC/TOTP nodes/pods403 and Secret-list review denial plus exact cleanup passed. Rancher config/repeats and owner-reported named login with local-cluster/pod visibility are observed; effective admin/denial/rollback acceptance pending. The default-off Rancher denial lifecycle and native verifier are offline checked only, not executed. OpenBao remains gated; no broader acceptance implied.'
+    description 'Headlamp v0.15.2 is active: exact native/client gates and no-change repeats passed. Owner confirms named login and nodes/pods. Real no-grant OIDC/TOTP nodes/pods403 and Secret-list review denial plus exact cleanup passed. Rancher config/repeats and owner-reported named login with local-cluster/pod visibility are observed; bounded real no-grant native denial, no issued session, exact UID/IdP-session/credential cleanup and unchanged baseline passed (83ok/0failed). Full admin operations and rollback remain untested. OpenBao remains gated; no broader acceptance implied.'
     engineer -> platform.authorization.platform_sso '1. Review environment, public CA, exact UID/UUIDs, independent recovery and private credential references; approve one app only'
     platform.authorization.platform_sso -> platform.keycloak.runtime '2. Prepare one disabled owned client and bounded noncomposite app role/claim; no human mapping yet'
     engineer -> platform.headlamp '3. Review optional local-headlamp-sso selection in a new immutable release; separately approve credential/public-CA delivery and API trust with sole-control-plane restart/recovery before tag/path promotion'
     platform.authorization.platform_sso -> platform.headlamp '4. Refuse missing API/workload trust; approved native stage binds PA only. Keep independent kubeadmin recovery'
-    platform.authorization.platform_sso -> platform.rancher '5. OBSERVED Rancher Generic OIDC and PA binding; zero-change repeats, local recovery preserved; owner reports named login and local-cluster/pod visibility, native authorization pending'
+    platform.authorization.platform_sso -> platform.rancher '5. OBSERVED Rancher Generic OIDC and PA binding; zero-change repeats, local recovery preserved; owner reports named login and local-cluster/pod visibility; one real no-grant S256/TOTP native denial and exact cleanup passed'
     platform.authorization.platform_sso -> platform.openbao '6. Separately approve missing owned KV-v2 engine preparation, then OIDC mount and versioned human policy/role; preserve engines on SSO rollback, machine auth and recovery'
     platform.authorization.platform_sso -> platform.keycloak.runtime '7. After native readiness approval, map only that app role and enable only that client; verify no-change repeat and other mappings'
     platform.authorization.platform_sso -> engineer '8. Owner fresh MFA and positive/negative native acceptance; independent rollback removes own native grant and client mapping. Measure stale-session limits'

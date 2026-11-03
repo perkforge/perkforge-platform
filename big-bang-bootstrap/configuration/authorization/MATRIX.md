@@ -298,8 +298,9 @@ The [Headlamp/Rancher/OpenBao procedure](sso/README.md) prepares a single coordi
 source change with independent live approvals. Headlamp acceptance is recorded;
 Rancher configuration/repeats and owner-reported named login with local-cluster/pod
 visibility are now recorded,
-while Rancher native authorization/denial acceptance and OpenBao activation remain
-gated. Default-off entrypoints are retained; source defaults are not live status.
+and one real no-grant Rancher denial with exact identity/session/credential
+cleanup passed. This does not prove every administrator operation or recovery
+case. OpenBao activation remains gated. Default-off entrypoints are retained; source defaults are not live status.
 Initial payloads map PA only, not every design role in this matrix. Public CA and
 environment inputs stay external; no API-server restart/deployment is automatic.
 Own-client claim scopes avoid disclosing every tenant membership. OpenBao uses no

@@ -52,13 +52,22 @@ passed 45/68 ok with zero changes. Local recovery and other providers were
 preserved; Flux stayed v0.15.2 without restart. The owner reports initial local
 setup followed by named-account login with local-cluster and pod visibility. GET-only first-login/server-URL settings
 agree with completed setup. This does not verify effective per-user admin powers,
-fresh factor prompts, real no-grant denial or rollback. No callback change was
+fresh owner factor prompts or rollback. The separately approved real no-grant
+Rancher denial and exact cleanup passed below. No callback change was
 made: the standard callback routes correctly with UI state.
 
-### Rancher bounded denial acceptance — not executed
+### Rancher bounded denial acceptance — executed
 
-This is the next approval scope, not an available live acceptance result.
-The local, unpublished default-off [Ansible runner](../rancher-denial-acceptance.yaml) reuses
+**Observed 2026-11-03 17:06 UTC:** one owned no-group/no-admin-role account
+completed password/TOTP and native S256 authentication, then received the exact
+Rancher access-policy denial. No native session was issued. Run: 83 ok / 7 changed /
+0 failed. Exact UID/session cleanup, UID404/empty-name lookup, rejected test bearer
+and refresh, and generated credential-file removal passed. Realm/flow, human
+membership/credential IDs, native provider/admin binding and post-test cluster
+baseline were unchanged. This is a bounded live result, separate from the offline
+fixtures. Corey's credentials/session were not used and his account was not changed.
+
+The published default-off [Ansible runner](../rancher-denial-acceptance.yaml) reuses
 owned disposable-account creation, test-only TOTP enrollment and exact UID cleanup.
 Its [native verifier](../files/verify-rancher-denial.py) preserves Rancher's PKCE
 cookie and requires the pinned v2.15.2 `Unauthorized` / `unauthorized` response
@@ -66,7 +75,7 @@ cookie and requires the pinned v2.15.2 `Unauthorized` / `unauthorized` response
 is in the [pinned upstream provider](https://github.com/rancher/rancher/blob/v2.15.2/pkg/auth/providers/oidc/oidc_provider.go). Offline protocol fixtures and inert/check-mode tests are not
 live acceptance or a full fake-API exercise of the Ansible lifecycle. Default and check mode are inert.
 
-Future execution needs the existing protected human verifier inputs, a fresh
+Any separately approved future repetition needs the existing protected human verifier inputs, a fresh
 0700 evidence/private directory and a new 0600 `private/test.json` containing
 only a unique `mfa-check-` plus 12 hex username and strong test password. No human
 password/seed is used. Set `factor_evidence_dir` and explicitly approve
@@ -76,6 +85,8 @@ user, and retains private transaction material for exact native-session review.
 It does not automatically delete Rancher users/tokens or assume a short TTL.
 An interruption can require exact recorded-UID cleanup; never blindly rerun a
 failed evidence directory or claim an `always` block survives process termination.
+
+The executed procedure and stop conditions are:
 
 1. Record trusted target/issuer, current provider/client/binding and realm/flow
    baseline. Create exactly one uniquely owned temporary Keycloak user with no

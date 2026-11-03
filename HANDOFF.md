@@ -21,8 +21,9 @@ the owner-only temporary client credential is in the existing local cache, not G
 in with the named account and seeing the local cluster and pods.** First-login is now false and the canonical server URL
 is configured. This is reported browser-login acceptance plus GET-only settings
 verification, not proof of effective per-user Rancher global-admin authorization.
-Fresh factor prompts, bounded non-admin denial, session-expiry/revocation behavior
-and live rollback acceptance remain pending. Do not change the callback based on
+A separately approved bounded non-admin denial passed at 17:06 UTC (details
+below). Fresh owner factor prompts, successful-session expiry/revocation and live
+rollback acceptance remain pending. Do not change the callback based on
 the earlier loop: a synthetic UI state verified `/verify-auth` routes correctly.
 
 At 16:10 UTC all three nodes and six releases were Ready: 55 Running pods,
@@ -39,14 +40,33 @@ were unchanged; RAM delta was -59/+4/-14 MiB. Longhorn scheduling/robustness was
 unchanged: 15 GiB scheduled per worker, about 220 GiB filesystem free and 70.7 GiB
 reserved each. The retained detached test volume was not attached or cleaned up.
 
-Next: separately approve one no-grant Rancher denial identity and exact cleanup,
-using the [bounded acceptance plan](big-bang-bootstrap/configuration/authorization/sso/README.md#rancher-bounded-denial-acceptance--not-executed).
-The default-off `rancher-denial-acceptance.yaml` and native verifier are prepared
-and offline checked; they have not run against the cluster. They reuse the owned
-test identity lifecycle, make one native login attempt and fail closed on
-inconclusive responses. Interrupted/uncertain native attempts retain private
-evidence for exact-session review; automatic Rancher token/user cleanup is not
-implemented. Do not authenticate as Corey or infer all authorization from login.
+A separately approved real no-group/no-admin-role identity completed test-only
+password/TOTP enrollment and the native Rancher S256 flow. IdP authentication
+succeeded, then Rancher returned the pinned `Unauthorized` / `unauthorized`
+access-policy denial without issuing a Rancher session. Exactly one native
+attempt; Corey was not used. Run: **83 ok / 7 changed / 0 failed**, completed
+2026-11-03 17:06:07 UTC using MR #152 source `72f248c`.
+
+Cleanup revoked only this test identity's Keycloak sessions, deleted its exact
+recorded UID and verified UID404/empty-name lookup. Its issued account-console
+bearer and refresh credentials were rejected; the generated password/OTP/token
+file was removed. Realm/browser flow, Corey's membership and credential IDs,
+Rancher provider and existing admin binding compared unchanged. No native
+Rancher session existed to delete. Protected phase/cleanup evidence is retained
+under the run's ignored infrastructure state directory, never in Git.
+
+Post-test GET-only verification at 17:06:33 UTC found all three nodes and six
+releases Ready, no node pressure, and unchanged source/root/Keycloak pod identities.
+Flux still selects v0.15.2 / `local-headlamp-sso`. The default-off
+[runnable procedure](big-bang-bootstrap/configuration/authorization/rancher-denial-acceptance.yaml)
+and [scope/limits](big-bang-bootstrap/configuration/authorization/sso/README.md#rancher-bounded-denial-acceptance--executed)
+remain gated. This proves the tested no-grant denial, not every admin operation,
+role, session lifetime or IdP-outage recovery. Uncertain native attempts retain
+private evidence and stop for exact-session review; automatic Rancher token/user
+cleanup is deliberately not implemented.
+
+Next: review this acceptance, then separately approve OpenBao SSO preparation or
+activation as appropriate. Do not infer another app's approval from this test.
 OpenBao human SSO remains unactivated; its engine/auth/policy gates are unchanged.
 If local setup changed the recovery password, refresh its proper custody; the
 previous bootstrap cache was not revalidated after that owner action. Never reset
