@@ -72,15 +72,16 @@ class Documentation(unittest.TestCase):
 
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
         copies={
-  'alerts-sso-review.yaml': 'big-bang-bootstrap/configuration/observability/alerts-sso-review.yaml',
-  'logging-sso-review.yaml': 'big-bang-bootstrap/configuration/observability/logging-sso-review.yaml',
-  'grafana-sso-values.yaml': 'big-bang-bootstrap/configuration/observability/grafana-sso-values.yaml',
+         'alerts-sso-review.yaml': 'big-bang-bootstrap/configuration/observability/alerts-sso-review.yaml',
+         'logging-sso-review.yaml': 'big-bang-bootstrap/configuration/observability/logging-sso-review.yaml',
+         'grafana-sso-values.yaml': 'big-bang-bootstrap/configuration/observability/grafana-sso-values.yaml',
+         'queued-sso.yaml': 'big-bang-bootstrap/configuration/observability/sso-review.yaml',
          'longhorn-storage-smoke.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-storage-smoke.yaml',
          'longhorn-smoke-stage.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-smoke-stage.yaml',
          'verify-longhorn-smoke.py': 'big-bang-bootstrap/configuration/ansible/files/verify-longhorn-smoke.py',
          'longhorn-smoke-pod.yaml.j2': 'big-bang-bootstrap/configuration/ansible/fixtures/longhorn-smoke-pod.yaml.j2',
          'longhorn-smoke-foundation.yaml.j2': 'big-bang-bootstrap/configuration/ansible/fixtures/longhorn-smoke-foundation.yaml.j2',
-         'queued-sso.yaml': 'big-bang-bootstrap/configuration/observability/sso-review.yaml','workload-smoke.yml': 'infrastructure/ansible/tests/workload-smoke.yml',
+         'workload-smoke.yml': 'infrastructure/ansible/tests/workload-smoke.yml',
          'workload-smoke.yaml': 'infrastructure/ansible/tests/fixtures/workload-smoke.yaml',
          'prepare.yml': 'pxe/transport/prepare.yml',
          'inputs.example.yml': 'pxe/transport/inputs.example.yml',
@@ -104,7 +105,8 @@ class Documentation(unittest.TestCase):
          'workspace-session.sh.j2': 'pxe/transport/templates/workspace/session.sh.j2',
          'workspace-inputs.yml.j2': 'pxe/transport/templates/workspace/inputs.yml.j2',
          'workspace-manifest.yml.j2': 'pxe/transport/templates/workspace/activation-review.yml.j2',
-         'workspace-readme.md.j2': 'pxe/transport/templates/workspace/README.md.j2'}
+         'workspace-readme.md.j2': 'pxe/transport/templates/workspace/README.md.j2',
+        }
         temporary=tempfile.TemporaryDirectory(prefix='c4-source-links-')
         self.addCleanup(temporary.cleanup)
         output=Path(temporary.name)/'sources'
