@@ -76,8 +76,9 @@ standing human access; any additional scope needs review.
   disclosing plaintext secrets; no blanket confidential-data reader is implied.
 - **Rancher:** local recovery remains separate. The approved Generic OIDC client
   and PA-only global-admin binding are configured and zero-change repeats passed.
-  Owner reports named login and local-cluster/pod visibility after initial setup; effective per-user admin authority
-  and real non-admin denial remain unverified. PV mapping is proposed and requires
+  Owner reports named login and local-cluster/pod visibility after initial setup.
+  One real no-grant native denial and exact cleanup passed; full per-user admin
+  operations remain unverified. PV mapping is proposed and requires
   a tested read-only custom/global role and access restriction update. Never map tenant admins to global admin;
   no tenant Fleet/application ownership.
 - **OpenBao:** proposed KV-v2 mounts `platform/` and `tenants/` separate data. The independently approved, default-off `prepare-data` gate prepares only missing owned engines; no values or human privileges are added, and SSO rollback retains engines. LIST

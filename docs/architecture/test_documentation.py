@@ -114,6 +114,24 @@ class Documentation(unittest.TestCase):
         self.assertIn('Design only',view)
         self.assertIn('No Istio/Gateway API implementation',design)
 
+    def test_rancher_denial_acceptance_keeps_scope_without_stale_pending_claims(self):
+        paths=[REPO/'big-bang-bootstrap/configuration/authorization/MATRIX.md',
+               ROOT/'model.c4', ROOT/'public/runbook.html']
+        stale=['and real non-admin denial remain unverified',
+               'non-admin denial, fresh factor prompts and live rollback remain unverified',
+               'real no-grant denial and rollback acceptance remain unverified']
+        for path in paths:
+            text=path.read_text()
+            for claim in stale:
+                self.assertNotIn(claim,text,str(path))
+            self.assertIn('no-grant',text)
+            self.assertIn('rollback',text)
+        procedure=(REPO/'big-bang-bootstrap/configuration/authorization/sso/README.md').read_text()
+        self.assertIn('Rancher bounded denial acceptance — executed',procedure)
+        self.assertIn('83 ok / 7 changed /',procedure)
+        self.assertIn('0 failed',procedure)
+        self.assertIn('No native session was issued',procedure)
+
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
         copies={
          'openbao-data.yaml': 'big-bang-bootstrap/configuration/authorization/sso/tasks/openbao-data.yaml',
