@@ -27,21 +27,37 @@ https://openbao.perkforge.home.arpa/ui/vault/auth?with=oidc , role
 `perkforge-sso-v1-platform-admin`, mount `oidc`. The method is not advertised by
 unauthenticated discovery and default role remains empty.
 
-Next: review/approve the default-off bounded native policy test in
-`configuration/authorization/sso/accept-policy.yaml`. One new 5-minute,
-nonrenewable test token gets the actual PA policy (no default/identity policy).
-Only two uniquely named, ownership-marked dummy keys are touched. Verify platform
-create/update/read/soft-delete, own-prefix tenant-name LIST, real tenant-value
-and detailed-metadata 403s, and denied auth/policy/destruction capabilities.
-Revoke only its recorded accessor, prove bearer rejection, permanently remove
-only those dummy metadata records/versions and remove its private credential file.
-Corey's existing session, all real keys, engines, policies and recovery remain
-untouched. Token lifetime is test-specific, not a test of OIDC's 15m/1h lifetime.
-This proves native ACL enforcement; no-group OIDC rejection is a separate check.
-No live test or publication is authorized by this handoff. Uncertain issuance
-must stop without claiming revocation or scanning other tokens; preserve scope
-and report the 5m lifetime/10m explicit maximum. Interrupted cleanup leaves exact
-owned evidence for recovery; do not blindly rerun the same scope.
+Approved bounded native policy test passed at **2026-11-03 19:34 UTC** using
+committed source `caa355a`: **58 ok / 12 changed / 0 failed**. Exactly one
+5-minute nonrenewable token carried the actual PA policy, with no default or
+identity policies. It created/updated/read/soft-deleted only its unique platform
+dummy value, listed only its dummy tenant prefix, received HTTP403 for that
+synthetic tenant value and detailed metadata, and verified denied auth/policy,
+token-create, retention/destruction capabilities. No shared configuration write
+was attempted to demonstrate those denials.
+
+Cleanup passed: own-token revocation, bearer403, exact accessor invalidation,
+permanent deletion/metadata404 of only the two marked dummy keys and all their
+versions, and private token-file removal. Shared policy and the original root
+recovery were preserved. No owner token, Keycloak user/membership, OIDC role/client,
+engine or other-app changes. The disposable actor was root-minted for native ACL
+verification; **no-group OIDC denial and OIDC token lifetime remain untested**.
+The owner's reported named OIDC login is separate evidence. Default/check mode
+of `accept-policy.yaml` remains inert; any repetition needs new approval/scope.
+
+Post-test GET-only checks found all 3 nodes and 6 releases Ready, 55 Running and
+11 Succeeded pods, none Pending/Failed or unready Running, unchanged source/root
+and Keycloak/OpenBao pod identities. Raw scope, recap, token-cleanup and resource
+receipts remain protected/ignored. No live rollback or outage test was performed. At 19:34:25 UTC actual CPU was
+0.507/0.147/0.118 cores and RAM 4.66/2.04/2.41 GiB for control-1/worker-1/worker-2;
+requests/limits and Longhorn scheduling were unchanged. Test RAM delta was
+-9/+8/+2 MiB; no capacity claim follows from that short sample.
+
+Next: review this acceptance and separately decide whether to run one no-group
+OIDC denial identity before advancing another app. No new test is authorized by
+this record. Token issuance/cleanup ambiguity must fail closed without scanning
+other users/tokens or claiming success; the offline failure fixtures retain those
+boundaries. Actual successful cleanup did not require any broad recovery action.
 
 PA policy allows platform values CRUD and tenant-name LIST, plus five exact
 current-token/UI endpoints. It does not allow tenant values, auth/policy
@@ -167,7 +183,7 @@ private evidence and stop for exact-session review; automatic Rancher token/user
 cleanup is deliberately not implemented.
 
 The independently approved OpenBao configuration is now recorded above; the
-owner reports named OIDC login and native policy acceptance remains pending.
+owner reports named OIDC login and bounded native policy acceptance has passed.
 This Rancher test did not authorize another app or test batch.
 If local setup changed the recovery password, refresh its proper custody; the
 previous bootstrap cache was not revalidated after that owner action. Never reset

@@ -109,7 +109,7 @@ The executed procedure and stop conditions are:
    no-grant identity, not all roles or lost-IdP recovery. Live rollback remains a
    separate observed test; keep independent local recovery throughout.
 
-## OpenBao configuration and reported login — native data acceptance pending
+## OpenBao named login and bounded native policy acceptance
 
 Approved merged #153 source `701edff` executed at 2026-11-03 18:49 UTC. Owned
 empty KV-v2 engines and OIDC method were prepared; a new dedicated confidential
@@ -125,13 +125,22 @@ Owner login: https://openbao.perkforge.home.arpa/ui/vault/auth?with=oidc ; role
 `perkforge-sso-v1-platform-admin`, mount `oidc`. Public mount discovery does not
 advertise OIDC; the pinned UI's `with` selector supports choosing it directly.
 The default role stays empty. The owner subsequently reports successful named OIDC login. That is reported
-browser acceptance; runtime allow/deny/data and successful-session revocation
-checks remain untested. Fresh factor prompting was not independently observed. Never use root in the
+browser acceptance; the separately approved bounded native ACL test and exact cleanup passed below.
+No-group OIDC rejection and ordinary OIDC-token lifetime remain untested. Fresh factor prompting was not independently observed. Never use root in the
 browser or capture the owner's credentials/tokens to manufacture acceptance.
 Record/revoke only explicitly approved later test tokens; disabling the client
 alone does not revoke native tokens. Retain engines and recovery on SSO rollback.
 
-### Bounded native OpenBao policy test — prepared, not executed
+### Bounded native OpenBao policy test — one approved run passed
+
+**Observed 2026-11-03 19:34 UTC, source `caa355a`: 58 ok / 12 changed / 0 failed.**
+The one short-lived PA-policy actor passed platform create/update/read/soft-delete,
+own-prefix tenant-name LIST, tenant-value/metadata403 and dangerous-capability
+denials. It self-revoked; bearer403 and invalid exact accessor passed. Only both
+marked dummy metadata records/versions were permanently removed and verified404;
+the credential file was removed. Shared policy/root recovery and cluster baseline
+were preserved. No actual user or Keycloak membership was involved. This is native
+ACL acceptance, not no-group OIDC or ordinary OIDC-token-lifetime acceptance.
 
 [accept-policy.yaml](accept-policy.yaml) defaults to no contact; explicit run and
 `openbao-policy-acceptance-v1` approval are required. It mints one nonrenewable
@@ -173,7 +182,7 @@ claim validation or the owner's permissions/token lifetime. Owner-reported OIDC
 login is recorded separately. The offline test runs this actual playbook through
 verified TLS against an isolated in-memory OpenBao2.7.2 engine with synthetic
 values: success, pre-existing-key/wrong-target refusal, unexpected admission,
-cleanup interruption and uncertain issuance. Live execution remains unapproved.
+cleanup interruption and uncertain issuance. Any live repetition requires a new approved scope; the single approved result is above.
 
 ## Environment and credential delivery
 
@@ -516,7 +525,7 @@ restart, SSO or owner-browser acceptance has occurred.
 The adapters and shared Keycloak client lifecycle were already merged in #139;
 this change does not duplicate them or require a Rancher Helm selection overlay.
 Both applications retain their existing deployment. Rancher's native configuration
-was subsequently approved/applied as recorded above; OpenBao configuration is applied; owner-reported named login is recorded; native policy/data acceptance is still gated.
+was subsequently approved/applied as recorded above; OpenBao configuration is applied; owner-reported named login is recorded; bounded native policy acceptance passed; no-group OIDC denial remains gated.
 Publication alone activates neither and does not authorize repeating a prior batch.
 
 1. **Rancher (configuration applied; remaining acceptance pending):** review exact environment/cluster/provider image and mounted issuer

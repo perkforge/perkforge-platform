@@ -305,9 +305,9 @@ visibility are now recorded,
 and one real no-grant Rancher denial with exact identity/session/credential
 cleanup passed. This does not prove every administrator operation or recovery
 case. OpenBao configuration/no-change repeats passed and owner reports named OIDC
-login. Native platform-allow/tenant-value-denial acceptance remains gated; the
-prepared test uses only a disposable token and marked dummy keys, not new group
-memberships. No-group OIDC rejection remains a separate unexecuted test. Default-off entrypoints are retained; source defaults are not live status.
+login. Bounded native platform-allow/tenant-value-denial acceptance and exact token/data
+cleanup passed (58 ok, failed 0). The test used a disposable PA-policy token and
+marked dummy keys, with no new group memberships. No-group OIDC rejection remains a separate unexecuted test. Default-off entrypoints are retained; source defaults are not live status.
 Initial payloads map PA only, not every design role in this matrix. Public CA and
 environment inputs stay external; no API-server restart/deployment is automatic.
 Own-client claim scopes avoid disclosing every tenant membership. OpenBao uses no
