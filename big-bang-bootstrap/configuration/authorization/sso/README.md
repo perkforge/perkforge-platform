@@ -2,7 +2,7 @@
 
 One coordinated source change; three independently reviewed live batches in order
 Headlamp, Rancher, OpenBao. Headlamp owner acceptance is recorded below;
-Rancher configuration and reported named login are recorded below; OpenBao remains gated. `prepare.yaml` is a
+Rancher acceptance and OpenBao configuration are recorded below; OpenBao browser/data acceptance remains gated. `prepare.yaml` is a
 no-contact nonsecret renderer. The four `reconcile-*.yaml` entrypoints default to
 no contact, including check mode. They use built-in Ansible modules and existing
 operator credentials only. No play installs software, deploys a HelmRelease, restarts
@@ -108,6 +108,72 @@ The executed procedure and stop conditions are:
 5. Finish health/resources and save sanitized status evidence. This covers one
    no-grant identity, not all roles or lost-IdP recovery. Live rollback remains a
    separate observed test; keep independent local recovery throughout.
+
+## OpenBao configuration and reported login — native data acceptance pending
+
+Approved merged #153 source `701edff` executed at 2026-11-03 18:49 UTC. Owned
+empty KV-v2 engines and OIDC method were prepared; a new dedicated confidential
+client/secret and versioned PA policy/role were configured; only PA received the
+own-client role and that client was enabled. Every repeat reported changed 0;
+native/client repeats: 31/68 ok, failed 0. Exact policy, role, 900-second TTL and
+3600-second maximum, independent recovery, trusted UI and native S256/state/nonce
+redirect passed. Both managed engines remain empty. No human OpenBao token or
+browser login was performed. Existing realms/apps/grants and cluster baseline
+were preserved; Flux stays v0.15.2 with no restart/deployment.
+
+Owner login: https://openbao.perkforge.home.arpa/ui/vault/auth?with=oidc ; role
+`perkforge-sso-v1-platform-admin`, mount `oidc`. Public mount discovery does not
+advertise OIDC; the pinned UI's `with` selector supports choosing it directly.
+The default role stays empty. The owner subsequently reports successful named OIDC login. That is reported
+browser acceptance; runtime allow/deny/data and successful-session revocation
+checks remain untested. Fresh factor prompting was not independently observed. Never use root in the
+browser or capture the owner's credentials/tokens to manufacture acceptance.
+Record/revoke only explicitly approved later test tokens; disabling the client
+alone does not revoke native tokens. Retain engines and recovery on SSO rollback.
+
+### Bounded native OpenBao policy test — prepared, not executed
+
+[accept-policy.yaml](accept-policy.yaml) defaults to no contact; explicit run and
+`openbao-policy-acceptance-v1` approval are required. It mints one nonrenewable
+5-minute token (10-minute explicit maximum) carrying the **actual PA policy**, no
+default or identity policy. That policy can read platform values; the runner sends
+KV requests only to its recorded `acceptance/openbao-check-<12hex>/sample` key in
+each of `platform/` and `tenants/`. It does not use the owner's token, create a
+Keycloak user, change shared group membership or alter the SSO role/client.
+
+Approve the complete temporary scope before execution:
+
+1. Verify trusted exact initialized store, root recovery, exact policy and owned
+   KV-v2 engines. Require absent dummy keys and a new owner-only evidence directory.
+2. Create ownership-marked dummy metadata and one synthetic tenant value with
+   recovery authority; mint/record only the one private test token/accessor.
+3. As the test token, create/update/read/soft-delete the platform dummy value and
+   list only its own dummy tenant prefix. Require HTTP403 for the tenant dummy
+   value and detailed metadata. Use current-token capabilities for auth/policy,
+   token-creation, retention and destruction denial; never attempt dangerous
+   writes to shared configuration to demonstrate them.
+4. Self-revoke, require bearer rejection and verify the exact accessor invalid.
+   On failure, root cleanup may revoke only the recorded accessor after ownership,
+   policy and lifetime checks. No global token listing or other-user revocation.
+5. With recovery authority, permanently delete **only both marked dummy metadata
+   records and all their versions**, refusing unknown markers or unexpected
+   version counts. Verify metadata404, unchanged shared policy/root recovery and
+   remove the generated token file only when revocation is proven. Preserve all
+   engines and existing credentials/identities. Finish the usual health snapshot.
+
+A lost issuance response is inconclusive: retain its request marker, stop and
+report bounded lifetime without inventing cleanup success. A data-cleanup failure
+still attempts token revocation and retains exact ownership/scope evidence.
+`always` cleanup is not a guarantee against process termination; never blindly
+reuse a previous scope. Raw credentials/responses stay in no_log, owner-only
+ignored evidence, never CI or public logs.
+
+This verifies native ACLs with a root-minted test actor, **not** OIDC group denial,
+claim validation or the owner's permissions/token lifetime. Owner-reported OIDC
+login is recorded separately. The offline test runs this actual playbook through
+verified TLS against an isolated in-memory OpenBao2.7.2 engine with synthetic
+values: success, pre-existing-key/wrong-target refusal, unexpected admission,
+cleanup interruption and uncertain issuance. Live execution remains unapproved.
 
 ## Environment and credential delivery
 
@@ -253,7 +319,7 @@ engine can destroy data. Leave engines intact during SSO rollback and request
 separate reviewed data cleanup only if needed. See the [2.7.x mount API](https://openbao.org/docs/api/system/mounts/).
 No default login role or default token policy, no tenant values or auth/policy
 self-grant.
-### OpenBao self-session boundary — prepared, not applied
+### OpenBao self-session boundary — configured, live token tests pending
 
 The candidate keeps `token_no_default_policy: true` and grants only these exact
 self/UI operations alongside the existing platform-data and tenant-name rules:
@@ -272,8 +338,8 @@ version destruction is added. The OpenBao 2.7.2 [UI auth service](https://github
 and [permission adapter](https://github.com/openbao/openbao/blob/v2.7.2/ui/app/adapters/permissions.js)
 use these self-session/UI operations. The prior candidate denied them when the
 default policy was absent. An administrator applies the reviewed policy through
-Ansible; the resulting OIDC token exercises only its own session rights. This
-source correction neither applies that policy nor enables SSO.
+Ansible; the resulting OIDC token exercises only its own session rights. The approved batch applied this exact policy and enabled its client as recorded
+above; the offline fixture still does not prove live token/browser acceptance.
 
 `test_sso_openbao_self_session.py` always checks the exact policy boundary. Its
 optional real-engine fixture uses an existing OpenBao **2.7.2** binary, an isolated
@@ -450,7 +516,7 @@ restart, SSO or owner-browser acceptance has occurred.
 The adapters and shared Keycloak client lifecycle were already merged in #139;
 this change does not duplicate them or require a Rancher Helm selection overlay.
 Both applications retain their existing deployment. Rancher's native configuration
-was subsequently approved/applied as recorded above; OpenBao is still gated.
+was subsequently approved/applied as recorded above; OpenBao configuration is applied; owner-reported named login is recorded; native policy/data acceptance is still gated.
 Publication alone activates neither and does not authorize repeating a prior batch.
 
 1. **Rancher (configuration applied; remaining acceptance pending):** review exact environment/cluster/provider image and mounted issuer

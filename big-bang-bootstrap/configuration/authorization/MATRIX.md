@@ -81,9 +81,9 @@ standing human access; any additional scope needs review.
   operations remain unverified. PV mapping is proposed and requires
   a tested read-only custom/global role and access restriction update. Never map tenant admins to global admin;
   no tenant Fleet/application ownership.
-- **OpenBao:** proposed KV-v2 mounts `platform/` and `tenants/` separate data. The independently approved, default-off `prepare-data` gate prepares only missing owned engines; no values or human privileges are added, and SSO rollback retains engines. LIST
+- **OpenBao:** owned configured KV-v2 mounts `platform/` and `tenants/` separate data. The independently approved, default-off `prepare-data` gate prepares only missing owned engines; no values or human privileges are added, and SSO rollback retains engines. LIST
   `tenants/metadata[/...]` discovers names; it is not READ `tenants/data/...`.
-  The prepared OIDC policy adds five exact current-token/UI endpoints while
+  The applied PA-only OIDC policy adds five exact current-token/UI endpoints while
   keeping the default policy disabled; no other-token management, auth/policy
   editing or tenant-value authority follows from those self-session operations.
   READ metadata can expose custom metadata and version details and is separately
@@ -304,7 +304,10 @@ Rancher configuration/repeats and owner-reported named login with local-cluster/
 visibility are now recorded,
 and one real no-grant Rancher denial with exact identity/session/credential
 cleanup passed. This does not prove every administrator operation or recovery
-case. OpenBao activation remains gated. Default-off entrypoints are retained; source defaults are not live status.
+case. OpenBao configuration/no-change repeats passed and owner reports named OIDC
+login. Native platform-allow/tenant-value-denial acceptance remains gated; the
+prepared test uses only a disposable token and marked dummy keys, not new group
+memberships. No-group OIDC rejection remains a separate unexecuted test. Default-off entrypoints are retained; source defaults are not live status.
 Initial payloads map PA only, not every design role in this matrix. Public CA and
 environment inputs stay external; no API-server restart/deployment is automatic.
 Own-client claim scopes avoid disclosing every tenant membership. OpenBao uses no
