@@ -56,7 +56,7 @@ class ImpactTests(unittest.TestCase):
             self.assertIn(f'needs.changes.outputs.{key}',job['if'])
             self.assertEqual(job['env']['KUBECONFIG'],'/dev/null')
         steps=w['jobs']['selection']['steps'];commands='\n'.join(s.get('run','') for s in steps)
-        for required in ['unittest discover -s big-bang-bootstrap/tests','unittest discover -s infrastructure/ansible/tests','unittest discover -s pxe/tests','unittest discover -s evidence/tests','go test -run TestFluxPortalAdmission']:
+        for required in ['ci_suite.py --family platform --shard residual','unittest discover -s evidence/tests','go test -run TestFluxPortalAdmission']:
             self.assertIn(required,commands)
         self.assertTrue(any(s.get('name')=='Verify tag-aware bootstrap without Kubernetes access' for s in steps))
         self.assertIn('test_ci_impact.py','\n'.join(s.get('run','') for s in w['jobs']['changes']['steps']))

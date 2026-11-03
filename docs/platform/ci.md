@@ -51,3 +51,56 @@ suites and cannot demonstrate docs-only hosted turnaround. Record the first
 eligible post-merge docs and isolated-SSO PR durations, queue time and npm cold/cache
 cost before claiming a percentage improvement. Main/full/unknown-impact changes
 still incur full validation. No tests are removed to manufacture a faster result.
+
+## Parallel full validation
+
+The first post-merge run of #146 ([41640409008](https://github.com/perkforge/perkforge-platform/actions/runs/41640409008))
+passed on `79e6967dd08288e49fee045fd2b29f54ff0feb3f`. It took **21m27s**
+from creation to completion: selection 20m46s, SSO 8m34s, documentation 13s,
+and the final release job 24s. There was one automatic main workflow, rather
+than duplicate selection triggers. This full main run does not measure the new
+docs-only/targeted PR path. Runner variance matters: the preceding release's
+full selection job took 15m02s, so a single timing is not a speed guarantee.
+
+Within that run, platform discovery executed 176 tests in 942s, followed by
+40 infrastructure tests in 155s, 27 PXE tests in 105s and eight evidence tests.
+Those sequential suites dominate the release wait, not release publication.
+
+The [verification runner](../../scripts/ci_suite.py) partitions the **same**
+platform discovery into realm foundation, human enrollment, realm-admin and
+residual suites. Every new or unclassified platform test stays in residual.
+Infrastructure and PXE keep their complete original discovery commands on
+separate runners. Selection retains residual/evidence, immutable dependency
+checks, historical bootstrap and native Flux CEL admission validation.
+The regression matrix allows at most three concurrent runners; all rows finish
+even when another fails, and failures still block the reusable configuration
+workflow and release. No result is allowed to fail silently.
+
+SSO discovery is independently compared with its original three commands.
+Client lifecycle runs separately from the remaining app/security fixtures.
+New app tests stay in the app shard. Existing intentional overlap with full
+discovery/host checks and the original environment-controlled skips is retained;
+partitioning never changes those enablement flags. These are isolated synthetic
+HTTP/TLS state machines, not tests against the physical cluster.
+
+The assignment audit rejects duplicate IDs, missing test assignments, failed
+imports and unexpectedly empty required shards. It emits counts and sorted-ID
+SHA-256 digests; [regressions](../../scripts/test_ci_suite.py) compare the union
+against original discovery and verify required jobs and release dependencies.
+The audit runs before any suite. Review intentional module renames/removals with
+the assignment changes; do not suppress its failure to obtain a green empty job.
+
+Run the nonexecuting audits from the repository root:
+
+```bash
+python3 scripts/test_ci_suite.py
+python3 scripts/ci_suite.py --family platform --audit
+python3 scripts/ci_suite.py --family sso --audit
+```
+
+This raises the number of configuration jobs from five to eleven (including
+matrix rows), with repeated checkout/dependency setup and potentially more queue
+contention/runner minutes. No cross-run acceptance cache or privileged artifact
+reuse is introduced. Measure hosted critical path, queue/setup time and counts
+before claiming improvement. Release creation still requires complete validation
+of the actual main/release commit; metadata-only release commits do not bypass it.
