@@ -1,14 +1,59 @@
 name: gitops-selection-offline
 on:
   workflow_call:
-  pull_request:
-    paths: ['pxe/**', 'big-bang-bootstrap/**', 'infrastructure/**', 'evidence/**', '.github/workflows/gitops-selection.yml', 'release-evidence.json', 'scripts/verify-release-ref.sh']
-  push:
-    paths: ['pxe/**', 'big-bang-bootstrap/**', 'infrastructure/**', 'evidence/**', '.github/workflows/gitops-selection.yml', 'release-evidence.json', 'scripts/verify-release-ref.sh']
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      full: ${{ steps.impact.outputs.full }}
+      sso: ${{ steps.impact.outputs.sso }}
+      headlamp: ${{ steps.impact.outputs.headlamp }}
+      docs: ${{ steps.impact.outputs.docs }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - run: python3 -m pip install PyYAML==6.0.3
+    - name: Test selection policy and full/security fallbacks
+      run: |
+        python3 scripts/test_ci_impact.py
+        python3 scripts/test_ci_suite.py
+        python3 scripts/ci_suite.py --family platform --audit
+        python3 scripts/ci_suite.py --family sso --audit
+    - name: Select conservative offline suites
+      id: impact
+      env:
+        CI_EVENT: ${{ github.event_name }}
+        CI_BASE: ${{ github.event.pull_request.base.sha }}
+        CI_HEAD: ${{ github.event.pull_request.head.sha }}
+      run: python3 scripts/ci_impact.py
+
+  docs:
+    needs: [changes]
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      with:
+        node-version: '24'
+        cache: npm
+        cache-dependency-path: docs/architecture/package-lock.json
+    - run: python3 -m pip install PyYAML==6.0.3
+    - name: Validate documentation and source-only C4
+      run: |
+        python3 -m unittest discover -s docs/architecture -p 'test_*.py' -v
+        npm --prefix docs/architecture ci --ignore-scripts --no-audit --no-fund
+        npm --prefix docs/architecture run validate
+        npm --prefix docs/architecture run build
   selection:
+    needs: [changes]
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     # Preserve full API/graph regressions: baseline took 18m42s before this fix.
     timeout-minutes: 30
@@ -101,9 +146,7 @@ jobs:
         RUN_PORTAL_IDENTITY_TESTS: "1"
         RUN_PLATFORM_CONFIG_TESTS: "1"
       run: |
-        python3 -m unittest discover -s big-bang-bootstrap/tests -v
-        python3 -m unittest discover -s infrastructure/ansible/tests -v
-        python3 -m unittest discover -s pxe/tests -v
+        python3 scripts/ci_suite.py --family platform --shard residual
         python3 -m unittest discover -s evidence/tests -v
     # Historical released fixture keeps its original path; new layout needs a new release.
     - name: Verify tag-aware bootstrap without Kubernetes access
@@ -144,11 +187,50 @@ jobs:
         GOFLAGS: -p=2
       run: go test -run TestFluxPortalAdmission -count=1 -v
 
+  # Preserve the original discovery and flags; independent HTTPS fixtures and
+  # host/PXE suites run on isolated runners, never against the physical cluster.
+  regressions:
+    needs: [changes]
+    if: needs.changes.outputs.full == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        suite: [realm, human, admin, infrastructure, pxe]
+    env:
+      KUBECONFIG: /dev/null
+      RUN_PORTAL_IDENTITY_TESTS: "1"
+      RUN_PLATFORM_CONFIG_TESTS: "1"
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - run: python3 -m pip install PyYAML==6.0.3 -r big-bang-bootstrap/configuration/ansible/platform-config/requirements.txt
+    - name: Exercise assigned identity regressions
+      if: contains(fromJSON('["realm","human","admin"]'), matrix.suite)
+      env:
+        CI_SUITE: ${{ matrix.suite }}
+      run: python3 scripts/ci_suite.py --family platform --shard "$CI_SUITE"
+    - name: Preserve infrastructure discovery
+      if: matrix.suite == 'infrastructure'
+      run: python3 -m unittest discover -s infrastructure/ansible/tests -v
+    - name: Preserve PXE discovery
+      if: matrix.suite == 'pxe'
+      run: python3 -m unittest discover -s pxe/tests -v
+
   # Separate offline state machines keep application fixtures from lengthening the
   # existing full review-chain job. No kubeconfig, service credentials or live API.
   platform-sso:
+    needs: [changes]
+    if: needs.changes.outputs.sso == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [clients, apps]
     env:
       KUBECONFIG: /dev/null
       RUN_PLATFORM_CONFIG_TESTS: "1"
@@ -156,13 +238,17 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - run: python3 -m pip install PyYAML==6.0.3 -r big-bang-bootstrap/configuration/ansible/platform-config/requirements.txt
+    - name: Preserve shared authorization-model checks for targeted SSO changes
+      if: needs.changes.outputs.full != 'true' && matrix.suite == 'apps'
+      run: python3 -m unittest discover -s big-bang-bootstrap/tests/security -p test_authorization_review.py -v
     - name: Exercise per-app offline SSO state machines and configuration boundaries
-      run: |
-        python3 -m unittest discover -s big-bang-bootstrap/tests/security -p test_platform_sso.py -v
-        python3 -m unittest discover -s big-bang-bootstrap/tests/bootstrap -p 'test_sso_*.py' -v
-        python3 -m unittest discover -s big-bang-bootstrap/tests/integration -p 'test_sso_*.py' -v
+      env:
+        CI_SUITE: ${{ matrix.suite }}
+      run: python3 scripts/ci_suite.py --family sso --shard "$CI_SUITE"
 
   headlamp-prerequisites:
+    needs: [changes]
+    if: needs.changes.outputs.headlamp == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
