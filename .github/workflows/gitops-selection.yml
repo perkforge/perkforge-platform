@@ -1,14 +1,55 @@
 name: gitops-selection-offline
 on:
   workflow_call:
-  pull_request:
-    paths: ['pxe/**', 'big-bang-bootstrap/**', 'infrastructure/**', 'evidence/**', '.github/workflows/gitops-selection.yml', 'release-evidence.json', 'scripts/verify-release-ref.sh']
-  push:
-    paths: ['pxe/**', 'big-bang-bootstrap/**', 'infrastructure/**', 'evidence/**', '.github/workflows/gitops-selection.yml', 'release-evidence.json', 'scripts/verify-release-ref.sh']
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      full: ${{ steps.impact.outputs.full }}
+      sso: ${{ steps.impact.outputs.sso }}
+      headlamp: ${{ steps.impact.outputs.headlamp }}
+      docs: ${{ steps.impact.outputs.docs }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - run: python3 -m pip install PyYAML==6.0.3
+    - name: Test selection policy and full/security fallbacks
+      run: python3 scripts/test_ci_impact.py
+    - name: Select conservative offline suites
+      id: impact
+      env:
+        CI_EVENT: ${{ github.event_name }}
+        CI_BASE: ${{ github.event.pull_request.base.sha }}
+        CI_HEAD: ${{ github.event.pull_request.head.sha }}
+      run: python3 scripts/ci_impact.py
+
+  docs:
+    needs: [changes]
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      with:
+        node-version: '24'
+        cache: npm
+        cache-dependency-path: docs/architecture/package-lock.json
+    - run: python3 -m pip install PyYAML==6.0.3
+    - name: Validate documentation and source-only C4
+      run: |
+        python3 -m unittest discover -s docs/architecture -p 'test_*.py' -v
+        npm --prefix docs/architecture ci --ignore-scripts --no-audit --no-fund
+        npm --prefix docs/architecture run validate
+        npm --prefix docs/architecture run build
   selection:
+    needs: [changes]
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     # Preserve full API/graph regressions: baseline took 18m42s before this fix.
     timeout-minutes: 30
@@ -147,6 +188,8 @@ jobs:
   # Separate offline state machines keep application fixtures from lengthening the
   # existing full review-chain job. No kubeconfig, service credentials or live API.
   platform-sso:
+    needs: [changes]
+    if: needs.changes.outputs.sso == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -156,6 +199,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - run: python3 -m pip install PyYAML==6.0.3 -r big-bang-bootstrap/configuration/ansible/platform-config/requirements.txt
+    - name: Preserve shared authorization-model checks for targeted SSO changes
+      if: needs.changes.outputs.full != 'true'
+      run: python3 -m unittest discover -s big-bang-bootstrap/tests/security -p test_authorization_review.py -v
     - name: Exercise per-app offline SSO state machines and configuration boundaries
       run: |
         python3 -m unittest discover -s big-bang-bootstrap/tests/security -p test_platform_sso.py -v
@@ -163,6 +209,8 @@ jobs:
         python3 -m unittest discover -s big-bang-bootstrap/tests/integration -p 'test_sso_*.py' -v
 
   headlamp-prerequisites:
+    needs: [changes]
+    if: needs.changes.outputs.headlamp == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
