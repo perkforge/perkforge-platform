@@ -19,8 +19,11 @@ permissions. This is not a deployed policy or browser/OIDC acceptance. See the
 Next: review this correction, then explicitly approve preparation/activation
 stages. Preserve recovery/unseal material, reject conflicting client/mount
 ownership, retain data engines on rollback, and account for any issued tokens.
-Keycloak OpenBao client ownership still needs live verification under the proper
-credential-use scope; current proposal inputs alone do not establish ownership.
+Approved read-only Keycloak inspection at 18:16 UTC verified the trusted issuer
+and owned PerkForge realm; exact `clientId=openbao` lookup returned no client.
+No foreign client must be adopted. A new dedicated confidential client/secret
+still needs explicit activation approval. No client secret was queried; only the
+verifier's ephemeral admin session was logged out after inspection.
 No new credential, client, engine, role, policy or login was created by this work.
 
 ## Rancher SSO configuration and reported login — 2026-11-03
