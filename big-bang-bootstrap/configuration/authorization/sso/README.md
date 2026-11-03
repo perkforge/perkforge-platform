@@ -2,7 +2,7 @@
 
 One coordinated source change; three independently reviewed live batches in order
 Headlamp, Rancher, OpenBao. Headlamp owner acceptance is recorded below;
-Rancher/OpenBao remain gated. `prepare.yaml` is a
+Rancher configuration and reported named login are recorded below; OpenBao remains gated. `prepare.yaml` is a
 no-contact nonsecret renderer. The four `reconcile-*.yaml` entrypoints default to
 no contact, including check mode. They use built-in Ansible modules and existing
 operator credentials only. No play installs software, deploys a HelmRelease, restarts
@@ -43,6 +43,71 @@ transaction/rollback source. No additional restart or secret rotation occurred.
 Independent certificate API admin and protected Keycloak recovery authentication
 remain verified; no outage/restore/forced rollback acceptance is implied.
 Rancher/OpenBao require their own reviewed live batches.
+
+## Current Rancher configuration and owner report
+
+The approved #150 merged executor configured only Generic OIDC, the bounded
+Rancher client role and the PA-only global-admin binding. Native/client repeats
+passed 45/68 ok with zero changes. Local recovery and other providers were
+preserved; Flux stayed v0.15.2 without restart. The owner reports initial local
+setup followed by named-account login with local-cluster and pod visibility. GET-only first-login/server-URL settings
+agree with completed setup. This does not verify effective per-user admin powers,
+fresh owner factor prompts or rollback. The separately approved real no-grant
+Rancher denial and exact cleanup passed below. No callback change was
+made: the standard callback routes correctly with UI state.
+
+### Rancher bounded denial acceptance — executed
+
+**Observed 2026-11-03 17:06 UTC:** one owned no-group/no-admin-role account
+completed password/TOTP and native S256 authentication, then received the exact
+Rancher access-policy denial. No native session was issued. Run: 83 ok / 7 changed /
+0 failed. Exact UID/session cleanup, UID404/empty-name lookup, rejected test bearer
+and refresh, and generated credential-file removal passed. Realm/flow, human
+membership/credential IDs, native provider/admin binding and post-test cluster
+baseline were unchanged. This is a bounded live result, separate from the offline
+fixtures. Corey's credentials/session were not used and his account was not changed.
+
+The published default-off [Ansible runner](../rancher-denial-acceptance.yaml) reuses
+owned disposable-account creation, test-only TOTP enrollment and exact UID cleanup.
+Its [native verifier](../files/verify-rancher-denial.py) preserves Rancher's PKCE
+cookie and requires the pinned v2.15.2 `Unauthorized` / `unauthorized` response
+(after IdP authentication), not an arbitrary 401/403. The exact denial branch
+is in the [pinned upstream provider](https://github.com/rancher/rancher/blob/v2.15.2/pkg/auth/providers/oidc/oidc_provider.go). Offline protocol fixtures and inert/check-mode tests are not
+live acceptance or a full fake-API exercise of the Ansible lifecycle. Default and check mode are inert.
+
+Any separately approved future repetition needs the existing protected human verifier inputs, a fresh
+0700 evidence/private directory and a new 0600 `private/test.json` containing
+only a unique `mfa-check-` plus 12 hex username and strong test password. No human
+password/seed is used. Set `factor_evidence_dir` and explicitly approve
+`rancher_denial_apply=true`; never pass secrets on command arguments.
+An unexpected admission/response stops acceptance, deletes only the owned IdP
+user, and retains private transaction material for exact native-session review.
+It does not automatically delete Rancher users/tokens or assume a short TTL.
+An interruption can require exact recorded-UID cleanup; never blindly rerun a
+failed evidence directory or claim an `always` block survives process termination.
+
+The executed procedure and stop conditions are:
+
+1. Record trusted target/issuer, current provider/client/binding and realm/flow
+   baseline. Create exactly one uniquely owned temporary Keycloak user with no
+   groups, direct roles or inherited Rancher admin role. Generate private test-only
+   password/TOTP material; never use Corey's credentials, factor or browser session.
+2. Complete actual trusted-HTTPS authorization code/S256 authentication for that
+   identity, preserving nonce/state and the Rancher PKCE cookie. Verify successful
+   IdP authentication before treating a Rancher response as authorization evidence.
+3. Submit only that identity's fresh code through the native Rancher login API.
+   Require a native unauthorized response and no Rancher session/token issued.
+   An unrelated TLS/client/code/nonce error is inconclusive, not a denial pass.
+   Do not weaken group restrictions or grant a test role to make the flow work.
+4. Revoke/delete only the exact test UID and its sessions and remove its generated
+   credential files; verify cleanup and unchanged real accounts/groups/flow/app
+   grants. Do not enumerate full user/token resources or inspect others' sessions.
+   If unexpected admission creates Rancher state, stop and clean up only recorded
+   test-owned session/identity IDs through supported APIs; uncertain ownership
+   requires review. Do not assume a requested short login TTL is honored.
+5. Finish health/resources and save sanitized status evidence. This covers one
+   no-grant identity, not all roles or lost-IdP recovery. Live rollback remains a
+   separate observed test; keep independent local recovery throughout.
 
 ## Environment and credential delivery
 
@@ -343,10 +408,11 @@ restart, SSO or owner-browser acceptance has occurred.
 
 The adapters and shared Keycloak client lifecycle were already merged in #139;
 this change does not duplicate them or require a Rancher Helm selection overlay.
-Both applications remain on their existing deployment and independently gated
-native configuration path. Publishing/merging this code activates neither.
+Both applications retain their existing deployment. Rancher's native configuration
+was subsequently approved/applied as recorded above; OpenBao is still gated.
+Publication alone activates neither and does not authorize repeating a prior batch.
 
-1. **Rancher:** review exact environment/cluster/provider image and mounted issuer
+1. **Rancher (configuration applied; remaining acceptance pending):** review exact environment/cluster/provider image and mounted issuer
    CA, existing local recovery, dedicated confidential client/secret and current
    provider state. Approve disabled-client preparation separately from native
    `apply`/PA global binding and client activation. Stop on foreign provider or
