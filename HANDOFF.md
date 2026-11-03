@@ -1,6 +1,97 @@
 # Current operator handoff
 
-## OpenBao SSO preflight and self-session candidate — not activated
+## OpenBao SSO configured — 2026-11-03 18:49 UTC
+
+Approved batch executed clean merged #153 source
+`701edffb1a7ab2112303816c80e09950da2f21f9`. Existing root recovery and
+Keycloak administration passed before writes. Created only the owned empty
+`platform/` and `tenants/` KV-v2 engines and `oidc/` method; prepared one dedicated
+confidential Keycloak client/secret; applied `perkforge-sso-v1-platform-admin`;
+then mapped only `/platform/admins` to its app role and enabled that client.
+No user, membership, machine-auth, unseal or other-app grant changes.
+
+Engine/mount repeats: 17/18 ok, changed 0. Disabled-client repeat: 66 ok,
+changed 0. Native apply: 33 ok / 3 changed; repeat: 31 ok / 0 changed.
+Client activation: 70 ok / 2 changed; repeat: 68 ok / 0 changed. All failed 0.
+Independent readback verified exact policy/role, no default policy, 900-second TTL
+and 3600-second explicit maximum, trusted UI HTTP200, and actual native code-flow
+redirect with S256/state/nonce and the exact callback. No human login or human
+OpenBao token was issued by this batch. Engines remain empty; no KV values read.
+Independent recovery still works. Rollback was not exercised.
+
+**Owner reports successful named OIDC login after the batch.** This is user-reported
+browser acceptance, not independent proof of every data permission, fresh factor
+prompt or session-revocation behavior. Automation did not use the owner's
+password, factor or token. Login reference:
+https://openbao.perkforge.home.arpa/ui/vault/auth?with=oidc , role
+`perkforge-sso-v1-platform-admin`, mount `oidc`. The method is not advertised by
+unauthenticated discovery and default role remains empty.
+
+Approved bounded native policy test passed at **2026-11-03 19:34 UTC** using
+committed source `caa355a`: **58 ok / 12 changed / 0 failed**. Exactly one
+5-minute nonrenewable token carried the actual PA policy, with no default or
+identity policies. It created/updated/read/soft-deleted only its unique platform
+dummy value, listed only its dummy tenant prefix, received HTTP403 for that
+synthetic tenant value and detailed metadata, and verified denied auth/policy,
+token-create, retention/destruction capabilities. No shared configuration write
+was attempted to demonstrate those denials.
+
+Cleanup passed: own-token revocation, bearer403, exact accessor invalidation,
+permanent deletion/metadata404 of only the two marked dummy keys and all their
+versions, and private token-file removal. Shared policy and the original root
+recovery were preserved. No owner token, Keycloak user/membership, OIDC role/client,
+engine or other-app changes. The disposable actor was root-minted for native ACL
+verification; **no-group OIDC denial and OIDC token lifetime remain untested**.
+The owner's reported named OIDC login is separate evidence. Default/check mode
+of `accept-policy.yaml` remains inert; any repetition needs new approval/scope.
+
+Post-test GET-only checks found all 3 nodes and 6 releases Ready, 55 Running and
+11 Succeeded pods, none Pending/Failed or unready Running, unchanged source/root
+and Keycloak/OpenBao pod identities. Raw scope, recap, token-cleanup and resource
+receipts remain protected/ignored. No live rollback or outage test was performed. At 19:34:25 UTC actual CPU was
+0.507/0.147/0.118 cores and RAM 4.66/2.04/2.41 GiB for control-1/worker-1/worker-2;
+requests/limits and Longhorn scheduling were unchanged. Test RAM delta was
+-9/+8/+2 MiB; no capacity claim follows from that short sample.
+
+Next: review this acceptance and separately decide whether to run one no-group
+OIDC denial identity before advancing another app. No new test is authorized by
+this record. Token issuance/cleanup ambiguity must fail closed without scanning
+other users/tokens or claiming success; the offline failure fixtures retain those
+boundaries. Actual successful cleanup did not require any broad recovery action.
+
+PA policy allows platform values CRUD and tenant-name LIST, plus five exact
+current-token/UI endpoints. It does not allow tenant values, auth/policy
+administration, other-token management, retention edits or permanent destruction.
+On approved rollback remove only the exact owned human role/policy and disable
+this client/remove its direct app mapping. Retain engines/OIDC configuration,
+operator recovery and other apps. Client disable does not revoke existing native
+tokens; account explicitly for any later acceptance tokens. No automatic rollback,
+engine deletion or global session revocation is authorized by this record.
+
+Protected operator/client-secret custody and phase logs stay local and ignored.
+Verified canonical app/role UUIDs for all three enabled SSO clients were recorded
+in `app-client-identity-contract.yaml` in private run evidence. Use that reviewed
+contract in future realm-admin verification; it is metadata recognition, not a
+new realm-admin grant. No real root/unseal credential was moved or changed.
+
+Post-batch snapshot 18:49:27 UTC: 3 Ready nodes, 6 Ready releases, 55 Running /
+11 Succeeded pods, no Pending/Failed or unready Running pods, no node pressure.
+Source/root and Keycloak/OpenBao pod identities stayed unchanged; Flux remains
+v0.15.2 / `local-headlamp-sso`. Each node has 6 CPU / 15.2 GiB allocatable:
+
+| Node | CPU used / requested / finite limits | RAM GiB used / requested / finite limits | RAM delta MiB |
+|---|---|---|---|
+| control-1 | 0.55 / 2.09 / 0.80 | 4.69 / 3.66 / 5.04 | +26 |
+| worker-1 | 0.16 / 2.37 / 2.30 | 2.03 / 1.84 / 3.83 | +29 |
+| worker-2 | 0.14 / 2.47 / 2.90 | 2.42 / 2.00 / 3.63 | +33 |
+
+Requests/limits unchanged; several containers are unbounded, so finite totals are
+not ceilings. CPU delta was +0.035/+0.009/+0.011 cores. Worker disks each have
+235.8 GiB maximum, about 220.5/220.8 GiB filesystem free, 70.7 GiB reserved and
+15 GiB scheduled. Both disks Ready; 2 healthy volumes and the unchanged retained
+detached test volume with unknown robustness. No storage cleanup or attach.
+
+## Historical OpenBao SSO preflight and self-session candidate
 
 Approved GET-only inspection at 2026-11-03 17:37 UTC verified the existing recovery
 credential and trusted HTTPS to the same initialized/unsealed OpenBao 2.7.2 store.
@@ -14,7 +105,7 @@ revocation, capability inspection and UI ACL display, keeping the default policy
 disabled and tenant values/retention/destruction/self-grant denied. An isolated
 pinned 2.7.2 fixture reproduces the old self/UI denials and verifies the new exact
 permissions. This is not a deployed policy or browser/OIDC acceptance. See the
-[self-session boundary](big-bang-bootstrap/configuration/authorization/sso/README.md#openbao-self-session-boundary--prepared-not-applied).
+[self-session boundary](big-bang-bootstrap/configuration/authorization/sso/README.md#openbao-self-session-boundary--configured-live-token-tests-pending).
 
 Next: review this correction, then explicitly approve preparation/activation
 stages. Preserve recovery/unseal material, reject conflicting client/mount
@@ -91,9 +182,9 @@ role, session lifetime or IdP-outage recovery. Uncertain native attempts retain
 private evidence and stop for exact-session review; automatic Rancher token/user
 cleanup is deliberately not implemented.
 
-Next: review this acceptance, then separately approve OpenBao SSO preparation or
-activation as appropriate. Do not infer another app's approval from this test.
-OpenBao human SSO remains unactivated; its engine/auth/policy gates are unchanged.
+The independently approved OpenBao configuration is now recorded above; the
+owner reports named OIDC login and bounded native policy acceptance has passed.
+This Rancher test did not authorize another app or test batch.
 If local setup changed the recovery password, refresh its proper custody; the
 previous bootstrap cache was not revalidated after that owner action. Never reset
 or retry guessed credentials automatically. No new execution or publication is

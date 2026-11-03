@@ -18,6 +18,8 @@ const files = {
   'rancher-denial.yaml': 'big-bang-bootstrap/configuration/authorization/rancher-denial-acceptance.yaml',
   'rancher-denial.py': 'big-bang-bootstrap/configuration/authorization/files/verify-rancher-denial.py',
   'sso-rancher.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-rancher.yaml',
+  'openbao-policy-acceptance.yaml': 'big-bang-bootstrap/configuration/authorization/sso/accept-policy.yaml',
+  'openbao-policy-acceptance-test.py': 'big-bang-bootstrap/tests/integration/test_sso_openbao_policy_acceptance.py',
   'sso-openbao.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-openbao.yaml',
   'perkforge-admin-app.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/perkforge-admin-app.yaml',
   'production-tls.md': 'docs/platform/tls.md',
