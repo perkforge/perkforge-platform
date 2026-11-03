@@ -1,33 +1,48 @@
 # Independent application SSO stages
 
 One coordinated source change; three independently reviewed live batches in order
-Headlamp, Rancher, OpenBao. Headlamp is partially activated as recorded below;
+Headlamp, Rancher, OpenBao. Headlamp owner acceptance is recorded below;
 Rancher/OpenBao remain gated. `prepare.yaml` is a
 no-contact nonsecret renderer. The four `reconcile-*.yaml` entrypoints default to
 no contact, including check mode. They use built-in Ansible modules and existing
 operator credentials only. No play installs software, deploys a HelmRelease, restarts
 RKE2, imports a realm, creates a person or resets any password/factor.
 
-## Current Headlamp partial state and correction
+## Current Headlamp owner acceptance
 
-v0.15.1 host API trust/recovery and no-change repeat passed; Flux selects the
-Headlamp SSO stage and the workload is Ready. Native activation stopped before
-binding creation because its expected argument list omitted the pinned chart's
-external-Secret references. Existing client disabled, one prepared role, zero
-group grants; no real user-token acceptance. Reuse its client/secret.
+Published v0.15.2 passed all post-merge checks and is selected by Flux with the
+Headlamp SSO stage. The existing client/secret were reused. The effective chart
+PKCE flag is present; exact API/workload trust checks passed before creating the
+single owned platform-admin cluster binding. Only the Headlamp app role was
+mapped to the admin group and its client enabled. Native/client repeats made
+zero changes; inspect-only post-acceptance checks also made zero changes.
 
-The correction requires the exact pinned chart argument references, including
-explicit effective PKCE. With externalSecret, the chart cannot infer PKCE from
-the Secret contents at render time: `upstream.config.oidc.usePKCE: true` must emit
-`-oidc-use-pkce=$(OIDC_USE_PKCE)`. The protected existing Secret already holds true.
-The v0.45.0 application reads flags or HEADLAMP_CONFIG_ variables, not raw OIDC_
-variables; merely storing OIDC_USE_PKCE does not enable it. Keep Keycloak's S256
-requirement, ID-token mode, TLS and all exact native checks. Publish/review the
-corrected release/stage before rollout; do not bypass guards or rotate credentials.
-API maintenance is unchanged: retain the v0.15.1 host transaction/rollback source;
-this app correction does not require another control-plane restart.
-C4 describes intended token authentication separately from Kubernetes RBAC and
-marks fresh MFA/native positive/negative acceptance pending.
+The owner confirms named-account login and visibility of nodes/pods. Automation
+verified trusted HTTPS/discovery and the expected S256 redirect, without human
+credentials or token capture. Synthetic native authorization checks are separate:
+admin allowed, ungranted group and runtime-SA cluster Secret access denied.
+A separately approved one-user real denial drill passed: no groups/admin roles,
+actual Headlamp OIDC/S256 and test-only TOTP, exact UID authenticated, nodes/pods
+403 through Headlamp and direct API, Secret-list access reviews denied. Exact
+UID/session cleanup and generated credential removal passed; realm/flow/existing
+admin grants unchanged. Corey was never targeted. This is bounded real denial
+acceptance, not proof of every role/verb/resource. Fresh owner MFA challenge
+timing was not independently observed.
+
+The test ID token still authenticated just after user deletion, with resource
+reads still denied. Its 300-second lifetime ended nominally at
+2026-11-03T13:08:12Z; expiry was not independently awaited after local token
+removal. Revoking sessions/deleting a user is not instant offline JWT revocation.
+
+The chart requires `upstream.config.oidc.usePKCE: true` to emit the existing
+Secret reference; merely storing OIDC_USE_PKCE does not configure the application.
+Pinned-render and stateful fixtures enforce the exact six OIDC arguments and
+reject missing/extra/duplicate flags, literal credentials and trust/config drift.
+API maintenance was unchanged by this app correction: retain the v0.15.1 host
+transaction/rollback source. No additional restart or secret rotation occurred.
+Independent certificate API admin and protected Keycloak recovery authentication
+remain verified; no outage/restore/forced rollback acceptance is implied.
+Rancher/OpenBao require their own reviewed live batches.
 
 ## Environment and credential delivery
 
