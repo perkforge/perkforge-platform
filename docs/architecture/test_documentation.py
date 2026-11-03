@@ -124,6 +124,8 @@ class Documentation(unittest.TestCase):
          'platform-sso.md': 'big-bang-bootstrap/configuration/authorization/sso/README.md',
          'sso-client.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-client.yaml',
          'sso-headlamp.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-headlamp.yaml',
+         'rancher-denial.yaml': 'big-bang-bootstrap/configuration/authorization/rancher-denial-acceptance.yaml',
+         'rancher-denial.py': 'big-bang-bootstrap/configuration/authorization/files/verify-rancher-denial.py',
          'sso-rancher.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-rancher.yaml',
          'sso-openbao.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-openbao.yaml',
          'perkforge-admin-app.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/perkforge-admin-app.yaml',
