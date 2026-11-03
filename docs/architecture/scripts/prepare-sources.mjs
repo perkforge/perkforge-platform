@@ -7,6 +7,9 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../../..')
 const output = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(here, '../public/sources')
 const files = {
+  'logging-sso-review.yaml': 'big-bang-bootstrap/configuration/observability/logging-sso-review.yaml',
+  'grafana-sso-values.yaml': 'big-bang-bootstrap/configuration/observability/grafana-sso-values.yaml',
+  'queued-sso.yaml': 'big-bang-bootstrap/configuration/observability/sso-review.yaml',
   'longhorn-storage-smoke.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-storage-smoke.yaml',
   'longhorn-smoke-stage.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-smoke-stage.yaml',
   'verify-longhorn-smoke.py': 'big-bang-bootstrap/configuration/ansible/files/verify-longhorn-smoke.py',

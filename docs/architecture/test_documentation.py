@@ -71,7 +71,15 @@ class Documentation(unittest.TestCase):
         self.assertNotIn('pilot.sh',str(package['scripts']))
 
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
-        copies={'workload-smoke.yml': 'infrastructure/ansible/tests/workload-smoke.yml',
+        copies={
+  'logging-sso-review.yaml': 'big-bang-bootstrap/configuration/observability/logging-sso-review.yaml',
+  'grafana-sso-values.yaml': 'big-bang-bootstrap/configuration/observability/grafana-sso-values.yaml',
+         'longhorn-storage-smoke.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-storage-smoke.yaml',
+         'longhorn-smoke-stage.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-smoke-stage.yaml',
+         'verify-longhorn-smoke.py': 'big-bang-bootstrap/configuration/ansible/files/verify-longhorn-smoke.py',
+         'longhorn-smoke-pod.yaml.j2': 'big-bang-bootstrap/configuration/ansible/fixtures/longhorn-smoke-pod.yaml.j2',
+         'longhorn-smoke-foundation.yaml.j2': 'big-bang-bootstrap/configuration/ansible/fixtures/longhorn-smoke-foundation.yaml.j2',
+         'queued-sso.yaml': 'big-bang-bootstrap/configuration/observability/sso-review.yaml','workload-smoke.yml': 'infrastructure/ansible/tests/workload-smoke.yml',
          'workload-smoke.yaml': 'infrastructure/ansible/tests/fixtures/workload-smoke.yaml',
          'prepare.yml': 'pxe/transport/prepare.yml',
          'inputs.example.yml': 'pxe/transport/inputs.example.yml',
