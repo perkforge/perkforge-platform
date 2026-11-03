@@ -128,9 +128,15 @@
     that:
     - actual.protocol == item.protocol
     - actual.protocolMapper == item.protocolMapper
-    - actual.config == item.config
+    # Keycloak 26.8.1 omits the empty role prefix on canonical readback.
+    # Only this mapper/key may normalize absent to empty; every other key stays exact.
+    - normalized_config == item.config
   vars:
     actual: '{{ sso_client_mappers.json | selectattr("name","equalto",item.name) | first }}'
+    normalized_config: >-
+      {{ ({'usermodel.clientRoleMapping.rolePrefix': ''} | combine(actual.config))
+         if item.name == 'app-groups' and item.protocolMapper == 'oidc-usermodel-client-role-mapper'
+         else actual.config }}
   loop: '{{ sso_client_candidate.protocolMappers }}'
 - name: Inspect bounded role catalog before creating one noncomposite app role
   ansible.builtin.uri:

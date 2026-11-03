@@ -1,5 +1,23 @@
 # Current operator handoff
 
+## Headlamp partial activation — 2026-11-03
+
+The approved Headlamp-only batch installed the existing TLS certificate/CA and
+HTTPS route. One owned client and its private secret were prepared; the client
+remains disabled, with no app roles or group grants. API host configuration,
+control-plane restart, Flux promotion and SSO acceptance have not occurred.
+Canonical Keycloak 26.8.1 readback omitted the empty client-role mapper prefix,
+so exact validation stopped before role creation. The correction accepts only
+absent/empty prefix equivalence for that mapper; nonempty prefixes and all other
+config differences still fail. Stateful HTTPS fixtures cover reuse, repeat runs
+and rejection without writes. These fixtures are not live SSO acceptance.
+
+The existing client and secret must be reused, never recreated or rotated for
+this correction. Merge and publish a release containing this fix before resuming
+from pinned source; v0.15.0 still contains the failing comparison. Reinspect the
+partial state and release pin before the owner-local sudo step. No additional live
+changes are part of the correction MR.
+
 ## Current checkpoint — 2026-11-02
 
 **Identity checkpoint #1 passed within the scoped lab acceptance.** The operator
