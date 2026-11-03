@@ -177,6 +177,10 @@ model {
         description 'TLS topic-scoped publisher/subscriber credentials and compatible payload/adapter remain unselected, not generated. No direct duplicate Grafana receiver. Whole-cluster/network failure needs independent detection. No live delivery tested.'
       }
     }
+    queued_app_access = component 'Queued native app authorization — proposed' {
+      description 'Dedicated clients authenticate; native app roles and tenant/resource boundaries enforce authority. Draft overlays/configuration are not live grants. Edition support, reviewed apply wiring, local recovery and positive/negative tests remain explicit gates; machine APIs have separate identities.'
+      link /runbook.html#queued-sso 'Who does what and why; queued contracts'
+    }
     authorization = component 'Authorization plan — disabled review' {
       description 'PROPOSED only: Ansible renders review artifacts; no live apply or integration. Existing pilot mappings are retained. Keycloak realm administration is distinct from Kubernetes/platform administration. Activation also requires admission/workload identity and credential custody decisions.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/README.md 'Who does what and why'

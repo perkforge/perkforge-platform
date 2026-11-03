@@ -139,3 +139,24 @@ Sources: [Big Bang](https://docs-bigbang.dso.mil/),
 [Alertmanager UI limitations](https://grafana.com/docs/grafana/latest/datasources/alertmanager/),
 [Loki authentication](https://grafana.com/docs/loki/latest/operations/authentication/),
 [Loki tenancy](https://grafana.com/docs/loki/latest/operations/multi-tenancy/).
+
+## Queued SSO and machine access
+
+[sso-review.yaml](sso-review.yaml) records disabled Grafana OIDC and explicit
+per-app/tenant authorization gates. Big Bang/Flux deploy apps; Ansible owns future
+reviewed clients/native settings. The merged three-app adapter does not yet accept
+these new clients: no hidden generic apply or realm import is provided here.
+Each implementation draft carries its own values/proposal and tests; none creates
+credentials, users, groups, grants or live ingress.
+
+Grafana is the human entrypoint. Prometheus/Loki/Alloy/Alertmanager/ntfy machine
+interfaces remain internal with separately scoped credentials; do not invent a
+browser login or assume Grafana login protects a directly exposed backend. Tenant
+roles require org/datasource and query/write isolation, not dashboard hiding or
+Loki namespace labels. Existing recovery and stale-session denial need live tests.
+Velero has no independent web login/client: operators use Kubernetes API/RBAC;
+its controller identity and backup-store credentials are separate privileged
+boundaries. It remains evaluation-only, with no install or new service account.
+
+Sources: [Grafana OAuth](https://grafana.com/docs/grafana/latest/setup-grafana/configure-access/configure-authentication/generic-oauth/),
+[Velero restrictive RBAC](https://velero.io/docs/v1.18/rbac/).
