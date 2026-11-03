@@ -57,9 +57,20 @@
           - (rancher_trust.results[0].stdout | from_json).spec.template.spec.volumes | selectattr('secret','defined') | selectattr('secret.secretName','equalto','tls-ca-additional') | list | length == 1
           - (rancher_trust.results[1].stdout | from_json).data['ca-additional.pem'] | b64decode | trim == lookup('file', sso_public_ca_file) | trim
       - ansible.builtin.set_fact:
-          rancher_ca_volume: '{{ ((rancher_trust.results[0].stdout | from_json).spec.template.spec.volumes | selectattr("secret","defined") | selectattr("secret.secretName","equalto","tls-ca-additional") | first).name }}'
+          rancher_ca_volume: '{{ (rancher_trust.results[0].stdout | from_json).spec.template.spec.volumes | selectattr("secret","defined") | selectattr("secret.secretName","equalto","tls-ca-additional") | first }}'
+      - ansible.builtin.set_fact:
+          rancher_ca_mounts: '{{ ((rancher_trust.results[0].stdout | from_json).spec.template.spec.containers | selectattr("image","equalto",sso_rancher_expected_image) | first).volumeMounts | selectattr("name","equalto",rancher_ca_volume.name) | list }}'
+      - name: Require the pinned Rancher chart additional-CA contract, not a distro-inferred path
+        ansible.builtin.assert:
+          that:
+          - rancher_ca_volume.secret.defaultMode == 256
+          - "'items' not in rancher_ca_volume.secret"
+          - rancher_ca_mounts | length == 2
       - ansible.builtin.assert:
-          that: ((rancher_trust.results[0].stdout | from_json).spec.template.spec.containers | selectattr('image','equalto',sso_rancher_expected_image) | first).volumeMounts | selectattr('name','equalto',rancher_ca_volume) | selectattr('mountPath','equalto','/etc/ssl/certs/ca-additional.pem') | selectattr('readOnly','equalto',true) | list | length == 1
+          that: rancher_ca_mounts | selectattr('mountPath','equalto',item) | selectattr('subPath','defined') | selectattr('subPath','equalto','ca-additional.pem') | selectattr('readOnly','defined') | selectattr('readOnly','equalto',true) | list | length == 1
+        loop:
+        - /etc/pki/trust/anchors/ca-additional.pem
+        - /etc/rancher/ssl/ca-additional.pem
       - ansible.builtin.command:
           argv: ['{{ rancher_kubectl }}', --kubeconfig, '{{ rancher_kubeconfig }}', --context, '{{ rancher_context }}', --request-timeout=20s, get, '{{ item }}', -o, json]
         loop: [authconfigs.management.cattle.io, globalrolebindings.management.cattle.io]

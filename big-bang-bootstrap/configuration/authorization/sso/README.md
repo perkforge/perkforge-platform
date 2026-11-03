@@ -138,6 +138,14 @@ Keycloak OIDC is a different implementation; no provider migration is automatic.
 PKCE uses the actual `pkceMethod: S256` field. No Keycloak user-directory query grant
 is needed for this Generic OIDC configuration.
 
+The pinned Rancher 2.15.2 chart mounts `tls-ca-additional` at
+`/etc/pki/trust/anchors/ca-additional.pem` and `/etc/rancher/ssl/ca-additional.pem`,
+both read-only with `subPath: ca-additional.pem` and Secret mode 0400. The native
+guard verifies those exact mounts and compares the public CA contents; it does
+not infer a path from another distribution or change the Deployment to satisfy
+the guard. A pinned-chart render cross-checks the stateful fixture. This source
+correction does not activate the provider or prove a real OIDC login/recovery.
+
 For installed OpenBao 2.7.2, a separately approved `prepare` can enable only a missing OIDC method
 with an ownership description and bounded lease defaults. It returns only the
 nonsecret accessor for review; no client config, role, policy or identity is added.
