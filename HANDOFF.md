@@ -2,21 +2,37 @@
 
 ## Headlamp partial activation — 2026-11-03
 
-The approved Headlamp-only batch installed the existing TLS certificate/CA and
-HTTPS route. One owned client and its private secret were prepared; the client
-remains disabled, with no app roles or group grants. API host configuration,
-control-plane restart, Flux promotion and SSO acceptance have not occurred.
-Canonical Keycloak 26.8.1 readback omitted the empty client-role mapper prefix,
-so exact validation stopped before role creation. The correction accepts only
-absent/empty prefix equivalence for that mapper; nonempty prefixes and all other
-config differences still fail. Stateful HTTPS fixtures cover reuse, repeat runs
-and rejection without writes. These fixtures are not live SSO acceptance.
+Published v0.15.1 passed all post-merge checks. Existing Headlamp TLS/CA and HTTPS
+route were delivered; the same client and private secret were reused. Preparation
+created one bounded client role/scope, with no group mapping; repeat passed
+68 ok / 0 changed. Immutable workload Secret/CA delivery repeated 17 ok / 0 changed.
 
-The existing client and secret must be reused, never recreated or rotated for
-this correction. Merge and publish a release containing this fix before resuming
-from pinned source; v0.15.0 still contains the failing comparison. Reinspect the
-partial state and release pin before the owner-local sudo step. No additional live
-changes are part of the correction MR.
+The owner-local API maintenance reached active twice with the original base hash
+preserved. The second cumulative recap added zero host changes; certificate API
+recovery and all three Ready nodes passed. Flux now selects v0.15.1 and
+`local-headlamp-sso`; the Headlamp upgrade is Ready. API OIDC configuration and
+workload readiness are observed, not proof of a real Keycloak-token API login.
+
+Native activation stopped before its binding: 23 ok / 0 changed / 1 failed.
+The pinned chart emits four OIDC environment-reference arguments plus the public
+CA argument; the old validator expected only CA. The proposed correction requires
+the exact six-argument contract, preserving strict Secret/image/API trust,
+claims, mounts, no-inline-OIDC and readiness checks. The pinned application loads
+configuration from HEADLAMP_CONFIG_ or flags;
+its raw OIDC_USE_PKCE Secret entry was ineffective without the chart flag. The
+correction sets chart usePKCE true to emit the existing-secret reference, matching
+Keycloak S256 without rotating credentials. This rollout change is source-only.
+A pinned-chart render cross-checks the stateful fixture; rejection cases make
+no grant writes.
+
+Current state: client disabled, existing secret matches, one prepared role,
+zero group grants and no native binding. No client enablement, fresh MFA/native
+acceptance or real non-admin login has occurred. Rancher/OpenBao SSO unchanged.
+Do not bypass the native guard or retry live activation before correction review.
+Reuse existing client/secret; preserve active API transaction/backup custody.
+Any later release promotion must use verified published source. API maintenance
+is unchanged; preserve its v0.15.1 transaction/rollback checkout and do not add
+another control-plane restart for this app correction.
 
 ## Current checkpoint — 2026-11-02
 

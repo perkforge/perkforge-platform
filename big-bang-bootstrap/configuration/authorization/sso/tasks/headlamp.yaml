@@ -60,12 +60,21 @@
     changed_when: false
   - ansible.builtin.set_fact:
       headlamp_containers: '{{ (headlamp_workload.stdout | from_json).spec.template.spec.containers | selectattr("image","equalto",sso_headlamp_expected_image) | list }}'
+      headlamp_workload_oidc_args:
+      - '-oidc-client-id=$(OIDC_CLIENT_ID)'
+      - '-oidc-client-secret=$(OIDC_CLIENT_SECRET)'
+      - '-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)'
+      - '-oidc-scopes=$(OIDC_SCOPES)'
+      - '-oidc-use-pkce=$(OIDC_USE_PKCE)'
+      - -oidc-ca-file=/identity-ca/ca.crt
   - ansible.builtin.assert:
       that:
       - headlamp_containers | length == 1
       - headlamp_containers[0].envFrom == [{'secretRef':{'name':headlamp_secret_name}}]
       - headlamp_containers[0].env | selectattr('name','match','^OIDC_') | list | length == 0
-      - headlamp_containers[0].args | select('match','^-oidc-') | list == ['-oidc-ca-file=/identity-ca/ca.crt']
+      # Pinned headlamp 0.45.0-bb.1 expands its external Secret through these
+      # exact argument references. No literal credentials or extra OIDC flags.
+      - headlamp_containers[0].args | select('match','^--?oidc-') | list == headlamp_workload_oidc_args
       - "'-unsafe-use-service-account-token' not in headlamp_containers[0].args"
       - (headlamp_workload.stdout | from_json).status.availableReplicas | default(0) > 0
   - name: Verify public workload trust and reference to the reviewed immutable Secret
