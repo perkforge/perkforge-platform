@@ -29,6 +29,12 @@ roles:
     token_policies: [perkforge-sso-platform-admin]
 policies:
   perkforge-sso-platform-admin: |
+    # Exact current-token operations only; default policy remains disabled.
+    path "auth/token/lookup-self" { capabilities = ["read"] }
+    path "auth/token/renew-self" { capabilities = ["update"] }
+    path "auth/token/revoke-self" { capabilities = ["update"] }
+    path "sys/capabilities-self" { capabilities = ["update"] }
+    path "sys/internal/ui/resultant-acl" { capabilities = ["read"] }
     path "platform/data/*" { capabilities = ["create", "read", "update", "patch", "delete"] }
     path "platform/metadata" { capabilities = ["list"] }
     path "platform/metadata/*" { capabilities = ["read", "list"] }

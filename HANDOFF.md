@@ -1,5 +1,28 @@
 # Current operator handoff
 
+## OpenBao SSO preflight and self-session candidate — not activated
+
+Approved GET-only inspection at 2026-11-03 17:37 UTC verified the existing recovery
+credential and trusted HTTPS to the same initialized/unsealed OpenBao 2.7.2 store.
+`openbao-0` is Ready; its 10 GiB claim is Bound. Only token auth and default/root
+policies exist. The `platform/` and `tenants/` engines, OIDC mount, versioned SSO
+policy and identity aliases are absent. No KV values were read or server changes
+made. Flux remains v0.15.2 / `local-headlamp-sso`.
+
+The prepared policy correction grants only current-token lookup, renewal,
+revocation, capability inspection and UI ACL display, keeping the default policy
+disabled and tenant values/retention/destruction/self-grant denied. An isolated
+pinned 2.7.2 fixture reproduces the old self/UI denials and verifies the new exact
+permissions. This is not a deployed policy or browser/OIDC acceptance. See the
+[self-session boundary](big-bang-bootstrap/configuration/authorization/sso/README.md#openbao-self-session-boundary--prepared-not-applied).
+
+Next: review this correction, then explicitly approve preparation/activation
+stages. Preserve recovery/unseal material, reject conflicting client/mount
+ownership, retain data engines on rollback, and account for any issued tokens.
+Keycloak OpenBao client ownership still needs live verification under the proper
+credential-use scope; current proposal inputs alone do not establish ownership.
+No new credential, client, engine, role, policy or login was created by this work.
+
 ## Rancher SSO configuration and reported login — 2026-11-03
 
 Approved execution used clean merged #150 source

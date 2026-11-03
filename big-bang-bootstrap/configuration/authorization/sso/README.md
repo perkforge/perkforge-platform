@@ -253,6 +253,47 @@ engine can destroy data. Leave engines intact during SSO rollback and request
 separate reviewed data cleanup only if needed. See the [2.7.x mount API](https://openbao.org/docs/api/system/mounts/).
 No default login role or default token policy, no tenant values or auth/policy
 self-grant.
+### OpenBao self-session boundary — prepared, not applied
+
+The candidate keeps `token_no_default_policy: true` and grants only these exact
+self/UI operations alongside the existing platform-data and tenant-name rules:
+
+| Path | Capability | Scope |
+|---|---|---|
+| `auth/token/lookup-self` | read | Current token metadata |
+| `auth/token/renew-self` | update | Current token within its 1-hour explicit maximum |
+| `auth/token/revoke-self` | update | Current token logout/revocation |
+| `sys/capabilities-self` | update | Inspect current token permissions |
+| `sys/internal/ui/resultant-acl` | read | Current UI permission map |
+
+No wildcard `auth/` or `sys/` grant, token creation/lookup/renew/revoke for other
+tokens, auth/policy management, tenant-value access, retention tuning or permanent
+version destruction is added. The OpenBao 2.7.2 [UI auth service](https://github.com/openbao/openbao/blob/v2.7.2/ui/app/services/auth.js)
+and [permission adapter](https://github.com/openbao/openbao/blob/v2.7.2/ui/app/adapters/permissions.js)
+use these self-session/UI operations. The prior candidate denied them when the
+default policy was absent. An administrator applies the reviewed policy through
+Ansible; the resulting OIDC token exercises only its own session rights. This
+source correction neither applies that policy nor enables SSO.
+
+`test_sso_openbao_self_session.py` always checks the exact policy boundary. Its
+optional real-engine fixture uses an existing OpenBao **2.7.2** binary, an isolated
+loopback in-memory server and synthetic data/tokens; it never uses a kubeconfig,
+operator token or live URL. `-dev-no-store-token` and before/after token-helper
+metadata checks prevent writes to a user CLI credential cache. It reproduces the former five denials, verifies the
+self/UI operations, rejects cross-token management and preserves platform CRUD
+and tenant-value/retention/destruction/self-grant denials. Run it explicitly:
+
+```sh
+RUN_OPENBAO_POLICY_TESTS=1 OPENBAO_POLICY_TEST_BINARY=/path/to/verified/bao \
+  python3 -m unittest discover -s big-bang-bootstrap/tests/integration -p test_sso_openbao_self_session.py -v
+```
+
+No download/install occurs. CI runs the policy contracts; real-engine cases skip
+unless explicitly supplied that pinned binary. This is offline policy evidence,
+not browser/OIDC acceptance. Initial application still requires reviewed empty
+engines/auth mount, verified recovery, a dedicated client/secret and live approval.
+Existing differing policies stop for migration review rather than overwrite.
+
 Role `bound_claims` uses the bounded groups claim; `groups_claim` is deliberately
 absent so it does not create external group aliases. Existing aliases on this
 accessor are checked for entity/group policy inheritance; ambiguity requires a
