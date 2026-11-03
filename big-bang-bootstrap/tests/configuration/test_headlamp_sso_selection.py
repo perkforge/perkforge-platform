@@ -1,6 +1,7 @@
 """Render the selected SSO stage offline, including actual pinned child templates."""
 from copy import deepcopy
 import os
+import json
 from pathlib import Path
 import unittest
 
@@ -57,7 +58,10 @@ class HeadlampSsoSelection(unittest.TestCase):
             container = pod['containers'][0]
             self.assertIn({'secretRef': {'name': 'perkforge-headlamp-sso-v1'}}, container['envFrom'])
             self.assertIn({'name': 'SSL_CERT_FILE', 'value': '/identity-ca/ca.crt'}, container['env'])
-            self.assertIn('-oidc-ca-file=/identity-ca/ca.crt', container['args'])
+            # Independently verify the stateful fixture against the actual pinned
+            # child render, rather than copying the validator's assumptions.
+            expected_args = json.loads((ROOT / 'tests/fixtures/headlamp-chart-oidc-args.json').read_text())
+            self.assertEqual([arg for arg in container['args'] if arg.startswith('-oidc-')], expected_args)
             self.assertIn({'name': 'identity-ca', 'configMap': {'name': 'perkforge-headlamp-sso-v1-ca'}}, pod['volumes'])
             self.assertIn({'name': 'identity-ca', 'mountPath': '/identity-ca', 'readOnly': True}, container['volumeMounts'])
             self.assertFalse(any('unsafe-use-service-account-token' in x for x in container['args']))

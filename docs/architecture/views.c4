@@ -363,8 +363,8 @@ views {
   }
 
   dynamic view platform_app_sso {
-    title 'Coordinated app SSO — disabled source, independent live gates'
-    description 'One source review; Headlamp then Rancher then OpenBao acceptance. No SSO activation or API-server restart observed. Fixtures establish API/state behavior, not personal or native product acceptance.'
+    title 'Coordinated app SSO — Headlamp partial, independent live gates'
+    description 'Headlamp v0.15.1 host trust/restart and GitOps promotion passed; workload Ready. Native argument guard stopped before binding; client disabled, no group grant or real human token acceptance. Rancher/OpenBao remain independently gated. Fixtures do not establish personal/native acceptance.'
     engineer -> platform.authorization.platform_sso '1. Review environment, public CA, exact UID/UUIDs, independent recovery and private credential references; approve one app only'
     platform.authorization.platform_sso -> platform.keycloak.runtime '2. Prepare one disabled owned client and bounded noncomposite app role/claim; no human mapping yet'
     engineer -> platform.headlamp '3. Review optional local-headlamp-sso selection in a new immutable release; separately approve credential/public-CA delivery and API trust with sole-control-plane restart/recovery before tag/path promotion'
@@ -377,8 +377,8 @@ views {
 
 
   dynamic view headlamp_activation_prerequisites {
-    title 'Headlamp prerequisites — partial delivery, owner-local sudo'
-    description 'Existing leaf/public CA and isolated HTTPS ingress delivered. Client remains disabled with no app roles/grants after canonical empty-prefix validation stopped preparation. No host changes, restart, promotion or SSO acceptance. Release the narrow compatibility correction before resuming with the existing client/secret and owner-local sudo.'
+    title 'Headlamp prerequisites — host active, native grant stopped'
+    description 'v0.15.1 prepared existing client/secret and immutable workload objects. Owner-local host apply/restart and no-change repeat passed; base hash preserved, all nodes Ready. Flux SSO stage and workload Ready. Exact workload-argument guard stopped before native binding; client disabled, no group grants or human token acceptance. Exact argument and effective PKCE flag correction is source-only pending review.'
     link /runbook.html#headlamp-maintenance 'Exact operations, source and rollback'
     engineer -> platform.rke2.server '1. From released source inspect owned config/service and certificate recovery using local ask-become-pass; review base hash'
     engineer -> platform.headlamp '2. Approve existing leaf/public-CA delivery and only owned Headlamp ingress; validate trusted HTTPS before OIDC'
@@ -386,6 +386,19 @@ views {
     platform.rke2.server -> engineer '4. Verify certificate API recovery, exact OIDC args/CA mount, nodes Ready and unrelated config unchanged; active repeat does not restart'
     engineer -> platform.flux '5. Only then approve released SSO stage; native/client gates stay independent with owner MFA and negative acceptance'
     engineer -> platform.rke2.server '6. Separately approved owned rollback removes only new files, restarts and verifies recovery; no initial API needed, keep backups'
+  }
+
+  dynamic view headlamp_keycloak_api_authentication {
+    title 'Headlamp to Kubernetes — token authentication then RBAC'
+    description 'Intended flow; current API trust and OIDC workload are active, but client disabled and native binding absent. PKCE chart flag correction remains source-only. No real user token acceptance yet. This diagram does not authorize token capture, test identities or further grants.'
+    link /runbook.html#headlamp-api-authentication 'Token validation versus Kubernetes permissions'
+    engineer -> platform.keycloak.runtime '1. Intended browser redirect: PerkForge password plus MFA; authorization code/PKCE'
+    platform.headlamp -> platform.keycloak.runtime '2. Backend exchanges code using its protected client credential and trusted issuer'
+    platform.keycloak.runtime -> platform.headlamp '3. Signed ID token for headlamp-local; app-scoped groups claim, no token values logged'
+    platform.headlamp -> platform.rke2.server.oidc '4. Proxy requested Kubernetes operation with human bearer ID token; use-access-token is false'
+    platform.rke2.server.oidc -> platform.keycloak.runtime '5. Trusted HTTPS discovery/JWKS; verify RS256, issuer, expiry, audience and required azp'
+    platform.rke2.server.oidc -> platform.rke2.server.rbac '6. Extract oidc:sub and oidc:groups only after authentication succeeds'
+    platform.rke2.server.rbac -> platform.headlamp '7. Separately authorize verb/resource/scope; intended group binding gives cluster-admin, otherwise deny'
   }
 
   dynamic view production_tls_lifecycle {

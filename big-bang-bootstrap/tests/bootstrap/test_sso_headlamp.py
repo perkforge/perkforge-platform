@@ -9,7 +9,7 @@ class HeadlampSSO(unittest.TestCase):
   self.cli=self.d/'kubectl';shutil.copy2(ROOT/'tests/fixtures/sso-headlamp-cli.py',self.cli);self.cli.chmod(0o700)
   self.secret=self.d/'secret';self.secret.write_text('synthetic-headlamp-secret');self.secret.chmod(0o600);self.ca=self.d/'ca';self.ca.write_text('-----BEGIN CERTIFICATE-----\nPUBLIC-FIXTURE-ONLY\n-----END CERTIFICATE-----')
   args=['--oidc-issuer-url=https://identity.fixture.test/auth/realms/perkforge','--oidc-client-id=headlamp','--oidc-username-claim=sub','--oidc-username-prefix=oidc:','--oidc-groups-claim=groups','--oidc-groups-prefix=oidc:','--oidc-signing-algs=RS256','--oidc-required-claim=azp=headlamp','--oidc-ca-file=/etc/rancher/rke2/identity/ca.crt']
-  self.initial={'objects':{},'apiPods':{'items':[{'spec':{'containers':[{'args':args,'volumeMounts':[{'mountPath':'/etc/rancher/rke2/identity/ca.crt','readOnly':True}]}]}}]},'deployment':{'spec':{'template':{'spec':{'containers':[{'image':'fixture/headlamp:v0.45.0','envFrom':[{'secretRef':{'name':'perkforge-headlamp-sso-v1'}}],'env':[{'name':'SSL_CERT_FILE','value':'/identity-ca/ca.crt'}],'args':['-in-cluster','-oidc-ca-file=/identity-ca/ca.crt'],'volumeMounts':[{'name':'identity-ca','mountPath':'/identity-ca','readOnly':True}]}],'volumes':[{'name':'identity-ca','configMap':{'name':'perkforge-headlamp-sso-v1-ca'}}]}}},'status':{'availableReplicas':1}}}
+  self.initial={'objects':{},'apiPods':{'items':[{'spec':{'containers':[{'args':args,'volumeMounts':[{'mountPath':'/etc/rancher/rke2/identity/ca.crt','readOnly':True}]}]}}]},'deployment':{'spec':{'template':{'spec':{'containers':[{'image':'fixture/headlamp:v0.45.0','envFrom':[{'secretRef':{'name':'perkforge-headlamp-sso-v1'}}],'env':[{'name':'SSL_CERT_FILE','value':'/identity-ca/ca.crt'}],'args':['-in-cluster']+json.loads((ROOT/'tests/fixtures/headlamp-chart-oidc-args.json').read_text()),'volumeMounts':[{'name':'identity-ca','mountPath':'/identity-ca','readOnly':True}]}],'volumes':[{'name':'identity-ca','configMap':{'name':'perkforge-headlamp-sso-v1-ca'}}]}}},'status':{'availableReplicas':1}}}
   self.state=self.d/'state.json';self.state.write_text(json.dumps(self.initial))
   self.v={'sso_headlamp_run':True,'sso_headlamp_operation':'deliver','sso_headlamp_reviewed_scope':'headlamp-sso-delivery-v1','sso_headlamp_recovery_verified':True,'sso_kubectl':str(self.cli),'sso_kubeconfig':'/fixture/kubeconfig','sso_context':'fixture','sso_cluster_uid':'fixture-cluster','sso_headlamp_secret_file':str(self.secret),'sso_public_ca_file':str(self.ca),'sso_headlamp_expected_image':'fixture/headlamp:v0.45.0','sso_keycloak_origin':'https://identity.fixture.test','sso_apps':{'headlamp':{'client_id':'headlamp','origin':'https://headlamp.fixture.test','apply':False}}}
  def data(self):return json.loads(self.state.read_text())
@@ -34,6 +34,24 @@ class HeadlampSSO(unittest.TestCase):
   for args in ([],[a.replace('RS256','HS256') for a in initial['apiPods']['items'][0]['spec']['containers'][0]['args']]):
    s=copy.deepcopy(initial);s['apiPods']['items'][0]['spec']['containers'][0]['args']=args;self.state.write_text(json.dumps(s))
    r=self.run_play('activate');self.assertNotEqual(r.returncode,0);self.assertEqual(len(self.data()['writes']),2)
+ def test_pinned_chart_oidc_arguments_are_exact_before_any_grant(self):
+  self.ok();initial=self.data();base=initial['deployment']['spec']['template']['spec']['containers'][0]['args']
+  variants=[base[:-1],[a for a in base if not a.startswith('-oidc-use-pkce=')],base+['-oidc-use-access-token=true'],base+[base[1]],base+['--oidc-client-secret=literal-fixture-secret'],
+   [a.replace('$(OIDC_CLIENT_SECRET)','literal-fixture-secret') for a in base],
+   [a.replace('$(OIDC_ISSUER_URL)','$(FOREIGN_ISSUER)') for a in base]]
+  for args in variants:
+   with self.subTest(args=args):
+    s=copy.deepcopy(initial);s['deployment']['spec']['template']['spec']['containers'][0]['args']=args;self.state.write_text(json.dumps(s))
+    r=self.run_play('activate');self.assertNotEqual(r.returncode,0);self.assertNotIn('literal-fixture-secret',r.stdout+r.stderr);self.assertEqual(len(self.data()['writes']),2)
+ def test_workload_secret_and_trust_guards_still_refuse_without_grants(self):
+  self.ok();initial=self.data()
+  for mutation in ('secret','inline-env','ca-mount','unavailable'):
+   s=copy.deepcopy(initial);c=s['deployment']['spec']['template']['spec']['containers'][0]
+   if mutation=='secret':c['envFrom']=[{'secretRef':{'name':'foreign-secret'}}]
+   if mutation=='inline-env':c['env'].append({'name':'OIDC_CLIENT_ID','value':'foreign'})
+   if mutation=='ca-mount':c['volumeMounts'][0]['readOnly']=False
+   if mutation=='unavailable':s['deployment']['status']['availableReplicas']=0
+   self.state.write_text(json.dumps(s));r=self.run_play('activate');self.assertNotEqual(r.returncode,0);self.assertEqual(len(self.data()['writes']),2)
  def test_partial_delivery_resumes_and_secret_rotation_refuses(self):
   s=self.data();s['failCA']=True;self.state.write_text(json.dumps(s));r=self.run_play();self.assertNotEqual(r.returncode,0);self.assertEqual(len(self.data()['writes']),1)
   s=self.data();s['failCA']=False;self.state.write_text(json.dumps(s));self.ok();self.assertEqual(len(self.data()['writes']),2)

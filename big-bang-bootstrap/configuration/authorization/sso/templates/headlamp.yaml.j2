@@ -47,6 +47,7 @@ gitops_values:
         upstream:
           config:
             oidc:
+              usePKCE: true
               secret: {create: false}
               externalSecret: {enabled: true, name: perkforge-headlamp-sso-v1, hasScopes: true}
             extraArgs: [-oidc-ca-file=/identity-ca/ca.crt]
