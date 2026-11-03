@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.16.0](https://github.com/perkforge/perkforge-platform/compare/v0.15.2...v0.16.0) (2026-11-03)
+
+
+### Features
+
+* **sso:** prepare gated OpenBao data engines and remaining app acceptance ([#145](https://github.com/perkforge/perkforge-platform/issues/145)) ([f579707](https://github.com/perkforge/perkforge-platform/commit/f5797074f9704374b1366a1db7cfbd740b2d80cd))
+
+
+### Bug Fixes
+
+* **rancher:** validate pinned chart CA mount contract ([#150](https://github.com/perkforge/perkforge-platform/issues/150)) ([dc1470b](https://github.com/perkforge/perkforge-platform/commit/dc1470bee13811d394ed0f6d6b4d0e510669f0d1))
+
+
+### Performance Improvements
+
+* **ci:** parallelize complete offline regression suites ([#149](https://github.com/perkforge/perkforge-platform/issues/149)) ([051e2d4](https://github.com/perkforge/perkforge-platform/commit/051e2d40af7d059187de549478538fb4279d2020))
+* **ci:** select conservative offline suites and remove duplicate triggers ([#146](https://github.com/perkforge/perkforge-platform/issues/146)) ([79e6967](https://github.com/perkforge/perkforge-platform/commit/79e6967dd08288e49fee045fd2b29f54ff0feb3f))
+
 ## [0.15.2](https://github.com/perkforge/perkforge-platform/compare/v0.15.1...v0.15.2) (2026-11-03)
 
 
