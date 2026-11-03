@@ -11,6 +11,7 @@
       - authorization_realm == 'perkforge'
       - authorization_realm_display_name == 'PerkForge'
       - authorization_platform_admin_group == '/platform/admins'
+      - authorization_platform_viewer_group == '/platform/viewers'
       - authorization_tenants | unique | length == authorization_tenants | length
       - authorization_integrations.values() | selectattr('enabled', 'equalto', true) | list | length == 0
       fail_msg: Review-only candidate; no live apply or app integration is implemented here.
