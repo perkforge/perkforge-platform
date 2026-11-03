@@ -218,3 +218,4 @@ activation. Native apply wiring remains explicit where unimplemented.
 | Grafana | Optional native OIDC overlay rendered; PA explicit server admin, PE/PV Viewer initially. Strict unmatched/tenant denial; native client/apply and org/datasource isolation remain gates. |
 | Loki / Alloy | Grafana login differs from scoped machine write/query credentials. Labels and caller tenant headers are not isolation; backend tenant enforcement remains a gate. |
 | Alertmanager / ntfy | Human access follows Grafana; machine publisher/subscriber credentials are separate. No direct admin ingress. Forwarding/ntfy adapter remains off/unimplemented. |
+| GitLab Free | Native OIDC Secret-reference overlay rendered. New users blocked, no email autolink. Paid group/instance-role mapping unavailable; native membership/offboarding wiring remains unimplemented. |

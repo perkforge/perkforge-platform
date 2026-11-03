@@ -1,0 +1,18 @@
+# Optional Free-tier payload, not root-selected; client/member lifecycle still gated.
+addons:
+  gitlab:
+    enabled: false
+    flux: {suspend: true}
+    values:
+      global:
+        appConfig:
+          omniauth:
+            enabled: true
+            allowSingleSignOn: [openid_connect]
+            blockAutoCreatedUsers: true
+            autoLinkUser: []
+            autoLinkLdapUser: false
+            autoLinkSamlUser: false
+            providers:
+            - secret: gitlab-oidc-provider
+              key: provider

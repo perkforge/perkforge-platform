@@ -42,3 +42,7 @@ loki:
   url: https://repo1.dso.mil/big-bang/product/packages/loki/-/archive/6.55.0-bb.9/loki-6.55.0-bb.9.tar.gz
   sha256: 8b688febb7b1402bad4fae2337f9c1c4495c7554996ecf3bad077d1039ed5ae8
   chart: chart
+gitlab:
+  url: https://repo1.dso.mil/big-bang/product/packages/gitlab/-/archive/10.4.2-bb.0/gitlab-10.4.2-bb.0.tar.gz
+  sha256: 95965feb32dbb0d5a1d1ec26645276741c5185f273723c4e7d1ea089dcfcd2bb
+  chart: chart
