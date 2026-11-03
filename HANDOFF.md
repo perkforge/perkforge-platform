@@ -12,39 +12,55 @@ for Rancher local recovery, OpenBao independent recovery, separate client/native
 approvals, real allow/deny acceptance, rollback and per-app health/resources.
 This source preparation is not live inspection or permission to activate either app.
 
-## Headlamp partial activation — 2026-11-03
+## Headlamp owner acceptance — 2026-11-03
 
-Published v0.15.1 passed all post-merge checks. Existing Headlamp TLS/CA and HTTPS
-route were delivered; the same client and private secret were reused. Preparation
-created one bounded client role/scope, with no group mapping; repeat passed
-68 ok / 0 changed. Immutable workload Secret/CA delivery repeated 17 ok / 0 changed.
+Published v0.15.2 at `260f413c7e92d814c7af2d26ca09e62d7083d729` passed all
+post-merge checks. Flux selects that tag and `local-headlamp-sso`; the effective
+PKCE workload is Ready. Existing client and protected secret were reused. The
+released native adapter verified exact API issuer/audience/azp/RS256/claims/CA,
+workload image/Secret/mounts/arguments, then created only the owned
+`oidc:/platform/admins` to `cluster-admin` binding. The client adapter mapped
+only its bounded role to the owned admin group and enabled the same client;
+non-target mappings were preserved. No extra host restart or secret rotation.
 
-The owner-local API maintenance reached active twice with the original base hash
-preserved. The second cumulative recap added zero host changes; certificate API
-recovery and all three Ready nodes passed. Flux now selects v0.15.1 and
-`local-headlamp-sso`; the Headlamp upgrade is Ready. API OIDC configuration and
-workload readiness are observed, not proof of a real Keycloak-token API login.
+Native repeat passed 30 ok / 0 changed; client repeat passed 70 ok / 0 changed.
+Trusted HTTPS/discovery and an actual authorization-code redirect with S256,
+expected client and callback passed without following the redirect or supplying
+human credentials. Synthetic Kubernetes access reviews allowed the admin group
+and denied an ungranted group plus runtime-SA cluster Secret access.
 
-Native activation stopped before its binding: 23 ok / 0 changed / 1 failed.
-The pinned chart emits four OIDC environment-reference arguments plus the public
-CA argument; the old validator expected only CA. The proposed correction requires
-the exact six-argument contract, preserving strict Secret/image/API trust,
-claims, mounts, no-inline-OIDC and readiness checks. The pinned application loads
-configuration from HEADLAMP_CONFIG_ or flags;
-its raw OIDC_USE_PKCE Secret entry was ineffective without the chart flag. The
-correction sets chart usePKCE true to emit the existing-secret reference, matching
-Keycloak S256 without rotating credentials. This rollout change is source-only.
-A pinned-chart render cross-checks the stateful fixture; rejection cases make
-no grant writes.
+**Owner reports signed in as named Corey account and can see nodes and pods.**
+This is real owner-reported browser acceptance, not a synthetic fixture result.
+Automation did not authenticate as Corey or capture his tokens/credentials.
+Fresh MFA prompt timing was not independently observed.
 
-Current state: client disabled, existing secret matches, one prepared role,
-zero group grants and no native binding. No client enablement, fresh MFA/native
-acceptance or real non-admin login has occurred. Rancher/OpenBao SSO unchanged.
-Do not bypass the native guard or retry live activation before correction review.
-Reuse existing client/secret; preserve active API transaction/backup custody.
-Any later release promotion must use verified published source. API maintenance
-is unchanged; preserve its v0.15.1 transaction/rollback checkout and do not add
-another control-plane restart for this app correction.
+A separately approved real non-admin drill then created exactly one owned,
+no-group/no-admin-role user, completed Headlamp OIDC/S256 and test-only TOTP,
+and verified the exact authenticated UID. Headlamp proxy and direct API both
+returned 403 for nodes/pods; both Secret-list access reviews denied permission.
+Cleanup revoked its sessions, deleted only that UID and verified 404/empty-name
+lookup. Generated password/OTP/token files were removed; realm/flow/existing
+admin grants compared unchanged. Corey was never targeted. Drill: 57 ok / 0 failed.
+
+The 300-second ID JWT still authenticated immediately after deletion, while the
+same resource denials remained. Recorded expiry: 2026-11-03T13:08:12Z. The token
+was removed from local custody; expiry was not independently awaited. User
+session revocation is not immediate offline JWT revocation. This acceptance
+covers the tested no-grant identity/operations, not all roles, verbs or resources.
+
+Post-acceptance inspect-only checks passed: native 30 ok / 0 changed and client
+69 ok / 0 changed. Independent trusted certificate admin/API access and existing
+Keycloak recovery credential authentication passed. The original v0.15.1 host
+transaction/rollback checkout and root-only backup evidence remain preserved;
+no IdP outage, datastore restore or forced rollback was exercised. Earlier
+owner-local host apply/repeat preserved the original base hash with zero
+second-pass host changes. Recovery source is separate from the app release.
+
+Rancher/OpenBao SSO remains untouched by this Headlamp acceptance. Current main
+also retains the separately reviewed, default-off remaining-app prerequisites
+(#145), conservative change-aware CI selection (#146) and complete offline suite
+parallelization (#149). Their code and documentation are preserved unchanged;
+no CI or app configuration changes are part of this acceptance update.
 
 ## Current checkpoint — 2026-11-02
 
