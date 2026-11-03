@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.15.0](https://github.com/perkforge/perkforge-platform/compare/v0.14.0...v0.15.0) (2026-11-03)
+
+
+### Features
+
+* **headlamp:** add gated SSO selection stage ([#140](https://github.com/perkforge/perkforge-platform/issues/140)) ([67b21af](https://github.com/perkforge/perkforge-platform/commit/67b21af75cad7336ccdb6f5fb07ca511fe410f6c))
+* **headlamp:** gate API OIDC maintenance and HTTPS routing ([#141](https://github.com/perkforge/perkforge-platform/issues/141)) ([400e106](https://github.com/perkforge/perkforge-platform/commit/400e106816408ec53281c15cd31ec51829b5dd2f))
+* **headlamp:** preserve temporary admin acceptance and cleanup ([#124](https://github.com/perkforge/perkforge-platform/issues/124)) ([66ac544](https://github.com/perkforge/perkforge-platform/commit/66ac5448b5ca489347ef4596344f386aaa794462))
+* **identity:** add gated PerkForge realm and empty role groups ([#127](https://github.com/perkforge/perkforge-platform/issues/127)) ([f2fa519](https://github.com/perkforge/perkforge-platform/commit/f2fa519434973197a12008805324c08d97a3644d))
+* **identity:** prepare full PerkForge realm administration ([#135](https://github.com/perkforge/perkforge-platform/issues/135)) ([8b22f4f](https://github.com/perkforge/perkforge-platform/commit/8b22f4f957d5e24e7f27cf4cf153539299a8e7b7))
+* **identity:** prepare gated IL2 human TOTP enrollment ([#129](https://github.com/perkforge/perkforge-platform/issues/129)) ([8290d22](https://github.com/perkforge/perkforge-platform/commit/8290d2233e5582d2170d1646dca2ada1a0f1edd2))
+* prepare coordinated platform application SSO ([#139](https://github.com/perkforge/perkforge-platform/issues/139)) ([8214a16](https://github.com/perkforge/perkforge-platform/commit/8214a169a38046d1dbccddbd95244cf3d9a4558c))
+
+
+### Bug Fixes
+
+* **identity:** declare managed ownership markers and guard partial resume ([#131](https://github.com/perkforge/perkforge-platform/issues/131)) ([0da7395](https://github.com/perkforge/perkforge-platform/commit/0da7395eb6bf327538bcae76c4435dc770d5de49))
+* **identity:** resolve nested authentication metadata by execution flow ID ([#132](https://github.com/perkforge/perkforge-platform/issues/132)) ([4dd6481](https://github.com/perkforge/perkforge-platform/commit/4dd6481b351ed2f254c09df490e241d1d8b11c18))
+* **identity:** validate the built-in realm-admin composite graph ([#136](https://github.com/perkforge/perkforge-platform/issues/136)) ([9398fb5](https://github.com/perkforge/perkforge-platform/commit/9398fb589326765606ca36ba1f3716827aeb62e8))
+* validate approved post-grant realm admin representation ([#137](https://github.com/perkforge/perkforge-platform/issues/137)) ([e7cac52](https://github.com/perkforge/perkforge-platform/commit/e7cac52fcc328249de9ef7d704757d6484996b4a))
+
 ## [0.14.0](https://github.com/perkforge/perkforge-platform/compare/v0.13.0...v0.14.0) (2026-11-01)
 
 
