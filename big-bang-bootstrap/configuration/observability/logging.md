@@ -83,3 +83,13 @@ References: [pinned package sources](sources.yaml),
 [Loki authentication](https://grafana.com/docs/loki/latest/operations/authentication/),
 [Loki multi-tenancy](https://grafana.com/docs/loki/latest/operations/multi-tenancy/),
 [Alloy processing](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.process/).
+
+## SSO versus log API authorization
+
+`logging-sso-review.yaml` keeps human entry through the separate Grafana OIDC client.
+Loki and Alloy do not acquire fake browser clients; protected machine credentials
+and approved Kubernetes identities remain separate. Namespace/label opt-in is not
+query isolation. A tenant must not supply a trusted X-Scope-OrgID header directly;
+backend-scoped datasource/proxy enforcement and cross-tenant denial tests are still
+activation gates. No new proxy, public ingress or unreviewed group mapping is
+implemented here. Existing log-storage, retention and capacity gates remain.

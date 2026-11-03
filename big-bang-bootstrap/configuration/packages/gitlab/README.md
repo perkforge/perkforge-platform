@@ -69,3 +69,24 @@ No credential, existing repo, retained test data or node has been touched here.
 [GitLab chart secrets/initial license](https://docs.gitlab.com/charts/installation/secrets/),
 [GitLab chart architecture](https://docs.gitlab.com/charts/architecture/),
 [exact package](https://repo1.dso.mil/big-bang/product/packages/gitlab/-/tree/10.4.2-bb.0).
+
+## Keycloak OIDC — Free-tier review payload
+
+`sso-values.yaml` is an optional, unselected/paused native OmniAuth overlay using
+only the external `gitlab-oidc-provider` Secret reference. `sso-review.yaml` records
+the public provider/client fields, protected missing secret field and native roles.
+No client, Secret values, users or membership are created; apply wiring is pending.
+Free supports OIDC login but not Premium/Ultimate required-group restrictions or
+instance-role claims, and OIDC does not manage GitLab group membership. Do not
+add paid admin_groups/required_groups settings as if they enforced Free access.
+
+New OIDC users remain blocked, and automatic email linking is disabled. Before
+activation implement reviewed approval/membership/offboarding, prove tenant/project
+denial and prevent unintended personal project/group creation. Platform admin is
+an explicit native instance assignment; tenant admin is only its own group Owner,
+developer own project Developer, viewer approved Reporter. Preserve independent
+local root and existing users/projects; disabling a client does not revoke every
+GitLab session/API token. Existing capacity, TLS and external-service gates remain.
+
+[GitLab OIDC and tier limits](https://docs.gitlab.com/administration/auth/oidc/),
+[chart OmniAuth Secret](https://docs.gitlab.com/charts/charts/globals/#omniauth).

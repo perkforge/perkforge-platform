@@ -64,3 +64,28 @@ removed. This is reviewable blocked implementation, not tomorrow's deployable cl
 [v11 release notes](https://docs.mattermost.com/product-overview/mattermost-v11-changelog),
 [plans](https://docs.mattermost.com/product-overview/plans),
 [OIDC](https://docs.mattermost.com/administration-guide/onboard/sso-openidconnect).
+
+## Entry and Keycloak Other OIDC — owner-selected planning target
+
+Plan for **Entry**, the free mode of the Enterprise Edition binary, not Team
+Edition and not a paid subscription/trial. Current docs list Other OIDC/Keycloak
+support for Entry, but the pinned chart/image is **11.11.0**. Verify that exact
+Iron Bank binary's edition/features and applicable license terms before selection;
+no registry credential, purchase, license key or image upgrade is authorized here.
+Entry's visible channel-history limit is 10,000 messages; HA, compliance features
+and delegated granular system-admin roles are excluded. No production/PaaS
+capacity or support promise follows from free availability.
+
+`sso-values.yaml` deliberately leaves Big Bang `sso.enabled=false`: that pinned
+helper emits MM_GITLABSETTINGS, not Other OIDC. The optional unselected/paused
+overlay uses MM_OPENIDSETTINGS and an existing Secret reference. New user creation
+stays disabled: provisioning/linking and membership/offboarding must be implemented
+and approved before a new IdP person can log in. Initial local admin comes first.
+`sso-review.yaml` maps tenant-admin to **own Team Admin**, developer/viewer to
+assigned team/channel Member (viewer chat is allowed), never global System Admin.
+OIDC groups alone do not synchronize those memberships. Do not use v12.1 ABAC or
+paid/group features as if they were verified for this pin. No native apply or live
+SSO acceptance is claimed; existing operator trust and capacity blockers remain.
+
+[Entry edition](https://docs.mattermost.com/product-overview/editions-and-offerings),
+[Other OIDC](https://docs.mattermost.com/administration-guide/onboard/sso-openidconnect).

@@ -1,0 +1,68 @@
+# Review only; not a realm import, certificate value or live client apply.
+enabled: false
+review_only: true
+live_apply_implemented: false
+protocol: saml
+application: sonarqube
+edition: Community Build 26.9.0.129388; no paid SAML/plugin assumption
+keycloak:
+  realm: perkforge
+  client_id: sonarqube
+  enabled: false
+  protocol: saml
+  sp_initiated: true
+  idp_initiated: false
+  single_logout: false
+  redirect_uri: https://sonarqube.UNCONFIGURED.invalid/oauth2/callback/saml
+  required_assertion_signing: true
+  groups_attribute: groups
+  group_claim_source: bounded own-app role mapping; never every realm/tenant group
+public_identity_material:
+  secret_ref: sonarqube-saml-identity
+  key: secret.properties
+  required_property: sonar.auth.saml.certificate.secured
+  contents: verified/pinned public IdP signing certificate only; no CA/IdP private
+    key
+  verification: issuer, audience, recipient, signature, time and replay protections
+    need native acceptance
+mappings:
+  tenant_global_admin: false
+  platform_admin: custom reviewed native admin group with explicit Administer System
+  platform_engineer: approved platform-project Browse/Execute Analysis initially,
+    no system admin
+  platform_viewer: approved platform-project Browse only
+  tenant_admin: own project Administer only
+  tenant_developer: own project Browse/Execute Analysis
+  tenant_viewer: own project Browse only
+limitations:
+- SP-initiated SAML only; no IdP-initiated login or SAML single logout
+- group synchronization updates at login and replaces manual membership for that user
+- native group/permission creation and membership lifecycle are not implemented
+- review default sonar-users and built-in administrator group privileges before group
+  sync
+- no third-party OIDC plugin, SCIM or paid branch/MR analysis claim
+transport:
+  verify_tls: true
+  skip_certificate_verification: false
+  public_ca_ref: approved runtime TLS CA; separate from IdP signing certificate
+recovery:
+  independent_local_access: true
+  custody: durable independent local administrator, not perpetual stock/bootstrap
+    password
+activation_gates:
+- separate reviewed client/app apply wiring
+- verified public IdP signing certificate delivery
+- signed-assertion and audience/replay tests
+- explicit native group/project permissions, default-group audit and offboarding
+- capacity/JDBC/trust gates remain
+acceptance:
+  positive:
+  - owner SP-initiated fresh MFA, intended project role
+  negative:
+  - unsigned/wrong-issuer/wrong-audience/replayed assertion denied
+  - cross-tenant project access denied
+  - tenant group cannot gain system administration
+  rollback:
+  - disable only owned SAML/client/group grant
+  - preserve projects/analysis/users and local recovery
+  - measure app sessions; IdP logout alone does not imply Sonar logout

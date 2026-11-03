@@ -59,3 +59,28 @@ No obsolete direct SonarQube installer found; reusable configuration retained.
 [Exact package](https://repo1.dso.mil/big-bang/product/packages/sonarqube/-/tree/2026.4.1-bb.4),
 [Community GitLab integration and limits](https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/gitlab-integration/introduction),
 [native chart](https://github.com/SonarSource/helm-chart-sonarqube).
+
+## Keycloak SAML — Community Build review
+
+The pinned Community Build 26.9 candidate uses supported **SAML**, not a fictitious
+native OIDC provider or a third-party plugin. `sso-values.yaml` is optional and
+unselected/paused. It uses native sonarProperties plus an external Secret reference
+for the **public IdP signing certificate**. Big Bang's `sso.enabled` stays false:
+no metadata-fetch/kubectl certificate job or extra installer authority is introduced.
+Client TLS trust and assertion-signature trust are different boundaries; verify
+signed assertions, issuer/audience/recipient/time/replay checks before activation.
+No certificate/signing/private key or new credential is generated here.
+
+`sso-review.yaml` records a dedicated disabled SAML client and exact callback.
+Community supports SP-initiated login and group synchronization, not IdP-initiated
+login or SAML single logout. No paid SAML license is presumed. Group sync replaces
+manual memberships for the user at login: audit default sonar-users permissions
+and the built-in administrator group before enabling it. Only a custom explicitly
+reviewed platform group gets system administration; tenant roles are own-project
+Administer/Browse/Execute Analysis, never system admin. Actual client/native mapping
+and offboarding remain unimplemented gates. Preserve tested independent local admin
+and existing projects; disabling the IdP/client does not instantly revoke all app
+sessions. Existing storage/JDBC/host/capacity blockers remain.
+
+[Community SAML capabilities/limits](https://docs.sonarsource.com/sonarqube-community-build/instance-administration/authentication/saml/overview),
+[Keycloak setup](https://docs.sonarsource.com/sonarqube-community-build/instance-administration/authentication/saml/how-to-set-up-keycloak).
