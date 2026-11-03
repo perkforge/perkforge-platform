@@ -37,6 +37,11 @@ delivery remains explicit, redacted and separate from deployment.
    tenant permission or OIDC extension is authorized. Browser ingress and its
    current physical TLS Secret remain separate later approval if needed.
 
+After deployment success, include the shared [health and capacity acceptance](../../ansible/README.md#health-and-capacity-acceptance-after-every-app)
+report: per-node usage versus requests/limits, node/pod readiness and failures,
+Longhorn disk/replica headroom, and a comparable delta from the previous app.
+Capture evidence automatically within the approved deployment/acceptance scope.
+
 The temporary cache records credential type/status, never an imaginary password.
 A later human OIDC workflow must align Headlamp and kube-apiserver issuer,
 audience, username and full-path group claims. Headlamp forwards the identity;

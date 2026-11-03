@@ -178,30 +178,36 @@ views {
     platform.storage.acceptance -> engineer '7. Retain test claim/PV/volume, final pod and evidence; cleanup needs separate approval'
   }
 
-  dynamic view metrics_provisioning {
-    title 'Metrics/Grafana provisioning — implemented candidate, inactive'
-    description 'No live approval or root selection. Current-network policy must be tested; future Istio/Gateway direction is not implemented here.'
-    engineer -> platform.prerequisite_applier '1. Review exact release/target, operator/CRD compatibility, budgets and protected inputs'
-    platform.prerequisite_applier -> platform.observability.metrics_installer '2. Default-off Ansible validates exact API /32s and applies scoped namespace/roles/policies/six dashboards'
-    engineer -> platform.flux '3. Future reviewed selection only after credentials/policy and privileged grants are approved'
-    platform.bigbang -> platform.observability.metrics_installer '4. Helm-controller uses separate child identities; source writer cannot self-grant'
-    platform.observability.metrics_installer -> platform.observability.stores '5. Native CRDs/operator/Prometheus/Alertmanager; supported certificate patch jobs keep webhooks enabled'
-    platform.observability.metrics_installer -> platform.observability.grafana '6. Native Grafana files plus namespace ConfigMap-only runtime reader; no cross-namespace Secrets'
-    platform.observability.grafana -> engineer '7. Verify real scrapes/admin/dashboards, no duplicate pipeline, resource/retention and network deny behavior'
+  view authorization_roles {
+    title 'Who does what and why — six human roles and trust boundaries'
+    description 'Proposed shared realm and role intent; no live grants. Zoom into core apps, observability, collaboration and tenant examples. App policies cannot promise secrecy against cluster/shared-identity administrators.'
+    link /runbook.html#authorization-matrix 'Matrix, evidence classes and implementation gates'
+    include platform.authorization.roles.pa, platform.authorization.roles.pe, platform.authorization.roles.pv, platform.authorization.roles.ta, platform.authorization.roles.td, platform.authorization.roles.tv, platform.authorization.groups, platform.authorization.clients, platform.authorization.ownership
   }
-
-  dynamic view observability_review {
-    title 'Observability collection and notification — proposed, inactive'
-    description 'Architecture review before deployment. Installer/collector/store/query/human roles remain distinct; source exists only as disabled/paused native candidates. No live validation or tenant isolation claim.'
-    engineer -> platform.observability.collectors '1. Review source pins, scoped collector identity, no duplicates and sensitive-log exclusions'
-    platform.observability.collectors -> platform.observability.stores '2. Proposed metrics/log ingestion; enforce bounded labels, tenant auth and reviewed capacity'
-    platform.observability.stores -> platform.observability.grafana '3. Proposed Git-owned datasources/six dashboards; no tenant access via mere filters'
-    platform.observability.stores -> platform.observability.alerts '4. Preserve native PrometheusRules and bundled Alertmanager evaluation/routing'
-    platform.observability.grafana -> platform.observability.alerts '5. Optional Grafana-managed alerts to same external manager; prove no duplicate path'
-    platform.observability.alerts -> platform.observability.notification '6. Future compatible authenticated TLS ntfy path, grouping/silences/firing/resolved/failure tests'
-    platform.observability.notification -> engineer '7. Verify intended client, disk/ingest impact, isolation and isolated restore; whole-cluster blind spot remains'
+  view authorization_core_apps {
+    title 'Role mappings — Core identity/infrastructure'
+    description 'Design matrix, not deployed integrations. Select each app for PA/PE/PV/TA/TD/TV scope, edition limits and missing enforcement. Every app validates its client/token and resource ownership; machine identities are separate.'
+    link /runbook.html#authorization-matrix 'Role matrix and source/test links'
+    include platform.authorization.clients, platform.authorization.ownership, platform.authorization.mappings.keycloak, platform.authorization.mappings.kubernetes, platform.authorization.mappings.rancher, platform.authorization.mappings.openbao, platform.authorization.mappings.longhorn
   }
-
+  view authorization_observability {
+    title 'Role mappings — Observability query and notification boundaries'
+    description 'Design matrix, not deployed integrations. Select each app for PA/PE/PV/TA/TD/TV scope, edition limits and missing enforcement. Every app validates its client/token and resource ownership; machine identities are separate.'
+    link /runbook.html#authorization-matrix 'Role matrix and source/test links'
+    include platform.prerequisite_applier, platform.authorization.clients, platform.authorization.ownership, platform.authorization.mappings.grafana, platform.authorization.mappings.prometheus, platform.authorization.mappings.loki, platform.authorization.mappings.alloy, platform.authorization.mappings.alerts
+  }
+  view authorization_collaboration {
+    title 'Role mappings — Collaboration project/team permissions'
+    description 'Design matrix, not deployed integrations. Select each app for PA/PE/PV/TA/TD/TV scope, edition limits and missing enforcement. Every app validates its client/token and resource ownership; machine identities are separate.'
+    link /runbook.html#authorization-matrix 'Role matrix and source/test links'
+    include platform.authorization.clients, platform.authorization.ownership, platform.authorization.mappings.mattermost, platform.authorization.mappings.gitlab, platform.authorization.mappings.harbor, platform.authorization.mappings.sonarqube
+  }
+  view authorization_tenant_apps {
+    title 'Role mappings — Tenant app and control-component examples'
+    description 'Design matrix, not deployed integrations. Select each app for PA/PE/PV/TA/TD/TV scope, edition limits and missing enforcement. Every app validates its client/token and resource ownership; machine identities are separate.'
+    link /runbook.html#authorization-matrix 'Role matrix and source/test links'
+    include platform.prerequisite_applier, platform.authorization.clients, platform.authorization.ownership, platform.authorization.mappings.portal, platform.authorization.mappings.nextcloud, platform.authorization.mappings.velero, platform.authorization.mappings.trivy, platform.authorization.mappings.traffic
+  }
   dynamic view authorization_review {
     title 'Who does what and why — proposed human authorization'
     description 'Disabled configuration, not observed grants. Installer/runtime accounts stay distinct from human role groups. Every live migration needs review, credentials, admission and separate approval.'
@@ -209,11 +215,13 @@ views {
     platform.authorization.api_owner -> platform.authorization.groups '2. Offline Ansible renders disabled realm/clients; later API owner must read/compare and refuse conflicts'
     platform.authorization.groups -> platform.headlamp.runtime '3. Proposed Keycloak full-path claims; Headlamp/API issuer and audience both need verification'
     platform.headlamp.runtime -> platform.authorization.tenant_rbac '4. Kubernetes evaluates exact group bindings plus workload admission; tenant A cannot administer B'
-    platform.authorization.groups -> platform.authorization.bao_policies '5. OpenBao validates audience and exact claim-bound role, then its own ACL policies'
+    platform.authorization.groups -> platform.authorization.bao_policies '5. OpenBao: PA platform values/tenant names; TD own value read; consent/emergency still unimplemented'
     platform.authorization.groups -> platform.rancher.runtime '6. Rancher allows platform-admin group only; retain local break-glass, no tenant grants'
     platform.authorization.groups -> platform.authorization.storage_admin '7. Longhorn has no native OIDC RBAC; proxy/access decision remains blocked'
-    platform.authorization.tenant_rbac -> engineer '8. Verify positive/negative API, malicious PodSpec and cross-tenant tests before enabling'
-    platform.authorization.bao_policies -> engineer '9. Verify native capabilities, revocation/session expiry and recovery; promote diagram only with evidence'
+    platform.authorization.tenant_rbac -> engineer '8. Verify six roles, multi-tenant/client replay, query isolation and malicious workload/mapper deny cases before enabling'
+    platform.authorization.bao_policies -> engineer '9. Verify native capabilities and revocation; everyday operator access uses platform-admin SSO'
+    engineer -> custody '10. Keep durable local recovery in independent password-manager custody; bootstrap access may be temporary'
+    custody -> engineer '11. Test local emergency access with SSO unavailable; custody stays off cluster; no live test claimed'
   }
 
   dynamic view keycloak_initial_admin {
@@ -269,6 +277,18 @@ views {
     platform.rancher.runtime -> engineer '8. Verify readiness, trusted HTTPS and local-admin password reset; stop before SSO/lifecycle actions'
   }
 
+  dynamic view observability_review {
+    title 'Observability collection and notification — proposed, inactive'
+    description 'Architecture review before deployment. Installer/collector/store/query/human roles remain distinct; source exists only as disabled/paused native candidates. No live validation or tenant isolation claim.'
+    engineer -> platform.observability.collectors '1. Review source pins, scoped collector identity, no duplicates and sensitive-log exclusions'
+    platform.observability.collectors -> platform.observability.stores '2. Proposed metrics/log ingestion; enforce bounded labels, tenant auth and reviewed capacity'
+    platform.observability.stores -> platform.observability.grafana '3. Proposed Git-owned datasources/six dashboards; no tenant access via mere filters'
+    platform.observability.stores -> platform.observability.alerts '4. Preserve native PrometheusRules and bundled Alertmanager evaluation/routing'
+    platform.observability.grafana -> platform.observability.alerts '5. Optional Grafana-managed alerts to same external manager; prove no duplicate path'
+    platform.observability.alerts -> platform.observability.notification '6. Future compatible authenticated TLS ntfy path, grouping/silences/firing/resolved/failure tests'
+    platform.observability.notification -> engineer '7. Verify intended client, disk/ingest impact, isolation and isolated restore; whole-cluster blind spot remains'
+  }
+
   dynamic view queued_app_identity {
     title 'Queued app identity — proposed, no live grants'
     link /runbook.html#queued-sso 'App-specific contracts, native mappings and acceptance gates'
@@ -277,4 +297,16 @@ views {
     platform.keycloak.runtime -> platform.queued_app_access '2. Proposed app consumes claims; native role/resource boundaries must enforce access'
     platform.queued_app_access -> engineer '3. Approve one app only; verify MFA, allow/deny, independent recovery and rollback before activation'
   }
+  dynamic view metrics_provisioning {
+    title 'Metrics/Grafana provisioning — implemented candidate, inactive'
+    description 'No live approval or root selection. Current-network policy must be tested; future Istio/Gateway direction is not implemented here.'
+    engineer -> platform.prerequisite_applier '1. Review exact release/target, operator/CRD compatibility, budgets and protected inputs'
+    platform.prerequisite_applier -> platform.observability.metrics_installer '2. Default-off Ansible validates exact API /32s and applies scoped namespace/roles/policies/six dashboards'
+    engineer -> platform.flux '3. Future reviewed selection only after credentials/policy and privileged grants are approved'
+    platform.bigbang -> platform.observability.metrics_installer '4. Helm-controller uses separate child identities; source writer cannot self-grant'
+    platform.observability.metrics_installer -> platform.observability.stores '5. Native CRDs/operator/Prometheus/Alertmanager; supported certificate patch jobs keep webhooks enabled'
+    platform.observability.metrics_installer -> platform.observability.grafana '6. Native Grafana files plus namespace ConfigMap-only runtime reader; no cross-namespace Secrets'
+    platform.observability.grafana -> engineer '7. Verify real scrapes/admin/dashboards, no duplicate pipeline, resource/retention and network deny behavior'
+  }
+
 }
