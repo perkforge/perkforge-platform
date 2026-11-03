@@ -73,6 +73,7 @@ class ClientAPI(unittest.TestCase):
     if path==api+'/clients':
      cid='client-'+body['clientId'];assert cid not in s['clients'];self.server.secrets[cid]=body.pop('secret');body['id']=cid;
      for m in body['protocolMappers']:
+      if m['protocolMapper']=='oidc-usermodel-client-role-mapper' and m['config'].get('usermodel.clientRoleMapping.rolePrefix')=='':m['config'].pop('usermodel.clientRoleMapping.rolePrefix')
       if 'userinfo.token.claim' not in m['config'] and 'id.token.claim' in m['config']:m['config']['userinfo.token.claim']=m['config']['id.token.claim']
      body['attributes'].update({'oauth2.device.authorization.grant.enabled':'false','oidc.ciba.grant.enabled':'false'});s['clients'][cid]=body;s['scopes'][cid]=[];s['mapped'][cid]=[]
     elif path.startswith(api+'/clients/'):
@@ -121,6 +122,23 @@ class ClientAPI(unittest.TestCase):
   self.s['failRole']=True;r=self.run_play();self.assertNotEqual(r.returncode,0);self.assertEqual(len(self.s['clients']),1)
   self.s['failRole']=False;self.ok();self.s['failEnable']=True;r=self.run_play('activate');self.assertNotEqual(r.returncode,0)
   self.s['failEnable']=False;self.ok('activate');self.assertEqual(len(self.s['clients']),1);self.assertEqual(sum(p.endswith('/clients') for _,p in self.s['writes']),1)
+ def test_canonical_absent_or_empty_prefix_only_and_other_mapper_config_stays_exact(self):
+  # Observed 26.8.1 response omits the empty prefix. Existing client and secret
+  # must be reused, and both absent and explicit empty must repeat without writes.
+  self.ok();cid='client-headlamp-local';client=self.s['clients'][cid]
+  groups=next(m for m in client['protocolMappers'] if m['name']=='app-groups')
+  audience=next(m for m in client['protocolMappers'] if m['name']=='app-audience')
+  key='usermodel.clientRoleMapping.rolePrefix';self.assertNotIn(key,groups['config'])
+  before=len(self.s['writes']);self.assertIn('changed=0',self.ok().stdout)
+  groups['config'][key]='';self.assertIn('changed=0',self.ok().stdout)
+  for value in ('foreign:',None):
+   groups['config'][key]=value;r=self.run_play();self.assertNotEqual(r.returncode,0);self.assertEqual(len(self.s['writes']),before)
+  groups['config'].pop(key)
+  for config,key,value in ((groups['config'],'unexpected','true'),(groups['config'],'claim.name','foreign'),(audience['config'],'usermodel.clientRoleMapping.rolePrefix','')):
+   original=copy.deepcopy(config);config[key]=value
+   r=self.run_play();self.assertNotEqual(r.returncode,0);self.assertEqual(len(self.s['writes']),before)
+   config.clear();config.update(original)
+  self.assertEqual(len(self.s['clients']),1);self.assertEqual(self.server.secrets[cid],'fixture-app-client-secret')
  def test_parent_privilege_or_replaced_parent_refuses_before_client_creation(self):
   self.s['parentMappings']={'clientMappings':{'foreign-client':{'mappings':[{'name':'admin'}]}}}
   r=self.run_play();self.assertNotEqual(r.returncode,0);self.assertEqual(self.s['writes'],[])
