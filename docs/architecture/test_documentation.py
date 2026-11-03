@@ -116,6 +116,7 @@ class Documentation(unittest.TestCase):
 
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
         copies={
+         'openbao-data.yaml': 'big-bang-bootstrap/configuration/authorization/sso/tasks/openbao-data.yaml',
          'api-oidc.md': 'infrastructure/ansible/API-OIDC.md',
          'api-oidc.yml': 'infrastructure/ansible/playbooks/configure-api-oidc.yml',
          'api-oidc-tasks.yml': 'infrastructure/ansible/tasks/api-oidc.yml',

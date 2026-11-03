@@ -1,5 +1,17 @@
 # Current operator handoff
 
+## Prepared Rancher / OpenBao SSO follow-up — not activated
+
+#139 already supplies both native adapters and shared Keycloak client gates. The
+remaining source gap is separately gated OpenBao `prepare-data` for missing owned
+`platform/` and `tenants/` KV-v2 engines, without auth, values or retention changes.
+Existing engines are never adopted/converted; partial creation resumes, no-change
+repeats are required, and SSO rollback never deletes engines. See the
+[remaining activation batches](big-bang-bootstrap/configuration/authorization/sso/README.md#remaining-rancher-and-openbao-activation-batches)
+for Rancher local recovery, OpenBao independent recovery, separate client/native
+approvals, real allow/deny acceptance, rollback and per-app health/resources.
+This source preparation is not live inspection or permission to activate either app.
+
 ## Headlamp partial activation — 2026-11-03
 
 Published v0.15.1 passed all post-merge checks. Existing Headlamp TLS/CA and HTTPS

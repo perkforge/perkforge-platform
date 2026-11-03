@@ -44,3 +44,7 @@ sso_openbao_cluster_id: UNCONFIGURED
 sso_openbao_accessor: UNCONFIGURED
 sso_openbao_token_file: /UNCONFIGURED/openbao-operator-token
 sso_openbao_client_secret_file: /UNCONFIGURED/openbao-client-secret
+
+# Separate optional engine preparation: sso_openbao_operation: prepare-data
+# Requires explicit sso_openbao_reviewed_scope: openbao-data-v1 and run/recovery approval.
+# Creates no secret values or SSO grants; never automatically deletes engines.
