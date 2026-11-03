@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/perkforge/perkforge-platform/compare/v0.16.0...v0.16.1) (2026-11-03)
+
+
+### Bug Fixes
+
+* **openbao:** allow bounded SSO self-session and UI operations ([#153](https://github.com/perkforge/perkforge-platform/issues/153)) ([701edff](https://github.com/perkforge/perkforge-platform/commit/701edffb1a7ab2112303816c80e09950da2f21f9))
+
 ## [0.16.0](https://github.com/perkforge/perkforge-platform/compare/v0.15.2...v0.16.0) (2026-11-03)
 
 
