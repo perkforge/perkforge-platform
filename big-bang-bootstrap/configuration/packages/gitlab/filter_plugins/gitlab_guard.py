@@ -1,0 +1,51 @@
+"""Pure state verification only. Ansible owns every payload and mutation."""
+import ipaddress,re
+
+def endpoint_inputs_valid(hosts,api_host,api_port,target_port):
+ try:
+  if not isinstance(hosts,list) or not 1<=len(hosts)<=4 or len(set(hosts))!=len(hosts):return False
+  for value in [*hosts,api_host]:
+   network=ipaddress.ip_network(value,strict=True)
+   if network.prefixlen!=network.max_prefixlen or network.is_multicast or network.is_unspecified or network.is_loopback or network.is_link_local:return False
+  return isinstance(api_port,int) and not isinstance(api_port,bool) and api_port in (443,6443) and isinstance(target_port,int) and not isinstance(target_port,bool) and 1024<=target_port<=65535 and not (api_port==443 and api_host in hosts)
+ except (ValueError,TypeError):return False
+
+def garage_verdict(status,layout,keys,key,infos,receipt,node,key_id,expected,buckets):
+ if not re.fullmatch('[a-f0-9]{64}',node) or len(status['nodes'])!=1:raise ValueError('node identity')
+ n=status['nodes'][0]
+ if n['id']!=node or n['isUp'] is not True or n['draining'] is not False or n['garageVersion']!='2.2.0':raise ValueError('node health/version')
+ if (not isinstance(layout['version'],int) or isinstance(layout['version'],bool)) or layout['version']!=status['layoutVersion'] or layout.get('stagedParameters') is not None:raise ValueError('layout drift')
+ staged=layout['stagedRoleChanges']
+ if layout['roles']:
+  if layout['version']!=1 or len(layout['roles'])!=1 or staged or {k:layout['roles'][0][k] for k in expected}!=expected:raise ValueError('existing layout mismatch')
+  phase='ready'
+ else:
+  space=n['dataPartition']
+  if layout['version']!=0 or space is None or space['total']<expected['capacity']+2*1024**3 or space['available']<expected['capacity']:raise ValueError('initial layout space/version')
+  if staged and staged!=[expected]:raise ValueError('foreign staging')
+  phase='apply' if staged else 'stage'
+ if len(keys)>1 or any(k['id']!=key_id or k['name']!='perkforge-gitlab-data-v1' for k in keys):raise ValueError('foreign key')
+ if bool(keys)!=receipt['key_imported']:raise ValueError('unreceipted/missing key')
+ owned=receipt['buckets']
+ if set(owned)-set(buckets) or len(set(owned.values()))!=len(owned):raise ValueError('invalid receipt')
+ indexed={b['id']:b for b in infos}
+ if len(indexed)!=len(infos) or set(indexed)!=set(owned.values()):raise ValueError('unreceipted/missing bucket')
+ ungranted=[]
+ if keys:
+  if key.get('secretAccessKey') is not None or key['accessKeyId']!=key_id or key['name']!='perkforge-gitlab-data-v1' or key['expired'] is not False or key.get('expiration') is not None or key['permissions'].get('createBucket',False) is not False:raise ValueError('unexpected key authority')
+  kb={b['id']:b for b in key['buckets']}
+  if len(kb)!=len(key['buckets']) or set(kb)-set(indexed):raise ValueError('unexpected key bucket')
+  permissions={'read':True,'write':True,'owner':False}
+  for alias,identifier in owned.items():
+   b=indexed[identifier]
+   if b['globalAliases']!=[alias] or b['websiteAccess'] is not False:raise ValueError('foreign alias/website')
+   if len(b['keys'])>1:raise ValueError('extra key grant')
+   for grant in b['keys']:
+    if grant!={'accessKeyId':key_id,'name':'perkforge-gitlab-data-v1','bucketLocalAliases':[],'permissions':permissions}:raise ValueError('expanded grant')
+   if bool(b['keys'])!=bool(kb.get(identifier)):raise ValueError('inconsistent grant readback')
+   if identifier in kb and (kb[identifier]['globalAliases']!=[alias] or kb[identifier]['localAliases'] or kb[identifier]['permissions']!=permissions):raise ValueError('expanded key authority')
+   if not b['keys']:ungranted.append(alias)
+ elif infos:raise ValueError('buckets without owned key')
+ return {'phase':phase,'missing':[b for b in buckets if b not in owned],'ungranted':ungranted}
+class FilterModule:
+ def filters(self):return {'gitlab_endpoint_inputs_valid':endpoint_inputs_valid,'gitlab_garage_verdict':garage_verdict}

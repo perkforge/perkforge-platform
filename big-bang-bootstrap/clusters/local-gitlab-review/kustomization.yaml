@@ -1,0 +1,27 @@
+# Dormant or disabled review stage; explicit immutable-release selection required.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-headlamp-sso
+- ../../configuration/packages/gitlab
+- ../../configuration/packages/gitlab-runner
+patches:
+- target:
+    group: helm.toolkit.fluxcd.io
+    version: v2
+    kind: HelmRelease
+    name: bigbang
+  patch: "- op: add\n  path: /spec/valuesFrom/-\n  value:\n    kind: ConfigMap\n \
+    \   name: values-gitlab\n    valuesKey: values.yaml\n- op: add\n  path: /spec/valuesFrom/-\n\
+    \  value:\n    kind: ConfigMap\n    name: values-gitlab-lab\n    valuesKey: values.yaml\n\
+    - op: add\n  path: /spec/valuesFrom/-\n  value:\n    kind: ConfigMap\n    name:\
+    \ values-gitlab-sso\n    valuesKey: values.yaml\n- op: add\n  path: /spec/valuesFrom/-\n\
+    \  value:\n    kind: ConfigMap\n    name: values-gitlab-postgres-tls\n    valuesKey:\
+    \ values.yaml\n- op: add\n  path: /spec/valuesFrom/-\n  value:\n    kind: ConfigMap\n\
+    \    name: values-gitlab-data\n    valuesKey: values.yaml\n- op: add\n  path:\
+    \ /spec/valuesFrom/-\n  value:\n    kind: ConfigMap\n    name: values-gitlab-runner\n\
+    \    valuesKey: values.yaml\n"
+commonAnnotations:
+  platform.perkforge.io/cluster: local
+  platform.perkforge.io/environment: local
+  platform.perkforge.io/profile: il2

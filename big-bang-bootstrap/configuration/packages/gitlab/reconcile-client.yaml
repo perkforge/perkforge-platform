@@ -1,0 +1,91 @@
+# Dedicated Free-tier OIDC login client, no group/role grants or realm replacement.
+- name: Reconcile only the explicitly owned GitLab login client
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [../../authorization/sso/client-scopes.yaml]
+  vars:
+    gitlab_client_run: false
+    gitlab_client_operation: inspect
+    gitlab_client_scope: UNAPPROVED
+    gitlab_client_recovery_verified: false
+    gitlab_client_native_ready: false
+    gitlab_client_mfa_verified: false
+    gitlab_keycloak_origin: https://identity.UNCONFIGURED.invalid
+    gitlab_keycloak_path: /auth
+    gitlab_origin: https://gitlab.UNCONFIGURED.invalid
+    gitlab_public_ca_file: /UNCONFIGURED/public-ca
+    gitlab_admin_username_file: /UNCONFIGURED/username
+    gitlab_admin_password_file: /UNCONFIGURED/password
+    gitlab_client_secret_file: /UNCONFIGURED/client-secret
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ gitlab_public_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      unredirected_headers: [Authorization]
+      timeout: 20
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Dedicated GitLab client only; default/check mode contacts no API. No GitLab user approval, native membership, app role mapping, credential generation or rotation.'
+  - when: gitlab_client_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - gitlab_client_operation in ['inspect','prepare','activate','rollback']
+        - gitlab_client_scope == 'gitlab-client-' + gitlab_client_operation + '-v1'
+        - gitlab_client_recovery_verified | bool
+        - gitlab_client_operation != 'activate' or (gitlab_client_native_ready | bool and gitlab_client_mfa_verified | bool)
+        - gitlab_keycloak_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - gitlab_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - "'UNCONFIGURED' not in gitlab_keycloak_origin and 'UNCONFIGURED' not in gitlab_origin"
+        - gitlab_keycloak_path in ['', '/auth']
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop: "{{ [gitlab_admin_username_file,gitlab_admin_password_file] + ([gitlab_client_secret_file] if gitlab_client_operation != 'rollback' else []) }}"
+      register: gitlab_client_files
+    - ansible.builtin.assert:
+        that:
+        - item.item is match('^/') and item.item | realpath == item.item
+        - item.stat.isreg | default(false)
+        - not (item.stat.islnk | default(false))
+        - item.stat.mode == '0600'
+        - item.stat.pw_name == lookup('env','USER')
+        - item.stat.size > 0 and item.stat.size < 4096
+      loop: '{{ gitlab_client_files.results }}'
+    - ansible.builtin.uri:
+        url: '{{ gitlab_keycloak_origin }}{{ gitlab_keycloak_path }}/realms/master/protocol/openid-connect/token'
+        method: POST
+        body_format: form-urlencoded
+        body:
+          client_id: admin-cli
+          grant_type: password
+          username: "{{ lookup('file',gitlab_admin_username_file) | trim }}"
+          password: "{{ lookup('file',gitlab_admin_password_file) | trim }}"
+      register: gitlab_client_login
+    - ansible.builtin.set_fact:
+        sso_client_api: '{{ gitlab_keycloak_origin }}{{ gitlab_keycloak_path }}/admin/realms/perkforge'
+        sso_client_headers: {Authorization: 'Bearer {{ gitlab_client_login.json.access_token }}'}
+        cacheable: false
+    - ansible.builtin.include_tasks: tasks/client.yaml
+    always:
+    - name: End only this verifier's ephemeral admin session when issued
+      ansible.builtin.uri:
+        url: '{{ gitlab_keycloak_origin }}{{ gitlab_keycloak_path }}/realms/master/protocol/openid-connect/logout'
+        method: POST
+        body_format: form-urlencoded
+        body:
+          client_id: admin-cli
+          refresh_token: '{{ gitlab_client_login.json.refresh_token }}'
+        status_code: 204
+      when: gitlab_client_login is defined and gitlab_client_login.json.refresh_token is defined
+    - ansible.builtin.set_fact:
+        gitlab_client_login: {}
+        gitlab_client_credential: {}
+        sso_client_headers: {}
+        cacheable: false
+      no_log: true

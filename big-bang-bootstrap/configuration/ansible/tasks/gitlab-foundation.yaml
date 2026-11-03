@@ -1,0 +1,58 @@
+- ansible.builtin.set_fact:
+    gitlab_foundation_documents: []
+    cacheable: false
+- ansible.builtin.set_fact:
+    gitlab_foundation_documents: "{{ gitlab_foundation_documents + (lookup('file',gitlab_package_directory + '/' + item) | from_yaml_all | select | list) }}"
+  loop: [gitlab/prerequisites/installer.yaml, cloudnative-pg/prerequisites.yaml, gitlab/data-services/providers/prerequisites.yaml, gitlab-runner/prerequisites/runtime.yaml, gitlab-runner/prerequisites/installer.yaml]
+- ansible.builtin.set_fact:
+    gitlab_foundation_documents: "{{ gitlab_foundation_documents + [item | combine({'metadata':item.metadata | combine({'labels':(item.metadata.labels | default({})) | combine({'perkforge.io/owner':'platform-cnpg-foundation-v1'})})})] }}"
+  loop: '{{ gitlab_cnpg_crds }}'
+- ansible.builtin.assert:
+    that:
+    - item.kind in ['Namespace','ServiceAccount','Role','RoleBinding','ClusterRole','ClusterRoleBinding','ResourceQuota','NetworkPolicy','CustomResourceDefinition']
+    - "item.metadata.labels['perkforge.io/owner'] in ['gitlab-foundation-v1','platform-cnpg-foundation-v1','gitlab-data-foundation-v1','gitlab-runner-foundation-v1']"
+  loop: '{{ gitlab_foundation_documents }}'
+- name: Inspect existing global operator ownership before any foundation writes
+  ansible.builtin.command:
+    argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, '{{ item.kind }}', '{{ item.name }}', --ignore-not-found, -o, json]
+  loop: "{{ (lookup('file',gitlab_package_directory + '/cloudnative-pg/authority-review.yaml') | from_yaml).global_objects | rejectattr('kind','equalto','CustomResourceDefinition') | list }}"
+  changed_when: false
+  register: gitlab_operator_before
+- ansible.builtin.assert:
+    that:
+    - "existing.metadata.labels['app.kubernetes.io/managed-by'] | default('') == 'Helm'"
+    - "existing.metadata.labels['helm.sh/chart'] | default('') == 'cloudnative-pg-0.29.1'"
+    - "existing.metadata.annotations['meta.helm.sh/release-name'] | default('') == 'platform-cnpg'"
+    - "existing.metadata.annotations['meta.helm.sh/release-namespace'] | default('') == 'cnpg-system'"
+  vars:
+    existing: '{{ item.stdout | from_json }}'
+  loop: '{{ gitlab_operator_before.results }}'
+  when: item.stdout | length > 0
+- name: Inspect every target before any creation
+  ansible.builtin.command:
+    argv: "{{ ['kubectl','--kubeconfig',target_kubeconfig,'--context',target_context,'get',item.kind,item.metadata.name,'--ignore-not-found','-o','json'] + (['-n',item.metadata.namespace] if item.metadata.namespace is defined else []) }}"
+  loop: '{{ gitlab_foundation_documents }}'
+  changed_when: false
+  register: gitlab_foundation_before
+- name: Refuse foreign ownership or configuration before writes
+  ansible.builtin.assert:
+    that: item.stdout | from_json | gitlab_foundation_matches(item.item)
+  loop: '{{ gitlab_foundation_before.results }}'
+  when: item.stdout | length > 0
+- name: Create missing foundations only; never patch or adopt existing objects
+  ansible.builtin.command:
+    argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', create, -f, '-']
+    stdin: '{{ item.item | to_json }}'
+    stdin_add_newline: false
+  loop: '{{ gitlab_foundation_before.results }}'
+  when: item.stdout | length == 0
+  changed_when: true
+- name: Read back every exact target
+  ansible.builtin.command:
+    argv: "{{ ['kubectl','--kubeconfig',target_kubeconfig,'--context',target_context,'get',item.kind,item.metadata.name,'-o','json'] + (['-n',item.metadata.namespace] if item.metadata.namespace is defined else []) }}"
+  loop: '{{ gitlab_foundation_documents }}'
+  changed_when: false
+  register: gitlab_foundation_after
+- ansible.builtin.assert:
+    that: item.stdout | from_json | gitlab_foundation_matches(item.item)
+  loop: '{{ gitlab_foundation_after.results }}'
