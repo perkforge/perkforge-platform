@@ -403,6 +403,17 @@ views {
     platform.rke2.server.rbac -> platform.headlamp '7. Separately authorize verb/resource/scope; owned admin-group binding gives cluster-admin, otherwise deny'
   }
 
+  dynamic view gitlab_coordinated_outcome {
+    title 'GitLab + SSO + runner — independently gated preparation'
+    description 'Not live: data-service selection and capacity, native access/offboarding, private credentials, runner installer/egress and real acceptance remain prerequisites. Free claims never imply native tenant membership.'
+    engineer -> platform.gitlab '1. Review providers, TLS, capacity and independent recovery; deploy only reviewed immutable source'
+    platform.gitlab -> platform.cloudnative_pg '2. Dedicated GitLab database reconciled by the shared, explicitly scoped platform operator; no tenant access implied'
+    platform.gitlab -> platform.keycloak.runtime '3. Dedicated authorization-code/S256 login; stable subject, blocked new accounts, no automatic email linking'
+    engineer -> platform.gitlab '4. Explicit native private-group/project membership; test deny and offboarding separately'
+    platform.gitlab -> platform.rke2 '5. Protected project runner requests one job pod in isolated job namespace; no job token or privileged mode'
+    engineer -> platform.gitlab '6. Accept clone/artifact job, negative tenant/runner access, cleanup and recovery together'
+  }
+
   dynamic view production_tls_lifecycle {
     title 'Who does what and why — production TLS lifecycle (proposed)'
     description 'Design only: no production issuer/renewal automation deployed. Keep target/profile trust separate from shared artifacts; current lab internal HTTP and database gaps remain explicit.'

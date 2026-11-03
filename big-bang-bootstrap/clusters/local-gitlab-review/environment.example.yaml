@@ -1,0 +1,8 @@
+# Public local inputs only; keep real paths/credentials in owner-local protected files.
+# Every write/apply gate remains false in the playbook defaults.
+gitlab_transport_domain: perkforge.home.arpa
+gitlab_cluster_dns_domain: cluster.local
+gitlab_origin: https://gitlab.perkforge.home.arpa
+gitlab_object_endpoint: https://gitlab-objects.perkforge.home.arpa
+gitlab_keycloak_origin: https://keycloak.perkforge.home.arpa
+gitlab_keycloak_path: /auth

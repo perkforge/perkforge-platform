@@ -1,0 +1,103 @@
+- name: Validate and assemble one existing leaf certificate privately
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    gitlab_transport_run: false
+    gitlab_transport_scope: UNAPPROVED
+    gitlab_transport_profile: UNCONFIGURED
+    gitlab_transport_domain: UNCONFIGURED.invalid
+    gitlab_cluster_dns_domain: cluster.local
+    gitlab_transport_cert: /UNCONFIGURED/leaf
+    gitlab_transport_key: /UNCONFIGURED/key
+    gitlab_transport_ca: /UNCONFIGURED/ca
+    gitlab_transport_ca_sha256: UNCONFIGURED
+    gitlab_private_output_directory: /UNCONFIGURED/output
+    gitlab_transport_contract:
+      web: {name: gitlab-local-tls, type: kubernetes.io/tls, hostname: 'gitlab.{{ gitlab_transport_domain }}'}
+      objects: {name: gitlab-objects-local-tls, type: kubernetes.io/tls, hostname: 'gitlab-objects.{{ gitlab_transport_domain }}'}
+      valkey: {name: gitlab-valkey-tls, type: Opaque, hostname: 'gitlab-valkey.gitlab.svc.{{ gitlab_cluster_dns_domain }}'}
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check mode writes nothing. Existing directly CA-signed leaves only; no issuance, renewal, trust change or API contact.'
+  - when: gitlab_transport_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - gitlab_transport_scope == 'gitlab-transport-private-assembly-v1'
+        - gitlab_transport_profile in gitlab_transport_contract
+        - gitlab_transport_domain is match('^[A-Za-z0-9.-]+$') and 'UNCONFIGURED' not in gitlab_transport_domain
+        - gitlab_cluster_dns_domain is match('^[A-Za-z0-9.-]+$')
+        - gitlab_transport_ca_sha256 is match('^[a-f0-9]{64}$')
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+        checksum_algorithm: sha256
+      loop: '{{ [gitlab_transport_cert,gitlab_transport_key,gitlab_transport_ca] }}'
+      register: gitlab_transport_files
+    - ansible.builtin.assert:
+        that:
+        - item.item is match('^/') and item.item | realpath == item.item
+        - item.stat.isreg | default(false)
+        - not (item.stat.islnk | default(false))
+        - item.stat.pw_name == lookup('env','USER')
+        - item.stat.size > 0 and item.stat.size < 65536
+      loop: '{{ gitlab_transport_files.results }}'
+    - ansible.builtin.assert:
+        that:
+        - gitlab_transport_files.results[1].stat.mode == '0600'
+        - gitlab_transport_files.results[2].stat.checksum == gitlab_transport_ca_sha256
+        - "'PRIVATE KEY' not in lookup('file',gitlab_transport_cert) + lookup('file',gitlab_transport_ca)"
+        - lookup('file',gitlab_transport_cert) | regex_findall('BEGIN CERTIFICATE') | length == 1
+        - lookup('file',gitlab_transport_ca) | regex_findall('BEGIN CERTIFICATE') | length == 1
+    - ansible.builtin.command:
+        argv: [openssl, x509, -in, '{{ item }}', -noout, -ext, basicConstraints, -checkend, '86400']
+      loop: '{{ [gitlab_transport_cert,gitlab_transport_ca] }}'
+      changed_when: false
+      register: gitlab_transport_constraints
+    - ansible.builtin.assert:
+        that:
+        - "'CA:FALSE' in gitlab_transport_constraints.results[0].stdout"
+        - "'CA:TRUE' in gitlab_transport_constraints.results[1].stdout"
+    - ansible.builtin.command:
+        argv: [openssl, verify, -CAfile, '{{ gitlab_transport_ca }}', -purpose, sslserver, -verify_hostname, '{{ gitlab_transport_contract[gitlab_transport_profile].hostname }}', '{{ gitlab_transport_cert }}']
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [openssl, pkey, -in, '{{ gitlab_transport_key }}', -passin, 'pass:', -pubout]
+      changed_when: false
+      register: gitlab_transport_key_public
+    - ansible.builtin.command:
+        argv: [openssl, x509, -in, '{{ gitlab_transport_cert }}', -pubkey, -noout]
+      changed_when: false
+      register: gitlab_transport_cert_public
+    - ansible.builtin.assert:
+        that: gitlab_transport_key_public.stdout == gitlab_transport_cert_public.stdout
+    - ansible.builtin.set_fact:
+        gitlab_transport_data:
+          tls.crt: "{{ lookup('file',gitlab_transport_cert,rstrip=false) }}"
+          tls.key: "{{ lookup('file',gitlab_transport_key,rstrip=false) }}"
+        cacheable: false
+    - ansible.builtin.set_fact:
+        gitlab_transport_data: "{{ gitlab_transport_data | combine({'ca.crt':lookup('file',gitlab_transport_ca,rstrip=false)}) }}"
+      when: gitlab_transport_profile == 'valkey'
+    - ansible.builtin.include_tasks: tasks/private-output.yaml
+      vars:
+        gitlab_private_output_name: '{{ gitlab_transport_profile }}.json'
+        gitlab_private_payload:
+          apiVersion: v1
+          kind: List
+          items:
+          - apiVersion: v1
+            kind: Secret
+            metadata:
+              name: '{{ gitlab_transport_contract[gitlab_transport_profile].name }}'
+              namespace: gitlab
+              labels: {perkforge.io/owner: gitlab-transport-v1}
+            type: '{{ gitlab_transport_contract[gitlab_transport_profile].type }}'
+            stringData: '{{ gitlab_transport_data }}'
+    always:
+    - ansible.builtin.set_fact:
+        gitlab_transport_data: {}
+        cacheable: false
+      no_log: true

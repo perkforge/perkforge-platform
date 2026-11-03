@@ -1,0 +1,52 @@
+# Generic route skeleton; selected environment supplies reviewed public hostnames.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gitlab-web
+  namespace: gitlab
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: 'true'
+spec:
+  ingressClassName: traefik
+  tls:
+  - hosts:
+    - gitlab.UNCONFIGURED.invalid
+    secretName: gitlab-local-tls
+  rules:
+  - host: gitlab.UNCONFIGURED.invalid
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gitlab-webservice-default
+            port:
+              name: http-workhorse
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gitlab-objects
+  namespace: gitlab
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: 'true'
+spec:
+  ingressClassName: traefik
+  tls:
+  - hosts:
+    - gitlab-objects.UNCONFIGURED.invalid
+    secretName: gitlab-objects-local-tls
+  rules:
+  - host: gitlab-objects.UNCONFIGURED.invalid
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gitlab-garage
+            port:
+              name: s3

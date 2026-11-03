@@ -1,5 +1,31 @@
 # Current operator handoff
 
+## GitLab coordinated preparation — no activation
+
+Only GitLab scope from old stacked #114 is reconciled here; observability
+predecessors and PR bases are untouched. The disabled combined review root adds
+public values only and preserves existing objects. GitLab, its shared database
+operator foundation, Valkey, Garage and the protected-project runner are not live.
+
+Corey chose CloudNativePG as the shared platform foundation. The suspended
+operator is in cnpg-system, initially watches gitlab only, and retains explicit
+namespace RBAC plus reviewed global CRD/webhook permissions. Installer delegation
+is authored but not applied. Additional database namespaces require explicit
+watch/RBAC changes, rather than another operator instance.
+
+Ansible owns credential/CA/leaf preparation and delivery, Garage bootstrap and
+runner-network assembly. Python is verification and independent fixtures only.
+Default/check modes perform no API writes. Actual native account approval,
+instance administration, SSO, database/S3 persistence, runner jobs, transport/CNI
+and backup/restore acceptance are still gated. Fixtures do not establish those
+outcomes. The exact pinned webservice CNG ActiveRecord/PG TLS rejection fixture
+passed; its authorized one-time pull saved no registry login.
+
+Corey selected the encrypted 128 GB external drive for initial independent backup
+custody; no drive access is authorized or performed. Capacity, unlock, retention
+and restore need separate acceptance. See the
+[coordinated procedure](big-bang-bootstrap/configuration/packages/gitlab/coordinated-outcome.md).
+
 ## OpenBao SSO configured — 2026-11-03 18:49 UTC
 
 Approved batch executed clean merged #153 source

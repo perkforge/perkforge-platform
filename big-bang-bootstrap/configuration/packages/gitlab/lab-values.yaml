@@ -1,0 +1,12 @@
+# Optional small-lab availability tradeoff, never root-selected or enabled here.
+# Preserve per-container vendor memory; reduce replicas rather than hide requests.
+addons:
+  gitlab:
+    enabled: false
+    flux: {suspend: true}
+    values:
+      upstream:
+        gitlab:
+          webservice: {minReplicas: 1, maxReplicas: 1}
+          gitlab-shell: {minReplicas: 1, maxReplicas: 1}
+          sidekiq: {minReplicas: 1, maxReplicas: 1}
