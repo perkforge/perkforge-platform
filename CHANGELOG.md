@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.2](https://github.com/perkforge/perkforge-platform/compare/v0.15.1...v0.15.2) (2026-11-03)
+
+
+### Bug Fixes
+
+* **headlamp:** validate pinned OIDC arguments and enable PKCE ([#144](https://github.com/perkforge/perkforge-platform/issues/144)) ([0186c34](https://github.com/perkforge/perkforge-platform/commit/0186c348f064d9e72f12dc76e4393c0e6e8e1182))
+
 ## [0.15.1](https://github.com/perkforge/perkforge-platform/compare/v0.15.0...v0.15.1) (2026-11-03)
 
 
