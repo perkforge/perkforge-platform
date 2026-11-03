@@ -4,6 +4,30 @@ kind: ClusterRoleBinding
 metadata: {name: proposed-platform-admin}
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: cluster-admin}
 subjects: [{kind: Group, apiGroup: rbac.authorization.k8s.io, name: '{{ authorization_group_prefix }}{{ authorization_platform_admin_group }}'}]
+# cluster-admin can bypass tenant Secret restrictions; this is not a privacy boundary.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: proposed-platform-viewer}
+rules:
+- apiGroups: ['']
+  resources: [nodes, namespaces, pods, services, events, persistentvolumeclaims]
+  verbs: [get, list, watch]
+- apiGroups: [apps]
+  resources: [deployments, statefulsets, daemonsets, replicasets]
+  verbs: [get, list, watch]
+- apiGroups: [batch]
+  resources: [jobs, cronjobs]
+  verbs: [get, list, watch]
+- apiGroups: [metrics.k8s.io]
+  resources: [nodes, pods]
+  verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: proposed-platform-viewer}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: proposed-platform-viewer}
+subjects: [{kind: Group, apiGroup: rbac.authorization.k8s.io, name: '{{ authorization_group_prefix }}{{ authorization_platform_viewer_group }}'}]
 {% for tenant in authorization_tenants %}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -42,7 +66,33 @@ rules:
 - apiGroups: ['']
   resources: [pods/log]
   verbs: [get]
-{% for role,child in [('admin','admins'),('developer','developers')] %}
+- apiGroups: ['']
+  resources: [services, configmaps]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [networking.k8s.io]
+  resources: [ingresses]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: ['']
+  resources: [secrets]
+  verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: proposed-tenant-viewer, namespace: tenant-{{ tenant }}}
+rules:
+- apiGroups: [apps]
+  resources: [deployments, statefulsets, daemonsets, replicasets]
+  verbs: [get, list, watch]
+- apiGroups: ['']
+  resources: [pods, services, events, persistentvolumeclaims]
+  verbs: [get, list, watch]
+- apiGroups: [batch]
+  resources: [jobs, cronjobs]
+  verbs: [get, list, watch]
+- apiGroups: [networking.k8s.io]
+  resources: [ingresses]
+  verbs: [get, list, watch]
+{% for role,child in [('admin','admins'),('developer','developers'),('viewer','viewers')] %}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

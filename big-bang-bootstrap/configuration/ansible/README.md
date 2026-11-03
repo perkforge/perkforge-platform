@@ -11,10 +11,50 @@ Dependency chain: RKE2 → Flux foundation → Big Bang umbrella → Longhorn �
 3. Longhorn prerequisites: after Flux namespaces exist, explicitly approve longhorn-prerequisites.yaml to apply common Big Bang and Longhorn namespace/installer RBAC. Review privileged permissions. No application TLS, identity namespace or tenant authority is needed for this stage.
 4. Longhorn activation: select a new published release containing the active outer release and Longhorn child. The v0.10.0 staging release keeps them suspended and cannot activate storage. Separately approve resuming the release-pinned seed source/root after the prerequisites above. The first storage-only release v0.11.3 passed this checkpoint. This candidate now also selects Rancher, so do not mistake it for the initial storage-only input. Shared Headlamp defaults remain disabled and identity values references optional. Run readiness.yaml phase storage. Validate a disposable claim with write/recreate persistence, reattachment and two healthy replicas on distinct workers before proceeding. Readiness alone does not prove durable I/O or backup recovery.
 5. Rancher: storage acceptance passed and this candidate selects its package in the same authoritative root. Approve its namespace/installer RBAC, Rancher-only TLS/public CA delivery and external bootstrap-values Secret separately, then its Helm activation. Rancher has no fabricated PVC dependency; this ordering is an operator acceptance checkpoint. Verify HTTPS and local administration before adding SSO.
-6. Identity applications: Headlamp, Keycloak and OpenBao remain unselected. Later select reviewed packages and prerequisites, deliver their named credentials/TLS and validate placement/storage. Keycloak prerequisites default to the Longhorn overlay. PostgreSQL → Keycloak → Headlamp readiness precedes realm/client, API OIDC and Rancher SSO configuration; those security changes require separate approval. API OIDC maintenance includes protected configuration backup and separately approved control-plane restart.
+6. Initial app access: this candidate selects OpenBao and Headlamp token mode; Keycloak remains a separate later source stage. Source selection is not live deployment approval. Deliver reviewed prerequisites and named credentials/TLS, then validate placement/storage and the per-app health report below. OpenBao initialization/unseal and Headlamp token identity require their own approved scope; token-mode Headlamp does not depend on Keycloak. For later OIDC, PostgreSQL/Keycloak readiness precedes realm/client, API OIDC and app SSO configuration; those security changes remain separate. API OIDC maintenance includes protected configuration backup and a separately approved control-plane restart.
 7. Enrollment remains omitted. Only after core and identity/security acceptance, select ../../enrollments/local and review compatible published downstream inputs and source/reconciler activation. Its retained definitions stay independently paused. readiness.yaml phase enrollment observes the parent; tenant foundations/apps remain in enrollment/application Git.
 
 Kustomize file order is not readiness. Database startup also retains a bounded native readiness init-container. Checks observe status; they never activate, scale or create extra reconcilers. Enabling gates or resuming resources outside reviewed source cannot replace this sequence.
+
+## Health and capacity acceptance after every app
+
+After each successful app deployment, provide the operator a timestamped health/
+resource breakdown before calling that stage accepted or starting the next app.
+Reuse the existing read-only resource snapshot command set and the explicit
+kubeconfig/context/cluster-UID gate in [readiness.yaml](readiness.yaml): Kubernetes
+node/pod status, metrics API (`kubectl top nodes` and `kubectl top pods -A`), node allocation/request/
+limit summaries and Longhorn node/volume/replica status. Do not install metrics
+components, read Secret data, repair or change workloads as part of this report.
+
+- Per node: actual CPU and RAM usage with units/percent of allocatable, separately
+  from summed pod requests/limits; identify unrequested/unlimited workloads and
+  overcommit. Missing/stale metrics mean unavailable, never zero or requests-as-use.
+- Node Ready/pressure, pod/controller readiness, Pending/failed/crash-looping pods,
+  restarts and the largest consumers; distinguish expected completed jobs and
+  intentionally detached volumes from failures.
+- Per Longhorn worker: raw/free/reserved/scheduled disk space, healthy versus
+  degraded replica/volume state, two-copy overhead and remaining usable headroom.
+  Replication is not backup; do not equate scheduled capacity with measured bytes.
+- Where comparable, show the delta from the previous app's snapshot, naming both
+  timestamps/versions and sample age. An instantaneous quiet sample is not a peak
+  load or full-stack capacity guarantee. Explain any noncomparable baseline.
+
+Save safe results/status automatically with that app's protected `.rke2-state/`
+run evidence; public handoff contains only sanitized aggregates/limits and evidence
+references. Do not require the operator to transcribe terminal output. This is an
+acceptance requirement within each approved deployment/acceptance batch, not
+authority to deploy apps, change access or repair health, and not a claim that a
+new reporting wrapper exists. A failed readiness/health gate stops the next stage;
+no automatic eviction, cleanup or capacity repair.
+
+After the app stages, an early Grafana goal is a cluster overview covering these
+same node/workload/storage signals. Assess the six queued starting dashboards in
+[metrics draft #111](https://github.com/perkforge/perkforge-platform/pull/111) first.
+A community dashboard is welcome after reviewing its metric names, RKE2/exporter
+labels, datasource UID/variables, units, plugin/version/license requirements and
+access boundaries. Keep reviewed dashboard JSON/datasources in Git; no blind
+imports or unsupported metrics presented as healthy zeroes. Grafana deployment
+and dashboard/live-data acceptance remain separate future approved work.
 
 ## Longhorn-only release and seed activation
 

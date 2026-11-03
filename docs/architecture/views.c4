@@ -178,89 +178,36 @@ views {
     platform.storage.acceptance -> engineer '7. Retain test claim/PV/volume, final pod and evidence; cleanup needs separate approval'
   }
 
-  dynamic view metrics_provisioning {
-    title 'Metrics/Grafana provisioning — implemented candidate, inactive'
-    description 'No live approval or root selection. Current-network policy must be tested; future Istio/Gateway direction is not implemented here.'
-    engineer -> platform.prerequisite_applier '1. Review exact release/target, operator/CRD compatibility, budgets and protected inputs'
-    platform.prerequisite_applier -> platform.observability.metrics_installer '2. Default-off Ansible validates exact API /32s and applies scoped namespace/roles/policies/six dashboards'
-    engineer -> platform.flux '3. Future reviewed selection only after credentials/policy and privileged grants are approved'
-    platform.bigbang -> platform.observability.metrics_installer '4. Helm-controller uses separate child identities; source writer cannot self-grant'
-    platform.observability.metrics_installer -> platform.observability.stores '5. Native CRDs/operator/Prometheus/Alertmanager; supported certificate patch jobs keep webhooks enabled'
-    platform.observability.metrics_installer -> platform.observability.grafana '6. Native Grafana files plus namespace ConfigMap-only runtime reader; no cross-namespace Secrets'
-    platform.observability.grafana -> engineer '7. Verify real scrapes/admin/dashboards, no duplicate pipeline, resource/retention and network deny behavior'
+  view authorization_roles {
+    title 'Who does what and why — six human roles and trust boundaries'
+    description 'Proposed shared realm and role intent; no live grants. Zoom into core apps, observability, collaboration and tenant examples. App policies cannot promise secrecy against cluster/shared-identity administrators.'
+    link /runbook.html#authorization-matrix 'Matrix, evidence classes and implementation gates'
+    include platform.authorization.roles.pa, platform.authorization.roles.pe, platform.authorization.roles.pv, platform.authorization.roles.ta, platform.authorization.roles.td, platform.authorization.roles.tv, platform.authorization.groups, platform.authorization.clients, platform.authorization.ownership
   }
-
-  dynamic view sonarqube_initial_admin {
-    title 'SonarQube Community Build — blocked candidate'
-    engineer -> platform.sonarqube '1. Review free feature limits, external PostgreSQL, host limits and cumulative storage/memory'
-    engineer -> platform.prerequisite_applier '2. Separately approve current TLS/CA and protected JDBC/admin-reset/passcode references'
-    platform.prerequisite_applier -> platform.sonarqube '3. Future namespace installer CRUD only; no cluster grant or privileged init'
-    platform.bigbang -> platform.sonarqube '4. After gates and release approval, delegated Helm creates app and protected admin-reset hook'
-    platform.sonarqube -> engineer '5. Verify UP, trusted local admin, sample quality gate and restore; GitLab tokens/SSO remain future'
+  view authorization_core_apps {
+    title 'Role mappings — Core identity/infrastructure'
+    description 'Design matrix, not deployed integrations. Select each app for PA/PE/PV/TA/TD/TV scope, edition limits and missing enforcement. Every app validates its client/token and resource ownership; machine identities are separate.'
+    link /runbook.html#authorization-matrix 'Role matrix and source/test links'
+    include platform.authorization.clients, platform.authorization.ownership, platform.authorization.mappings.keycloak, platform.authorization.mappings.kubernetes, platform.authorization.mappings.rancher, platform.authorization.mappings.openbao, platform.authorization.mappings.longhorn
   }
-
-  dynamic view mattermost_initial_admin {
-    title 'Mattermost operator and admin — blocked candidate'
-    engineer -> platform.mattermost '1. Decide edition, cumulative data-service capacity and explicit cluster-wide operator trust; not approved'
-    engineer -> platform.prerequisite_applier '2. Future scoped approval for protected inputs, physical TLS, namespace and named installer delegation'
-    platform.prerequisite_applier -> platform.mattermost '3. Ansible grants reviewed prerequisite rights; Helm creates operator CRDs/runtime account'
-    platform.bigbang -> platform.mattermost '4. After gates and release approval, child creates Mattermost CR; operator creates runtime workloads'
-    platform.mattermost -> engineer '5. Controlled trusted initial admin, messaging/files, authorization and restore tests; SSO later'
+  view authorization_observability {
+    title 'Role mappings — Observability query and notification boundaries'
+    description 'Design matrix, not deployed integrations. Select each app for PA/PE/PV/TA/TD/TV scope, edition limits and missing enforcement. Every app validates its client/token and resource ownership; machine identities are separate.'
+    link /runbook.html#authorization-matrix 'Role matrix and source/test links'
+    include platform.prerequisite_applier, platform.authorization.clients, platform.authorization.ownership, platform.authorization.mappings.grafana, platform.authorization.mappings.prometheus, platform.authorization.mappings.loki, platform.authorization.mappings.alloy, platform.authorization.mappings.alerts
   }
-
-  dynamic view harbor_initial_admin {
-    title 'Harbor initial administration — blocked candidate'
-    engineer -> platform.harbor '1. Review supported external data services, capacity, TLS/network and explicit deferred scanner scope'
-    engineer -> platform.prerequisite_applier '2. Separately approve protected admin/signing/encryption inputs and namespace installer rights'
-    platform.prerequisite_applier -> platform.harbor '3. Future grants only namespace chart/history CRUD, no cluster RBAC'
-    platform.bigbang -> platform.harbor '4. After gates and release approval, delegated Helm deploys registry using Secret references'
-    platform.harbor -> engineer '5. Verify trusted admin, authenticated push/pull and denial, persistence/restore; SSO/CI robots later'
+  view authorization_collaboration {
+    title 'Role mappings — Collaboration project/team permissions'
+    description 'Design matrix, not deployed integrations. Select each app for PA/PE/PV/TA/TD/TV scope, edition limits and missing enforcement. Every app validates its client/token and resource ownership; machine identities are separate.'
+    link /runbook.html#authorization-matrix 'Role matrix and source/test links'
+    include platform.authorization.clients, platform.authorization.ownership, platform.authorization.mappings.mattermost, platform.authorization.mappings.gitlab, platform.authorization.mappings.harbor, platform.authorization.mappings.sonarqube
   }
-
-  dynamic view gitlab_initial_admin {
-    title 'GitLab initial administration — blocked candidate'
-    description 'Who does what and why: real disabled profile, not approved deployment; external datastore/capacity/TLS decisions remain.'
-    engineer -> platform.gitlab '1. Review Free baseline, exact versions and cumulative app plus PostgreSQL/Redis/object-store capacity'
-    engineer -> platform.prerequisite_applier '2. Separately approve current physical TLS and protected admin/recovery inputs; no credentials in source'
-    platform.prerequisite_applier -> platform.gitlab '3. Future reviewed namespace installer and shared-secret Job authority; no cluster grant'
-    platform.bigbang -> platform.gitlab '4. Only after gates: approved release selection uses delegated installer, creates workloads and application recovery Secrets'
-    platform.gitlab -> engineer '5. Verify trusted local admin, clone/push, persistence/restore; stop before SSO, runners or migration'
+  view authorization_tenant_apps {
+    title 'Role mappings — Tenant app and control-component examples'
+    description 'Design matrix, not deployed integrations. Select each app for PA/PE/PV/TA/TD/TV scope, edition limits and missing enforcement. Every app validates its client/token and resource ownership; machine identities are separate.'
+    link /runbook.html#authorization-matrix 'Role matrix and source/test links'
+    include platform.prerequisite_applier, platform.authorization.clients, platform.authorization.ownership, platform.authorization.mappings.portal, platform.authorization.mappings.nextcloud, platform.authorization.mappings.velero, platform.authorization.mappings.trivy, platform.authorization.mappings.traffic
   }
-
-  dynamic view observability_acceptance {
-    title 'Alert ownership and acceptance gates — inactive'
-    description 'Who does what and why: offline native rules/render tests only. No notification destination or live acceptance claimed.'
-    engineer -> platform.observability.alerts '1. Review native rules plus three lab thresholds; approve exact release and one notification contract'
-    platform.observability.stores -> platform.observability.alerts '2. Future Prometheus evaluates rules; bundled Alertmanager owns Git routing/grouping/inhibition'
-    platform.observability.grafana -> platform.observability.alerts '3. Human viewing/silences; external contacts read-only; no duplicate Grafana route'
-    platform.observability.alerts -> platform.observability.notification '4. BLOCKED: TLS/auth/payload adapter and firing/resolved/dedup evidence required before routing'
-    engineer -> platform.prerequisite_applier '5. Separately approve read-only UID-checked readiness capture to fresh protected evidence directory'
-    platform.prerequisite_applier -> engineer '6. Stop on failed condition; actual scrapes/log auth/retention/notification/recovery acceptance remains separate'
-  }
-
-  dynamic view logging_provisioning {
-    title 'Opt-in API logs and authenticated Loki — inactive candidate'
-    description 'Who does what and why: rendered and permission-audited, not deployed; no tenant access or network acceptance claimed.'
-    engineer -> platform.prerequisite_applier '1. Review release, capacity, exact PKI and separate protected machine credentials; approve changes'
-    platform.prerequisite_applier -> platform.observability.logging_installer '2. Default-off Ansible prepares namespace installers, API log reader and ingress boundary'
-    platform.bigbang -> platform.observability.logging_installer '3. Future approved selection delegates Helm; namespace-only operator manages opt-in collector'
-    platform.observability.logging_installer -> platform.observability.collectors '4. API reads only logging-pilot pods/log, labeled opt-in; no host mounts'
-    platform.observability.collectors -> platform.observability.stores '5. Narrow value redaction then verified HTTPS Basic auth; gateway overwrites tenant header, verifies backend TLS'
-    platform.observability.stores -> engineer '6. Verify real ingest/query, spoofed-header and backend-bypass denial, disk headroom and restore before expansion'
-  }
-
-  dynamic view observability_review {
-    title 'Observability collection and notification — proposed, inactive'
-    description 'Architecture review before deployment. Installer/collector/store/query/human roles remain distinct; source exists only as disabled/paused native candidates. No live validation or tenant isolation claim.'
-    engineer -> platform.observability.collectors '1. Review source pins, scoped collector identity, no duplicates and sensitive-log exclusions'
-    platform.observability.collectors -> platform.observability.stores '2. Proposed metrics/log ingestion; enforce bounded labels, tenant auth and reviewed capacity'
-    platform.observability.stores -> platform.observability.grafana '3. Proposed Git-owned datasources/six dashboards; no tenant access via mere filters'
-    platform.observability.stores -> platform.observability.alerts '4. Preserve native PrometheusRules and bundled Alertmanager evaluation/routing'
-    platform.observability.grafana -> platform.observability.alerts '5. Optional Grafana-managed alerts to same external manager; prove no duplicate path'
-    platform.observability.alerts -> platform.observability.notification '6. Future compatible authenticated TLS ntfy path, grouping/silences/firing/resolved/failure tests'
-    platform.observability.notification -> engineer '7. Verify intended client, disk/ingest impact, isolation and isolated restore; whole-cluster blind spot remains'
-  }
-
   dynamic view authorization_review {
     title 'Who does what and why — proposed human authorization'
     description 'Disabled configuration, not observed grants. Installer/runtime accounts stay distinct from human role groups. Every live migration needs review, credentials, admission and separate approval.'
@@ -268,11 +215,13 @@ views {
     platform.authorization.api_owner -> platform.authorization.groups '2. Offline Ansible renders disabled realm/clients; later API owner must read/compare and refuse conflicts'
     platform.authorization.groups -> platform.headlamp.runtime '3. Proposed Keycloak full-path claims; Headlamp/API issuer and audience both need verification'
     platform.headlamp.runtime -> platform.authorization.tenant_rbac '4. Kubernetes evaluates exact group bindings plus workload admission; tenant A cannot administer B'
-    platform.authorization.groups -> platform.authorization.bao_policies '5. OpenBao validates audience and exact claim-bound role, then its own ACL policies'
+    platform.authorization.groups -> platform.authorization.bao_policies '5. OpenBao: PA platform values/tenant names; TD own value read; consent/emergency still unimplemented'
     platform.authorization.groups -> platform.rancher.runtime '6. Rancher allows platform-admin group only; retain local break-glass, no tenant grants'
     platform.authorization.groups -> platform.authorization.storage_admin '7. Longhorn has no native OIDC RBAC; proxy/access decision remains blocked'
-    platform.authorization.tenant_rbac -> engineer '8. Verify positive/negative API, malicious PodSpec and cross-tenant tests before enabling'
-    platform.authorization.bao_policies -> engineer '9. Verify native capabilities, revocation/session expiry and recovery; promote diagram only with evidence'
+    platform.authorization.tenant_rbac -> engineer '8. Verify six roles, multi-tenant/client replay, query isolation and malicious workload/mapper deny cases before enabling'
+    platform.authorization.bao_policies -> engineer '9. Verify native capabilities and revocation; everyday operator access uses platform-admin SSO'
+    engineer -> custody '10. Keep durable local recovery in independent password-manager custody; bootstrap access may be temporary'
+    custody -> engineer '11. Test local emergency access with SSO unavailable; custody stays off cluster; no live test claimed'
   }
 
   dynamic view keycloak_initial_admin {
@@ -328,6 +277,18 @@ views {
     platform.rancher.runtime -> engineer '8. Verify readiness, trusted HTTPS and local-admin password reset; stop before SSO/lifecycle actions'
   }
 
+  dynamic view observability_review {
+    title 'Observability collection and notification — proposed, inactive'
+    description 'Architecture review before deployment. Installer/collector/store/query/human roles remain distinct; source exists only as disabled/paused native candidates. No live validation or tenant isolation claim.'
+    engineer -> platform.observability.collectors '1. Review source pins, scoped collector identity, no duplicates and sensitive-log exclusions'
+    platform.observability.collectors -> platform.observability.stores '2. Proposed metrics/log ingestion; enforce bounded labels, tenant auth and reviewed capacity'
+    platform.observability.stores -> platform.observability.grafana '3. Proposed Git-owned datasources/six dashboards; no tenant access via mere filters'
+    platform.observability.stores -> platform.observability.alerts '4. Preserve native PrometheusRules and bundled Alertmanager evaluation/routing'
+    platform.observability.grafana -> platform.observability.alerts '5. Optional Grafana-managed alerts to same external manager; prove no duplicate path'
+    platform.observability.alerts -> platform.observability.notification '6. Future compatible authenticated TLS ntfy path, grouping/silences/firing/resolved/failure tests'
+    platform.observability.notification -> engineer '7. Verify intended client, disk/ingest impact, isolation and isolated restore; whole-cluster blind spot remains'
+  }
+
   dynamic view queued_app_identity {
     title 'Queued app identity — proposed, no live grants'
     link /runbook.html#queued-sso 'App-specific contracts, native mappings and acceptance gates'
@@ -336,4 +297,75 @@ views {
     platform.keycloak.runtime -> platform.queued_app_access '2. Proposed app consumes claims; native role/resource boundaries must enforce access'
     platform.queued_app_access -> engineer '3. Approve one app only; verify MFA, allow/deny, independent recovery and rollback before activation'
   }
+  dynamic view metrics_provisioning {
+    title 'Metrics/Grafana provisioning — implemented candidate, inactive'
+    description 'No live approval or root selection. Current-network policy must be tested; future Istio/Gateway direction is not implemented here.'
+    engineer -> platform.prerequisite_applier '1. Review exact release/target, operator/CRD compatibility, budgets and protected inputs'
+    platform.prerequisite_applier -> platform.observability.metrics_installer '2. Default-off Ansible validates exact API /32s and applies scoped namespace/roles/policies/six dashboards'
+    engineer -> platform.flux '3. Future reviewed selection only after credentials/policy and privileged grants are approved'
+    platform.bigbang -> platform.observability.metrics_installer '4. Helm-controller uses separate child identities; source writer cannot self-grant'
+    platform.observability.metrics_installer -> platform.observability.stores '5. Native CRDs/operator/Prometheus/Alertmanager; supported certificate patch jobs keep webhooks enabled'
+    platform.observability.metrics_installer -> platform.observability.grafana '6. Native Grafana files plus namespace ConfigMap-only runtime reader; no cross-namespace Secrets'
+    platform.observability.grafana -> engineer '7. Verify real scrapes/admin/dashboards, no duplicate pipeline, resource/retention and network deny behavior'
+  }
+
+  dynamic view logging_provisioning {
+    title 'Opt-in API logs and authenticated Loki — inactive candidate'
+    description 'Who does what and why: rendered and permission-audited, not deployed; no tenant access or network acceptance claimed.'
+    engineer -> platform.prerequisite_applier '1. Review release, capacity, exact PKI and separate protected machine credentials; approve changes'
+    platform.prerequisite_applier -> platform.observability.logging_installer '2. Default-off Ansible prepares namespace installers, API log reader and ingress boundary'
+    platform.bigbang -> platform.observability.logging_installer '3. Future approved selection delegates Helm; namespace-only operator manages opt-in collector'
+    platform.observability.logging_installer -> platform.observability.collectors '4. API reads only logging-pilot pods/log, labeled opt-in; no host mounts'
+    platform.observability.collectors -> platform.observability.stores '5. Narrow value redaction then verified HTTPS Basic auth; gateway overwrites tenant header, verifies backend TLS'
+    platform.observability.stores -> engineer '6. Verify real ingest/query, spoofed-header and backend-bypass denial, disk headroom and restore before expansion'
+  }
+
+  dynamic view observability_acceptance {
+    title 'Alert ownership and acceptance gates — inactive'
+    description 'Who does what and why: offline native rules/render tests only. No notification destination or live acceptance claimed.'
+    engineer -> platform.observability.alerts '1. Review native rules plus three lab thresholds; approve exact release and one notification contract'
+    platform.observability.stores -> platform.observability.alerts '2. Future Prometheus evaluates rules; bundled Alertmanager owns Git routing/grouping/inhibition'
+    platform.observability.grafana -> platform.observability.alerts '3. Human viewing/silences; external contacts read-only; no duplicate Grafana route'
+    platform.observability.alerts -> platform.observability.notification '4. BLOCKED: TLS/auth/payload adapter and firing/resolved/dedup evidence required before routing'
+    engineer -> platform.prerequisite_applier '5. Separately approve read-only UID-checked readiness capture to fresh protected evidence directory'
+    platform.prerequisite_applier -> engineer '6. Stop on failed condition; actual scrapes/log auth/retention/notification/recovery acceptance remains separate'
+  }
+
+  dynamic view gitlab_initial_admin {
+    title 'GitLab initial administration — blocked candidate'
+    description 'Who does what and why: real disabled profile, not approved deployment; external datastore/capacity/TLS decisions remain.'
+    engineer -> platform.gitlab '1. Review Free baseline, exact versions and cumulative app plus PostgreSQL/Redis/object-store capacity'
+    engineer -> platform.prerequisite_applier '2. Separately approve current physical TLS and protected admin/recovery inputs; no credentials in source'
+    platform.prerequisite_applier -> platform.gitlab '3. Future reviewed namespace installer and shared-secret Job authority; no cluster grant'
+    platform.bigbang -> platform.gitlab '4. Only after gates: approved release selection uses delegated installer, creates workloads and application recovery Secrets'
+    platform.gitlab -> engineer '5. Verify trusted local admin, clone/push, persistence/restore; stop before SSO, runners or migration'
+  }
+
+  dynamic view harbor_initial_admin {
+    title 'Harbor initial administration — blocked candidate'
+    engineer -> platform.harbor '1. Review supported external data services, capacity, TLS/network and explicit deferred scanner scope'
+    engineer -> platform.prerequisite_applier '2. Separately approve protected admin/signing/encryption inputs and namespace installer rights'
+    platform.prerequisite_applier -> platform.harbor '3. Future grants only namespace chart/history CRUD, no cluster RBAC'
+    platform.bigbang -> platform.harbor '4. After gates and release approval, delegated Helm deploys registry using Secret references'
+    platform.harbor -> engineer '5. Verify trusted admin, authenticated push/pull and denial, persistence/restore; SSO/CI robots later'
+  }
+
+  dynamic view mattermost_initial_admin {
+    title 'Mattermost operator and admin — blocked candidate'
+    engineer -> platform.mattermost '1. Decide edition, cumulative data-service capacity and explicit cluster-wide operator trust; not approved'
+    engineer -> platform.prerequisite_applier '2. Future scoped approval for protected inputs, physical TLS, namespace and named installer delegation'
+    platform.prerequisite_applier -> platform.mattermost '3. Ansible grants reviewed prerequisite rights; Helm creates operator CRDs/runtime account'
+    platform.bigbang -> platform.mattermost '4. After gates and release approval, child creates Mattermost CR; operator creates runtime workloads'
+    platform.mattermost -> engineer '5. Controlled trusted initial admin, messaging/files, authorization and restore tests; SSO later'
+  }
+
+  dynamic view sonarqube_initial_admin {
+    title 'SonarQube Community Build — blocked candidate'
+    engineer -> platform.sonarqube '1. Review free feature limits, external PostgreSQL, host limits and cumulative storage/memory'
+    engineer -> platform.prerequisite_applier '2. Separately approve current TLS/CA and protected JDBC/admin-reset/passcode references'
+    platform.prerequisite_applier -> platform.sonarqube '3. Future namespace installer CRUD only; no cluster grant or privileged init'
+    platform.bigbang -> platform.sonarqube '4. After gates and release approval, delegated Helm creates app and protected admin-reset hook'
+    platform.sonarqube -> engineer '5. Verify UP, trusted local admin, sample quality gate and restore; GitLab tokens/SSO remain future'
+  }
+
 }
