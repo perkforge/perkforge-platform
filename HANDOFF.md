@@ -11,7 +11,10 @@ healthy. Security/persistence acceptance is pending; no GitLab, PostgreSQL,
 Garage or runner activation, Registry1 copies or independent backup claim.
 
 The local correction requires the existing storage-worker label and Recreate
-for the single PVC writer. It is not applied. Publish/release/promotion and
+for the single PVC writer, explicitly clearing API-defaulted rollingUpdate
+fields. Server dry-run rejected the type-only transition and accepted clearing
+those fields; neither dry-run changed the live Deployment. The correction is
+not applied. Publish/release/promotion and
 guarded recovery of only the still-unbound claim's selected-node annotation
 require review and approval. Preserve the claim, Secrets and operator; never
 delete/recreate the claim or uninstall providers to recover this selection.

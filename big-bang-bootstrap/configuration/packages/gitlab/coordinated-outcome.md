@@ -48,7 +48,9 @@ Valkey's persistent pod requires `storage.perkforge.io/worker=true`. Every
 eligible node must have the Longhorn CSI driver registered; disk-replica
 placement alone does not make another node capable of mounting a volume.
 The one-writer Deployment uses Recreate, preserving the named 2Gi claim and
-Secrets without a rolling surge. Brief downtime on a later rollout is deliberate.
+Secrets without a rolling surge. Its post-renderer explicitly nulls rollingUpdate
+so the API-defaulted old strategy fields cannot invalidate the transition.
+Brief downtime on a later rollout is deliberate.
 
 For the current unbound-claim recovery, first review/publish/release this source
 correction and separately approve its promotion. Verify the new selector and

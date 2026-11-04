@@ -1,6 +1,7 @@
 """Pinned offline render regression for CSI-capable placement and one PVC writer."""
 import copy
 import os
+import tempfile
 from pathlib import Path
 import unittest
 import yaml
@@ -20,13 +21,24 @@ class ValkeyPlacement(unittest.TestCase):
                       and x['metadata']['name'] == ref['name'])
         values = yaml.safe_load(config['data'][ref['valuesKey']])
         chart = Path(os.environ['PREFLIGHT_SOURCES_DIR']) / 'valkey'
-        return values, chart, helm(chart, 'gitlab-valkey', 'gitlab', [yaml.safe_dump(values)])
+        rendered = helm(chart, 'gitlab-valkey', 'gitlab', [yaml.safe_dump(values)])
+        # Exercise Flux's actual Kustomize post-renderer, retaining the explicit
+        # null that clears API-defaulted fields in Helm's three-way patch.
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            (path / 'objects.yaml').write_text(yaml.safe_dump_all(rendered))
+            (path / 'kustomization.yaml').write_text(yaml.safe_dump({
+                'resources': ['objects.yaml'],
+                **release['spec']['postRenderers'][0]['kustomize']}))
+            rendered = build(path)
+        return values, chart, rendered
 
     def test_pvc_consumer_requires_storage_worker_and_cannot_surge(self):
         _, _, rendered = self.render()
         deployment = next(x for x in rendered if x['kind'] == 'Deployment')
         self.assertEqual(deployment['spec']['replicas'], 1)
-        self.assertEqual(deployment['spec']['strategy'], {'type': 'Recreate'})
+        self.assertEqual(deployment['spec']['strategy'],
+                         {'type': 'Recreate', 'rollingUpdate': None})
         pod = deployment['spec']['template']['spec']
         self.assertEqual(pod['nodeSelector'], {'storage.perkforge.io/worker': 'true'})
         claims = [v['persistentVolumeClaim']['claimName'] for v in pod['volumes']
