@@ -1,28 +1,37 @@
 # Current operator handoff
 
-## GitLab app attempt stopped — external Namespace correction prepared
+## GitLab app blocked on missing pull-Secret references — source fix prepared
 
-Observed 2026-11-04: the approved v0.17.6 app batch created only the GitLab
-namespace pull Secret and platform/Valkey public trust objects; all three
-create-only repeats changed zero. Guarded Flux source promotion and app-root
-selection completed. The umbrella upgrade then stopped before creating the
-GitLab child release: its namespace-scoped reconciler cannot get the existing
-owner-admin `gitlab` Namespace emitted by the Big Bang template. No application
-jobs, migrations or Gitaly claim were created. Four original claims and ten
-credential identities remain preserved; data Pods and seven child releases are
-Ready. Big Bang/root are not accepted as healthy after this failed attempt.
-No permission grant, Namespace adoption, rollback or manual retry followed.
+Observed 2026-11-04: separately approved source-only promotion to v0.17.7 kept
+the app root unchanged and cleared the Namespace ownership blocker. The GitLab
+child release exists and started its shared-secrets pre-install hook. That Pod
+has no imagePullSecrets; Registry1 reports no basic auth credentials. Further
+changes stopped. Migrations and the Gitaly claim have not started. Existing
+Namespace ownership, three data Pods, four claims and ten original credential
+identities remain preserved. The approved GitLab-only pull Secret and platform/
+Valkey public trust objects are unchanged. Root/app readiness is not accepted;
 SSO, named grants, runner and drive access remain unchanged.
 
-Pinned Big Bang exposes no GitLab-specific Namespace-create switch. A source-only
-post-renderer correction removes exactly Namespace/gitlab, following the existing
-Headlamp/Keycloak ownership pattern, without changing RBAC. The last deployed
-umbrella revision 10 contains no Namespace or GitLab child; existing Namespace
-ownership is never transferred to Helm. Recovery requires review/release and
-separate approval: verify the same Namespace/Secret/PVC identities and absence of
-app jobs, promote only the corrected tag while retaining the app root, then
-observe the ordinary upgrade and migration gates. Do not reset retries or adopt
-resources automatically. Any new failure stops with data preserved.
+Pinned render inspection found Big Bang defaults empty both global pull-Secret
+lists, affecting all nine GitLab Pod templates. The prepared overlay references
+only existing `private-registry` through both supported helper inputs. Tests
+cover every hook/workload including init containers, reproduce missing old refs,
+and permit only references and values-hashed Job names to change. No credential,
+Secret object, image, resource size, RBAC or Namespace change is introduced.
+
+Review/release and a separately approved guarded recovery are required. Inspect
+the old hook Job/Pod identities and confirm it never ran and remains the sole
+blocked app Job. The corrected values rename the hooks, and failed old hooks are
+not automatically cleaned; remove only that old Job normally with fresh UID/
+version preconditions before promotion if explicitly approved. Confirm the old
+Helm action has ended and its Pod is gone before promoting. This avoids old
+and new generators running together after an image becomes cached. Do not delete
+unknown or already-running/completed work. Promote the verified corrected tag,
+retain app root and existing credentials/trust, then observe ordinary install/
+upgrade, image access, migrations, worker placement, local recovery and health.
+Any unexpected state or need for a retry reset returns for review; preserve all
+Secrets/PVCs. No live repair, retry, deletion, rollback or publication was done
+while preparing this fix.
 
 ## GitLab data stage accepted — application remains off
 
