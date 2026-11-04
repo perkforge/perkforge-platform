@@ -1,5 +1,9 @@
 # Inactive render input; existing private ACL/TLS Secrets must precede install.
 fullnameOverride: gitlab-valkey
+# Longhorn CSI is installed on storage-capable workers, not every schedulable node.
+nodeSelector: {storage.perkforge.io/worker: 'true'}
+# One persistent Valkey writer; never surge a second process onto the same RWO claim.
+deploymentStrategy: Recreate
 image:
   registry: docker.io
   repository: valkey/valkey

@@ -1,10 +1,13 @@
 # One coordinated GitLab, Keycloak and runner outcome
 
-This inactive feature reconciles only GitLab scope from old #114 against current
+This feature reconciles only GitLab scope from old #114 against current
 main, preserving the existing application acceptance evidence. No observability
 predecessor is a runtime dependency and no old PR base is retargeted. All normal
 roots and the combined review profile stay disabled. Dormant activation roots
-are prepared, not selected by the running source. Publication, live activation,
+require explicit selection. The approved v0.17.0 provider stage is now selected:
+CNPG is Ready, while Valkey is blocked on an unbound claim that selected a node
+without Longhorn CSI. Foundation readback/repeat and credential/policy delivery
+passed; provider security and persistence acceptance have not run. Publication, live activation,
 new credentials and drive access remain separate approvals.
 
 ## Versions and lab budget
@@ -40,6 +43,24 @@ Longhorn replicas. This is scheduled capacity, not physical occupancy. Replicas
 are not independent backups and single-instance data services are not HA.
 
 ## Shared CloudNativePG and providers
+
+Valkey's persistent pod requires `storage.perkforge.io/worker=true`. Every
+eligible node must have the Longhorn CSI driver registered; disk-replica
+placement alone does not make another node capable of mounting a volume.
+The one-writer Deployment uses Recreate, preserving the named 2Gi claim and
+Secrets without a rolling surge. Brief downtime on a later rollout is deliberate.
+
+For the current unbound-claim recovery, first review/publish/release this source
+correction and separately approve its promotion. Verify the new selector and
+Recreate strategy are applied and the old Pending consumer is gone. If node
+selection remains stale, re-read the exact claim UID/resourceVersion and require
+Pending, no volumeName, no bound PV or data attachment, and no old consumer before
+a guarded removal of only `volume.kubernetes.io/selected-node`. Stop on drift or
+any bound/data-bearing claim; never delete/recreate it or remove bind/protection
+annotations. Let the scheduler select a CSI-capable worker and verify two healthy
+replicas before the approved TLS/access/persistence tests. Failed/stalled Helm
+installation may need a separately scoped reconciliation/reset request, not an
+uninstall. This is a recovery plan, not approval or a claim it has run.
 
 Corey explicitly chose CloudNativePG as the platform database foundation. The
 pinned chart0.29.1/operator1.30.1 is shared, deployed in `cnpg-system`, initially
