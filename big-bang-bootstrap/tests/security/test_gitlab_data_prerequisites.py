@@ -1,5 +1,6 @@
 """Offline selected data-stage placement, persistence and public-trust contract."""
 from pathlib import Path
+import json
 import unittest
 import yaml
 from fixtures.render_helpers import build
@@ -8,6 +9,26 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class DataPrerequisites(unittest.TestCase):
+    def test_garage_effective_argv_uses_the_pinned_image_executable(self):
+        image = json.loads((ROOT/'tests/fixtures/garage-image-runtime-evidence.json').read_text())
+        objects = build(ROOT/'clusters/local-gitlab-data')
+        garage = next(x for x in objects if x['kind'] == 'StatefulSet'
+                      and x['metadata']['name'] == 'gitlab-garage')
+        container = next(x for x in garage['spec']['template']['spec']['containers']
+                         if x['name'] == 'garage')
+        self.assertEqual(container['image'], image['image'])
+        self.assertIsNone(image['imageConfig']['Entrypoint'])
+        self.assertEqual(image['imageConfig']['Cmd'], ['/garage', 'server'])
+        # Kube command replaces ENTRYPOINT; args replace CMD. The old args-only
+        # manifest attempted to exec '-c', despite the image CMD.
+        def argv(pod_container):
+            return ((pod_container.get('command') or image['imageConfig']['Entrypoint'] or [])
+                    + (pod_container.get('args') or image['imageConfig']['Cmd'] or []))
+        self.assertEqual(argv(container), ['/garage', '-c', '/etc/garage/garage.toml', 'server'])
+        old = {k: v for k, v in container.items() if k != 'command'}
+        self.assertEqual(argv(old)[0], '-c')
+        self.assertNotEqual(argv(old)[0], image['imageConfig']['Cmd'][0])
+
     def test_both_new_pvc_consumers_require_prepared_workers(self):
         objects = build(ROOT / 'clusters/local-gitlab-data')
         pg = next(x for x in objects if x['kind'] == 'Cluster')
