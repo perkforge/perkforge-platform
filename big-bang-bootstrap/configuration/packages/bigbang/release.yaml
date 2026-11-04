@@ -88,6 +88,18 @@ spec:
           kind: Namespace
 
           metadata: {name: keycloak}'
+      # Owner-admin foundation owns this existing data-bearing namespace.
+      # Remove only the umbrella template; never adopt it or grant namespace RBAC.
+      - target:
+          kind: Namespace
+          name: gitlab
+        patch: '$patch: delete
+
+          apiVersion: v1
+
+          kind: Namespace
+
+          metadata: {name: gitlab}'
       - target:
           group: helm.toolkit.fluxcd.io
           version: v2

@@ -1,5 +1,29 @@
 # Current operator handoff
 
+## GitLab app attempt stopped — external Namespace correction prepared
+
+Observed 2026-11-04: the approved v0.17.6 app batch created only the GitLab
+namespace pull Secret and platform/Valkey public trust objects; all three
+create-only repeats changed zero. Guarded Flux source promotion and app-root
+selection completed. The umbrella upgrade then stopped before creating the
+GitLab child release: its namespace-scoped reconciler cannot get the existing
+owner-admin `gitlab` Namespace emitted by the Big Bang template. No application
+jobs, migrations or Gitaly claim were created. Four original claims and ten
+credential identities remain preserved; data Pods and seven child releases are
+Ready. Big Bang/root are not accepted as healthy after this failed attempt.
+No permission grant, Namespace adoption, rollback or manual retry followed.
+SSO, named grants, runner and drive access remain unchanged.
+
+Pinned Big Bang exposes no GitLab-specific Namespace-create switch. A source-only
+post-renderer correction removes exactly Namespace/gitlab, following the existing
+Headlamp/Keycloak ownership pattern, without changing RBAC. The last deployed
+umbrella revision 10 contains no Namespace or GitLab child; existing Namespace
+ownership is never transferred to Helm. Recovery requires review/release and
+separate approval: verify the same Namespace/Secret/PVC identities and absence of
+app jobs, promote only the corrected tag while retaining the app root, then
+observe the ordinary upgrade and migration gates. Do not reset retries or adopt
+resources automatically. Any new failure stops with data preserved.
+
 ## GitLab data stage accepted — application remains off
 
 Observed 2026-11-04: released v0.17.4 native bootstrap initialized one Garage
@@ -17,8 +41,9 @@ approved namespaced health-reader Role/binding objects. All 35 prior prerequisit
 objects retained their identities, versions and exact configuration. Readback and
 zero-change repeat passed. Twelve authorization checks confirm Pod get/list/watch
 in gitlab, while Secret reads, logs, exec, Pod writes, Role creation and unrelated
-namespace Pod reads remain denied. Flux root is now Ready and Healthy. Runtime
-remains v0.17.3; no source promotion or workload rollout was required.
+namespace Pod reads remain denied. Flux root became Ready and Healthy at that
+data-stage acceptance, with runtime still v0.17.3; the later app attempt is
+described above.
 
 Read-only SSH checks verified all three node identities. Garage S3 timed out from
 control-1 and worker-1; its worker-2 host reached it and anonymous access was
@@ -32,18 +57,6 @@ Pods and all attached Longhorn volumes healthy. Original claims and ten credenti
 Secret identities remain preserved; no Secrets were mutated. Independent
 backup/restore and node-failover are still unverified. GitLab itself, SSO, runner
 and backup drive remain off and require their separate activation gates.
-
-## Next application gate — Gitaly placement prepared
-
-Pinned app rendering exposed an unconstrained Gitaly Longhorn consumer. The
-source-only lab overlay now requires the existing storage-worker label; the
-observed control-plane node has no Longhorn CSI driver. Tests compare the actual
-selected app render against the prior values: only Gitaly's node selector and
-upstream values-hashed shared-secret hook Job names change. One replica, 10Gi
-claim, image and resource sizes remain unchanged. The app still requires review,
-release and separate approval for persistent Registry1 credential delivery,
-public application CA and deployment. SSO client activation/native account grants
-and runner remain later explicit gates. No live application resources changed.
 
 ## Accepted provider evidence
 
