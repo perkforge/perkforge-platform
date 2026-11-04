@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.2](https://github.com/perkforge/perkforge-platform/compare/v0.17.1...v0.17.2) (2026-11-04)
+
+
+### Bug Fixes
+
+* **gitlab:** guard data placement DNS maintenance and CA lifecycle ([#160](https://github.com/perkforge/perkforge-platform/issues/160)) ([c13ca06](https://github.com/perkforge/perkforge-platform/commit/c13ca06873ec1a0c868f0d631a870c62ae6dd6a8))
+
 ## [0.17.1](https://github.com/perkforge/perkforge-platform/compare/v0.17.0...v0.17.1) (2026-11-04)
 
 
