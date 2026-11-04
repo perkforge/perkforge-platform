@@ -1,6 +1,26 @@
 # Current operator handoff
 
-## GitLab providers accepted — data/app stages still gated
+## GitLab data stage partial — Garage executable correction pending
+
+Observed 2026-11-04: the approved v0.17.2 data stage is selected. Both GitLab
+DNS records and HTTPS leafs are prepared; five dedicated immutable Secrets were
+delivered/read back. PostgreSQL is healthy on a storage worker and its 16Gi
+claim plus Garage's 1Gi/32Gi claims are Bound with healthy Longhorn replicas.
+Garage cannot start: its pinned scratch image has no ENTRYPOINT and CMD
+`["/garage","server"]`; Kubernetes args replace CMD, so the old manifest tries
+to execute `-c`. The source correction supplies only `command: [/garage]`.
+
+The exact public image configuration was digest-verified. An isolated nonroot,
+read-only-root, network-none local probe reproduced the old failure and passed
+corrected RPC startup plus restart with disposable directories. This is not
+live S3, layout, CNI or Kubernetes persistence acceptance. No live repair was
+made. Publish/review/release and verified promotion precede retry. Preserve all
+Secrets/claims; never delete or reinitialize the healthy PostgreSQL instance.
+No Garage layout, application key or buckets were initialized. The root waits
+on Garage health; app/SSO/runner and backup-drive work remain off, and data
+acceptance is unfinished. No independent backup/restore claim is made.
+
+## Accepted provider evidence
 
 Observed 2026-11-04: approved v0.17.1 provider recovery is complete. CNPG watches
 only gitlab and TLS Valkey is Ready on a storage-capable worker. The original
@@ -18,12 +38,10 @@ rollingUpdate fields. After the old Pending consumer disappeared, the guarded
 unbound claim selection was cleared. The claim was never deleted or recreated.
 Do not repeat that historical recovery on a healthy/data-bearing claim.
 
-The next source-only prerequisites add worker placement for PostgreSQL/Garage,
-default-off record-only DNS maintenance and the operator-generated public CA
-lifecycle procedure. No DNS/data activation or credential creation occurred in
-that preparation. Publish/review/release and exact live approval remain gates.
-GitLab, PostgreSQL, Garage, SSO enrollment and runner/basic acceptance remain
-separate next stages. Signing, Trivy gates, shared CI and portal dogfood remain
+The released prerequisites supply worker placement, record-only DNS maintenance
+and the operator-generated public CA lifecycle procedure. Live data acceptance
+is blocked as recorded above. GitLab, SSO enrollment and runner/basic acceptance
+remain separate next stages. Signing, Trivy gates, shared CI and portal dogfood remain
 deferred until well after the app baseline and other platform apps.
 
 ## GitLab coordinated preparation contract

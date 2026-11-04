@@ -9,7 +9,16 @@ CNPG and TLS Valkey are Ready, the original 2Gi claim and five immutable Secrets
 are preserved, and scoped access/denial, public TLS, runtime RBAC and graceful
 container-restart persistence checks passed with dummy/probe cleanup. Secret
 delivery repeats made zero changes. This is not node-failover or independent
-backup/restore proof. PostgreSQL, Garage, GitLab and runner remain disabled.
+backup/restore proof. The approved v0.17.2 data stage is now partial: PostgreSQL
+is healthy and all three new claims are Bound, but Garage cannot execute `-c`.
+The pinned image has no ENTRYPOINT and CMD `["/garage","server"]`; Kubernetes
+args replace CMD, so the corrected Pod explicitly selects `/garage`. Its exact
+public OCI metadata was verified and a disposable nonroot/read-only/network-none
+runtime probe reproduced the old error and passed startup/restart. The recorded
+contract is `tests/fixtures/garage-image-runtime-evidence.json`. No live repair,
+Garage layout/key/buckets or data acceptance is complete. Preserve Secrets/PVCs
+and the healthy database while reviewing/releasing the correction. GitLab and
+runner remain disabled.
 Publication, live activation,
 new credentials and drive access remain separate approvals.
 
