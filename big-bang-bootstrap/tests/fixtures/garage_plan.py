@@ -10,7 +10,7 @@ def layout_plan(status,layout,node_id):
  if not re.fullmatch('[a-f0-9]{64}',node_id):raise ValueError('full reviewed node ID required')
  if len(status['nodes'])!=1:raise ValueError('expected one dedicated Garage node')
  node=status['nodes'][0]
- if node['id']!=node_id or node['isUp'] is not True or node['draining'] is not False or node['garageVersion']!='2.2.0':raise ValueError('node identity/version/health mismatch')
+ if node['id']!=node_id or node['isUp'] is not True or node['draining'] is not False or node['garageVersion'] not in ('2.2.0','v2.2.0'):raise ValueError('node identity/version/health mismatch')
  if layout['version']!=status['layoutVersion'] or type(layout['version']) is not int:raise ValueError('stale or invalid layout version')
  desired={'id':node_id,'zone':'gitlab-local','capacity':CAPACITY,'tags':[TAG]}
  staged=layout['stagedRoleChanges']

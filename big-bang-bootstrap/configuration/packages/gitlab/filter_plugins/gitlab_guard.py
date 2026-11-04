@@ -10,10 +10,10 @@ def endpoint_inputs_valid(hosts,api_host,api_port,target_port):
   return isinstance(api_port,int) and not isinstance(api_port,bool) and api_port in (443,6443) and isinstance(target_port,int) and not isinstance(target_port,bool) and 1024<=target_port<=65535 and not (api_port==443 and api_host in hosts)
  except (ValueError,TypeError):return False
 
-def garage_verdict(status,layout,keys,key,infos,receipt,node,key_id,expected,buckets):
+def garage_layout_verdict(status,layout,node,expected):
  if not re.fullmatch('[a-f0-9]{64}',node) or len(status['nodes'])!=1:raise ValueError('node identity')
  n=status['nodes'][0]
- if n['id']!=node or n['isUp'] is not True or n['draining'] is not False or n['garageVersion']!='2.2.0':raise ValueError('node health/version')
+ if n['id']!=node or n['isUp'] is not True or n['draining'] is not False or n['garageVersion'] not in ('2.2.0','v2.2.0'):raise ValueError('node health/version')
  if (not isinstance(layout['version'],int) or isinstance(layout['version'],bool)) or layout['version']!=status['layoutVersion'] or layout.get('stagedParameters') is not None:raise ValueError('layout drift')
  staged=layout['stagedRoleChanges']
  if layout['roles']:
@@ -24,6 +24,14 @@ def garage_verdict(status,layout,keys,key,infos,receipt,node,key_id,expected,buc
   if layout['version']!=0 or space is None or space['total']<expected['capacity']+2*1024**3 or space['available']<expected['capacity']:raise ValueError('initial layout space/version')
   if staged and staged!=[expected]:raise ValueError('foreign staging')
   phase='apply' if staged else 'stage'
+ return phase
+
+def garage_verdict(status,layout,keys,key,infos,receipt,node,key_id,expected,buckets):
+ phase=garage_layout_verdict(status,layout,node,expected)
+ if phase!='ready':
+  if keys is not None or key or infos or receipt['key_imported'] is not False or receipt['buckets']:raise ValueError('pre-layout store must have a pristine receipt; no object snapshot')
+  return {'phase':phase,'missing':list(buckets),'ungranted':[]}
+ if not isinstance(keys,list):raise ValueError('ready layout requires real object snapshot')
  if len(keys)>1 or any(k['id']!=key_id or k['name']!='perkforge-gitlab-data-v1' for k in keys):raise ValueError('foreign key')
  if bool(keys)!=receipt['key_imported']:raise ValueError('unreceipted/missing key')
  owned=receipt['buckets']
@@ -48,4 +56,4 @@ def garage_verdict(status,layout,keys,key,infos,receipt,node,key_id,expected,buc
  elif infos:raise ValueError('buckets without owned key')
  return {'phase':phase,'missing':[b for b in buckets if b not in owned],'ungranted':ungranted}
 class FilterModule:
- def filters(self):return {'gitlab_endpoint_inputs_valid':endpoint_inputs_valid,'gitlab_garage_verdict':garage_verdict}
+ def filters(self):return {'gitlab_endpoint_inputs_valid':endpoint_inputs_valid,'gitlab_garage_layout_verdict':garage_layout_verdict,'gitlab_garage_verdict':garage_verdict}

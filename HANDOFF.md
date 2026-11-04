@@ -1,24 +1,29 @@
 # Current operator handoff
 
-## GitLab data stage partial — Garage executable correction pending
+## GitLab data pods Ready — native bootstrap correction pending
 
-Observed 2026-11-04: the approved v0.17.2 data stage is selected. Both GitLab
-DNS records and HTTPS leafs are prepared; five dedicated immutable Secrets were
-delivered/read back. PostgreSQL is healthy on a storage worker and its 16Gi
-claim plus Garage's 1Gi/32Gi claims are Bound with healthy Longhorn replicas.
-Garage cannot start: its pinned scratch image has no ENTRYPOINT and CMD
-`["/garage","server"]`; Kubernetes args replace CMD, so the old manifest tries
-to execute `-c`. The source correction supplies only `command: [/garage]`.
+Observed 2026-11-04: approved v0.17.3 source promotion and normal UID/version-
+guarded replacement of only the old failed Garage Pod completed. Its explicit
+`/garage` command is active and the replacement is Ready on a storage worker.
+PostgreSQL remains healthy without a recovery restart. All original claims and
+ten immutable credential contents were verified preserved. The earlier exact-
+image command regression and isolated startup/restart evidence remain valid.
 
-The exact public image configuration was digest-verified. An isolated nonroot,
-read-only-root, network-none local probe reproduced the old failure and passed
-corrected RPC startup plus restart with disposable directories. This is not
-live S3, layout, CNI or Kubernetes persistence acceptance. No live repair was
-made. Publish/review/release and verified promotion precede retry. Preserve all
-Secrets/claims; never delete or reinitialize the healthy PostgreSQL instance.
-No Garage layout, application key or buckets were initialized. The root waits
-on Garage health; app/SSO/runner and backup-drive work remain off, and data
-acceptance is unfinished. No independent backup/restore claim is made.
+Read-only native bootstrap preflight then stopped: this pinned image reports
+`v2.2.0`, and object listings return HTTP500 `Internal error: Layout not ready`
+before the first layout. The source-only adapter correction permits only the
+exact `2.2.0`/`v2.2.0` spellings, validates the single version-zero node/layout
+before mutation, and defers real object queries until layout readback succeeds.
+Ready/staged layouts require a private durable ownership receipt; foreign state,
+expanded permissions and pending/uncertain mutations still refuse. HTTP errors
+after readiness are failures, never fabricated empty-store responses.
+
+No live Garage layout, application key or buckets were initialized. Root/data
+acceptance and CNPG public client trust delivery remain unfinished. Review,
+publication/release and verified source selection precede bootstrap retry;
+preserve every Secret/PVC and the healthy database. GitLab, SSO, runner and
+backup-drive work remain off. Local/synthetic tests are not live S3, CNI,
+Kubernetes restart persistence or independent backup/restore acceptance.
 
 ## Accepted provider evidence
 

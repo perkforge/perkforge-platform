@@ -5,7 +5,18 @@ spec=importlib.util.spec_from_file_location('garage_plan',ROOT/'tests/fixtures/g
 class GarageLayout(unittest.TestCase):
  def fixture(self):
   node='a'*64
-  return node,{'layoutVersion':0,'nodes':[{'id':node,'isUp':True,'draining':False,'garageVersion':'2.2.0','dataPartition':{'available':31*1024**3,'total':31*1024**3}}]},{'version':0,'roles':[],'parameters':{},'partitionSize':0,'stagedRoleChanges':[],'stagedParameters':None}
+  return node,{'layoutVersion':0,'nodes':[{'id':node,'isUp':True,'draining':False,'garageVersion':'v2.2.0','dataPartition':{'available':31*1024**3,'total':31*1024**3}}]},{'version':0,'roles':[],'parameters':{},'partitionSize':0,'stagedRoleChanges':[],'stagedParameters':None}
+ def test_only_exact_pinned_version_spellings_are_equivalent(self):
+  spec=importlib.util.spec_from_file_location('production_garage_guard',ROOT/'configuration/packages/gitlab/filter_plugins/gitlab_guard.py');guard=importlib.util.module_from_spec(spec);spec.loader.exec_module(guard)
+  for version in ('2.2.0','v2.2.0','vv2.2.0','2.2.0-dev','v2.2.1',None):
+   node,status,layout=self.fixture();status['nodes'][0]['garageVersion']=version
+   role={'id':node,'zone':'gitlab-local','capacity':28*1024**3,'tags':[garage.TAG]}
+   with self.subTest(version=version):
+    if version in ('2.2.0','v2.2.0'):
+     self.assertEqual(garage.layout_plan(status,layout,node)['phase'],'stage');self.assertEqual(guard.garage_layout_verdict(status,layout,node,role),'stage')
+    else:
+     with self.assertRaises(ValueError):garage.layout_plan(status,layout,node)
+     with self.assertRaises(ValueError):guard.garage_layout_verdict(status,layout,node,role)
  def test_new_stage_partial_resume_apply_then_repeat(self):
   node,status,layout=self.fixture();plan=garage.layout_plan(status,layout,node)
   self.assertEqual(plan['phase'],'stage');self.assertEqual(len(plan['operations']),1)

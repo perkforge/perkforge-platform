@@ -4,25 +4,42 @@
 - ansible.builtin.uri:
     url: '{{ gitlab_garage_url }}/v2/GetClusterLayout'
   register: gitlab_garage_layout
-- ansible.builtin.uri:
-    url: '{{ gitlab_garage_url }}/v2/ListKeys'
-  register: gitlab_garage_keys
-- ansible.builtin.uri:
-    url: '{{ gitlab_garage_url }}/v2/ListBuckets'
-  register: gitlab_garage_listing
+- ansible.builtin.set_fact:
+    gitlab_garage_layout_phase: '{{ gitlab_garage_status.json | gitlab_garage_layout_verdict(gitlab_garage_layout.json,gitlab_garage_node,gitlab_garage_expected_role) }}'
+- ansible.builtin.stat:
+    path: '{{ gitlab_garage_state_directory }}/garage-bootstrap.json'
+    follow: false
+  register: gitlab_garage_ownership_receipt
 - ansible.builtin.assert:
     that:
-    - gitlab_garage_listing.json | length == gitlab_garage_receipt.buckets | length
-    - gitlab_garage_listing.json | map(attribute='id') | sort == gitlab_garage_receipt.buckets.values() | sort
-- ansible.builtin.uri:
-    url: '{{ gitlab_garage_url }}/v2/GetKeyInfo?id={{ gitlab_garage_key_id }}'
-  register: gitlab_garage_key
-  when: gitlab_garage_keys.json | length > 0
-- ansible.builtin.uri:
-    url: '{{ gitlab_garage_url }}/v2/GetBucketInfo?id={{ gitlab_garage_bucket_id }}'
-  loop: '{{ gitlab_garage_receipt.buckets.values() | list }}'
-  loop_control: {loop_var: gitlab_garage_bucket_id}
-  register: gitlab_garage_infos
+    - gitlab_garage_ownership_receipt.stat.isreg | default(false)
+    - not (gitlab_garage_ownership_receipt.stat.islnk | default(false))
+    - gitlab_garage_ownership_receipt.stat.mode == '0600'
+    - gitlab_garage_ownership_receipt.stat.pw_name == lookup('env','USER')
+  # A ready or staged layout needs a durable ownership receipt. The first
+  # pending intent is saved before staging; matching foreign state is not adopted.
+  when: gitlab_garage_layout_phase != 'stage'
+- when: gitlab_garage_layout_phase == 'ready'
+  block:
+  - ansible.builtin.uri:
+      url: '{{ gitlab_garage_url }}/v2/ListKeys'
+    register: gitlab_garage_keys
+  - ansible.builtin.uri:
+      url: '{{ gitlab_garage_url }}/v2/ListBuckets'
+    register: gitlab_garage_listing
+  - ansible.builtin.assert:
+      that:
+      - gitlab_garage_listing.json | length == gitlab_garage_receipt.buckets | length
+      - gitlab_garage_listing.json | map(attribute='id') | sort == gitlab_garage_receipt.buckets.values() | sort
+  - ansible.builtin.uri:
+      url: '{{ gitlab_garage_url }}/v2/GetKeyInfo?id={{ gitlab_garage_key_id }}'
+    register: gitlab_garage_key
+    when: gitlab_garage_keys.json | length > 0
+  - ansible.builtin.uri:
+      url: '{{ gitlab_garage_url }}/v2/GetBucketInfo?id={{ gitlab_garage_bucket_id }}'
+    loop: '{{ gitlab_garage_receipt.buckets.values() | list }}'
+    loop_control: {loop_var: gitlab_garage_bucket_id}
+    register: gitlab_garage_infos
 - ansible.builtin.set_fact:
-    gitlab_garage_verdict: "{{ gitlab_garage_status.json | gitlab_garage_verdict(gitlab_garage_layout.json,gitlab_garage_keys.json,gitlab_garage_key.json | default({}),gitlab_garage_infos.results | map(attribute='json') | list,gitlab_garage_receipt,gitlab_garage_node,gitlab_garage_key_id,gitlab_garage_expected_role,gitlab_garage_buckets) }}"
+    gitlab_garage_verdict: "{{ gitlab_garage_status.json | gitlab_garage_verdict(gitlab_garage_layout.json,(gitlab_garage_keys.json if gitlab_garage_layout_phase == 'ready' else none),(gitlab_garage_key.json | default({}) if gitlab_garage_layout_phase == 'ready' else {}),(gitlab_garage_infos.results | map(attribute='json') | list if gitlab_garage_layout_phase == 'ready' else []),gitlab_garage_receipt,gitlab_garage_node,gitlab_garage_key_id,gitlab_garage_expected_role,gitlab_garage_buckets) }}"
     cacheable: false

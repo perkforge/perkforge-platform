@@ -11,8 +11,10 @@ def reconcile(api,receipt,save,node_id,key_id,key_secret,allow_first_layout=Fals
  if receipt:
   if receipt['scope']!='gitlab-garage-init-v1' or receipt['fingerprint']!=fingerprint or receipt['pending']:raise ValueError('receipt mismatch or uncertain mutation; explicit recovery required')
  else:
-  # Never adopt existing keys/buckets even when their names look right.
-  if api('ListKeys') or api('ListBuckets'):raise ValueError('dedicated empty store required on first ownership claim')
+  # Object tables cannot be queried before the first layout. Establish only a
+  # validated new layout; never adopt a pre-staged or ready unreceipted store.
+  initial=layout_plan(api('GetClusterStatus'),api('GetClusterLayout'),node_id)
+  if initial['phase']!='stage':raise ValueError('unreceipted existing layout')
   receipt.update(scope='gitlab-garage-init-v1',fingerprint=fingerprint,pending=None,key_imported=False,buckets={});save(receipt)
  changed=0
  def mutate(operation,body,readback):
