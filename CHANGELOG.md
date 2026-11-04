@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.7](https://github.com/perkforge/perkforge-platform/compare/v0.17.6...v0.17.7) (2026-11-04)
+
+
+### Bug Fixes
+
+* **gitlab:** preserve external namespace ownership ([#170](https://github.com/perkforge/perkforge-platform/issues/170)) ([4a7d392](https://github.com/perkforge/perkforge-platform/commit/4a7d3926a3c43325237a9864220dd5ff5cf9af41))
+
 ## [0.17.6](https://github.com/perkforge/perkforge-platform/compare/v0.17.5...v0.17.6) (2026-11-04)
 
 
