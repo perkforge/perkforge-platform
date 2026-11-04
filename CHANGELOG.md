@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.1](https://github.com/perkforge/perkforge-platform/compare/v0.17.0...v0.17.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **gitlab:** place persistent Valkey on storage workers ([#158](https://github.com/perkforge/perkforge-platform/issues/158)) ([649f0c7](https://github.com/perkforge/perkforge-platform/commit/649f0c77e413b0184ab29fc9ee55fbfdce502916))
+
 ## [0.17.0](https://github.com/perkforge/perkforge-platform/compare/v0.16.1...v0.17.0) (2026-11-03)
 
 
