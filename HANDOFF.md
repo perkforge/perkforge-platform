@@ -1,29 +1,27 @@
 # Current operator handoff
 
-## GitLab data pods Ready — native bootstrap correction pending
+## GitLab data acceptance — Flux health-read correction prepared
 
-Observed 2026-11-04: approved v0.17.3 source promotion and normal UID/version-
-guarded replacement of only the old failed Garage Pod completed. Its explicit
-`/garage` command is active and the replacement is Ready on a storage worker.
-PostgreSQL remains healthy without a recovery restart. All original claims and
-ten immutable credential contents were verified preserved. The earlier exact-
-image command regression and isolated startup/restart evidence remain valid.
+Observed 2026-11-04: released v0.17.4 native bootstrap initialized one Garage
+layout, one dedicated read/write-only key and six buckets. Its final repeat
+changed zero. PostgreSQL verify-full, least-privilege role checks, wrong password,
+plaintext and wrong CA/hostname denials passed. Garage HTTPS/SigV4 and denied
+anonymous/wrong-signature/admin access passed. Cross-namespace probe denial and
+one normal Pod replacement per data service passed; dummy data survived and was
+then removed. Temporary probes and forwards were cleaned up. Original claims and
+ten immutable credential contents were preserved. The public CNPG CA was delivered
+without exporting its signing key; its delivery repeat changed zero.
 
-Read-only native bootstrap preflight then stopped: this pinned image reports
-`v2.2.0`, and object listings return HTTP500 `Internal error: Layout not ready`
-before the first layout. The source-only adapter correction permits only the
-exact `2.2.0`/`v2.2.0` spellings, validates the single version-zero node/layout
-before mutation, and defers real object queries until layout readback succeeds.
-Ready/staged layouts require a private durable ownership receipt; foreign state,
-expanded permissions and pending/uncertain mutations still refuse. HTTP errors
-after readiness are failures, never fabricated empty-store responses.
+Overall acceptance remains blocked: Flux cannot list Pods in gitlab to assess
+Garage's StatefulSet. The prepared additive namespaced health-reader Role and
+binding grant only Pod get/list/watch to flux-system/platform-reconciler. Existing
+Roles remain unchanged; these foundation objects are not self-installed by Flux.
+They require review/release and separate live delivery approval. Runtime remains
+on v0.17.3 because v0.17.4 changed only owner-local bootstrap behavior.
 
-No live Garage layout, application key or buckets were initialized. Root/data
-acceptance and CNPG public client trust delivery remain unfinished. Review,
-publication/release and verified source selection precede bootstrap retry;
-preserve every Secret/PVC and the healthy database. GitLab, SSO, runner and
-backup-drive work remain off. Local/synthetic tests are not live S3, CNI,
-Kubernetes restart persistence or independent backup/restore acceptance.
+Node-origin checks await an unlocked SSH agent. Namespace Pod denial is not proof
+of node-origin isolation. No independent backup/restore or node-failover acceptance
+is claimed. GitLab itself, SSO, runner and backup drive remain off.
 
 ## Accepted provider evidence
 

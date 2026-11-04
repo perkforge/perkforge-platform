@@ -13,6 +13,16 @@ class Foundation(unittest.TestCase):
    def run():return subprocess.run(['ansible-playbook','-i','localhost,',str(play)],env=env,capture_output=True,text=True,timeout=90)
    first=run();self.assertEqual(first.returncode,0,first.stdout+first.stderr);data=json.loads(state.read_text());self.assertGreater(len(data['creates']),20);count=len(data['creates'])
    second=run();self.assertEqual(second.returncode,0,second.stdout+second.stderr);self.assertIn('changed=0',second.stdout);self.assertEqual(len(json.loads(state.read_text())['creates']),count)
+   # Existing foundations must remain byte-for-byte unchanged: only the two
+   # additive health objects may be created during an upgrade.
+   data=json.loads(state.read_text());health=[k for k in data['objects'] if k.endswith('/gitlab-data-health-reader')];self.assertEqual(len(health),2)
+   for key in health:del data['objects'][key]
+   data['creates']=[];existing=json.loads(json.dumps(data['objects']));state.write_text(json.dumps(data))
+   upgraded=run();self.assertEqual(upgraded.returncode,0,upgraded.stdout+upgraded.stderr)
+   data=json.loads(state.read_text());self.assertEqual(set(data['creates']),set(health));self.assertEqual({k:v for k,v in data['objects'].items() if k not in health},existing)
+   repeated=run();self.assertEqual(repeated.returncode,0,repeated.stdout+repeated.stderr);self.assertIn('changed=0',repeated.stdout)
+   data=json.loads(state.read_text());data['objects'][health[0]]['metadata']['labels']['perkforge.io/owner']='foreign';state.write_text(json.dumps(data));before=state.read_bytes();refused=run();self.assertNotEqual(refused.returncode,0);self.assertEqual(state.read_bytes(),before)
+   data['objects'][health[0]]['metadata']['labels']['perkforge.io/owner']='gitlab-data-foundation-v1';state.write_text(json.dumps(data))
    data=json.loads(state.read_text());target=next(v for v in data['objects'].values() if v['kind']=='ClusterRole');target['rules'].append({'apiGroups':['*'],'resources':['*'],'verbs':['*']});state.write_text(json.dumps(data));before=state.read_bytes();failed=run();self.assertNotEqual(failed.returncode,0);self.assertEqual(state.read_bytes(),before)
    foreign={'apiVersion':'admissionregistration.k8s.io/v1','kind':'ValidatingWebhookConfiguration','metadata':{'name':'cnpg-validating-webhook-configuration'}}
    state.write_text(json.dumps({'objects':{'ValidatingWebhookConfiguration//cnpg-validating-webhook-configuration':foreign},'creates':[]}));before=state.read_bytes();failed=run();self.assertNotEqual(failed.returncode,0);self.assertEqual(state.read_bytes(),before)
@@ -25,3 +35,14 @@ class Foundation(unittest.TestCase):
  def test_crd_known_api_defaults_are_canonical_but_schema_or_scope_drift_refuses(self):
   desired={'apiVersion':'apiextensions.k8s.io/v1','kind':'CustomResourceDefinition','metadata':{'name':'clusters.postgresql.cnpg.io','labels':{'perkforge.io/owner':'platform-cnpg-foundation-v1'}},'spec':{'group':'postgresql.cnpg.io','scope':'Namespaced','versions':[]}}
   actual=json.loads(json.dumps(desired));actual['spec'].update(conversion={'strategy':'None'},preserveUnknownFields=False);self.assertTrue(guard.matches(actual,desired));actual['spec']['scope']='Cluster';self.assertFalse(guard.matches(actual,desired))
+
+ def test_health_reader_is_only_namespaced_pod_read(self):
+  documents=list(yaml.safe_load_all((ROOT/'configuration/packages/gitlab/data-services/providers/prerequisites.yaml').read_text()))
+  health=[x for x in documents if x['metadata']['name']=='gitlab-data-health-reader'];self.assertEqual(len(health),2)
+  role=next(x for x in health if x['kind']=='Role');binding=next(x for x in health if x['kind']=='RoleBinding')
+  self.assertEqual(role['rules'],[{'apiGroups':[''],'resources':['pods'],'verbs':['get','list','watch']}])
+  self.assertEqual(binding['roleRef'],{'apiGroup':'rbac.authorization.k8s.io','kind':'Role','name':'gitlab-data-health-reader'})
+  self.assertEqual(binding['subjects'],[{'kind':'ServiceAccount','name':'platform-reconciler','namespace':'flux-system'}])
+  for obj in health:self.assertEqual(obj['metadata']['namespace'],'gitlab');self.assertEqual(obj['metadata']['labels'],{'perkforge.io/owner':'gitlab-data-foundation-v1'})
+  allowed={(resource,verb) for rule in role['rules'] for resource in rule['resources'] for verb in rule['verbs']}
+  for permission in [('secrets','get'),('pods/exec','create'),('pods/log','get'),('pods','delete'),('pods','patch'),('roles','create')]:self.assertNotIn(permission,allowed)

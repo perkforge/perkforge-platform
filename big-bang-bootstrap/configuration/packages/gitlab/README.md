@@ -89,3 +89,5 @@ material must be preserved and independently restored.
 Render, synthetic API and isolated transport results do not establish full
 application, browser, runner, persistence or backup success. See
 [the acceptance boundary](coordinated-outcome.md#coordinated-acceptance).
+
+Data-stage recovery and pending node-origin checks: [health-read recovery](health-read-recovery.md).
