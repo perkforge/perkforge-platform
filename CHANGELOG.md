@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.3](https://github.com/perkforge/perkforge-platform/compare/v0.17.2...v0.17.3) (2026-11-04)
+
+
+### Bug Fixes
+
+* **gitlab:** launch the pinned Garage executable explicitly ([#162](https://github.com/perkforge/perkforge-platform/issues/162)) ([37ad288](https://github.com/perkforge/perkforge-platform/commit/37ad28884139478f93f08ca95b31d7bb00b20bf5))
+
 ## [0.17.2](https://github.com/perkforge/perkforge-platform/compare/v0.17.1...v0.17.2) (2026-11-04)
 
 
