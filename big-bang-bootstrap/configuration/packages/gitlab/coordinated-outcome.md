@@ -4,24 +4,29 @@ This feature reconciles only GitLab scope from old #114 against current
 main, preserving the existing application acceptance evidence. No observability
 predecessor is a runtime dependency and no old PR base is retargeted. All normal
 roots and the combined review profile stay disabled. Dormant activation roots
-require explicit selection. The approved v0.17.1 provider stage is accepted:
-CNPG and TLS Valkey are Ready, the original 2Gi claim and five immutable Secrets
-are preserved, and scoped access/denial, public TLS, runtime RBAC and graceful
-container-restart persistence checks passed with dummy/probe cleanup. Secret
-delivery repeats made zero changes. This is not node-failover or independent
-backup/restore proof. Approved v0.17.3 promotion and normal guarded replacement
-of the old failed Garage Pod restored its explicit `/garage` command. PostgreSQL
-and Garage are Ready on storage workers, all claims/immutable Secrets preserved;
-no database recovery restart was required. Native bootstrap is still uninitialized:
-read-only metadata reports `v2.2.0`, while object listings fail with HTTP500
-`Internal error: Layout not ready` until the first layout exists. The source-only
-correction validates layout first, accepts only `2.2.0`/`v2.2.0`, and queries
-objects only after owned layout readback. It requires durable ownership for any
-staged/ready layout, retains pending-intent fail-closed behavior and never treats
-post-layout errors as an empty store. No live layout/key/buckets or data
-acceptance is complete. GitLab and runner remain disabled.
-Publication, live activation,
-new credentials and drive access remain separate approvals.
+require explicit selection. The approved provider and data stages are accepted as observed on 2026-11-04.
+CNPG, TLS Valkey, PostgreSQL and Garage are Ready on prepared workers. Released
+v0.17.4 bootstrap initialized one Garage layout, one read/write-only key without
+admin/createBucket authority and six buckets; final repeat changed zero. Live
+TLS/hostname, authentication and negative cases, namespace connectivity denials,
+normal Pod replacement persistence and dummy/probe cleanup passed. Public CNPG
+client CA delivery passed without exporting its signing key. Original claims and
+ten immutable credential identities remain preserved.
+
+Separately approved v0.17.5 delivered only the GitLab namespace Pod health-reader
+Role/binding. Exact readback, preservation of 35 prior prerequisite objects,
+zero-change repeat and twelve positive/negative permission checks passed. Flux
+root, three nodes and eight releases are Ready; no active Pods are unready and
+attached Longhorn volumes are healthy. Runtime remains v0.17.3 because these
+later corrections affected owner-local bootstrap/foundation, not runtime values.
+
+Read-only checks from all nodes found Garage anonymous access denied on its local
+worker and unreachable from the other nodes; the admin listener was unreachable
+everywhere. PostgreSQL CA/hostname verification passed on its local worker; the
+other nodes timed out. This is neither blanket node-origin NetworkPolicy isolation
+nor independent backup/restore or node-failover proof. GitLab application, SSO,
+runner and drive access remain off and separately gated. Source publication and
+live activation require their own approvals.
 
 ## Versions and lab budget
 
@@ -31,6 +36,13 @@ The runner/server version difference needs real acceptance; no full feature
 compatibility is inferred from rendering. Exact source archives are checksummed.
 The tested hardened webservice image is pinned by its observed digest; other CNG
 images were not run by the transport probe.
+
+The prepared lab overlay constrains Gitaly to `storage.perkforge.io/worker=true`,
+matching the already accepted PostgreSQL/Garage/Valkey consumer-node contract.
+The Longhorn CSI driver must be registered on each eligible node. Gitaly's one
+10Gi claim, image and resources are unchanged. The pinned chart changes its two
+shared-secret hook Job names when the full-values hash changes; no credential
+payload or extra resource is introduced. This source correction is not activated.
 
 The lab overlay sets webservice, shell and Sidekiq HPA minima/maxima to one,
 preserving vendor container requests/limits. Registry, KAS, Zoekt, AI gateway,
@@ -43,6 +55,16 @@ nodes, each 6 CPU/15.20Gi. Existing requests were 6.925 CPU/7.49Gi; actual use
 approximately 0.769 CPU/9.12Gi. The vendor HPA floor was roughly 16.78Gi versus
 11.83Gi for the one-replica app overlay; migrations add about 1.40Gi and a
 possible Deployment surge about 7.74Gi. These are not measured runtime peaks.
+
+Fresh requested-capacity check on 2026-11-04: the three nodes have about
+9.225 CPU/34.49Gi unrequested in total. Control-1 has no Longhorn CSI driver;
+only the two labeled workers can satisfy the new Gitaly constraint. Pinned app
+render steady requests are about 5.1 CPU/11.83Gi; Gitaly accounts for .4 CPU/.586Gi.
+Worker requested headroom was 2.28 CPU/10.74Gi and 3.03 CPU/12.20Gi, so either fits
+Gitaly at that snapshot. The new claim schedules 20Gi across two Longhorn replicas.
+Migrations and shared-secret hooks, node placement and Deployment surges require
+fresh checks before activation; aggregate free requests are not runtime peak or
+HA proof. No app resources were deployed to establish these rendered numbers.
 
 Data planning requests approximately 1.85 CPU/3.625Gi: PostgreSQL 1 CPU/2Gi,
 Valkey .25 CPU/.5Gi, Garage .5 CPU/1Gi and operator .1 CPU/.125Gi. Round the
@@ -75,17 +97,17 @@ Secret was deleted/recreated. A bounded retry after binding cleared the earlier
 stalled health result; root and eight releases became Ready. Do not repeat this
 historical recovery automatically on a healthy or bound/data-bearing claim.
 
-Before the next data stage, publish/review/release its worker-placement and DNS
-prerequisites. Both PostgreSQL `affinity.nodeSelector` and Garage Pod
+The accepted data stage used reviewed worker-placement and DNS prerequisites.
+Both PostgreSQL `affinity.nodeSelector` and Garage Pod
 `nodeSelector` require the same prepared-worker label. The existing ingress
-policies remain identical. Add only the two reviewed GitLab DNS records through
+policies remain identical. The two reviewed GitLab DNS records were added through
 the [bounded existing-service maintenance procedure](../../../../infrastructure/ansible/DNS-MAINTENANCE.md),
-not the first-install playbook. Issue the two approved HTTPS leafs separately;
+not the first-install playbook. The two approved HTTPS leafs were signed locally;
 no signing-key copy, host trust change or new Registry1 custody is implied.
 PostgreSQL uses its own operator-managed CA; follow
 [public CA delivery and client rotation](postgres-ca-lifecycle.md), never assume
-the lab ingress CA validates that database. New credentials, live maintenance,
-source promotion, Garage first layout and recovery tests need action approval.
+the lab ingress CA validates that database. Future credentials, live maintenance, source promotion or recovery tests still
+need action approval; do not repeat completed first-layout operations.
 
 The live root has pruning disabled. Selecting a prior path therefore leaves
 new stores/routes running; it is not a rollback. Separately review containment
@@ -104,8 +126,9 @@ Eleven global CRDs, fixed-name admission webhooks, node discovery and webhook
 patches remain real privileges. Built-in user-role aggregation is off.
 `../cloudnative-pg/authority-review.yaml` records the pinned rendering, and
 `prerequisites.yaml` authors the separate owner-admin installer delegation. Named
-bind/escalate is privileged and Kubernetes cannot restrict create by name. No
-such authority has been applied. Reject existing foreign CRDs, webhooks,
+bind/escalate is privileged and Kubernetes cannot restrict create by name. These privileges were separately approved for the accepted foundation/provider
+stages; no new authority is added by the Gitaly placement correction. Reject
+existing foreign CRDs, webhooks,
 operator or Helm ownership; do not silently adopt the spike. The chart emits CRDs as templates: crds.create=false explicitly removes them
 from the operator release, and its installer has no CRD mutation authority. The
 owner-admin foundation checksums the pinned chart, renders it in fresh private

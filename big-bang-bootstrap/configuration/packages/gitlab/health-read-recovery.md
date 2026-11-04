@@ -52,6 +52,24 @@ timeout 10 openssl s_client -brief -starttls postgres -connect "${POSTGRES_POD_I
 ```
 
 Require successful chain/hostname verification if reachable; distinguish timeout
-from TLS failure. No database password or signing key is copied. These are
-prepared commands, not completed node-origin evidence. Reconfirm current
+from TLS failure. No database password or signing key is copied. The observed run is recorded below; these commands do not establish future
+node-origin results. Reconfirm current
 certificate validity and workload identities immediately before execution.
+
+## Observed acceptance
+
+On 2026-11-04 the separately approved v0.17.5 delivery created only the two
+health objects, preserved all 35 existing prerequisites and repeated with zero
+changes. The twelve permission checks passed; use `--subresource=exec` and
+`--subresource=log` explicitly with `kubectl auth can-i`, rather than assuming a
+slash in the resource argument tests the subresource. Flux root became Ready and
+Healthy without a source promotion or workload rollout.
+
+Read-only node-origin checks completed: Garage anonymous access was denied on
+its local worker and unreachable from the other nodes; admin was unreachable
+from all three. PostgreSQL TLS CA/hostname verification passed on its local
+worker; the other nodes timed out. No credentials or remote writes were used.
+These outcomes do not establish blanket node-origin NetworkPolicy isolation or
+independent backup/restore. The commands above remain a repeat procedure with
+fresh identity, certificate and authorization prechecks, not permission to run
+future mutations.

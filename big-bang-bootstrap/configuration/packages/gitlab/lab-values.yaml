@@ -10,3 +10,6 @@ addons:
           webservice: {minReplicas: 1, maxReplicas: 1}
           gitlab-shell: {minReplicas: 1, maxReplicas: 1}
           sidekiq: {minReplicas: 1, maxReplicas: 1}
+          # Longhorn mounts require a registered CSI driver on the consumer node.
+          gitaly:
+            nodeSelector: {storage.perkforge.io/worker: 'true'}
