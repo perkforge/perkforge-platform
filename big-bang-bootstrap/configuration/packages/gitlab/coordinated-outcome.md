@@ -17,16 +17,51 @@ Separately approved v0.17.5 delivered only the GitLab namespace Pod health-reade
 Role/binding. Exact readback, preservation of 35 prior prerequisite objects,
 zero-change repeat and twelve positive/negative permission checks passed. Flux
 root, three nodes and eight releases are Ready; no active Pods are unready and
-attached Longhorn volumes are healthy. Runtime remains v0.17.3 because these
-later corrections affected owner-local bootstrap/foundation, not runtime values.
+attached Longhorn volumes were healthy. During that data-stage acceptance runtime
+remained v0.17.3; the later app attempt below selected v0.17.6.
 
 Read-only checks from all nodes found Garage anonymous access denied on its local
 worker and unreachable from the other nodes; the admin listener was unreachable
 everywhere. PostgreSQL CA/hostname verification passed on its local worker; the
 other nodes timed out. This is neither blanket node-origin NetworkPolicy isolation
-nor independent backup/restore or node-failover proof. GitLab application, SSO,
-runner and drive access remain off and separately gated. Source publication and
+nor independent backup/restore or node-failover proof. GitLab workloads were still
+off at data acceptance; the later app attempt is described below. SSO, runner and
+drive access remain off and separately gated. Source publication and
 live activation require their own approvals.
+
+## Current app attempt and Namespace ownership recovery
+
+The separately approved v0.17.6 app batch delivered `gitlab/private-registry`,
+`gitlab-platform-public-ca` and `gitlab-valkey-public-ca`, each with a zero-change
+repeat. Existing data credentials and TLS leaves were reused. Flux now selects
+v0.17.6 and the app root, but Big Bang failed its pre-upgrade ownership check:
+its namespaced reconciler cannot get Namespace/gitlab. That Namespace belongs to
+the owner-admin foundation, not Helm. No GitLab child release, migration Job or
+Gitaly claim was created; existing claims, credential identities and data Pods
+were verified preserved. Seven existing child releases remain Ready; the umbrella
+and root have not passed app readiness. No manual retry or live repair followed.
+
+The pinned GitLab namespace template is unconditional when enabled. The child
+`install.createNamespace=false` controls Helm install behavior, not the umbrella's
+explicit Namespace manifest. Granting read access alone would not establish Helm
+ownership; do not add cluster-wide namespace rights or adoption annotations.
+The prepared umbrella post-renderer deletes only Namespace/gitlab, matching the
+existing Headlamp/Keycloak pattern. All other rendered objects remain identical
+and covered by existing namespaced umbrella permissions. The last deployed
+umbrella revision 10 contains no Namespace/gitlab, so the correction does not
+remove a Helm-owned live Namespace. No source fix has been applied live yet.
+
+After review and publication as an immutable release, separately approve recovery:
+verify release/cluster/source/root, existing Namespace/Secret/PVC identities and
+no unexpected app resources; reuse the same pull credential and public trust;
+promote only the corrected source tag while keeping the selected app root.
+Observe the normal configuration-driven upgrade, not an implicit force/reset.
+Verify no Namespace ownership change, then Gitaly worker placement and claim
+binding, migrations, local recovery, TLS, no-change repeats and cluster health.
+Stop on any unexpected state and preserve all data; no deletion, rollback,
+credential rotation, Namespace adoption, new RBAC, SSO or runner activation is
+part of this prepared correction. If a retry/reset is actually required, inspect
+its exact state and obtain approval rather than silently adding it.
 
 ## Versions and lab budget
 
