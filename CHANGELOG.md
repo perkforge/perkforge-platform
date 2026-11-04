@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.8](https://github.com/perkforge/perkforge-platform/compare/v0.17.7...v0.17.8) (2026-11-04)
+
+
+### Bug Fixes
+
+* **gitlab:** reference pull Secret for hooks and workloads ([#172](https://github.com/perkforge/perkforge-platform/issues/172)) ([3428921](https://github.com/perkforge/perkforge-platform/commit/34289219e925c2b3c71c1925d3a107761062fff6))
+
 ## [0.17.7](https://github.com/perkforge/perkforge-platform/compare/v0.17.6...v0.17.7) (2026-11-04)
 
 
