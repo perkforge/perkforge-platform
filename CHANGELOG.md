@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.4](https://github.com/perkforge/perkforge-platform/compare/v0.17.3...v0.17.4) (2026-11-04)
+
+
+### Bug Fixes
+
+* **gitlab:** validate Garage layout before object bootstrap ([#164](https://github.com/perkforge/perkforge-platform/issues/164)) ([307d831](https://github.com/perkforge/perkforge-platform/commit/307d8316fc6efef3c66fc8d82a223856de09b3d8))
+
 ## [0.17.3](https://github.com/perkforge/perkforge-platform/compare/v0.17.2...v0.17.3) (2026-11-04)
 
 
