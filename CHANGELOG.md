@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.6](https://github.com/perkforge/perkforge-platform/compare/v0.17.5...v0.17.6) (2026-11-04)
+
+
+### Bug Fixes
+
+* **gitlab:** constrain Gitaly to storage workers ([#168](https://github.com/perkforge/perkforge-platform/issues/168)) ([dc7b902](https://github.com/perkforge/perkforge-platform/commit/dc7b902a1faecb0f9e6e6c6f4910ed722ef60c2c))
+
 ## [0.17.5](https://github.com/perkforge/perkforge-platform/compare/v0.17.4...v0.17.5) (2026-11-04)
 
 
