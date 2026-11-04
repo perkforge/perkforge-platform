@@ -4,10 +4,13 @@ This feature reconciles only GitLab scope from old #114 against current
 main, preserving the existing application acceptance evidence. No observability
 predecessor is a runtime dependency and no old PR base is retargeted. All normal
 roots and the combined review profile stay disabled. Dormant activation roots
-require explicit selection. The approved v0.17.0 provider stage is now selected:
-CNPG is Ready, while Valkey is blocked on an unbound claim that selected a node
-without Longhorn CSI. Foundation readback/repeat and credential/policy delivery
-passed; provider security and persistence acceptance have not run. Publication, live activation,
+require explicit selection. The approved v0.17.1 provider stage is accepted:
+CNPG and TLS Valkey are Ready, the original 2Gi claim and five immutable Secrets
+are preserved, and scoped access/denial, public TLS, runtime RBAC and graceful
+container-restart persistence checks passed with dummy/probe cleanup. Secret
+delivery repeats made zero changes. This is not node-failover or independent
+backup/restore proof. PostgreSQL, Garage, GitLab and runner remain disabled.
+Publication, live activation,
 new credentials and drive access remain separate approvals.
 
 ## Versions and lab budget
@@ -52,17 +55,33 @@ Secrets without a rolling surge. Its post-renderer explicitly nulls rollingUpdat
 so the API-defaulted old strategy fields cannot invalidate the transition.
 Brief downtime on a later rollout is deliberate.
 
-For the current unbound-claim recovery, first review/publish/release this source
-correction and separately approve its promotion. Verify the new selector and
-Recreate strategy are applied and the old Pending consumer is gone. If node
-selection remains stale, re-read the exact claim UID/resourceVersion and require
-Pending, no volumeName, no bound PV or data attachment, and no old consumer before
-a guarded removal of only `volume.kubernetes.io/selected-node`. Stop on drift or
-any bound/data-bearing claim; never delete/recreate it or remove bind/protection
-annotations. Let the scheduler select a CSI-capable worker and verify two healthy
-replicas before the approved TLS/access/persistence tests. Failed/stalled Helm
-installation may need a separately scoped reconciliation/reset request, not an
-uninstall. This is a recovery plan, not approval or a claim it has run.
+Observed recovery required a separately approved, UID/version/old-strategy
+guarded JSON PATCH to Recreate: real Helm SSA rejected the API-defaulted old
+rollingUpdate fields even with an explicit null, unlike the earlier strategic
+dry-run. The one-time migration changed only strategy, then Helm applied the
+worker selector. After the old Pending consumer disappeared, only the still
+unbound claim's stale selected-node annotation was guarded-removed. No claim or
+Secret was deleted/recreated. A bounded retry after binding cleared the earlier
+stalled health result; root and eight releases became Ready. Do not repeat this
+historical recovery automatically on a healthy or bound/data-bearing claim.
+
+Before the next data stage, publish/review/release its worker-placement and DNS
+prerequisites. Both PostgreSQL `affinity.nodeSelector` and Garage Pod
+`nodeSelector` require the same prepared-worker label. The existing ingress
+policies remain identical. Add only the two reviewed GitLab DNS records through
+the [bounded existing-service maintenance procedure](../../../../infrastructure/ansible/DNS-MAINTENANCE.md),
+not the first-install playbook. Issue the two approved HTTPS leafs separately;
+no signing-key copy, host trust change or new Registry1 custody is implied.
+PostgreSQL uses its own operator-managed CA; follow
+[public CA delivery and client rotation](postgres-ca-lifecycle.md), never assume
+the lab ingress CA validates that database. New credentials, live maintenance,
+source promotion, Garage first layout and recovery tests need action approval.
+
+The live root has pruning disabled. Selecting a prior path therefore leaves
+new stores/routes running; it is not a rollback. Separately review containment
+(such as CNPG hibernation and Garage scaling after removing their desired stage)
+while preserving all Clusters/PVCs/Secrets. Never uninstall the shared operator,
+delete a Cluster or assume an image rollback restores database state.
 
 Corey explicitly chose CloudNativePG as the platform database foundation. The
 pinned chart0.29.1/operator1.30.1 is shared, deployed in `cnpg-system`, initially

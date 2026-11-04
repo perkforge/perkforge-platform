@@ -42,6 +42,7 @@ spec:
   template:
     metadata: {labels: {app: gitlab-garage}}
     spec:
+      nodeSelector: {storage.perkforge.io/worker: 'true'}
       serviceAccountName: gitlab-garage
       automountServiceAccountToken: false
       securityContext:

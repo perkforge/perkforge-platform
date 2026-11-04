@@ -1,23 +1,30 @@
 # Current operator handoff
 
-## GitLab provider activation — Valkey placement blocked
+## GitLab providers accepted — data/app stages still gated
 
-Observed 2026-11-04: v0.17.0 foundation passed exact 46-object readback and a
-zero-change repeat. The approved five immutable Secrets and four GitLab ingress
-policies are delivered. Flux selects the released provider stage; CNPG is Ready
-and watches only gitlab. Valkey has not started: its unbound 2Gi claim selected
-the control plane, where Longhorn CSI is absent. Existing nodes/apps remain
-healthy. Security/persistence acceptance is pending; no GitLab, PostgreSQL,
-Garage or runner activation, Registry1 copies or independent backup claim.
+Observed 2026-11-04: approved v0.17.1 provider recovery is complete. CNPG watches
+only gitlab and TLS Valkey is Ready on a storage-capable worker. The original
+2Gi claim and five immutable Secrets are preserved, with two healthy Longhorn
+replicas. Root, three nodes and eight releases are Ready. Live CA/hostname/leaf,
+authentication/wrong-auth/plaintext/cross-namespace denial, scoped operator RBAC
+and one graceful container-restart persistence check passed. Its unique dummy
+value, two no-token probes and loopback forward were cleaned up. Both credential
+delivery repeats changed zero, failed zero. This is not node-failover or
+independent backup/restore proof. No Registry1 copies or broader pipeline work.
 
-The local correction requires the existing storage-worker label and Recreate
-for the single PVC writer, explicitly clearing API-defaulted rollingUpdate
-fields. Server dry-run rejected the type-only transition and accepted clearing
-those fields; neither dry-run changed the live Deployment. The correction is
-not applied. Publish/release/promotion and
-guarded recovery of only the still-unbound claim's selected-node annotation
-require review and approval. Preserve the claim, Secrets and operator; never
-delete/recreate the claim or uninstall providers to recover this selection.
+Real Helm SSA required an explicitly approved one-time strategy-only migration
+before worker placement could apply; a source null did not clear API-defaulted
+rollingUpdate fields. After the old Pending consumer disappeared, the guarded
+unbound claim selection was cleared. The claim was never deleted or recreated.
+Do not repeat that historical recovery on a healthy/data-bearing claim.
+
+The next source-only prerequisites add worker placement for PostgreSQL/Garage,
+default-off record-only DNS maintenance and the operator-generated public CA
+lifecycle procedure. No DNS/data activation or credential creation occurred in
+that preparation. Publish/review/release and exact live approval remain gates.
+GitLab, PostgreSQL, Garage, SSO enrollment and runner/basic acceptance remain
+separate next stages. Signing, Trivy gates, shared CI and portal dogfood remain
+deferred until well after the app baseline and other platform apps.
 
 ## GitLab coordinated preparation contract
 
