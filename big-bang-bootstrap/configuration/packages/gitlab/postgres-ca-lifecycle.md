@@ -10,8 +10,10 @@ mounts or a workstation export. See the [CNPG 1.30 certificate contract](https:/
 1. Use the reviewed release and explicit kubeconfig/context/API/cluster UID.
    Require the owned `gitlab/gitlab-postgres` Cluster to be Ready. Record its UID
    and read `status.certificates.serverCASecret`; do not guess a secret name.
-2. Require that Secret to be in `gitlab`, labeled for `gitlab-postgres`, and owned
-   by the exact Cluster UID. Export only `ca.crt` with JSONPath, never dump the
+2. Require that Secret to be in `gitlab`, labeled
+   `app.kubernetes.io/managed-by: cloudnative-pg`, and have a controller owner
+   reference to the exact Cluster UID, name `gitlab-postgres`, and API kind. Do not require
+   a `cnpg.io/cluster` label: the observed operator-generated CA does not have it. Export only `ca.crt` with JSONPath, never dump the
    Secret YAML/JSON or export `ca.key`. Use a new owner-only file in a private
    directory; refuse to overwrite an existing different public certificate.
 3. Verify CA:TRUE, certificate validity, public fingerprint/file SHA256, the live

@@ -216,3 +216,32 @@ subjects:
 - kind: ServiceAccount
   name: platform-reconciler
   namespace: flux-system
+---
+# Owner-admin foundation only: never reconciled by the service account receiving it.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-data-health-reader
+  namespace: gitlab
+  labels:
+    perkforge.io/owner: gitlab-data-foundation-v1
+rules:
+- apiGroups: ['']
+  resources: [pods]
+  verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-data-health-reader
+  namespace: gitlab
+  labels:
+    perkforge.io/owner: gitlab-data-foundation-v1
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-data-health-reader
+subjects:
+- kind: ServiceAccount
+  name: platform-reconciler
+  namespace: flux-system
