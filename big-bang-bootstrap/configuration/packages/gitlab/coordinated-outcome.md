@@ -29,39 +29,53 @@ off at data acceptance; the later app attempt is described below. SSO, runner an
 drive access remain off and separately gated. Source publication and
 live activation require their own approvals.
 
-## Current app attempt and Namespace ownership recovery
+## Current app attempt and pull-Secret recovery
 
-The separately approved v0.17.6 app batch delivered `gitlab/private-registry`,
-`gitlab-platform-public-ca` and `gitlab-valkey-public-ca`, each with a zero-change
-repeat. Existing data credentials and TLS leaves were reused. Flux now selects
-v0.17.6 and the app root, but Big Bang failed its pre-upgrade ownership check:
-its namespaced reconciler cannot get Namespace/gitlab. That Namespace belongs to
-the owner-admin foundation, not Helm. No GitLab child release, migration Job or
-Gitaly claim was created; existing claims, credential identities and data Pods
-were verified preserved. Seven existing child releases remain Ready; the umbrella
-and root have not passed app readiness. No manual retry or live repair followed.
+The approved v0.17.6 app preparation delivered `gitlab/private-registry`,
+`gitlab-platform-public-ca` and `gitlab-valkey-public-ca`, each with zero-change
+repeat. Existing data credentials and TLS leaves were reused. Its umbrella
+Namespace template caused a pre-upgrade ownership/RBAC failure. The separately
+approved v0.17.7 source-only promotion resolved it by omitting only Namespace/
+gitlab, preserving foundation ownership without adoption or cluster-wide rights.
 
-The pinned GitLab namespace template is unconditional when enabled. The child
-`install.createNamespace=false` controls Helm install behavior, not the umbrella's
-explicit Namespace manifest. Granting read access alone would not establish Helm
-ownership; do not add cluster-wide namespace rights or adoption annotations.
-The prepared umbrella post-renderer deletes only Namespace/gitlab, matching the
-existing Headlamp/Keycloak pattern. All other rendered objects remain identical
-and covered by existing namespaced umbrella permissions. The last deployed
-umbrella revision 10 contains no Namespace/gitlab, so the correction does not
-remove a Helm-owned live Namespace. No source fix has been applied live yet.
+The selected app root now created the GitLab child release, but its first
+shared-secrets hook Pod has no imagePullSecrets and fails pulling the pinned
+kubectl image with no basic auth credentials. Work stopped without live repair.
+No migration Job or Gitaly claim exists; Namespace ownership, original claims,
+credential identities and data Pods were verified preserved. GitLab and root
+readiness remain unaccepted. SSO, named grants, runner and drive are unchanged.
 
-After review and publication as an immutable release, separately approve recovery:
-verify release/cluster/source/root, existing Namespace/Secret/PVC identities and
-no unexpected app resources; reuse the same pull credential and public trust;
-promote only the corrected source tag while keeping the selected app root.
-Observe the normal configuration-driven upgrade, not an implicit force/reset.
-Verify no Namespace ownership change, then Gitaly worker placement and claim
-binding, migrations, local recovery, TLS, no-change repeats and cluster health.
-Stop on any unexpected state and preserve all data; no deletion, rollback,
-credential rotation, Namespace adoption, new RBAC, SSO or runner activation is
-part of this prepared correction. If a retry/reset is actually required, inspect
-its exact state and obtain approval rather than silently adding it.
+Big Bang's generated defaults empty `global.image.pullSecrets` and
+`global.imagePullSecrets`, overriding package defaults. The upstream shared-
+secrets/self-signing hooks use the former helper; other workloads also use the
+latter. The prepared candidate overlay explicitly references only the existing
+namespace Secret in both fields. The exact selected render proves every Pod
+spec (five workloads, migrations and three hooks), including its init containers,
+receives one `private-registry` reference. No credential values or Secret objects
+are added, read from the live cluster or rotated by the source fix. Images,
+requests/limits, persistent claims, RBAC and Namespace ownership stay unchanged;
+the chart changes shared-secrets and migration Job names through values hashes.
+Offline references are not proof that every real image pull has succeeded.
+
+After review and immutable release, obtain guarded recovery approval. Recheck
+cluster/source/root, all prepared object identities, original claims and the
+exact old hook Job/Pod. Require that it never ran, remains blocked on anonymous
+image pull, and is the only existing app Job. Because new values rename hooks
+and their delete policy omits hook-failed, do not assume the old generator is
+removed. A separately approved normal UID/version-guarded deletion of only that
+old Job before source promotion prevents concurrent old/new generators when an
+image later becomes cached. Require its Pod absent and the old Helm action ended
+before promotion. No force-delete, unrelated Job/Pod deletion or data
+cleanup is implied. Stop if its identity or substantive state changed.
+
+Promote only the verified corrected source tag, retain the selected app root,
+and reuse the prepared pull credential and public trust. Let ordinary config-
+driven reconciliation run; inspect any need for retry/reset separately. Verify
+all hook/workload references and actual image access, generated-secret custody,
+Gitaly worker placement and claim binding, migrations, local recovery, TLS,
+no-change checks and cluster health. Stop and preserve database/Secrets/PVCs on
+any new failure. No rollback, credential rotation, Namespace adoption, new RBAC,
+SSO or runner activation is part of this source-only preparation.
 
 ## Versions and lab budget
 
