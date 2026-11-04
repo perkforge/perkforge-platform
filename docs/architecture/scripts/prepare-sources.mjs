@@ -8,6 +8,10 @@ const root = path.resolve(here, '../../..')
 const output = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(here, '../public/sources')
 const files = {
   'gitlab-outcome.md': 'big-bang-bootstrap/configuration/packages/gitlab/coordinated-outcome.md',
+  'gitlab-postgres-ca.md': 'big-bang-bootstrap/configuration/packages/gitlab/postgres-ca-lifecycle.md',
+  'dns-maintenance.md': 'infrastructure/ansible/DNS-MAINTENANCE.md',
+  'maintain-lab-dns.yaml': 'infrastructure/ansible/playbooks/maintain-lab-dns.yml',
+  'maintain-lab-dns-tasks.yaml': 'infrastructure/ansible/tasks/maintain-lab-dns.yml',
   'platform-cnpg.md': 'big-bang-bootstrap/configuration/packages/cloudnative-pg/README.md',
   'gitlab-garage.yaml': 'big-bang-bootstrap/configuration/packages/gitlab/reconcile-garage.yaml',
   'gitlab-transport.yaml': 'big-bang-bootstrap/configuration/packages/gitlab/prepare-transport.yaml',
