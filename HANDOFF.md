@@ -1,16 +1,36 @@
 # Current operator handoff
 
-## GitLab coordinated preparation — no activation
+## GitLab provider activation — Valkey placement blocked
+
+Observed 2026-11-04: v0.17.0 foundation passed exact 46-object readback and a
+zero-change repeat. The approved five immutable Secrets and four GitLab ingress
+policies are delivered. Flux selects the released provider stage; CNPG is Ready
+and watches only gitlab. Valkey has not started: its unbound 2Gi claim selected
+the control plane, where Longhorn CSI is absent. Existing nodes/apps remain
+healthy. Security/persistence acceptance is pending; no GitLab, PostgreSQL,
+Garage or runner activation, Registry1 copies or independent backup claim.
+
+The local correction requires the existing storage-worker label and Recreate
+for the single PVC writer, explicitly clearing API-defaulted rollingUpdate
+fields. Server dry-run rejected the type-only transition and accepted clearing
+those fields; neither dry-run changed the live Deployment. The correction is
+not applied. Publish/release/promotion and
+guarded recovery of only the still-unbound claim's selected-node annotation
+require review and approval. Preserve the claim, Secrets and operator; never
+delete/recreate the claim or uninstall providers to recover this selection.
+
+## GitLab coordinated preparation contract
 
 Only GitLab scope from old stacked #114 is reconciled here; observability
 predecessors and PR bases are untouched. The disabled combined review root adds
 public values only and preserves existing objects. GitLab, its shared database
-operator foundation, Valkey, Garage and the protected-project runner are not live.
+operator foundation, Valkey, Garage and protected-project runner were initially
+prepared disabled; current partial activation is recorded above.
 
-Corey chose CloudNativePG as the shared platform foundation. The suspended
-operator is in cnpg-system, initially watches gitlab only, and retains explicit
+Corey chose CloudNativePG as the shared platform foundation. The approved
+operator is Ready in cnpg-system, watches gitlab only, and retains explicit
 namespace RBAC plus reviewed global CRD/webhook permissions. Installer delegation
-is authored but not applied. Additional database namespaces require explicit
+is applied within the reviewed foundation scope. Additional database namespaces require explicit
 watch/RBAC changes, rather than another operator instance.
 
 Ansible owns credential/CA/leaf preparation and delivery, Garage bootstrap and

@@ -32,6 +32,15 @@ spec:
   - kind: ConfigMap
     name: values-gitlab-valkey
     valuesKey: values.yaml
+  # Preserve explicit null in Helm's desired manifest so upgrading an API-defaulted
+  # RollingUpdate Deployment to Recreate clears the forbidden old strategy fields.
+  postRenderers:
+  - kustomize:
+      patches:
+      - target:
+          kind: Deployment
+          name: gitlab-valkey
+        patch: "- op: add\n  path: /spec/strategy/rollingUpdate\n  value: null\n"
   install:
     createNamespace: false
     crds: Skip
