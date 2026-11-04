@@ -1,6 +1,6 @@
 # Current operator handoff
 
-## GitLab data acceptance — Flux health-read correction prepared
+## GitLab data stage accepted — application remains off
 
 Observed 2026-11-04: released v0.17.4 native bootstrap initialized one Garage
 layout, one dedicated read/write-only key and six buckets. Its final repeat
@@ -12,16 +12,38 @@ then removed. Temporary probes and forwards were cleaned up. Original claims and
 ten immutable credential contents were preserved. The public CNPG CA was delivered
 without exporting its signing key; its delivery repeat changed zero.
 
-Overall acceptance remains blocked: Flux cannot list Pods in gitlab to assess
-Garage's StatefulSet. The prepared additive namespaced health-reader Role and
-binding grant only Pod get/list/watch to flux-system/platform-reconciler. Existing
-Roles remain unchanged; these foundation objects are not self-installed by Flux.
-They require review/release and separate live delivery approval. Runtime remains
-on v0.17.3 because v0.17.4 changed only owner-local bootstrap behavior.
+Observed 2026-11-04: published v0.17.5 delivered only the two separately
+approved namespaced health-reader Role/binding objects. All 35 prior prerequisite
+objects retained their identities, versions and exact configuration. Readback and
+zero-change repeat passed. Twelve authorization checks confirm Pod get/list/watch
+in gitlab, while Secret reads, logs, exec, Pod writes, Role creation and unrelated
+namespace Pod reads remain denied. Flux root is now Ready and Healthy. Runtime
+remains v0.17.3; no source promotion or workload rollout was required.
 
-Node-origin checks await an unlocked SSH agent. Namespace Pod denial is not proof
-of node-origin isolation. No independent backup/restore or node-failover acceptance
-is claimed. GitLab itself, SSO, runner and backup drive remain off.
+Read-only SSH checks verified all three node identities. Garage S3 timed out from
+control-1 and worker-1; its worker-2 host reached it and anonymous access was
+denied. The admin listener was unreachable from every node. PostgreSQL public-CA
+and hostname verification passed from its worker-1 host; the other nodes timed
+out. Local-node reachability is not proof of NetworkPolicy isolation. No database
+password, admin token or signing key was copied to nodes; no remote writes.
+
+Final health: three nodes, eight releases and Flux root Ready, no unready active
+Pods and all attached Longhorn volumes healthy. Original claims and ten credential
+Secret identities remain preserved; no Secrets were mutated. Independent
+backup/restore and node-failover are still unverified. GitLab itself, SSO, runner
+and backup drive remain off and require their separate activation gates.
+
+## Next application gate — Gitaly placement prepared
+
+Pinned app rendering exposed an unconstrained Gitaly Longhorn consumer. The
+source-only lab overlay now requires the existing storage-worker label; the
+observed control-plane node has no Longhorn CSI driver. Tests compare the actual
+selected app render against the prior values: only Gitaly's node selector and
+upstream values-hashed shared-secret hook Job names change. One replica, 10Gi
+claim, image and resource sizes remain unchanged. The app still requires review,
+release and separate approval for persistent Registry1 credential delivery,
+public application CA and deployment. SSO client activation/native account grants
+and runner remain later explicit gates. No live application resources changed.
 
 ## Accepted provider evidence
 
