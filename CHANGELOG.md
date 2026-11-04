@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.5](https://github.com/perkforge/perkforge-platform/compare/v0.17.4...v0.17.5) (2026-11-04)
+
+
+### Bug Fixes
+
+* **gitlab:** delegate namespaced Flux Pod health reads ([#166](https://github.com/perkforge/perkforge-platform/issues/166)) ([97bbb21](https://github.com/perkforge/perkforge-platform/commit/97bbb21bb6de9e07ec5de5e836cdcb1e990394e8))
+
 ## [0.17.4](https://github.com/perkforge/perkforge-platform/compare/v0.17.3...v0.17.4) (2026-11-04)
 
 
