@@ -8,6 +8,10 @@ planning_edition: Entry, free mode of Enterprise Edition; no purchase
 pinned_chart: 11.11.0-bb.0
 pinned_image_version: 11.11.0
 edition_verified: false
+source_edition_verified: true
+source_edition: Enterprise binary, free Entry mode
+edition_evidence: edition-review.md
+runtime_edition_verified: false
 keycloak:
   realm: perkforge
   client_id: mattermost
@@ -27,8 +31,7 @@ mappings:
   tenant_viewer: ordinary assigned team/channel member; chat allowed
 limitations:
 - pinned chart sso helper configures GitLab auth, not Generic OpenID Other
-- Entry is free but exact Iron Bank binary edition/feature availability and license
-  terms require verification
+- Source manifest selects Enterprise binary; runtime Entry/OIDC feature availability and license terms still require verification
 - OIDC login does not synchronize tenant team/channel roles by itself
 - v12.1 claim/ABAC features and delegated granular system-admin roles are not assumed
   for 11.11.0 Entry
