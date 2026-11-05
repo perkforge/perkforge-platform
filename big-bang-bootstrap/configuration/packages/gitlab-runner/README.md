@@ -6,46 +6,34 @@ preparation. Environment inputs select the GitLab origin, public CA, native acto
 and project IDs, private file locations and reviewed network endpoints. There is
 no separate deployment script or tenant access-sync service.
 
-## Current state and morning handoff
+## Current baseline acceptance
 
-Observed 2026-11-05: one manager is Ready, runner ID 1 is online/unpaused and
-locked/protected, rejects untagged work and is assigned only to the private
-`platform/runner-acceptance` project. Root/umbrella/runner reconciliation passed.
-The init-permissions capability correction is released and deployed in v0.18.3.
-The owner retry and fresh pipeline both passed Pod admission, image pulls and
-container startup. Both then failed checkout: Git could not lock `//.gitconfig`
-under the forced non-root UID. This is filesystem ownership, not missing RBAC.
-The pending shared runner environment sets `HOME=/tmp`, an existing writable
-per-container ephemeral directory, so Git global configuration avoids `/`.
-Non-root UID, dropped capabilities, restricted admission and credentials remain
-unchanged. An exact pinned helper-image test reproduced HOME=/ denial under UID
-1001/drop ALL; HOME=/tmp passed Git global configuration and a harmless local
-clone. This does not prove live GitLab checkout, TLS or artifact upload.
+Observed 2026-11-05 15:15 UTC: [pipeline 3](https://gitlab.perkforge.home.arpa/platform/runner-acceptance/-/pipelines/3)
+and [job 4](https://gitlab.perkforge.home.arpa/platform/runner-acceptance/-/jobs/4)
+succeeded on worker-2 with the original runner ID 1. Main commit 8ad6c47d was
+checked out, all script checks passed, and artifact upload returned 201. An
+independent download verified the exact expected acceptance/result.txt bytes
+(SHA-256 `25965b80085da91397bb9733abba68711dedb6a5e75e984e39085769ff940b74`).
+The checks establish non-root execution, no default mounted Pod API token and
+zero effective capabilities. The job Pod was cleaned up normally. Manager is
+Ready without restarts and root/umbrella/runner reconciliation is healthy.
 
-Both morning job Pods also scheduled on the control plane: the node is untainted
-and the executor had no placement constraint. The pending shared configuration
-requires both standard `node-role.kubernetes.io/control-plane` and legacy
-`node-role.kubernetes.io/master` labels to be absent on eligible job nodes. It
-uses required affinity, not a preference or physical hostname/storage label.
-Job-variable node-selector overrides stay disabled. Providers must expose their
-control-plane nodes with these standard labels, or adapt the reviewed placement
-contract before use; managed clusters with no schedulable control plane need no
-custom worker label. A lack of eligible capacity leaves jobs Pending rather than
-falling back to a labeled control-plane node. The manager placement is unchanged. A green manager is not proof that checkout or a complete job passed.
+The earlier init-permissions admission and non-root //.gitconfig errors are
+superseded by this real result. Shared source supplies drop ALL for init/build/
+helper, HOME=/tmp and required node affinity excluding standard control-plane/
+legacy master labels. This avoids physical hostnames/storage-label coupling;
+providers exposing control-plane nodes must supply standard role labels or adapt
+the reviewed contract before use. No eligible worker means Pending, not fallback
+to a labeled control-plane node. Node-selector overrides remain disabled. Manager
+placement is separate from job placement. No root/chmod workaround or broader
+RBAC was used. Root recovery and existing project/branch protection remain intact.
 
-After owner review/merge, select the verified corrected immutable source using
-the existing stage-selection procedure, retain `local-gitlab-runner`, and verify
-that Flux updates the manager ConfigMap with `HOME=/tmp` and rolls the Deployment. Do not edit the
-live ConfigMap or generated runner config. Wait for manager/child/root readiness,
-then retry the failed job in the project UI. The owner performed the morning attempts described above; no further retry or
-live workaround was performed while preparing this correction.
-
-Verify checkout and artifact upload/download, nonroot execution, dropped
-capabilities and no mounted Pod API token. Record actual results; do not call the
-runner accepted on render tests alone. Untagged/unprotected/unrelated-project
-rejection, disallowed-image/override checks, CNI allowed/denied egress and safe
-pause/drain remain separate outstanding acceptance cases. The current baseline
-file does not implement all those negative cases.
+This completes the basic protected-job/checkout/artifact outcome. It does not
+prove every untagged/unprotected/unrelated-project denial, disallowed image or
+override case, CNI allowed/denied egress, safe pause/drain or independent restore.
+Those negative/recovery cases remain outstanding; the baseline CI file does not
+implement them. Tenant runner enrollment and tenant access synchronization remain
+deferred. Preserve the existing runner receipt/token on every reconciliation.
 
 ## Source audit of the manual rollout
 
@@ -58,9 +46,9 @@ Read-only live/source comparison on 2026-11-05 found:
 | Token and Registry1 copies | GitLab `prepare-credentials.yaml`, `prepare-registry.yaml`, `deliver-credentials.yaml` with separate runner/registry profiles | Three private manifests match live immutable Secrets; delivery repeats changed zero |
 | Public CA | GitLab `deliver-public-ca.yaml`, exact origin/file/hash and runner stage | Public certificate matches live immutable Secret; no signing key copied |
 | Endpoint policies | GitLab `prepare-runner-network.yaml`, reviewed host routes and actual ingress/API ports | Both applied policies match generated output; physical endpoints remain private environment inputs |
-| Manager/chart configuration | `candidate-values.yaml` plus selected cluster runner overlay | Live TOML and all authored Deployment spec fields match the pinned render before the pending HOME/placement correction, allowing API omission of empty strings |
+| Manager/chart configuration | `candidate-values.yaml` plus selected cluster runner overlay | Live TOML and all authored Deployment spec fields match the pinned render after the reviewed HOME/placement correction, allowing API omission of empty strings |
 | Namespace adoption fix | Big Bang exact-name Namespace post-render filter | Foundation ownership retained; no Namespace RBAC added |
-| Runtime source/stage handoff | Existing Flux seed selection, source UID/ref and root path guards | Reviewed merged commit and runner root selected; release-tag reconciliation is still due |
+| Runtime source/stage handoff | Existing Flux seed selection, source UID/ref and root path guards | Published v0.18.4 and runner root selected; tagged source/root Ready, accepted manager unchanged |
 | Test-project CI commit | `acceptance/gitlab-ci.example.yaml`, owner-reviewed private project MR | Owner merged exact reviewed file; protected branch unchanged; first job failed admission |
 
 No untracked workload patch, credential rotation, new runner identity or relaxed
@@ -71,8 +59,9 @@ environment inputs and private receipt/credentials. Policy generation itself doe
 not deliver policies; inspect existing ownership/spec, create only absent exact
 objects and read back before selecting the stage. Stop on foreign/different state.
 The temporary root-password Git askpass helper was removed; no new PAT was made.
-The source was deliberately selected by tested merge commit under owner approval;
-reconcile to the verified release tag when available. This audit does not prove
+The source was initially selected by tested merge commit under owner approval;
+it is now reconciled to verified published v0.18.4 with the accepted manager Pod
+unchanged and zero restarts. This audit does not prove
 independent restore, broad network isolation or every prior app operation.
 
 ## Adding or recovering a runner
