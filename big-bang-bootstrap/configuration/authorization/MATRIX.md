@@ -330,4 +330,4 @@ activation. Native apply wiring remains explicit where unimplemented.
 | Monitoring architecture | Dedicated Grafana human client; machine components and Velero have separate Kubernetes/API credentials, not fake browser clients. |
 | Grafana | Optional native OIDC overlay rendered; PA explicit server admin, PE/PV Viewer initially. Strict unmatched/tenant denial; native client/apply and org/datasource isolation remain gates. |
 | Loki / Alloy | Grafana login differs from scoped machine write/query credentials. Labels and caller tenant headers are not isolation; backend tenant enforcement remains a gate. |
-| Alertmanager / ntfy | Human access follows Grafana; machine publisher/subscriber credentials are separate. No direct admin ingress. Forwarding/ntfy adapter remains off/unimplemented. |
+| Alertmanager / ntfy | Human access follows Grafana; machine publisher/subscriber credentials are separate. No direct admin ingress. Grafana built-in routing selected; rule import and ntfy payload/delivery remain unimplemented. |
