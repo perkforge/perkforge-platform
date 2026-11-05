@@ -431,7 +431,9 @@ revocation. Keep independent GitLab local recovery outside the SSO dependency.
 Use modern POST/user/runners project registration, not a legacy shared token.
 The exact reviewed private platform project/default protected branch, actor ID,
 no-force-push rule, protected tag and native runner fields are checked. Create
-paused/locked/ref_protected/run_untagged=false with concurrency one and timeout300.
+paused/locked/ref_protected/run_untagged=false with concurrency one and a 600-second
+runner maximum (the installed GitLab minimum). The acceptance job retains its
+separate five-minute timeout; raising the runner cap does not lengthen that job.
 No receipt plus an existing matching runner refuses adoption. Write creation
 intent before POST, store one-time glrt token privately, and never retry uncertain
 creation blindly or reset/rotate it. Activation needs separately verified manager

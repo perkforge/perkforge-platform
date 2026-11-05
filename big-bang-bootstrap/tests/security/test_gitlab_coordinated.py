@@ -149,6 +149,7 @@ class CoordinatedGitLab(unittest.TestCase):
   ci=yaml.safe_load((p/'acceptance/gitlab-ci.example.yaml').read_text());job=ci['runner-baseline'];self.assertEqual(job['tags'],b['tag_list']);self.assertIn('CI_COMMIT_REF_PROTECTED',ci['workflow']['rules'][0]['if']);self.assertEqual(ci['workflow']['rules'][-1],{'when':'never'})
   candidate=yaml.safe_load((p/'candidate-values.yaml').read_text())['addons']['gitlabRunner']['values']['upstream'];config=tomllib.loads(candidate['runners']['config']);self.assertIn(job['image'],config['runners'][0]['kubernetes']['allowed_images']);self.assertEqual(candidate['concurrent'],1)
   self.assertIn('test ! -e /var/run/secrets/kubernetes.io/serviceaccount/token',job['script']);self.assertEqual(job['artifacts']['paths'],['acceptance/result.txt'])
+  self.assertEqual(b['maximum_timeout'],600);self.assertEqual(job['timeout'],'5m')  # server cap and job timeout are independent
  def test_combined_lab_connections_keep_tls_and_separate_backup_gate(self):
   p=ROOT/'configuration/packages/gitlab';extras=tuple(p/n for n in ('lab-values.yaml','sso-values.yaml','postgres-verify-full-values.yaml','data-connections-values.yaml'))
   hr,objects=package_render(ROOT,'gitlab',extra_values=extras)['gitlab'];self.assertTrue(hr['spec']['suspend']);text=yaml.safe_dump(objects)

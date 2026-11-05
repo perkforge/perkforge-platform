@@ -1,5 +1,7 @@
 """One-time runner token custody and lifecycle against synthetic HTTPS only."""
 import base64,hashlib,json,os,shutil,ssl,subprocess,tempfile,threading,unittest
+from urllib.request import Request,urlopen
+from urllib.error import HTTPError
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -30,8 +32,11 @@ class RunnerAPI(unittest.TestCase):
     def do_POST(self):
      if self.headers.get('PRIVATE-TOKEN')!='OFFLINE-RUNNER-API-TOKEN':return self.respond(403,{})
      assert self.path=='/api/v4/user/runners';body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+     # Observed pinned GitLab 19.4.2 model: maximum_timeout >= 600.
+     if type(body.get('maximum_timeout')) is not int or body['maximum_timeout']<600:
+      return self.respond(400,{'message':{'maximum_timeout':['needs to be at least 10 minutes']}})
      assert body['runner_type']=='project_type' and body['project_id']==31 and body['paused'] is True and body['locked'] is True and body['run_untagged'] is False
-     assert body['access_level']=='ref_protected' and body['tag_list']=='perkforge-platform' and body['maximum_timeout']==300
+     assert body['access_level']=='ref_protected' and body['tag_list']=='perkforge-platform' and body['maximum_timeout']==600
      assert s['runner'] is None;s['creates']+=1;s['runner']={k:v for k,v in body.items() if k!='project_id'};s['runner'].update(id=7,tag_list=['perkforge-platform'],projects=[{'id':31}])
      return self.respond(503,{}) if s['failCreate'] else self.respond(201,{'id':7,'token':'glrt-OFFLINE_AUTH_TOKEN','token_expires_at':None})
     def do_PUT(self):
@@ -59,6 +64,13 @@ class RunnerAPI(unittest.TestCase):
    runner_input={'gitlab_credentials_run':True,'gitlab_credentials_profile':'runner','gitlab_credentials_scope':'gitlab-runner-private-assembly-v1','gitlab_credentials_output_dir':str(output),'gitlab_runner_token_file':str(private/'runner-token')}
    self.assertNotEqual(package('prepare-credentials.yaml',runner_input).returncode,0);self.assertFalse((output/'runner-credentials.json').exists());self.assertEqual(s['creates'],0)
    threading.Thread(target=server.serve_forever,daemon=True).start();self.addCleanup(server.shutdown)
+   # Reject the former 300s contract and the value just below the native boundary
+   # before either a runner or one-time token can be created.
+   payload={'runner_type':'project_type','project_id':31,'paused':True,'locked':True,'run_untagged':False,'access_level':'ref_protected','tag_list':'perkforge-platform'}
+   for timeout in (300,599):
+    request=Request('https://localhost:'+str(server.server_port)+'/api/v4/user/runners',data=json.dumps({**payload,'maximum_timeout':timeout}).encode(),headers={'PRIVATE-TOKEN':'OFFLINE-RUNNER-API-TOKEN','Content-Type':'application/json'},method='POST')
+    with self.assertRaises(HTTPError) as rejected:urlopen(request,context=ssl.create_default_context(cafile=str(p/'ca')))
+    self.assertEqual(rejected.exception.code,400);self.assertIn('maximum_timeout',json.loads(rejected.exception.read())['message']);self.assertEqual(s['creates'],0);self.assertIsNone(s['runner'])
    token=p/'api-token';token.write_text('OFFLINE-RUNNER-API-TOKEN');token.chmod(0o600)
    v={'gitlab_runner_run':True,'gitlab_runner_recovery_verified':True,'gitlab_runner_manager_verified':True,'gitlab_runner_origin':'https://localhost:'+str(server.server_port),'gitlab_runner_ca_file':str(p/'ca'),'gitlab_runner_api_token_file':str(token),'gitlab_runner_private_directory':str(private),'gitlab_runner_actor_id':21,'gitlab_runner_project_id':31,'gitlab_runner_project_path':'platform/acceptance'}
    def run(operation='prepare',extra=None,check=False):
