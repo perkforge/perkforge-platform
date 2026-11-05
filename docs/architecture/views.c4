@@ -478,16 +478,6 @@ views {
     platform.prerequisite_applier -> engineer '6. Stop on failed condition; actual scrapes/log auth/retention/notification/recovery acceptance remains separate'
   }
 
-  dynamic view gitlab_initial_admin {
-    title 'GitLab initial administration — blocked candidate'
-    description 'Who does what and why: real disabled profile, not approved deployment; external datastore/capacity/TLS decisions remain.'
-    engineer -> platform.gitlab '1. Review Free baseline, exact versions and cumulative app plus PostgreSQL/Redis/object-store capacity'
-    engineer -> platform.prerequisite_applier '2. Separately approve current physical TLS and protected admin/recovery inputs; no credentials in source'
-    platform.prerequisite_applier -> platform.gitlab '3. Future reviewed namespace installer and shared-secret Job authority; no cluster grant'
-    platform.bigbang -> platform.gitlab '4. Only after gates: approved release selection uses delegated installer, creates workloads and application recovery Secrets'
-    platform.gitlab -> engineer '5. Verify trusted local admin, clone/push, persistence/restore; stop before SSO, runners or migration'
-  }
-
   dynamic view harbor_initial_admin {
     title 'Harbor initial administration — blocked candidate'
     engineer -> platform.harbor '1. Review supported external data services, capacity, TLS/network and explicit deferred scanner scope'
