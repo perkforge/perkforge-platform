@@ -1,0 +1,47 @@
+# OIDC-only candidate. No mount creation, machine auth or legacy policy mutation.
+apply: false
+issuer: '{{ sso_keycloak_origin }}{{ sso_keycloak_path }}/realms/{{ sso_realm }}'
+client_id: '{{ sso_apps.openbao.client_id }}'
+public_ca_file: '{{ sso_public_ca_file }}'
+default_role: ''
+roles:
+  platform-admin:
+    role_type: oidc
+    user_claim: sub
+    bound_audiences: ['{{ sso_apps.openbao.client_id }}']
+    bound_claims: {groups: [/platform/admins]}
+    bound_claims_type: string
+    bound_subject: ''
+    claim_mappings: {}
+    user_claim_json_pointer: false
+    verbose_oidc_logging: false
+    token_policies_template_claims: false
+    token_type: service
+    token_period: 0
+    token_explicit_max_ttl: 3600
+    token_num_uses: 0
+    token_bound_cidrs: []
+    allowed_redirect_uris: ['{{ sso_apps.openbao.origin }}/ui/vault/auth/oidc/oidc/callback']
+    oidc_scopes: [openid, profile]
+    token_ttl: 900
+    token_max_ttl: 3600
+    token_no_default_policy: true
+    token_policies: [perkforge-sso-platform-admin]
+policies:
+  perkforge-sso-platform-admin: |
+    # Exact current-token operations only; default policy remains disabled.
+    path "auth/token/lookup-self" { capabilities = ["read"] }
+    path "auth/token/renew-self" { capabilities = ["update"] }
+    path "auth/token/revoke-self" { capabilities = ["update"] }
+    path "sys/capabilities-self" { capabilities = ["update"] }
+    path "sys/internal/ui/resultant-acl" { capabilities = ["read"] }
+    path "platform/data/*" { capabilities = ["create", "read", "update", "patch", "delete"] }
+    path "platform/metadata" { capabilities = ["list"] }
+    path "platform/metadata/*" { capabilities = ["read", "list"] }
+    path "tenants/metadata" { capabilities = ["list"] }
+    path "tenants/metadata/*" { capabilities = ["list"] }
+tenant_roles: []
+# Explicit tenant inventory + reviewed per-tenant tests precede additional grants.
+recovery_required: true
+existing_alias_and_token_migration_review_required: true
+machine_auth_changes_allowed: false

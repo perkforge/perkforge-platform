@@ -1,0 +1,63 @@
+# Local manifest preparation only; the selected CNI/DNAT path still needs acceptance.
+- name: Assemble endpoint-specific runner policies from reviewed inputs
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    gitlab_network_run: false
+    gitlab_network_scope: UNAPPROVED
+    gitlab_network_route_hosts: []
+    gitlab_network_api_host: UNCONFIGURED
+    gitlab_network_api_port: 0
+    gitlab_network_traefik_port: 0
+    gitlab_private_output_directory: /UNCONFIGURED/output
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check mode writes nothing. Explicit host CIDRs and target ports only; no DNS, API contact, CNI change or policy application.'
+  - when: gitlab_network_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - gitlab_network_scope == 'gitlab-runner-egress-v1'
+        - gitlab_network_route_hosts | gitlab_endpoint_inputs_valid(gitlab_network_api_host,gitlab_network_api_port,gitlab_network_traefik_port)
+    - ansible.builtin.set_fact:
+        gitlab_network_peers: []
+        cacheable: false
+    - ansible.builtin.set_fact:
+        gitlab_network_peers: '{{ gitlab_network_peers + [{"ipBlock":{"cidr":item}}] }}'
+      loop: '{{ gitlab_network_route_hosts }}'
+    - ansible.builtin.set_fact:
+        gitlab_network_common:
+        - to: '{{ gitlab_network_peers }}'
+          ports: [{protocol: TCP, port: 443}]
+        - to:
+          - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+            podSelector: {matchLabels: {app.kubernetes.io/name: rke2-traefik}}
+          ports: [{protocol: TCP, port: '{{ gitlab_network_traefik_port }}'}]
+        gitlab_network_manager_extra:
+        - to:
+          - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+            podSelector: {matchLabels: {k8s-app: kube-dns}}
+          ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+        - to: [{ipBlock: {cidr: '{{ gitlab_network_api_host }}'}}]
+          ports: [{protocol: TCP, port: '{{ gitlab_network_api_port }}'}]
+        cacheable: false
+    - ansible.builtin.include_tasks: tasks/private-output.yaml
+      vars:
+        gitlab_private_output_name: runner-network.json
+        gitlab_private_payload:
+          apiVersion: v1
+          kind: List
+          items:
+          - apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata: {name: reviewed-gitlab-endpoints, namespace: gitlab-ci-platform, labels: {perkforge.io/owner: gitlab-runner-network-v1}}
+            spec: {podSelector: {}, policyTypes: [Egress], egress: '{{ gitlab_network_common }}'}
+          - apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata: {name: runner-manager-endpoints, namespace: gitlab-runner, labels: {perkforge.io/owner: gitlab-runner-network-v1}}
+            spec:
+              podSelector: {matchLabels: {app: gitlab-runner}}
+              policyTypes: [Egress]
+              egress: '{{ gitlab_network_common + gitlab_network_manager_extra }}'

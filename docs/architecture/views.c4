@@ -153,7 +153,7 @@ views {
 
   dynamic view bootstrap_installer_flow {
     title 'Big Bang bootstrap — release, prerequisites and delegated package installation'
-    description 'General bootstrap ownership with Longhorn as the current concrete package. Each package needs its own reviewed installer contract; Longhorn diagnostic cluster-admin is an accepted lab exception, not a global default. Rancher is Ready at live v0.12.0 with first login pending and identity/tenants remain unselected. This is a procedure model, not live approval.'
+    description 'General bootstrap ownership with Longhorn as the current concrete package. Each package needs its own reviewed installer contract; Longhorn diagnostic cluster-admin is an accepted lab exception, not a global default. The historical v0.14.0 installation checkpoint predates current app SSO acceptance; current status is in platform_app_sso. This is a procedure model, not live approval.'
     link /runbook.html#longhorn-rbac 'Bootstrap ownership, code and Longhorn trust example'
     engineer -> platform.prerequisite_applier '1. Review exact published release, target and shared/per-package prerequisites'
     platform.prerequisite_applier -> platform.longhorn_installer '2. Approved Ansible applies shared and selected package RBAC; Longhorn example'
@@ -163,6 +163,20 @@ views {
     platform.flux -> platform.longhorn_installer '6. helm-controller impersonates that package installer for Helm operations'
     platform.longhorn_installer -> platform.longhorn_runtime '7. Helm creates package resources/runtime identities; Longhorn diagnostic exception'
     platform.longhorn_runtime -> platform.storage '8. Verify readiness, then separately approve package acceptance tests'
+  }
+
+  dynamic view app_stage_promotion {
+    title 'One release — approved app stages and acceptance'
+    description 'OBSERVED OpenBao/Headlamp/Keycloak acceptance at v0.14.0; root now local-keycloak, no realm/group/SSO activation. Fixed Kustomize stage roots share one immutable artifact. Preserve Longhorn/Rancher. Stop after every app for access/custody and health/capacity acceptance; no automatic backward-stage rollback or auth integration.'
+    link /runbook.html#app-stages 'Stage paths, ownership and stop gates'
+    engineer -> platform.prerequisite_applier '1. Review exact release and approve only OpenBao inputs/prerequisites'
+    engineer -> platform.flux '2. Promote verified source; default local path selects OpenBao only'
+    platform.flux -> platform.openbao.runtime '3. Install; approved initialization/unseal custody and admin access are separate gates'
+    platform.openbao.runtime -> engineer '4. Verify Ready, custody/access and per-node health/storage headroom; stop on failure'
+    engineer -> platform.flux '5. Approve Headlamp prerequisites; advance same-artifact root to local-headlamp'
+    platform.headlamp.runtime -> engineer '6. Verify token access and health/capacity before next approval'
+    engineer -> platform.flux '7. Approve Keycloak/database inputs; advance root to local-keycloak'
+    platform.keycloak.runtime -> engineer '8. Verify database, initial admin access and health; OIDC/group apply remains separate'
   }
 
   dynamic view storage_acceptance {
@@ -225,47 +239,67 @@ views {
   }
 
   dynamic view keycloak_initial_admin {
-    title 'Keycloak initial master administration — proposed'
-    description 'Who does what and why: package deployment and temporary master recovery identity precede, but do not activate, Ansible realm/group configuration.'
+    title 'Keycloak initial master administration — observed v0.14.0'
+    description 'Who does what and why: observed deployment, scoped policies, TLS and private initial master login precede Ansible realm/group configuration. Temporary master admin does not expire; permanent independent recovery and retirement remain separate approvals. Frontend TLS terminates at Traefik; internal HTTP/PostgreSQL are plaintext.'
+    link /runbook.html#keycloak-access 'Observed operation, source links and recovery boundary'
     engineer -> platform.prerequisite_applier '1. Review exact release/target; approve Longhorn claim, private credentials and current physical TLS'
-    platform.prerequisite_applier -> platform.keycloak.installer '2. Ansible prepares namespace, retained PVC, empty-store SQL and scoped installer rights'
-    engineer -> platform.flux '3. Promote release only after protected bootstrap/database/Registry1 inputs exist'
+    platform.prerequisite_applier -> platform.keycloak.installer '2. Ansible prepares 4Gi retained PVC, empty-store SQL, scoped installer rights and only two Keycloak NetworkPolicies'
+    engineer -> platform.flux '3. Deliver approved leaf/bootstrap/database/Registry1 Secrets; retain v0.14.0, advance only local-keycloak path'
     platform.bigbang -> platform.keycloak.installer '4. Child waits for Longhorn and delegates chart operations to keycloak-installer'
     platform.keycloak.installer -> platform.keycloak.runtime '5. Helm creates database/app workloads without importing a realm or granting human roles'
     platform.keycloak.runtime -> platform.keycloak.master_admin '6. First empty-store start creates approved temporary master bootstrap identity'
-    engineer -> platform.keycloak.master_admin '7. Separately verify trusted HTTPS and private admin login; retain recovery'
+    engineer -> platform.keycloak.master_admin '7. Passed trusted HTTPS, private master-admin API login, database role and per-node health/storage checks'
     platform.keycloak.master_admin -> engineer '8. Stop before realm/groups/clients/SSO; proposed Ansible configuration needs review and approval'
   }
 
   dynamic view headlamp_initial_admin {
-    title 'Headlamp initial Kubernetes-token access — proposed'
-    description 'Who does what and why: installer authority is not the human token or runtime UI identity. No admin token is generated by this source.'
-    engineer -> platform.prerequisite_applier '1. Review release/target; separately approve namespaced installer and Registry1 delivery'
-    platform.prerequisite_applier -> platform.headlamp.installer '2. Ansible applies scoped chart and Helm-storage delegation'
-    engineer -> platform.flux '3. Promote reviewed release; Keycloak integration stays off'
-    platform.bigbang -> platform.headlamp.installer '4. Child HelmRelease delegates to headlamp-installer'
-    platform.headlamp.installer -> platform.headlamp.runtime '5. Helm creates UI Deployment/Service/runtime SA without RBAC grant'
-    engineer -> platform.headlamp.runtime '6. Separately approve loopback access and suitable short-lived Kubernetes token; no invented password'
-    platform.headlamp.runtime -> platform.rke2 '7. Forward human identity; Kubernetes enforces actual RBAC'
-    platform.rke2 -> engineer '8. Verify allowed/denied actions and close forwarding; OIDC/group integration remains deferred'
+    title 'Headlamp temporary-admin acceptance — observed v0.14.0'
+    description 'Who does what and why: operator Ansible, delegated installer, unprivileged runtime and temporary human-equivalent bootstrap identity stay distinct. Test identity revoked; personal browser login unobserved. No ongoing access or SSO approval.'
+    link /sources/headlamp-access-smoke.yaml 'Actual default-off Ansible operation'
+    engineer -> platform.prerequisite_applier '1. Approve namespaced prerequisites and protected existing registry delivery'
+    platform.prerequisite_applier -> platform.headlamp.installer '2. Apply chart/Helm-storage delegation only'
+    engineer -> platform.flux '3. Keep v0.14.0 and advance only root to local-headlamp; Keycloak off'
+    platform.headlamp.installer -> platform.headlamp.runtime '4. Helm deploys unprivileged UI; verify actual desired config and deployment Ready'
+    engineer -> platform.headlamp.access_test '5. Establish localhost forwarding; explicitly approve temporary full admin and cleanup'
+    platform.headlamp.access_test -> platform.headlamp.temporary_admin '6. Create unique SA/binding; TokenRequest 3600s, verify expiry, cache privately'
+    platform.headlamp.temporary_admin -> platform.headlamp.runtime '7. Real cookie-login/proxy test with private token, no credential URLs/logs'
+    platform.headlamp.runtime -> platform.rke2 '8. Prove dedicated identity and capabilities via safe reviews, no Secret values or destructive writes'
+    platform.headlamp.access_test -> platform.headlamp.temporary_admin '9. Always UID-check/delete binding and SA; prove old token denied'
+    platform.headlamp.runtime -> engineer '10. Close forwarding; verify retained apps/resources; personal browser and ongoing access remain separate'
   }
 
   dynamic view openbao_initial_admin {
-    title 'OpenBao initial token administration — proposed'
-    description 'Who does what and why: separate reviewed prerequisites, Helm runtime identity and human token custody. No deployment or initialization approval is conveyed.'
+    title 'OpenBao initialization and unseal — observed v0.13.0'
+    description 'Who does what and why: observed approved 2026-11-01, code-linked one-time init/unseal, separate installer/runtime/root identities and temporary single-workstation recovery custody. No future initialization or recovery approval is conveyed.'
+    link /sources/openbao-initialize.yaml 'Actual Ansible initialization/unseal source'
     engineer -> platform.prerequisite_applier '1. Review published release, target, capacity and current physical PKI; approve scoped actions'
     platform.prerequisite_applier -> platform.openbao.installer '2. Ansible applies namespaced installer/release-storage delegation, no cluster grants'
     engineer -> platform.flux '3. Deliver separately approved backend TLS Secret, then promote exact release'
     platform.flux -> platform.bigbang '4. Reconcile selected package; existing storage and Rancher unchanged'
     platform.bigbang -> platform.openbao.installer '5. HelmRelease selects delegated installer before rendering'
     platform.openbao.installer -> platform.openbao.runtime '6. Helm creates TLS server/SA and retained Longhorn claim; sealed state stays NotReady'
-    engineer -> platform.openbao.runtime '7. Separately approved verified-TLS loopback access, new-store init, separate share/token custody and unseal'
-    platform.openbao.runtime -> engineer '8. Verify readiness and private admin login; stop before OIDC/policy changes'
+    engineer -> platform.openbao.initialization '7. Explicit apply: verify target and uninitialized store via TLS loopback; never reinitialize'
+    platform.openbao.initialization -> platform.openbao.custody '8. Initialize once 3/2; save owner-only root token separately from shares before proceeding'
+    platform.openbao.initialization -> platform.openbao.runtime '9. Submit two shares via stdin; verify unsealed health and initial root-token policy privately'
+    platform.openbao.runtime -> engineer '10. Verify Ready and cluster resource delta; close port-forward; custody transfer/backup and OIDC remain pending'
+  }
+
+  dynamic view openbao_lan_https {
+    title 'OpenBao LAN HTTPS — observed v0.14.0'
+    description 'Who does what and why: TLS stays end to end; routing is not human authorization. Exact SNI only, no token/key forwarding configuration, global controller change or root-token login. Approved activation passed; future changes still require approval.'
+    link /runbook.html#openbao-lan 'Approval, ownership and verification boundaries'
+    engineer -> platform.prerequisite_applier '1. Approve exposure; verify exact target, published release, initialized store, TLS and existing routes'
+    platform.prerequisite_applier -> platform.openbao.installer '2. Add only namespaced IngressRouteTCP CRUD; no cluster/Secret grant'
+    engineer -> platform.flux '3. Conditional source promotion; preserve approved stage, no additional app selection'
+    platform.openbao.installer -> platform.openbao.lan_route '4. Helm creates the exact-SNI route from pinned chart extraObjects'
+    engineer -> platform.openbao.lan_route '5. Browser connects to exact hostname on existing 443; no automatic token login'
+    platform.openbao.lan_route -> platform.openbao.runtime '6. Forward encrypted bytes to existing 8200; OpenBao alone terminates TLS'
+    platform.openbao.runtime -> engineer '7. Verify CA/name/leaf and unauthenticated health/UI, Rancher route and resource report; stop on mismatch'
   }
 
   dynamic view rancher_local_admin {
-    title 'Rancher installation observed — first login pending'
-    description 'Observed at v0.12.0: root/umbrella/Rancher Ready, runtime controllers available and trusted HTTPS ping passed; no first login. Big Bang/Flux owns installation; Ansible applies approved prerequisites/TLS, not a competing Helm deployment. Vendor matrix covers RKE2 1.36 but lists Longhorn 1.12, not the separately managed 1.13 lab combination. One replica/control-plane is not HA. No SSO or test-volume cleanup.'
+    title 'Rancher installation history — current SSO acceptance separate'
+    description 'Historical v0.12.0 installation flow: root/umbrella/Rancher Ready, runtime controllers and trusted HTTPS. Current Generic OIDC configuration and reported login are in platform_app_sso; bounded no-grant denial and exact cleanup passed; all admin operations/rollback remain untested. Big Bang/Flux owns installation; Ansible applies approved prerequisites/TLS, not a competing Helm deployment. Vendor matrix covers RKE2 1.36 but lists Longhorn 1.12, not the separately managed 1.13 lab combination. One replica/control-plane is not HA. This historical install flow is not permission to repeat installation or clean test volumes.'
     link /runbook.html#rancher-stage 'Source, necessary inputs and acceptance gates'
     engineer -> platform.prerequisite_applier '1. Review new release, target/capacity, vendor gaps and privileged action scope'
     platform.prerequisite_applier -> platform.rancher.inputs '2. Separately approve namespace, checked TLS/public CA and bootstrap Secret delivery'
@@ -283,8 +317,8 @@ views {
     engineer -> platform.observability.collectors '1. Review source pins, scoped collector identity, no duplicates and sensitive-log exclusions'
     platform.observability.collectors -> platform.observability.stores '2. Proposed metrics/log ingestion; enforce bounded labels, tenant auth and reviewed capacity'
     platform.observability.stores -> platform.observability.grafana '3. Proposed Git-owned datasources/six dashboards; no tenant access via mere filters'
-    platform.observability.stores -> platform.observability.alerts '4. Preserve native PrometheusRules and bundled Alertmanager evaluation/routing'
-    platform.observability.grafana -> platform.observability.alerts '5. Optional Grafana-managed alerts to same external manager; prove no duplicate path'
+    platform.observability.stores -> platform.observability.alerts '4. Preserve upstream recording rules and reviewed alert expressions; no Prometheus notification route'
+    platform.observability.grafana -> platform.observability.alerts '5. Grafana-managed evaluation to built-in Alertmanager; inventory/import rules and prevent duplicate delivery'
     platform.observability.alerts -> platform.observability.notification '6. Future compatible authenticated TLS ntfy path, grouping/silences/firing/resolved/failure tests'
     platform.observability.notification -> engineer '7. Verify intended client, disk/ingest impact, isolation and isolated restore; whole-cluster blind spot remains'
   }
@@ -296,6 +330,119 @@ views {
     engineer -> platform.keycloak.runtime '1. Review app protocol, edition, exact callback and bounded group claims; no client enabled'
     platform.keycloak.runtime -> platform.queued_app_access '2. Proposed app consumes claims; native role/resource boundaries must enforce access'
     platform.queued_app_access -> engineer '3. Approve one app only; verify MFA, allow/deny, independent recovery and rollback before activation'
+  }
+
+  dynamic view realm_group_foundation {
+    title 'PerkForge platform realm/groups — observed'
+    description 'Who does what and why: observed platform-only operation created one realm/five empty groups with no users, memberships, custom mappings or app clients; repeat changed zero. Big Bang still owns deployment. Tenant roles and human/app authorization remain unimplemented; existing master recovery is preserved.'
+    link /runbook.html#realm-foundation 'Operation, code, tests and boundaries'
+    engineer -> platform.authorization.foundation '1. Approved platform-only input: empty tenant list; verified target/TLS and absent realm'
+    platform.authorization.foundation -> platform.keycloak.master_admin '2. Verify target/TLS and authenticate existing master admin privately; do not create or retire credentials'
+    platform.authorization.foundation -> platform.authorization.groups '3. Compare owned realm and every exact path/mapping; refuse conflicts before group writes'
+    platform.authorization.foundation -> platform.keycloak.runtime '4. Created owned PerkForge realm and five empty platform/container groups; built-in scaffolding only'
+    platform.keycloak.runtime -> platform.authorization.foundation '5. Verified zero users/members/custom mappings/app clients and second-run changed 0; existing apps/master preserved'
+    platform.authorization.foundation -> engineer '6. Saved redacted evidence; stop before tenant groups, user enrollment, role enforcement or app SSO; permanent recovery remains separate'
+  }
+
+  dynamic view human_totp_enrollment {
+    title 'IL2 identity checkpoint — fresh MFA, SSO and bounded recovery accepted'
+    description 'OBSERVED 02:52:34 UTC: exact ownership/flow verification, final membership-only change and zero-write repeat passed; profile/password/actions/master/apps preserved. No app grants. User reports new password/TOTP at 13:08 UTC; user also reports sign-out/back-in at 13:09 UTC, both-factor prompts confirmed at 13:15 UTC (user-reported fresh MFA success); GET-only metadata 13:12:58 UTC confirmed membership, no actions, password/otp types; same-browser SSO user-confirmed and separate disposable identity negative/recovery/cleanup checks passed. Current IL2 TOTP; future IL5 CAC not implemented.'
+    link /runbook.html#human-totp 'Code, decisions and acceptance'
+    engineer -> platform.authorization.human_enrollment '1. Review exact username, profile completion, IL2 scope and independent recovery; approve writes separately'
+    platform.authorization.human_enrollment -> platform.keycloak.master_admin '2. Verify target/TLS; use existing protected master credential without changing recovery'
+    platform.authorization.human_enrollment -> platform.keycloak.runtime '3. Observed: admin-only schema and exact-UUID markers repaired; credential/actions preserved'
+    platform.authorization.human_enrollment -> platform.keycloak.runtime '4. Build/verify owned browser policy: MFA SSO cookie OR required password plus required TOTP; bind only PerkForge'
+    platform.authorization.human_enrollment -> platform.authorization.groups '5. Observed: verify nested metadata by flowId, add nominal membership only (changed 1); no app rights or flow rebuild'
+    engineer -> platform.keycloak.runtime '6. User reported new password/TOTP; metadata confirms no actions and password/otp types. User confirmed fresh password+TOTP login at 13:15 UTC'
+    platform.keycloak.runtime -> engineer '7. User-confirmed fresh password+TOTP success at 13:15 UTC; same-browser SSO confirmed; separate test-only denial/recovery passed'
+    platform.authorization.human_enrollment -> engineer '8. Observed repeat changed 0; bounded test-only recovery passed, IdP-outage/custody untested. Stop before bootstrap retirement, IL5 or Headlamp OIDC'
+  }
+
+  dynamic view factor_recovery_acceptance {
+    title 'Who does what and why — bounded identity checkpoint acceptance'
+    description 'OBSERVED: one disposable unprivileged identity, three negative submissions, successful new-factor recovery and exact cleanup. Human SSO success is separately user-reported. No realm/lockout changes, Corey session use or app grants.'
+    link /runbook.html#factor-recovery 'Results, actual code and scope limits'
+    engineer -> platform.authorization.factor_acceptance '1. Explicitly approve one unique test identity, private test secrets, bounded attempts and cleanup'
+    platform.authorization.factor_acceptance -> platform.keycloak.master_admin '2. Existing protected master credential: Ansible verifies target/defaults and creates only unprivileged owned test UID'
+    platform.authorization.factor_acceptance -> platform.keycloak.runtime '3. Python trusted-HTTPS PKCE forms: enroll; wrong password, missing OTP and wrong OTP rejected; valid login passes'
+    platform.keycloak.master_admin -> platform.keycloak.runtime '4. Ansible removes only test OTP and requires CONFIGURE_TOTP; Python enrolls different factor and recovery login passes'
+    platform.authorization.factor_acceptance -> platform.keycloak.runtime '5. UID/owner-checked test deletion; all three userinfo and refresh pairs rejected; no global offline JWT revocation claim'
+    platform.authorization.factor_acceptance -> engineer '6. Generated password/seed/token file removed; human metadata, realm/flow/lockout and health unchanged; preserve sanitized evidence'
+  }
+
+  dynamic view perkforge_realm_administration {
+    title 'PerkForge realm administration — mapping and repeat verified'
+    description 'Approved #136 source applied one exact realm-admin group mapping; independent scope/preservation passed. Normal repeat made zero writes but failed the old empty group-representation guard. #137 merged-source normal repeat subsequently passed changed 0, failed 0. Owner reports fresh MFA console access; no automated human login.'
+    engineer -> platform.authorization.perkforge_admin '1. Approved full PerkForge scope including impersonation; feature/post-merge CI and fresh baseline passed'
+    platform.authorization.perkforge_admin -> platform.keycloak.master_admin '2. Verified exact merged source, UID/TLS/private existing recovery; did not delegate or alter master'
+    platform.authorization.perkforge_admin -> platform.authorization.groups '3. Applied one mapping only to owned /platform/admins: changed 1, failed 0'
+    platform.keycloak.runtime -> platform.authorization.perkforge_admin '4. Independent direct root and 22-role closure verified; non-target/master mappings, realm security and role graph unchanged'
+    platform.authorization.perkforge_admin -> platform.keycloak.runtime '5. Normal repeat changed 0 but failed early: legitimate group clientRoles representation violates empty guard; no further writes'
+    platform.authorization.perkforge_admin -> platform.keycloak.runtime '6. Local exact representation/direct-metadata coherence correction passed GET-only active-state validation: 38 ok, changed 0, failed 0; realistic synthetic repeats passed'
+    platform.authorization.perkforge_admin -> engineer '7. #137 merged; both post-merge workflows passed. Normal merged-source repeat: 38 ok, changed 0, failed 0; independent scope/recovery/health preserved. Owner reports fresh MFA console access'
+  }
+
+  dynamic view platform_app_sso {
+    title 'App SSO evidence — OpenBao login reported and bounded native ACL accepted'
+    description 'Headlamp v0.15.2 is active: exact native/client gates and no-change repeats passed. Owner confirms named login and nodes/pods. Real no-grant OIDC/TOTP nodes/pods403 and Secret-list review denial plus exact cleanup passed. Rancher config/repeats and owner-reported named login with local-cluster/pod visibility are observed; bounded real no-grant native denial, no issued session, exact UID/IdP-session/credential cleanup and unchanged baseline passed (83ok/0failed). Full admin operations and rollback remain untested. OpenBao configuration/repeats/recovery/redirect passed; owner reports named OpenBao OIDC login; bounded native PA allow/tenant-value denial and exact cleanup passed 58 ok / 0 failed; no-group OIDC remains untested; no broader acceptance implied.'
+    engineer -> platform.authorization.platform_sso '1. Review environment, public CA, exact UID/UUIDs, independent recovery and private credential references; approve one app only'
+    platform.authorization.platform_sso -> platform.keycloak.runtime '2. Prepare one disabled owned client and bounded noncomposite app role/claim; no human mapping yet'
+    engineer -> platform.headlamp '3. Review optional local-headlamp-sso selection in a new immutable release; separately approve credential/public-CA delivery and API trust with sole-control-plane restart/recovery before tag/path promotion'
+    platform.authorization.platform_sso -> platform.headlamp '4. Refuse missing API/workload trust; approved native stage binds PA only. Keep independent kubeadmin recovery'
+    platform.authorization.platform_sso -> platform.rancher '5. OBSERVED Rancher Generic OIDC and PA binding; zero-change repeats, local recovery preserved; owner reports named login and local-cluster/pod visibility; one real no-grant S256/TOTP native denial and exact cleanup passed'
+    platform.authorization.platform_sso -> platform.openbao '6. OBSERVED OpenBao empty KV-v2 engines, owned OIDC and PA client/policy; zero-change repeats, TTL/recovery/S256 redirect/health passed; owner login reported; bounded native policy test passed, one temporary token/two owned keys with exact cleanup; preserve recovery and engines'
+    platform.authorization.platform_sso -> platform.keycloak.runtime '7. After native readiness approval, map only that app role and enable only that client; verify no-change repeat and other mappings'
+    platform.authorization.platform_sso -> engineer '8. Record owner-reported named logins separately from native authorization tests; independent rollback and stale-session limits remain explicit'
+    engineer -> platform.authorization.platform_sso '9. OBSERVED approved root operator minted one 5m nonrenewable PA-policy test token and marked two absent dummy keys; no Keycloak user or group changes'
+    platform.authorization.platform_sso -> platform.openbao '10. OBSERVED 58 ok / 0 failed: platform CRUD and tenant-value403; exact bearer/accessor revocation, owned dummy metadata/version404 and credential-file removal. No real values, no-group OIDC proof or global token scan'
+  }
+
+
+  dynamic view headlamp_activation_prerequisites {
+    title 'Headlamp activation — owner accepted, recovery preserved'
+    description 'Owner-local API transaction/recovery passed; v0.15.2 app rollout required no further restart or rotation. Native/client gates and zero-change repeats passed. Owner confirms Corey login and nodes/pods. Certificate admin and Keycloak recovery credentials remain usable; no outage/restore test. One real no-grant identity denial and exact UID/session/credential cleanup passed; offline JWT was still authenticated just after deletion.'
+    link /runbook.html#headlamp-maintenance 'Exact operations, source and rollback'
+    engineer -> platform.rke2.server '1. Released-source preflight and owner-local host apply passed; original base hash and root-only backups preserved'
+    engineer -> platform.headlamp '2. Existing leaf/public CA and only owned Headlamp ingress delivered; trusted HTTPS passed'
+    engineer -> platform.rke2.server '3. Append-only API trust applied with owner-local sudo/restart; certificate API recovery and host no-change repeat passed'
+    platform.rke2.server -> engineer '4. Verify certificate API recovery, exact OIDC args/CA mount, nodes Ready and unrelated config unchanged; active repeat does not restart'
+    engineer -> platform.flux '5. v0.15.2 PKCE rollout, exact native/client activation and zero-change repeats passed; owner named nodes/pods acceptance'
+    engineer -> platform.rke2.server '6. Separately approved owned rollback removes only new files, restarts and verifies recovery; no initial API needed, keep backups'
+  }
+
+  dynamic view headlamp_keycloak_api_authentication {
+    title 'Headlamp to Kubernetes — token authentication then RBAC'
+    description 'Active v0.15.2 flow with owner-reported named login and nodes/pods access. Trusted S256 redirect and exact API/native/client configuration verified; raw human tokens not captured. Real no-grant identity authenticated then received nodes/pods403 and Secret-list denial; exact cleanup passed. JWT authentication persisted immediately after deletion; recorded300s lifetime, expiry not awaited. No universal revocation claim. No extra grants or test identities authorized.'
+    link /runbook.html#headlamp-api-authentication 'Token validation versus Kubernetes permissions'
+    engineer -> platform.keycloak.runtime '1. Browser authorization-code/PKCE flow; named login owner-confirmed, fresh MFA timing not independently observed'
+    platform.headlamp -> platform.keycloak.runtime '2. Backend exchanges code using its protected client credential and trusted issuer'
+    platform.keycloak.runtime -> platform.headlamp '3. Signed ID token for headlamp-local; app-scoped groups claim, no token values logged'
+    platform.headlamp -> platform.rke2.server.oidc '4. Proxy requested Kubernetes operation with human bearer ID token; use-access-token is false'
+    platform.rke2.server.oidc -> platform.keycloak.runtime '5. Trusted HTTPS discovery/JWKS; verify RS256, issuer, expiry, audience and required azp'
+    platform.rke2.server.oidc -> platform.rke2.server.rbac '6. Extract oidc:sub and oidc:groups only after authentication succeeds'
+    platform.rke2.server.rbac -> platform.headlamp '7. Separately authorize verb/resource/scope; owned admin-group binding gives cluster-admin, otherwise deny'
+  }
+
+  dynamic view gitlab_coordinated_outcome {
+    title 'GitLab + SSO + runner — independently gated preparation'
+    description 'Not live: data-service selection and capacity, native access/offboarding, private credentials, runner installer/egress and real acceptance remain prerequisites. Free claims never imply native tenant membership.'
+    engineer -> platform.gitlab '1. Review providers, TLS, capacity and independent recovery; deploy only reviewed immutable source'
+    platform.gitlab -> platform.cloudnative_pg '2. Dedicated GitLab database reconciled by the shared, explicitly scoped platform operator; no tenant access implied'
+    platform.gitlab -> platform.keycloak.runtime '3. Dedicated authorization-code/S256 login; stable subject, blocked new accounts, no automatic email linking'
+    engineer -> platform.gitlab '4. Explicit native private-group/project membership; test deny and offboarding separately'
+    platform.gitlab -> platform.rke2 '5. Protected project runner requests one job pod in isolated job namespace; no job token or privileged mode'
+    engineer -> platform.gitlab '6. Accept clone/artifact job, negative tenant/runner access, cleanup and recovery together'
+  }
+
+  dynamic view production_tls_lifecycle {
+    title 'Who does what and why — production TLS lifecycle (proposed)'
+    description 'Design only: no production issuer/renewal automation deployed. Keep target/profile trust separate from shared artifacts; current lab internal HTTP and database gaps remain explicit.'
+    link /runbook.html#production-tls 'Ownership, trust boundaries, code and acceptance'
+    engineer -> production_pki '1. Review target/profile issuer, names and per-hop transport requirements'
+    production_pki -> custody '2. Protect issuer keys; issue approved leaf certificates and public trust separately'
+    custody -> platform '3. Approved operator delivers scoped leaf keys/references; Flux configures consumers'
+    production_pki -> engineer '4. Client administrators distribute public trust; verify browser and machine clients'
+    platform -> production_pki '5. Monitor expiry/renewal; rotate, revoke and verify every transport hop'
   }
   dynamic view metrics_provisioning {
     title 'Metrics/Grafana provisioning — implemented candidate, inactive'

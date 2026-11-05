@@ -9,7 +9,7 @@ revocation and adversarial acceptance remain separate per-app work and approvals
 
 | Role | Canonical group | Intended scope |
 |---|---|---|
-| PA: platform-admin | `/platform/admins` | Cluster/platform administration and shared PerkForge user administration; platform secret values read/edit, tenant secret-name discovery only in the nominal OpenBao policy. Tenant value access requires a tenant grant or explicit emergency elevation. |
+| PA: platform-admin | `/platform/admins` | Cluster/platform administration and full PerkForge realm administration, including impersonation/authentication/settings; platform secret values read/edit, tenant secret-name discovery only in the nominal OpenBao policy. Tenant value access requires a tenant grant or explicit emergency elevation. |
 | PE: platform-engineer | `/platform/engineers` | Everyday platform code/MRs and proposed scoped diagnostics, not inherited PA. No global identity/RBAC/auth-policy or break-glass authority; no automatic platform/tenant secret values. Direct live writes and exact diagnostic scopes remain undecided. |
 | PV: platform-viewer | `/platform/viewers` | Read approved platform health/status, no operational changes or secret values; not automatic access to tenant business data/private conversations. |
 | TA: tenant-admin | `/tenants/<t>/admins` | Own namespace/apps/secrets and own approved group memberships; no cross-tenant/global account reset/deletion or promotion into platform roles. |
@@ -51,7 +51,7 @@ standing human access; any additional scope needs review.
 
 | Application | PA | PE | PV | TA | TD | TV |
 |---|---|---|---|---|---|---|
-| Keycloak | Shared realm user/group administration through reviewed APIs | Own profile; no identity administration | Approved identity audit/status only | Own tenant membership and allowlisted role assignments only | Own profile | Own profile |
+| Keycloak | Full PerkForge realm administration via separately gated realm-admin composite; includes impersonation, no master/other realms | Own profile; no identity administration | Approved identity audit/status only | Own tenant membership and allowlisted role assignments only | Own profile | Own profile |
 | Kubernetes / Headlamp | Cluster administration (powerful bypass caveat above) | Proposed scoped diagnostic reads; GitOps MRs; live writes undecided | Read cluster status; no Secret API/exec | Own namespace resources/secrets; approved workload identities only | Own Deployments/scale, Services, ConfigMaps, Ingresses; own Secret get/list | Own workload/status reads; no Secret API/exec |
 | Rancher | Global administration and cluster lifecycle | No default access; scoped diagnostics require review | Reviewed read-only platform role, not admin | —; use Headlamp | — | — |
 | OpenBao | Platform KV values CRUD; LIST tenant names, no tenant data read | No default value grant; explicit path/scope decision required | Proposed platform names/status only | Own KV value management | Own KV values read/list, no writes | Proposed own names/status only, no values |
@@ -59,10 +59,10 @@ standing human access; any additional scope needs review.
 
 ### Enforcement and unresolved mechanics
 
-- **Keycloak:** PA is not automatically master-realm administration. Shared user
-  administration needs a reviewed permission model; TA must not reset/delete a
-  user shared with other tenants. Native fine-grained administration versus a
-  constrained membership API remains a decision. Test membership creation/removal,
+- **Keycloak:** PA is not automatically master-realm administration. Full PerkForge realm
+  administration now has a separately gated source proposal; TA must not reset/delete a
+  user shared with other tenants. For tenant delegation, native fine-grained
+  administration versus a constrained membership API remains a decision. Test membership creation/removal,
   role-mapper injection, user creation into privileged groups, nested groups,
   cross-tenant users and self-elevation. Resolve the 26.8.0→fixed-image patch before
   delegation; a patched version alone is not authorization proof. Per-app clients
@@ -74,12 +74,18 @@ standing human access; any additional scope needs review.
   Secrets/use workload SAs despite RBAC limits: admission, approved identities and
   network/storage boundaries are required. PV/TV status/log access must avoid
   disclosing plaintext secrets; no blanket confidential-data reader is implied.
-- **Rancher:** initial local admin remains separate. Existing integration permits
-  only PA; PV mapping is proposed and requires a tested read-only custom/global
-  role and access restriction update. Never map tenant admins to global admin;
+- **Rancher:** local recovery remains separate. The approved Generic OIDC client
+  and PA-only global-admin binding are configured and zero-change repeats passed.
+  Owner reports named login and local-cluster/pod visibility after initial setup.
+  One real no-grant native denial and exact cleanup passed; full per-user admin
+  operations remain unverified. PV mapping is proposed and requires
+  a tested read-only custom/global role and access restriction update. Never map tenant admins to global admin;
   no tenant Fleet/application ownership.
-- **OpenBao:** proposed KV-v2 mounts `platform/` and `tenants/` separate data. LIST
+- **OpenBao:** owned configured KV-v2 mounts `platform/` and `tenants/` separate data. The independently approved, default-off `prepare-data` gate prepares only missing owned engines; no values or human privileges are added, and SSO rollback retains engines. LIST
   `tenants/metadata[/...]` discovers names; it is not READ `tenants/data/...`.
+  The applied PA-only OIDC policy adds five exact current-token/UI endpoints while
+  keeping the default policy disabled; no other-token management, auth/policy
+  editing or tenant-value authority follows from those self-session operations.
   READ metadata can expose custom metadata and version details and is separately
   scoped. Never put secret values in names/custom metadata. PA receives no
   standing `sys/auth`, ACL-policy management, tenant value grant or global `*`/sudo
@@ -203,6 +209,113 @@ is a plan, not deployment authorization or automatic retargeting of stacked MRs.
 - [GitLab OIDC](https://docs.gitlab.com/administration/auth/oidc/) — login versus paid membership-derived controls.
 - [Harbor OIDC](https://goharbor.io/docs/administration/configure-authentication/oidc-auth/) — app-native project role mapping/migration.
 - [SonarQube Community authentication](https://docs.sonarsource.com/sonarqube-community-build/instance-administration/authentication/overview) — supported protocols and JIT provisioning.
+
+### Current OpenBao administration evidence
+
+v0.13.0 initial root-token administration and 3-share/threshold-2 unseal passed
+2026-11-01. This does **not** implement the role-policy mappings above. Initial
+root is a bootstrap/recovery authority, not the platform-admin daily identity;
+retirement/scoped recovery and independent custody remain pending. The one-time
+[Ansible procedure](../ansible/openbao-initialize.yaml) and its synthetic refusal
+and success tests preserve that boundary; no OIDC or tenant grants were applied.
+
+### OpenBao LAN routing candidate boundary
+
+Exact-SNI Traefik TCP passthrough exposes the existing native token-authenticated
+UI/API without introducing a human role, proxy identity or OIDC grant. Browser
+TLS terminates at Bao; possession of a valid CA/hostname is not user authorization.
+The existing root token remains bootstrap-only, not ordinary platform-admin SSO.
+The chart installer gains only namespaced IngressRouteTCP CRUD; no cluster/Secret
+rights. No token is passed by routing config or automatically entered in a browser.
+Historical v0.13.0 was unexposed; separately approved v0.14.0 passthrough acceptance is recorded below.
+
+### Observed initial Headlamp access and OpenBao routing
+
+v0.14.0 exact-SNI OpenBao LAN passthrough is accepted with native token auth and
+end-to-end client TLS verification; no root-token browser login or OIDC mapping.
+Headlamp's separately approved one-hour bootstrap SA/cluster-admin binding passed
+cookie-backed login/API identity and safe capability reviews, then was deleted
+with UID guards; the old token was denied. Personal browser login is unobserved.
+This temporary exception is **not** a standing platform role, runtime SA privilege
+or six-role integration. Ordinary runtime remains unprivileged. See the default-off
+[Ansible operation](../ansible/headlamp-access-smoke.yaml), cleanup/verifier and
+focused positive/negative tests. New ongoing access remains separately gated.
+
+## Realm/group implementation checkpoint
+
+The [default-off Ansible foundation](foundation.yaml) implements only the owned
+PerkForge realm and empty canonical group paths, with exact-path read/compare,
+conflict refusal, create-only idempotence and synthetic HTTPS tests. Its **platform-only realm/five empty groups are observed live** at 20:20:07 UTC;
+first apply changed 6, second changed 0, with zero users/memberships/custom group
+mappings/custom app clients. It grants no Keycloak roles, Kubernetes bindings or
+OpenBao policies. Existing review templates remain non-apply artifacts.
+Tenant group creation is still unexecuted; explicit tenant IDs produce qualified
+groups when separately approved. Shared-user membership and
+multi-tenant scope are never edited by this step. Platform-engineer powers remain
+unsettled and ungranted. App and delegated membership integrations remain proposed;
+update this matrix, ownership C4 and allowed/denied tests in each implementation MR.
+
+## Human authentication implementation boundary
+
+[Named-human enrollment](enroll-human.yaml) is default-off in source. The approved
+live configuration passed at 2026-11-02 02:52:34 UTC: owned pending human,
+admin-only ownership markers, realm-wide password/TOTP browser flow and nominal
+platform-admin membership. Final run changed only membership; repeat changed
+zero. Group application-role mappings are empty: this is **not app authorization**.
+Profile, password credential metadata, pending password/TOTP actions, master
+recovery and MFA executions were preserved. At 13:08 UTC the operator reported a new password and TOTP configured. This is
+user report only; sign-out/back-in was also reported at 13:09 UTC, with both-factor
+prompt confirmation supplied at 13:15 UTC: fresh password+TOTP login passed by
+user report. Independent GET-only metadata at 13:12:58 UTC
+confirmed exact platform-admin membership, no required actions and password/otp
+credential types. Fresh positive browser MFA and same-browser fresh-tab SSO reuse are user-confirmed.
+A separately approved single unprivileged test identity passed bounded wrong-password,
+missing/wrong-OTP rejection and admin-assisted factor replacement/re-enrollment.
+UID/token/local-secret cleanup passed; realm/flow/Corey metadata were preserved.
+IdP-outage restoration, durable recovery custody and recovery-code/CAC remain untested. Metadata/page load alone is not enforcement proof. No email was inferred/verified from
+the login name. No clients, app grants or Headlamp SSO were added.
+User-intended future **IL5 uses CAC**; CAC/X.509/IL5 and compliance are not implemented
+or inferred from this IL2 choice. Master recovery is separate and preserved.
+Platform-engineer and tenant rights, app claims and Kubernetes/OpenBao bindings are
+unchanged. Headlamp OIDC/API-server enforcement remains the next separate review.
+
+## Full PerkForge realm mapping — applied; rerun guard pending
+
+The user explicitly clarified everything within PerkForge, not just users and
+clients. [administer-perkforge.yaml](administer-perkforge.yaml) and the
+[scope/acceptance procedure](PERKFORGE-ADMIN.md) propose the single built-in
+`realm-management/realm-admin` composite on `/platform/admins` only. PA intent in
+`desired.yaml` explicitly changes from `realm_admin: false` to true, with
+`master_admin: false`. The separately approved corrected #136 run applied one mapping; direct realm-admin/22-role closure readback passed. Other role families are unchanged. The normal repeat failed with zero writes at the remaining group-representation guard; successful merged-source idempotence remains pending. The local exact-representation/coherence correction passes actual GET-only validation (changed 0) and realistic synthetic repeat tests; no access change is part of that fix.
+
+This includes all PerkForge users, clients, groups, roles, authentication flows,
+realm settings, identity providers and impersonation. It does not grant master
+or other realms. The existing master recovery credential stays separate and is
+not brokered or assigned. Admins can alter identities and auth policy; this is a
+trusted administrative boundary, not tenant privacy/isolation against PA.
+Default-off scope/ownership gates, reviewed composite expansion, fresh MFA and
+positive/negative live acceptance remain separate action-specific requirements.
+
+## Coordinated initial SSO source
+
+The [Headlamp/Rancher/OpenBao procedure](sso/README.md) prepares a single coordinated
+source change with independent live approvals. Headlamp acceptance is recorded;
+Rancher configuration/repeats and owner-reported named login with local-cluster/pod
+visibility are now recorded,
+and one real no-grant Rancher denial with exact identity/session/credential
+cleanup passed. This does not prove every administrator operation or recovery
+case. OpenBao configuration/no-change repeats passed and owner reports named OIDC
+login. Bounded native platform-allow/tenant-value-denial acceptance and exact token/data
+cleanup passed (58 ok, failed 0). The test used a disposable PA-policy token and
+marked dummy keys, with no new group memberships. No-group OIDC rejection remains a separate unexecuted test. Default-off entrypoints are retained; source defaults are not live status.
+Initial payloads map PA only, not every design role in this matrix. Public CA and
+environment inputs stay external; no API-server restart/deployment is automatic.
+Own-client claim scopes avoid disclosing every tenant membership. OpenBao uses no
+external-group aliases and refuses existing inherited policy ambiguity; nominal
+PA remains platform values plus tenant names, never legacy broad tenant values.
+The explicit app-ID/role-ID coexistence contract must track approved activation
+and rollback while preserving realm-admin-only writes. Offline fixture results do
+not establish native token enforcement or live positive/negative acceptance.
 
 ## Queued app SSO implementation status (not live)
 

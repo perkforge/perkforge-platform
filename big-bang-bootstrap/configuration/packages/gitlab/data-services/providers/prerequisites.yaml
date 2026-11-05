@@ -1,0 +1,247 @@
+# Unselected data foundation: own provider sources and exact public activation cleanup.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-data-installer
+  namespace: bigbang
+  labels:
+    perkforge.io/owner: gitlab-data-foundation-v1
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-data-installer
+  namespace: gitlab
+  labels:
+    perkforge.io/owner: gitlab-data-foundation-v1
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - serviceaccounts
+  - configmaps
+  - persistentvolumeclaims
+  - services
+  - pods
+  verbs: &id001
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs: *id001
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-data-installer
+  namespace: gitlab
+  labels:
+    perkforge.io/owner: gitlab-data-foundation-v1
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-data-installer
+subjects:
+- kind: ServiceAccount
+  name: gitlab-data-installer
+  namespace: bigbang
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-data-release-storage
+  namespace: bigbang
+  labels:
+    perkforge.io/owner: gitlab-data-foundation-v1
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-data-release-storage
+  namespace: bigbang
+  labels:
+    perkforge.io/owner: gitlab-data-foundation-v1
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-data-release-storage
+subjects:
+- kind: ServiceAccount
+  name: gitlab-data-installer
+  namespace: bigbang
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-data-gitops
+  namespace: gitlab
+  labels:
+    perkforge.io/owner: gitlab-data-foundation-v1
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  - serviceaccounts
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+- apiGroups:
+  - postgresql.cnpg.io
+  resources:
+  - clusters
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  - networkpolicies
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-data-gitops
+  namespace: gitlab
+  labels:
+    perkforge.io/owner: gitlab-data-foundation-v1
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-data-gitops
+subjects:
+- kind: ServiceAccount
+  name: platform-reconciler
+  namespace: flux-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-provider-source-writer
+  namespace: bigbang
+  labels:
+    perkforge.io/owner: gitlab-data-foundation-v1
+rules:
+- apiGroups:
+  - source.toolkit.fluxcd.io
+  resources:
+  - helmrepositories
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  resourceNames:
+  - values-gitlab-activation
+  - values-gitlab-runner-activation
+  verbs:
+  - get
+  - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-provider-source-writer
+  namespace: bigbang
+  labels:
+    perkforge.io/owner: gitlab-data-foundation-v1
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-provider-source-writer
+subjects:
+- kind: ServiceAccount
+  name: platform-reconciler
+  namespace: flux-system
+---
+# Owner-admin foundation only: never reconciled by the service account receiving it.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-data-health-reader
+  namespace: gitlab
+  labels:
+    perkforge.io/owner: gitlab-data-foundation-v1
+rules:
+- apiGroups: ['']
+  resources: [pods]
+  verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-data-health-reader
+  namespace: gitlab
+  labels:
+    perkforge.io/owner: gitlab-data-foundation-v1
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-data-health-reader
+subjects:
+- kind: ServiceAccount
+  name: platform-reconciler
+  namespace: flux-system

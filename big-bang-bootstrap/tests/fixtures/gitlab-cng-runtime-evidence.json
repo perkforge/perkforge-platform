@@ -1,0 +1,27 @@
+{
+  "active_record": "7.2.3.1",
+  "gitlab_version": "19.4.2-ee",
+  "image": "registry1.dso.mil/gitlab/gitlab-org/build/cng/gitlab-webservice-ee@sha256:023ca782c03d12ca653e86bcb1b6bb03ba175a0ee29cef95f8bc425f8055e9c3",
+  "isolation": {
+    "capabilities": "none",
+    "credentials_mounted": false,
+    "database": "temporary TLS protocol fixture, no real data",
+    "network": "none",
+    "root_filesystem": "read-only",
+    "user": "non-root"
+  },
+  "libpq": 180001,
+  "pg": "1.6.3",
+  "results": {
+    "explicit_ca_only_control_accepts_wrong_hostname": true,
+    "matching_ca_and_hostname": true,
+    "missing_ca_rejected": true,
+    "plaintext_rejected": true,
+    "wrong_ca_rejected": true,
+    "wrong_hostname_rejected": true
+  },
+  "ruby": "3.3.12",
+  "scope": "isolated ActiveRecord/PG TLS, not full GitLab/database/application acceptance",
+  "verification_date_utc": "2026-11-03",
+  "verification_timestamp_utc": "2026-11-03T19:55:27Z"
+}

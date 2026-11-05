@@ -1,0 +1,21 @@
+- ansible.builtin.assert:
+    that: bao_alias_id is match('^[A-Za-z0-9-]+$')
+- ansible.builtin.uri:
+    url: '{{ bao_api }}/identity/entity-alias/id/{{ bao_alias_id }}'
+    headers: '{{ bao_headers }}'
+  register: bao_alias
+- name: Refuse inherited entity/group authority for this OIDC accessor
+  when: bao_alias.json.data.mount_accessor == sso_openbao_accessor
+  block:
+  - ansible.builtin.assert:
+      that: bao_alias.json.data.canonical_id is match('^[A-Za-z0-9-]+$')
+  - ansible.builtin.uri:
+      url: '{{ bao_api }}/identity/entity/id/{{ bao_alias.json.data.canonical_id }}'
+      headers: '{{ bao_headers }}'
+    register: bao_entity
+  - ansible.builtin.assert:
+      that:
+      - bao_entity.json.data.policies | default([]) | length == 0
+      - bao_entity.json.data.group_ids | default([]) | length == 0
+      - bao_entity.json.data.direct_group_ids | default([]) | length == 0
+      - bao_entity.json.data.inherited_group_ids | default([]) | length == 0

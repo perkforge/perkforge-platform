@@ -1,7 +1,11 @@
 # Review data, not a runnable OmniAuth Secret or a realm import.
 enabled: false
 review_only: true
-live_apply_implemented: false
+live_apply_implemented: false # full coordinated rollout remains incomplete
+client_lifecycle_implemented: true
+native_tenant_membership_implemented: true
+account_approval_implemented: false
+live_activation_performed: false
 protocol: oidc
 application: gitlab
 edition: Self-Managed Free on existing EE image; no paid feature assumption
@@ -33,8 +37,8 @@ native_provider_public_fields:
 protected_provider_secret:
   name: gitlab-oidc-provider
   key: provider
-  missing_private_field: args.client_options.secret; future protected assembly, never
-    commit/render its value
+  private_input: args.client_options.secret; protected application-profile assembly,
+    never commit/render its value
 mappings:
   tenant_global_admin: false
   platform_admin: explicit separately reviewed GitLab administrator assignment, not
@@ -49,7 +53,7 @@ limitations:
   mapping
 - OIDC does not add GitLab group membership
 - no automatic email linking; new OIDC accounts remain blocked pending approval
-- membership reconciliation and removal/offboarding are not implemented
+- bounded tenant-group membership is implemented; whole-person offboarding is not
 transport:
   verify_tls: true
   skip_certificate_verification: false

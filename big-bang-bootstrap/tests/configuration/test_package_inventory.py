@@ -86,7 +86,8 @@ class MinimalRenderTests(unittest.TestCase):
             self.assertNotIn('bitnami', probe[-1])
             images = self.reports['local']['keycloak']['images']
             self.assertTrue(any(image.endswith(':18.6') for image in images))
-            self.assertTrue(any(image.endswith(':26.8.0') for image in images))
+            evidence=json.loads((ROOT/'tests/fixtures/keycloak-image-evidence.json').read_text())
+            self.assertIn(evidence['repository']+'@'+evidence['indexDigest'],images)
 
     def test_ui_and_inventory_do_not_hide_extra_privilege_or_unsized_hooks(self):
         for target, objects in self.objects.items():

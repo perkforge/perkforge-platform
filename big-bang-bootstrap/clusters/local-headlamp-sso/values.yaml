@@ -1,0 +1,29 @@
+addons:
+  headlamp:
+    enabled: true
+    values:
+      upstream:
+        config:
+          extraArgs:
+          - -oidc-ca-file=/identity-ca/ca.crt
+          oidc:
+            usePKCE: true
+            externalSecret:
+              enabled: true
+              hasScopes: true
+              name: perkforge-headlamp-sso-v1
+            secret:
+              create: false
+        env:
+        - name: SSL_CERT_FILE
+          value: /identity-ca/ca.crt
+        volumeMounts:
+        - mountPath: /identity-ca
+          name: identity-ca
+          readOnly: true
+        volumes:
+        - configMap:
+            name: perkforge-headlamp-sso-v1-ca
+          name: identity-ca
+  keycloak:
+    enabled: true

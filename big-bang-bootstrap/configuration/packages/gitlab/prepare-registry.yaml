@@ -1,0 +1,66 @@
+# Preparing/persisting real registry credentials requires the later explicit batch approval.
+- name: Assemble one exact namespace image-pull credential privately
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    gitlab_registry_run: false
+    gitlab_registry_scope: UNAPPROVED
+    gitlab_registry_target: UNCONFIGURED
+    gitlab_registry_username_file: /UNCONFIGURED/registry-username
+    gitlab_registry_password_file: /UNCONFIGURED/registry-password
+    gitlab_private_output_directory: /UNCONFIGURED/output
+    gitlab_registry_namespaces: {gitlab: gitlab, manager: gitlab-runner, job: gitlab-ci-platform}
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check mode writes nothing. One private image-pull manifest only; no registry login, API contact, delivery, permission inspection or rotation. Persistent credential use needs separate approval.'
+  - when: gitlab_registry_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - gitlab_registry_scope == 'gitlab-registry-private-assembly-v1'
+        - gitlab_registry_target in gitlab_registry_namespaces
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop: '{{ [gitlab_registry_username_file,gitlab_registry_password_file] }}'
+      register: gitlab_registry_files
+    - ansible.builtin.assert:
+        that:
+        - item.item is match('^/') and item.item | realpath == item.item
+        - item.stat.isreg and not (item.stat.islnk | default(false))
+        - item.stat.pw_name == lookup('env','USER') and item.stat.mode == '0600'
+        - item.stat.size > 0 and item.stat.size < 8192
+      loop: '{{ gitlab_registry_files.results }}'
+    - ansible.builtin.set_fact:
+        gitlab_registry_username: "{{ lookup('file',gitlab_registry_username_file) | trim }}"
+        gitlab_registry_password: "{{ lookup('file',gitlab_registry_password_file) | trim }}"
+        cacheable: false
+    - ansible.builtin.assert:
+        that:
+        - gitlab_registry_username is match('^[A-Za-z0-9_.@-]{1,128}$')
+        - gitlab_registry_password | length >= 16 and gitlab_registry_password | length <= 4096
+        - "'\n' not in gitlab_registry_password and '\r' not in gitlab_registry_password"
+    - ansible.builtin.include_tasks: tasks/private-output.yaml
+      vars:
+        gitlab_private_output_name: 'registry-{{ gitlab_registry_target }}.json'
+        gitlab_private_payload:
+          apiVersion: v1
+          kind: List
+          items:
+          - apiVersion: v1
+            kind: Secret
+            metadata:
+              name: private-registry
+              namespace: '{{ gitlab_registry_namespaces[gitlab_registry_target] }}'
+              labels: {perkforge.io/owner: gitlab-registry-v1}
+            type: kubernetes.io/dockerconfigjson
+            stringData:
+              .dockerconfigjson: "{{ {'auths':{'registry1.dso.mil':{'auth':(gitlab_registry_username + ':' + gitlab_registry_password) | b64encode}}} | to_nice_json }}"
+    always:
+    - ansible.builtin.set_fact:
+        gitlab_registry_username: ''
+        gitlab_registry_password: ''
+        cacheable: false
+      no_log: true

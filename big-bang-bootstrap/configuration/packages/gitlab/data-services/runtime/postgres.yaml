@@ -1,0 +1,33 @@
+# Unselected: requires reviewed CNPG operator/CRDs and preexisting private Secret.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: gitlab-postgres
+  namespace: gitlab
+  labels: {perkforge.io/owner: gitlab-data-v1}
+spec:
+  instances: 1
+  affinity:
+    nodeSelector: {storage.perkforge.io/worker: 'true'}
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.11@sha256:70664ebcfa1100361b5bdc28bbf06fdbe08db2dc4ad7bd14de33c5e05fe8ea8e
+  enableSuperuserAccess: false
+  storage: {storageClass: longhorn, size: 16Gi}
+  resources:
+    requests: {cpu: '1', memory: 2Gi}
+    limits: {cpu: '2', memory: 4Gi}
+  postgresql:
+    pg_hba:
+    - hostnossl all all all reject
+    parameters:
+      max_connections: '200'
+      shared_buffers: 256MB
+  bootstrap:
+    initdb:
+      database: gitlabhq_production
+      owner: gitlab
+      secret: {name: gitlab-database}
+      postInitApplicationSQL:
+      - CREATE EXTENSION IF NOT EXISTS amcheck;
+      - CREATE EXTENSION IF NOT EXISTS btree_gist;
+      - CREATE EXTENSION IF NOT EXISTS pg_trgm;
+      - CREATE EXTENSION IF NOT EXISTS plpgsql;

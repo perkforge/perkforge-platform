@@ -13,15 +13,22 @@ addons:
       storageNamespace: gitlab
       install:
         createNamespace: false
-        remediation: {retries: 0}
+        # Override inherited final-failure remediation; preserve partial state.
+        remediation: {retries: 0, remediateLastFailure: false}
       upgrade:
-        remediation: {retries: 0}
+        cleanupOnFail: false
+        remediation: {retries: 0, remediateLastFailure: false}
     values:
       domain: UNCONFIGURED.invalid
       istio: {enabled: false}
       bbtests: {enabled: false}
       global:
         edition: ee
+        # Big Bang defaults empty both lists; hooks and workloads use different helpers.
+        # Reference only the separately approved namespace Secret, never its contents.
+        image:
+          pullSecrets: [{name: private-registry}]
+        imagePullSecrets: [{name: private-registry}]
         hosts:
           domain: UNCONFIGURED.invalid
           gitlab: {name: gitlab.UNCONFIGURED.invalid}
@@ -65,6 +72,9 @@ addons:
         ai-gateway: {install: false}
         registry: {enabled: false}
         gitlab:
+          webservice:
+            image:
+              tag: v19.4.2-ubi@sha256:023ca782c03d12ca653e86bcb1b6bb03ba175a0ee29cef95f8bc425f8055e9c3
           kas: {enabled: false}
           gitaly:
             persistence: {enabled: true, storageClass: longhorn, size: 10Gi}

@@ -1,0 +1,66 @@
+- name: Assemble existing owner-held recovery and Garage inputs privately
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    gitlab_foundation_run: false
+    gitlab_foundation_assembly_scope: UNAPPROVED
+    gitlab_root_password_file: /UNCONFIGURED/root-password
+    gitlab_garage_rpc_file: /UNCONFIGURED/rpc
+    gitlab_garage_admin_file: /UNCONFIGURED/admin
+    gitlab_private_output_directory: /UNCONFIGURED/private-output
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check mode writes nothing. Existing inputs only; no generation, delivery, API contact or rotation.'
+  - when: gitlab_foundation_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that: gitlab_foundation_assembly_scope == 'gitlab-foundation-private-assembly-v1'
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop: '{{ [gitlab_root_password_file,gitlab_garage_rpc_file,gitlab_garage_admin_file] }}'
+      register: gitlab_foundation_files
+    - ansible.builtin.assert:
+        that:
+        - item.item is match('^/') and item.item | realpath == item.item
+        - item.stat.isreg | default(false)
+        - not (item.stat.islnk | default(false))
+        - item.stat.pw_name == lookup('env','USER') and item.stat.mode == '0600'
+      loop: '{{ gitlab_foundation_files.results }}'
+    - ansible.builtin.set_fact:
+        gitlab_foundation_root: "{{ lookup('file',gitlab_root_password_file,rstrip=false) | regex_replace('\\n$','') }}"
+        gitlab_foundation_rpc: "{{ lookup('file',gitlab_garage_rpc_file) | trim }}"
+        gitlab_foundation_admin: "{{ lookup('file',gitlab_garage_admin_file) | trim }}"
+        cacheable: false
+    - ansible.builtin.assert:
+        that:
+        - gitlab_foundation_root is match('^[ -~]{20,256}$')
+        - "'\n' not in gitlab_foundation_root and '\r' not in gitlab_foundation_root"
+        - gitlab_foundation_rpc is match('^[a-fA-F0-9]{64}$')
+        - gitlab_foundation_admin is match('^[a-fA-F0-9]{64}$')
+    - ansible.builtin.include_tasks: tasks/private-output.yaml
+      vars:
+        gitlab_private_output_name: foundation.json
+        gitlab_private_payload:
+          apiVersion: v1
+          kind: List
+          items:
+          - apiVersion: v1
+            kind: Secret
+            metadata: {name: gitlab-initial-admin, namespace: gitlab, labels: {perkforge.io/owner: gitlab-recovery-v1}}
+            type: Opaque
+            stringData: {password: '{{ gitlab_foundation_root }}'}
+          - apiVersion: v1
+            kind: Secret
+            metadata: {name: gitlab-garage-private, namespace: gitlab, labels: {perkforge.io/owner: gitlab-data-v1}}
+            type: Opaque
+            stringData: {rpcSecret: '{{ gitlab_foundation_rpc }}', adminToken: '{{ gitlab_foundation_admin }}'}
+    always:
+    - ansible.builtin.set_fact:
+        gitlab_foundation_root: ''
+        gitlab_foundation_rpc: ''
+        gitlab_foundation_admin: ''
+        cacheable: false
+      no_log: true

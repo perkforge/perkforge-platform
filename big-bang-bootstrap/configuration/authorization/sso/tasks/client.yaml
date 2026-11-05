@@ -1,0 +1,273 @@
+- name: Verify realm and exact owned admin leaf before client preparation
+  ansible.builtin.uri:
+    url: '{{ sso_client_api }}{{ item }}'
+    headers: '{{ sso_client_headers }}'
+  loop: ['', /group-by-path/platform/admins, /default-groups, '/groups/{{ sso_client_group_id }}/children?first=0&max=1', /group-by-path/platform, '/groups/{{ sso_client_parent_id }}/role-mappings']
+  register: sso_client_foundation
+- ansible.builtin.assert:
+    that:
+    - sso_client_foundation.results[0].json.realm == 'perkforge'
+    - sso_client_foundation.results[0].json.enabled
+    - sso_client_foundation.results[0].json.attributes['perkforge-purpose'] == 'realm-foundation-v1'
+    - sso_client_foundation.results[0].json.attributes['perkforge-managed'] == 'true'
+    - sso_client_foundation.results[1].json.id == sso_client_group_id
+    - sso_client_foundation.results[1].json.path == '/platform/admins'
+    - sso_client_foundation.results[1].json.attributes == {'perkforge-managed':['true'],'perkforge-foundation':['v1'],'perkforge-role':['platform-admin']}
+    - sso_client_foundation.results[2].json | length == 0
+    - sso_client_foundation.results[3].json | length == 0
+    - sso_client_foundation.results[4].json.id == sso_client_parent_id
+    - sso_client_foundation.results[4].json.path == '/platform'
+    - sso_client_foundation.results[4].json.attributes == {'perkforge-managed':['true'],'perkforge-foundation':['v1']}
+    - sso_client_foundation.results[5].json.realmMappings | default([]) | length == 0
+    - sso_client_foundation.results[5].json.clientMappings | default({}) | length == 0
+- name: Validate standard scope definitions before any client create/grant
+  when: sso_client_operation != 'rollback'
+  block:
+  - ansible.builtin.uri:
+      url: '{{ sso_client_api }}/client-scopes'
+      headers: '{{ sso_client_headers }}'
+    register: sso_scope_catalog
+  - ansible.builtin.set_fact:
+      sso_selected_scopes: '{{ sso_scope_catalog.json | selectattr("name","in",["basic","profile","email"]) | list }}'
+  - ansible.builtin.assert:
+      that:
+      - sso_selected_scopes | map(attribute='name') | sort == ['basic','email','profile']
+      - sso_selected_scopes | map(attribute='id') | unique | length == 3
+  - ansible.builtin.include_tasks: client-scope.yaml
+    loop: '{{ sso_selected_scopes }}'
+    loop_control: {loop_var: sso_scope}
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients?clientId={{ sso_client_candidate.clientId }}'
+    headers: '{{ sso_client_headers }}'
+  register: sso_client_lookup
+- name: Refuse duplicate or unowned client; no legacy adoption or migration
+  ansible.builtin.assert:
+    that:
+    - sso_client_lookup.json | length <= 1
+    - sso_client_lookup.json | length == 1 or sso_client_operation == 'prepare'
+- ansible.builtin.set_fact:
+    sso_client_secret: "{{ lookup('file',sso_client_secret_file) | trim }}"
+  when: sso_client_operation != 'rollback'
+- ansible.builtin.assert:
+    that: sso_client_secret | length >= 16
+  when: sso_client_operation != 'rollback'
+- name: Create only a missing disabled client with the supplied existing private credential
+  ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients'
+    headers: '{{ sso_client_headers }}'
+    method: POST
+    body_format: json
+    body: "{{ sso_client_candidate | combine({'secret':sso_client_secret}) }}"
+    status_code: 201
+  when: sso_client_lookup.json | length == 0 and sso_client_operation == 'prepare'
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients?clientId={{ sso_client_candidate.clientId }}'
+    headers: '{{ sso_client_headers }}'
+  register: sso_client_current
+- ansible.builtin.assert:
+    that:
+    - sso_client_current.json | length == 1
+    - sso_client_current.json[0].id is match('^[A-Za-z0-9-]+$')
+- ansible.builtin.set_fact:
+    sso_client_id: '{{ sso_client_current.json[0].id }}'
+- name: Use canonical by-ID representation rather than assume list response completeness
+  ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients/{{ sso_client_id }}'
+    headers: '{{ sso_client_headers }}'
+  register: sso_client_canonical
+- ansible.builtin.set_fact:
+    sso_client_record: '{{ sso_client_canonical.json }}'
+- ansible.builtin.assert:
+    that:
+    - sso_client_record.attributes['perkforge-managed'] | default('') == 'true'
+    - sso_client_record.attributes['perkforge-purpose'] | default('') == 'coordinated-sso-v1'
+    - sso_client_record.attributes.get('oauth2.device.authorization.grant.enabled','false') == 'false'
+    - sso_client_record.attributes.get('oidc.ciba.grant.enabled','false') == 'false'
+    - sso_client_record.attributes.get('standard.token.exchange.enabled','false') == 'false'
+    - sso_client_record.attributes.get('token.exchange.grant.enabled','false') == 'false'
+- ansible.builtin.assert:
+    that: sso_client_record.attributes.get(item.key) == item.value
+  loop: '{{ sso_client_candidate.attributes | dict2items }}'
+- name: Refuse settings drift instead of rewriting a working client
+  ansible.builtin.assert:
+    that: sso_client_record.get(item.key) == item.value
+  loop: '{{ sso_client_candidate | dict2items | rejectattr("key","in",["enabled","protocolMappers","attributes","defaultClientScopes","optionalClientScopes"]) | list }}'
+- name: Refuse authentication-flow overrides and validate actual assigned scopes
+  ansible.builtin.assert:
+    that: sso_client_record.authenticationFlowBindingOverrides | default({}) == {}
+- when: sso_client_operation != 'rollback'
+  block:
+  - ansible.builtin.uri:
+      url: '{{ sso_client_api }}/clients/{{ sso_client_id }}/{{ item }}'
+      headers: '{{ sso_client_headers }}'
+    loop: [default-client-scopes, optional-client-scopes]
+    register: sso_assigned_scopes
+  - ansible.builtin.assert:
+      that:
+      - sso_assigned_scopes.results[0].json | map(attribute='id') | sort == sso_selected_scopes | map(attribute='id') | sort
+      - sso_assigned_scopes.results[1].json | length == 0
+- name: Credential verification never generates or rotates a key
+  ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients/{{ sso_client_id }}/client-secret'
+    headers: '{{ sso_client_headers }}'
+  register: sso_client_credential
+  when: sso_client_operation != 'rollback'
+- ansible.builtin.assert:
+    that: sso_client_credential.json.value == sso_client_secret
+  when: sso_client_operation != 'rollback'
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients/{{ sso_client_id }}/protocol-mappers/models'
+    headers: '{{ sso_client_headers }}'
+  register: sso_client_mappers
+- ansible.builtin.assert:
+    that:
+    - sso_client_mappers.json | length == 2
+    - sso_client_mappers.json | map(attribute='name') | sort == ['app-audience','app-groups']
+- ansible.builtin.assert:
+    that:
+    - actual.protocol == item.protocol
+    - actual.protocolMapper == item.protocolMapper
+    # Keycloak 26.8.1 omits the empty role prefix on canonical readback.
+    # Only this mapper/key may normalize absent to empty; every other key stays exact.
+    - normalized_config == item.config
+  vars:
+    actual: '{{ sso_client_mappers.json | selectattr("name","equalto",item.name) | first }}'
+    normalized_config: >-
+      {{ ({'usermodel.clientRoleMapping.rolePrefix': ''} | combine(actual.config))
+         if item.name == 'app-groups' and item.protocolMapper == 'oidc-usermodel-client-role-mapper'
+         else actual.config }}
+  loop: '{{ sso_client_candidate.protocolMappers }}'
+- name: Inspect bounded role catalog before creating one noncomposite app role
+  ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients/{{ sso_client_id }}/roles?first=0&max=2&briefRepresentation=false'
+    headers: '{{ sso_client_headers }}'
+  register: sso_client_roles
+- ansible.builtin.assert:
+    that:
+    - sso_client_roles.json | length <= 1
+    - sso_client_roles.json | length == 0 or sso_client_roles.json[0].name == '/platform/admins'
+    - sso_client_roles.json | length == 1 or sso_client_operation == 'prepare'
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients/{{ sso_client_id }}/roles'
+    headers: '{{ sso_client_headers }}'
+    method: POST
+    body_format: json
+    body: {name: /platform/admins, description: PerkForge coordinated-sso-v1, composite: false}
+    status_code: 201
+  when: sso_client_roles.json | length == 0 and sso_client_operation == 'prepare'
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients/{{ sso_client_id }}/roles?first=0&max=2&briefRepresentation=false'
+    headers: '{{ sso_client_headers }}'
+  register: sso_client_roles_after
+- ansible.builtin.assert:
+    that: sso_client_roles_after.json | length == 1
+- ansible.builtin.set_fact:
+    sso_client_role: '{{ sso_client_roles_after.json[0] }}'
+- ansible.builtin.assert:
+    that:
+    - sso_client_role.id is match('^[A-Za-z0-9-]+$')
+    - sso_client_role.name == '/platform/admins'
+    - sso_client_role.description == 'PerkForge coordinated-sso-v1'
+    - sso_client_role.clientRole and sso_client_role.containerId == sso_client_id
+    - not sso_client_role.composite
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}/roles-by-id/{{ sso_client_role.id }}/composites'
+    headers: '{{ sso_client_headers }}'
+  register: sso_client_role_edges
+- ansible.builtin.assert:
+    that: sso_client_role_edges.json | length == 0
+- name: Read direct scope and group bindings; retain every non-target mapping
+  ansible.builtin.uri:
+    url: '{{ sso_client_api }}{{ item }}'
+    headers: '{{ sso_client_headers }}'
+  loop: ['/clients/{{ sso_client_id }}/scope-mappings', '/groups/{{ sso_client_group_id }}/role-mappings']
+  register: sso_client_mapping_surface
+- ansible.builtin.set_fact:
+    sso_client_scopes: '{{ sso_client_mapping_surface.results[0].json }}'
+    sso_group_before: '{{ sso_client_mapping_surface.results[1].json }}'
+- ansible.builtin.assert:
+    that:
+    - sso_client_scopes.realmMappings | default([]) | length == 0
+    - sso_client_scopes.clientMappings | default({}) | dict2items | rejectattr('key','equalto',sso_client_candidate.clientId) | list | length == 0
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}{{ item }}'
+    headers: '{{ sso_client_headers }}'
+  loop: ['/clients/{{ sso_client_id }}/scope-mappings/clients/{{ sso_client_id }}', '/groups/{{ sso_client_group_id }}/role-mappings/clients/{{ sso_client_id }}']
+  register: sso_client_direct
+- ansible.builtin.assert:
+    that:
+    - item.json | length <= 1
+    - item.json | map(attribute='id') | difference([sso_client_role.id]) | length == 0
+    - item.json | map(attribute='name') | difference(['/platform/admins']) | length == 0
+  loop: '{{ sso_client_direct.results }}'
+- name: Prepare only exact role scope; no human group mapping yet
+  ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients/{{ sso_client_id }}/scope-mappings/clients/{{ sso_client_id }}'
+    headers: '{{ sso_client_headers }}'
+    method: POST
+    body_format: json
+    body: '{{ [sso_client_role] }}'
+    status_code: 204
+  when: sso_client_operation == 'prepare' and sso_client_direct.results[0].json | length == 0
+  changed_when: true
+- ansible.builtin.assert:
+    that: sso_client_direct.results[0].json | length == 1
+  when: sso_client_operation in ['activate','inspect']
+- name: Delegate only the exact app role to the owned admin leaf after native-stage approval
+  ansible.builtin.uri:
+    url: '{{ sso_client_api }}/groups/{{ sso_client_group_id }}/role-mappings/clients/{{ sso_client_id }}'
+    headers: '{{ sso_client_headers }}'
+    method: POST
+    body_format: json
+    body: '{{ [sso_client_role] }}'
+    status_code: 204
+  when: sso_client_operation == 'activate' and sso_client_direct.results[1].json | length == 0
+  changed_when: true
+- name: Enable or disable only this already owned client; preserve other fields
+  ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients/{{ sso_client_id }}'
+    headers: '{{ sso_client_headers }}'
+    method: PUT
+    body_format: json
+    body: "{{ {'clientId':sso_client_candidate.clientId,'enabled':sso_client_operation == 'activate'} }}"
+    status_code: 204
+  when: (sso_client_operation == 'activate' and not sso_client_record.enabled) or (sso_client_operation == 'rollback' and sso_client_record.enabled)
+  changed_when: true
+- name: Independent rollback removes only this app's direct group role
+  ansible.builtin.uri:
+    url: '{{ sso_client_api }}/groups/{{ sso_client_group_id }}/role-mappings/clients/{{ sso_client_id }}'
+    headers: '{{ sso_client_headers }}'
+    method: DELETE
+    body_format: json
+    body: '{{ [sso_client_role] }}'
+    status_code: 204
+  when: sso_client_operation == 'rollback' and sso_client_direct.results[1].json | length == 1
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}{{ item }}'
+    headers: '{{ sso_client_headers }}'
+  loop: ['/clients/{{ sso_client_id }}', '/groups/{{ sso_client_group_id }}/role-mappings', '/groups/{{ sso_client_group_id }}/role-mappings/clients/{{ sso_client_id }}/composite']
+  register: sso_client_verified
+- name: Verify exact own-app result and preservation of unrelated realm/app mappings
+  ansible.builtin.assert:
+    that:
+    - sso_client_verified.results[1].json.realmMappings | default([]) == sso_group_before.realmMappings | default([])
+    - sso_client_verified.results[1].json.clientMappings | default({}) | dict2items | rejectattr('key','equalto',sso_client_candidate.clientId) | list == sso_group_before.clientMappings | default({}) | dict2items | rejectattr('key','equalto',sso_client_candidate.clientId) | list
+    - sso_client_verified.results[2].json | map(attribute='id') | difference([sso_client_role.id]) | length == 0
+- ansible.builtin.assert:
+    that:
+    - sso_client_verified.results[0].json.enabled
+    - sso_client_verified.results[2].json | map(attribute='id') | list == [sso_client_role.id]
+  when: sso_client_operation == 'activate'
+- ansible.builtin.assert:
+    that:
+    - not sso_client_verified.results[0].json.enabled
+    - sso_client_verified.results[2].json | length == 0
+  when: sso_client_operation == 'rollback'
+
+- name: Enabling/disabling must preserve every reviewed client field
+  ansible.builtin.assert:
+    that: sso_client_verified.results[0].json.get(item) == sso_client_record.get(item)
+  loop: [id, clientId, protocol, publicClient, fullScopeAllowed, standardFlowEnabled, implicitFlowEnabled, directAccessGrantsEnabled, serviceAccountsEnabled, redirectUris, webOrigins, attributes]

@@ -1,12 +1,45 @@
 # Keycloak initial master-administrator stage
 
 Stacked after OpenBao and Headlamp. Select Big Bang Keycloak chart
-**7.3.2-bb.1 / Keycloak 26.8.0**, with its pinned PostgreSQL 18.12.4 chart dependency
+**7.3.2-bb.1 with an immutable Iron Bank Keycloak 26.8.1 image override**, with its pinned PostgreSQL 18.12.4 chart dependency
 and Iron Bank PostgreSQL 18.6 image. One application and one database instance,
 worker placement and the existing 4Gi Longhorn prerequisite claim: **not HA**.
 Application/database passwords remain external Secrets; no realm import runs at
 server startup. No PerkForge groups, app clients, mappings or API OIDC settings
 are activated by selecting the chart.
+
+## Security patch and compatibility
+
+The official [26.8.1 release](https://github.com/keycloak/keycloak/releases/tag/26.8.1)
+fixes delegated-administration issues including denied reset-password bypass and
+`manage-users` escalation. This is not a claim that patching alone makes tenant
+delegation safe: version-specific negative API tests and the separate role review
+remain required before enabling it.
+
+Retain the compatible 7.3.2-bb.1 package and use its supported
+`upstream.image.tag` / `upstream.image.digest` fields. Chart `appVersion` and image
+annotations still describe 26.8.0; inspect the **rendered workload image**, not
+those metadata fields, for the selected runtime version. The new official
+7.4.0-bb.2 package declares 26.8.1 but rejects the legacy common values emitted by
+our pinned Big Bang 3.35.1; a blind package bump would require a separate
+`global`/`bb-common` schema migration and additional dependency changes.
+
+Authenticated metadata verification on 2026-11-01 checked the official registry
+index and linux/amd64 manifest bytes against their digest headers. The selected
+index preserves the publisher's amd64/arm64 entries; no registry/edition switch.
+[Nonsecret evidence](../../../tests/fixtures/keycloak-image-evidence.json) records
+immutable digests and existing chart archive/source identity. No credentials or
+image layers are included. That image-metadata check alone did not prove startup or delegation; the separately approved installation result follows below.
+
+Offline comparison requires the actual pinned Big Bang/child renders to differ
+only in the Keycloak image and matching version labels; database image/claim,
+namespace/resources, installer RBAC and Secret references stay identical. A future
+live installation still needs explicit approval and readiness/access/resource
+acceptance. This source change does not promote the running release.
+
+The `clusters/local-keycloak` stage enables this application and database together,
+after Headlamp acceptance. The default and Headlamp stages leave both off. See
+[ordered app stages](../../ansible/README.md#ordered-app-stages).
 
 ## Who does what and why
 
@@ -66,3 +99,29 @@ Sources: [Keycloak bootstrap/recovery](https://www.keycloak.org/server/bootstrap
 [import/export timing](https://www.keycloak.org/server/importExport).
 No competing direct Keycloak Helm installer remains; useful Ansible API and
 recovery/identity tests are preserved rather than deleted as obsolete deployment.
+
+## Observed initial installation — 2026-11-01
+
+Approved v0.14.0 root-path promotion to `local-keycloak` passed at 18:23:33 UTC:
+Keycloak/PostgreSQL, umbrella and root Ready; exact 26.8.1 image, trusted hostname/
+CA/served leaf, private temporary-master login/read-only API and non-superuser
+application DB login verified. The retained 4 GiB Longhorn volume has two healthy
+worker replicas. Existing OpenBao LAN/Rancher and cluster resource checks passed.
+No personal browser login, realm/group/client import, SSO or API OIDC is claimed.
+
+Actual source operations: [TLS delivery](../../ansible/platform-tls.yaml),
+[namespace/storage/installer/route preparation](../../ansible/keycloak-prerequisites.yaml),
+[empty-store database SQL](prerequisites/database-init.yaml),
+[workloads and external Secret references](values.yaml), and only the two
+Keycloak-namespace objects in [NetworkPolicies](../../identity/routing/network.yaml).
+The private execution batch generated/captured three passwords and delivered the
+four reviewed Secret references without logging values or overwriting conflicts;
+its protected evidence is retained, not embedded in public source or the viewer.
+
+The accepted lab transport is frontend TLS termination at Traefik, then internal
+HTTP and unencrypted PostgreSQL. NetworkPolicies restrict reachability, not encrypt
+it. Temporary master bootstrap administration **does not expire automatically**;
+independent permanent recovery must be verified before separately approved removal.
+Password-cache transfer is not rotation. Do not reinitialize/delete populated
+storage or reset accounts as an automatic retry. One app/database is not HA;
+independent database backup/restore remains untested.

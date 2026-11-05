@@ -1,0 +1,19 @@
+{
+  "image": "docker.io/dxflrs/garage:v2.2.0@sha256:45a61ce3f7c9c24fc23d9ed2b09b27ed560ab87b34605d175d5c588f539c24e4",
+  "platform": "linux/amd64",
+  "platformManifest": "sha256:b149311208a26f9fe31424368eb9daa9800832363fe711850057bfb3c6bb8ef5",
+  "configDigest": "sha256:e462e5d0bd6945bb8d36cdb323d61c0f84b32c5fa8e21dd0350a11b09a04aeaf",
+  "imageConfig": {"Entrypoint": null, "Cmd": ["/garage", "server"]},
+  "observed": "2026-11-04",
+  "isolatedRuntime": {
+    "oldArgsRejected": true,
+    "explicitExecutableStartup": true,
+    "retainedDirectoryRestart": true,
+    "network": "none",
+    "readOnlyRoot": true,
+    "user": "1000:1000",
+    "realCredentials": false,
+    "layoutOrBucketCreation": false
+  },
+  "boundary": "Public OCI index/manifest/config digest chain verified at observation time. Local disposable-directory RPC startup/restart is not live Garage layout, S3, CNI or Kubernetes persistence acceptance. Offline tests consume this recorded image contract and do not pull or run images."
+}
