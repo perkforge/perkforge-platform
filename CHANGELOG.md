@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.4](https://github.com/perkforge/perkforge-platform/compare/v0.18.3...v0.18.4) (2026-11-05)
+
+
+### Bug Fixes
+
+* **runner:** writable Git home and worker-only jobs ([#190](https://github.com/perkforge/perkforge-platform/issues/190)) ([b6aa1f6](https://github.com/perkforge/perkforge-platform/commit/b6aa1f6b089a14426a3a54121c6186ee7e3c5437))
+
 ## [0.18.3](https://github.com/perkforge/perkforge-platform/compare/v0.18.2...v0.18.3) (2026-11-05)
 
 
