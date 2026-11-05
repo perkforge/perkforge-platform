@@ -109,7 +109,7 @@ class Documentation(unittest.TestCase):
                      'Trusted credentials → User', 'Restart Chrome',
                      'not a one-host', 'D6:A5:96:0A']:
             self.assertIn(term,design)
-        view=(ROOT/'views.c4').read_text().split('dynamic view production_tls_lifecycle {',1)[1]
+        view=(ROOT/'views.c4').read_text().split('dynamic view production_tls_lifecycle {',1)[1].split('\n  }',1)[0]
         self.assertEqual(re.findall(r"-> [A-Za-z0-9_.]+ '([1-5])\.",view),list('12345'))
         self.assertIn('Design only',view)
         self.assertIn('No Istio/Gateway API implementation',design)
