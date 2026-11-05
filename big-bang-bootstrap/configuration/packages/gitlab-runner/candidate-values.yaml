@@ -1,0 +1,75 @@
+# Unselected suspended runner; real image-pull credential delivery needs approval.
+addons:
+  gitlabRunner:
+    enabled: false
+    autoRegister:
+      enabled: false
+    git:
+      repo: https://repo1.dso.mil/big-bang/product/packages/gitlab-runner.git
+      path: ./chart
+      tag: 0.91.2-bb.3
+    flux:
+      suspend: true
+      serviceAccountName: gitlab-runner-installer
+      storageNamespace: gitlab-runner
+      install:
+        createNamespace: false
+        remediation:
+          retries: 0
+      upgrade:
+        remediation:
+          retries: 0
+    values:
+      autoRegister:
+        enabled: false
+      istio:
+        enabled: false
+      monitoring:
+        enabled: false
+      upstream:
+        gitlabUrl: https://gitlab.UNCONFIGURED.invalid
+        replicas: 1
+        strategy:
+          type: Recreate
+        concurrent: 1
+        checkInterval: 10
+        unregisterRunners: false
+        terminationGracePeriodSeconds: 3600
+        rbac:
+          create: false
+          clusterWideAccess: false
+        serviceAccount:
+          create: false
+          name: gitlab-runner-manager
+        certsSecretName: gitlab-runner-public-ca
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        runners:
+          secret: gitlab-runner-auth
+          config: "[[runners]]\n  request_concurrency = 1\n  [runners.kubernetes]\n\
+            \    namespace = \"gitlab-ci-platform\"\n    image = \"registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8\"\
+            \n    helper_image = \"registry1.dso.mil/gitlab/gitlab-org/gitlab-runner/gitlab-runner-helper:ubi-fips-x86_64-v19.2.2\"\
+            \n    image_pull_secrets = [\"private-registry\"]\n    privileged = false\n\
+            \    allow_privilege_escalation = false\n    automount_service_account_token\
+            \ = false\n    service_account = \"gitlab-ci-job\"\n    service_account_overwrite_allowed\
+            \ = \"\"\n    namespace_overwrite_allowed = \"\"\n    bearer_token_overwrite_allowed\
+            \ = false\n    pod_annotations_overwrite_allowed = \"\"\n    pod_labels_overwrite_allowed\
+            \ = \"\"\n    allowed_images = [\"registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8\"\
+            ]\n    allowed_services = [\"INVALID-NO-SERVICES\"]\n    cpu_request =\
+            \ \"500m\"\n    cpu_limit = \"1\"\n    memory_request = \"512Mi\"\n  \
+            \  memory_limit = \"1Gi\"\n    helper_cpu_request = \"100m\"\n    helper_cpu_limit\
+            \ = \"500m\"\n    helper_memory_request = \"128Mi\"\n    helper_memory_limit\
+            \ = \"256Mi\"\n    poll_timeout = 180\n    [runners.kubernetes.pod_security_context]\n\
+            \      run_as_non_root = true\n      run_as_user = 1001\n      run_as_group\
+            \ = 1001\n      fs_group = 1001\n    [runners.kubernetes.pod_security_context.seccomp_profile]\n\
+            \      type = \"RuntimeDefault\"\n    [runners.kubernetes.build_container_security_context.capabilities]\n\
+            \      drop = [\"ALL\"]\n    [runners.kubernetes.helper_container_security_context.capabilities]\n\
+            \      drop = [\"ALL\"]\n    [runners.kubernetes.pod_labels]\n      \"\
+            perkforge.io/ci-scope\" = \"platform\"\n"
+        imagePullSecrets:
+        - name: private-registry

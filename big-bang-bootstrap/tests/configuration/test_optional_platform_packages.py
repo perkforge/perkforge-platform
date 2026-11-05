@@ -1,10 +1,12 @@
 """Native offline Big Bang/child renders; never apply or contact a Kubernetes API."""
 import os
+import hashlib
 from pathlib import Path
 import tempfile
 import unittest
 import yaml
 from fixtures.render_helpers import build, helm, ordered_values, application_package_fixture
+from bootstrap.test_sso_rancher import rancher_chart_ca_fixture
 
 ROOT=Path(__file__).resolve().parents[2]
 
@@ -37,10 +39,10 @@ class OptionalPlatformPackages(unittest.TestCase):
             (p/'kustomization.yaml').write_text(yaml.safe_dump({'apiVersion':'kustomize.config.k8s.io/v1beta1','kind':'Kustomization','resources':['render.yaml'],**self.parent['spec']['postRenderers'][0]['kustomize']}))
             outer=build(p)
         releases={x['metadata']['name']:x for x in outer if x['kind']=='HelmRelease'}
-        self.assertEqual(set(releases), {'longhorn','rancher','openbao','headlamp','keycloak'})
+        self.assertEqual(set(releases), {'longhorn','rancher','openbao'})
         self.assertFalse(releases['longhorn']['spec']['suspend'])
         self.assertFalse(releases['rancher']['spec']['suspend'])
-        self.assertEqual({x['metadata']['name'] for x in outer if x['kind']=='GitRepository'}, {'longhorn','headlamp','keycloak','bigbang-wrapper'})
+        self.assertEqual({x['metadata']['name'] for x in outer if x['kind']=='GitRepository'}, {'longhorn','bigbang-wrapper'})
         self.assertFalse(any(x['kind'] in ['Deployment','StatefulSet','PersistentVolumeClaim','Namespace','ClusterRole','ClusterRoleBinding'] for x in outer))
         self.assertFalse(any(x['kind']=='Kustomization' for x in self.root))
 
@@ -114,5 +116,26 @@ class OptionalPlatformPackages(unittest.TestCase):
                 for verb in ['get','create','patch','delete']:
                     self.assertTrue(any(group in r['apiGroups'] and resource in r['resources'] and verb in r['verbs'] and ('resourceNames' not in r or obj['metadata']['name'] in r['resourceNames']) for r in rules),(name,obj['kind'],obj['metadata']['name'],verb))
             self.assertFalse(any('*' in r.get('verbs',[])+r.get('resources',[])+r.get('apiGroups',[]) for r in rules))
+
+class RancherCaMountContract(unittest.TestCase):
+    def test_stateful_fixture_matches_actual_integrity_pinned_chart(self):
+        sources = Path(os.environ['PREFLIGHT_SOURCES_DIR'])
+        pin = yaml.safe_load((ROOT/'tests/fixtures/source-pins.yaml').read_text())['rancher']
+        archive = sources/'.archives/rancher.tgz'
+        self.assertEqual(hashlib.sha256(archive.read_bytes()).hexdigest(), pin['sha256'])
+        package = yaml.safe_load((ROOT/'configuration/packages/rancher/values.yaml').read_text())['packages']['rancher']
+        chart = yaml.safe_load((sources/'rancher/Chart.yaml').read_text())
+        self.assertEqual(str(package['helmRepo']['tag']), chart['version'])
+        self.assertEqual(chart['appVersion'], 'v2.15.2')
+        objects = helm(sources/'rancher', 'rancher', 'cattle-system', [yaml.safe_dump(package['values'])])
+        pod = next(x for x in objects if x['kind']=='Deployment')['spec']['template']['spec']
+        expected = rancher_chart_ca_fixture()
+        container = next(x for x in pod['containers'] if x['name']=='rancher')
+        self.assertEqual(container['image'], expected['containers'][0]['image'])
+        ca_volumes = [v for v in pod['volumes'] if v.get('secret',{}).get('secretName')=='tls-ca-additional']
+        self.assertEqual(ca_volumes, expected['volumes'])
+        self.assertEqual([m for m in container['volumeMounts'] if m['name']==ca_volumes[0]['name']],
+                         expected['containers'][0]['volumeMounts'])
+
 
 if __name__=='__main__':unittest.main()

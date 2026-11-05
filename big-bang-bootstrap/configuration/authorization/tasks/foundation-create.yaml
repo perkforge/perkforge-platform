@@ -1,0 +1,38 @@
+- name: Recheck path immediately before a possible create
+  ansible.builtin.uri:
+    url: '{{ foundation_api }}/group-by-path{{ foundation_group.path }}'
+    headers: '{{ foundation_headers }}'
+    status_code: [200, 404]
+  register: foundation_recheck
+- name: Refuse concurrent appearance instead of adopting or moving an object
+  ansible.builtin.assert:
+    that: foundation_recheck.status == 404 if foundation_group.path in foundation_missing else foundation_recheck.status == 200
+- name: Resolve existing exact parent before child creation
+  ansible.builtin.uri:
+    url: '{{ foundation_api }}/group-by-path{{ foundation_group.parent }}'
+    headers: '{{ foundation_headers }}'
+  register: foundation_parent
+  when: foundation_group.parent | length > 0 and foundation_group.path in foundation_missing
+- name: Refuse a replaced or unowned parent before creating a child
+  ansible.builtin.assert:
+    that:
+    - foundation_parent.json.id == foundation_group_ids[foundation_group.parent]
+    - foundation_parent.json.path == foundation_group.parent
+    - foundation_parent.json.attributes == {'perkforge-managed':['true'], 'perkforge-foundation':['v1']}
+  when: foundation_group.parent | length > 0 and foundation_group.path in foundation_missing
+- name: Create a missing group with no ID, roles, members or child import
+  ansible.builtin.uri:
+    url: "{{ foundation_api }}/groups{{ '/' ~ foundation_parent.json.id ~ '/children' if foundation_group.parent else '' }}"
+    method: POST
+    headers: '{{ foundation_headers }}'
+    body_format: json
+    body:
+      name: '{{ foundation_group.name }}'
+      attributes: "{{ {'perkforge-managed':['true'], 'perkforge-foundation':['v1']} | combine({'perkforge-role':[foundation_group.role]} if foundation_group.role else {}) }}"
+    status_code: 201
+  when: foundation_group.path in foundation_missing
+  changed_when: true
+
+- name: Verify the path and remember the newly created identity before its children
+  vars: {foundation_verify_after: true}
+  ansible.builtin.include_tasks: foundation-inspect.yaml

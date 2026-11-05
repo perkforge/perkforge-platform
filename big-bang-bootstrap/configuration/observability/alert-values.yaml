@@ -34,19 +34,5 @@ monitoring:
               annotations:
                 summary: Physical node available memory below ten percent
                 description: Compare actual usage and requests; stop adding packages if capacity is exhausted.
-      alertmanager:
-        config:
-          global:
-            resolve_timeout: 5m
-          route:
-            receiver: 'null'
-            group_by: [alertname, namespace, severity]
-            group_wait: 30s
-            group_interval: 5m
-            repeat_interval: 4h
-          receivers:
-          - name: 'null'
-          inhibit_rules:
-          - source_matchers: ['severity="critical"']
-            target_matchers: ['severity="warning"']
-            equal: [namespace, alertname]
+# Grafana-managed rules and native contact-point provisioning are a later gate.
+# Prometheus preserves upstream/custom source rules without a notification route.

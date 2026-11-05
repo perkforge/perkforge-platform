@@ -20,6 +20,7 @@ Use context first, then narrow into components or an operating flow. The single
 | View | Purpose |
 |---|---|
 | queued_app_identity | Proposed app clients, native tenant boundaries, machine identities and recovery |
+| production_tls_lifecycle | Proposed PKI ownership, client trust, scoped leaf delivery and lifecycle acceptance |
 | index | Operator, workstation, router, selected node, custody and platform |
 | topology | Workstation/control-1/worker-1/worker-2 on the shared wired LAN |
 | workstation_detail | Inputs, dedicated services, ingress, SSH and state ownership |

@@ -1,0 +1,21 @@
+- ansible.builtin.assert:
+    that:
+    - sso_scope.id is match('^[A-Za-z0-9-]+$')
+    - sso_scope.protocol == 'openid-connect'
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}/client-scopes/{{ sso_scope.id }}/protocol-mappers/models'
+    headers: '{{ sso_client_headers }}'
+  register: sso_scope_mappers
+- name: Refuse hidden scope mappers and group/role disclosure through shared scopes
+  ansible.builtin.assert:
+    that:
+    - sso_scope_mappers.json | length == sso_expected_client_scopes[sso_scope.name] | length
+    - sso_scope_mappers.json | map(attribute='name') | sort == sso_expected_client_scopes[sso_scope.name] | map(attribute='name') | sort
+- ansible.builtin.assert:
+    that:
+    - item.protocol == expected.protocol
+    - item.protocolMapper == expected.protocolMapper
+    - item.config == expected.config
+  vars:
+    expected: '{{ sso_expected_client_scopes[sso_scope.name] | selectattr("name","equalto",item.name) | first }}'
+  loop: '{{ sso_scope_mappers.json }}'

@@ -1,0 +1,62 @@
+- name: Refuse an alternative config path or API arguments injected by the service
+  ansible.builtin.command:
+    argv:
+    - systemctl
+    - cat
+    - rke2-server
+  register: api_oidc_unit
+  changed_when: false
+  no_log: true
+- ansible.builtin.assert:
+    that: api_oidc_unit.stdout is not search('RKE2_(CONFIG_FILE|KUBE_APISERVER_ARG|KUBE_APISERVER_EXTRA_MOUNT)=|--(config|kube-apiserver-arg|kube-apiserver-extra-mount)(=|
+      )')
+  no_log: true
+- ansible.builtin.command:
+    argv:
+    - systemctl
+    - show
+    - rke2-server
+    - --property=EnvironmentFiles
+    - --value
+  register: api_oidc_env_paths
+  changed_when: false
+  no_log: true
+- ansible.builtin.set_fact:
+    api_oidc_environment_files: '{{ api_oidc_env_paths.stdout | regex_findall(''(/[^ ]+) [(]ignore_errors=(?:yes|no)[)]'')
+      }}'
+  no_log: true
+- name: Do not guess an unrecognized systemd environment-file representation
+  ansible.builtin.assert:
+    that: api_oidc_env_paths.stdout | regex_replace('(/[^ ]+) [(]ignore_errors=(?:yes|no)[)]','') | trim | length
+      == 0
+  no_log: true
+- ansible.builtin.stat:
+    path: '{{ item }}'
+    follow: false
+    checksum_algorithm: sha256
+  loop: '{{ api_oidc_environment_files }}'
+  register: api_oidc_environment_stats
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - item.stat.isreg | default(false)
+    - not (item.stat.islnk | default(false))
+    - item.stat.uid == api_oidc_uid
+  when: item.stat.exists
+  loop: '{{ api_oidc_environment_stats.results }}'
+  no_log: true
+- ansible.builtin.slurp:
+    src: '{{ item.item }}'
+  when: item.stat.exists
+  loop: '{{ api_oidc_environment_stats.results }}'
+  register: api_oidc_environment_text
+  no_log: true
+- ansible.builtin.assert:
+    that: item.content | b64decode is not search('(?m)^\s*(export\s+)?RKE2_(CONFIG_FILE|KUBE_APISERVER_ARG|KUBE_APISERVER_EXTRA_MOUNT)\s*=')
+  when: not (item.skipped | default(false))
+  loop: '{{ api_oidc_environment_text.results }}'
+  no_log: true
+- ansible.builtin.set_fact:
+    api_oidc_service_digest: '{{ (api_oidc_unit.stdout ~ api_oidc_env_paths.stdout ~ (api_oidc_environment_stats.results
+      | selectattr(''stat.exists'') | map(attribute=''stat.checksum'') | list | to_json)) | hash(''sha256'') }}'
+  no_log: true

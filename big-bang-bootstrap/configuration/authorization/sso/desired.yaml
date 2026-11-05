@@ -1,0 +1,13 @@
+# Review payload preparation only. Each future live stage requires independent approval.
+sso_render: false
+sso_output_directory: /UNCONFIGURED/sso-review
+sso_environment: UNCONFIGURED
+sso_realm: perkforge
+sso_keycloak_origin: https://identity.example.invalid
+sso_keycloak_path: /auth
+sso_public_ca_file: /UNCONFIGURED/public-ca.pem
+sso_headlamp_apiserver_ca_path: /etc/rancher/rke2/identity/ca.crt
+sso_apps:
+  headlamp: {client_id: headlamp-local, origin: 'https://headlamp.example.invalid', apply: false}
+  rancher: {client_id: rancher, origin: 'https://rancher.example.invalid', apply: false}
+  openbao: {client_id: openbao, origin: 'https://openbao.example.invalid', apply: false}

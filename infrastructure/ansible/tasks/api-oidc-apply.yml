@@ -1,0 +1,172 @@
+- ansible.builtin.set_fact:
+    api_oidc_new: '{{ api_oidc_state | length == 0 }}'
+    api_oidc_restart_needed: '{{ api_oidc_state.phase | default(''prepared'') != ''active'' }}'
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - api_oidc_state | length == 0 or api_oidc_state.phase in ['prepared','active']
+  no_log: true
+- ansible.builtin.set_fact:
+    api_oidc_config_text_candidate: '{{ {''kube-apiserver-arg+'':api_oidc_args} | to_nice_yaml }}'
+  no_log: true
+- ansible.builtin.set_fact:
+    api_oidc_candidate_owned: '{{ {api_oidc_dropin:(api_oidc_config_text_candidate | hash(''sha256'')),api_oidc_ca:(api_oidc_ca_pem
+      | hash(''sha256''))} }}'
+  no_log: true
+- ansible.builtin.assert:
+    that: api_oidc_state | length == 0 or api_oidc_state.owned == api_oidc_candidate_owned
+  no_log: true
+- name: Prove independent certificate access and exact cluster before any host write
+  ansible.builtin.command:
+    argv: '{{ api_oidc_cli + [''get'',''namespace'',''kube-system'',''-o'',''jsonpath={.metadata.uid}''] }}'
+  register: api_oidc_target_uid
+  changed_when: false
+  no_log: true
+- ansible.builtin.assert:
+    that: api_oidc_target_uid.stdout == api_oidc_cluster_uid
+  no_log: true
+- ansible.builtin.command:
+    argv:
+    - systemctl
+    - is-active
+    - rke2-server
+  changed_when: false
+  no_log: true
+- name: Start a root-only owned transaction, never adopt an existing directory
+  when: api_oidc_new | bool
+  block:
+  - ansible.builtin.file:
+      path: '{{ api_oidc_journal }}'
+      state: directory
+      owner: '{{ api_oidc_user }}'
+      group: '{{ api_oidc_group }}'
+      mode: '0700'
+    no_log: true
+  - ansible.builtin.set_fact:
+      api_oidc_state:
+        owner: perkforge-api-oidc-v1
+        node: '{{ inventory_hostname }}'
+        cluster_id: '{{ api_oidc_cluster_id }}'
+        cluster_uid: '{{ api_oidc_cluster_uid }}'
+        baseline: '{{ api_oidc_baseline }}'
+        service_digest: '{{ api_oidc_service_digest }}'
+        owned: '{{ api_oidc_candidate_owned }}'
+        phase: prepared
+        source_commit: '{{ api_oidc_release_commit }}'
+    no_log: true
+  - ansible.builtin.copy:
+      content: '{{ api_oidc_state | to_nice_json }}'
+      dest: '{{ api_oidc_journal }}/owner.json'
+      owner: '{{ api_oidc_user }}'
+      group: '{{ api_oidc_group }}'
+      mode: '0600'
+      force: false
+    no_log: true
+  no_log: true
+- ansible.builtin.set_fact:
+    api_oidc_backups_required: false
+  no_log: true
+- ansible.builtin.include_tasks: api-oidc-backups.yml
+  no_log: true
+- name: Keep backups only on this host, not in controller state or logs
+  ansible.builtin.copy:
+    src: '{{ item }}'
+    dest: '{{ api_oidc_journal }}/{{ item | hash("sha256") }}.backup'
+    remote_src: true
+    owner: '{{ api_oidc_user }}'
+    group: '{{ api_oidc_group }}'
+    mode: '0600'
+    force: false
+  loop: '{{ api_oidc_baseline_paths }}'
+  no_log: true
+- ansible.builtin.set_fact:
+    api_oidc_backups_required: true
+  no_log: true
+- ansible.builtin.include_tasks: api-oidc-backups.yml
+  no_log: true
+- name: Create only reviewed public-CA and drop-in directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: '{{ api_oidc_user }}'
+    group: '{{ api_oidc_group }}'
+    mode: '0755'
+  loop:
+  - '{{ api_oidc_root }}/config.yaml.d'
+  - '{{ api_oidc_root }}/identity'
+  when: not (api_oidc_dirs.results[1 if item.endswith('/config.yaml.d') else 2].stat.exists)
+  no_log: true
+- ansible.builtin.copy:
+    content: '{{ api_oidc_ca_pem }}'
+    dest: '{{ api_oidc_ca }}'
+    owner: '{{ api_oidc_user }}'
+    group: '{{ api_oidc_group }}'
+    mode: '0644'
+    force: false
+  no_log: true
+- name: Verify actual host issuer DNS and TLS using only the reviewed public CA
+  ansible.builtin.uri:
+    url: '{{ api_oidc_issuer }}/.well-known/openid-configuration'
+    ca_path: '{{ api_oidc_ca }}'
+    validate_certs: true
+    use_proxy: false
+    follow_redirects: none
+    return_content: true
+    timeout: 15
+  register: api_oidc_discovery
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - api_oidc_discovery.json.issuer == api_oidc_issuer
+    - '''S256'' in api_oidc_discovery.json.code_challenge_methods_supported'
+    - '''RS256'' in api_oidc_discovery.json.id_token_signing_alg_values_supported'
+  no_log: true
+- ansible.builtin.copy:
+    content: '{{ api_oidc_config_text_candidate }}'
+    dest: '{{ api_oidc_dropin }}'
+    owner: '{{ api_oidc_user }}'
+    group: '{{ api_oidc_group }}'
+    mode: '0600'
+    force: false
+  no_log: true
+- name: Verify both files before restart; conflicting concurrent creates never get overwritten
+  ansible.builtin.stat:
+    path: '{{ item.key }}'
+    follow: false
+    checksum_algorithm: sha256
+  loop: '{{ api_oidc_candidate_owned | dict2items }}'
+  register: api_oidc_written
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - item.stat.isreg and not item.stat.islnk
+    - item.stat.uid == api_oidc_uid
+    - item.stat.checksum == item.item.value
+  loop: '{{ api_oidc_written.results }}'
+  no_log: true
+- name: A partial run remains prepared until restart and full readback pass
+  when: api_oidc_restart_needed | bool
+  block:
+  - ansible.builtin.command:
+      argv:
+      - systemctl
+      - restart
+      - rke2-server
+    async: 300
+    poll: 5
+    no_log: true
+  - ansible.builtin.include_tasks: api-oidc-health.yml
+    no_log: true
+  - ansible.builtin.set_fact:
+      api_oidc_state: '{{ api_oidc_state | combine({"phase":"active"}) }}'
+    no_log: true
+  - ansible.builtin.copy:
+      content: '{{ api_oidc_state | to_nice_json }}'
+      dest: '{{ api_oidc_journal }}/owner.json'
+      owner: '{{ api_oidc_user }}'
+      group: '{{ api_oidc_group }}'
+      mode: '0600'
+    no_log: true
+  no_log: true
+- ansible.builtin.include_tasks: api-oidc-health.yml
+  no_log: true

@@ -1,0 +1,4 @@
+url: https://github.com/cloudnative-pg/charts/releases/download/cloudnative-pg-v0.29.1/cloudnative-pg-0.29.1.tgz
+sha256: b53d3991fe84bcf38767e7702cae78666265427a127a26fff168ab4207d2b1df
+chart_directory: cloudnative-pg
+chart_version: 0.29.1

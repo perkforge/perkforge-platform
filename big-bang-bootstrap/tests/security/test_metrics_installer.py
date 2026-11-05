@@ -28,7 +28,11 @@ class MetricsInstaller(unittest.TestCase):
  def test_no_duplicate_grafana_cert_manager_or_broad_grafana_reader(self):
   mon=self.render['monitoring'][1];graf=self.render['grafana'][1]
   self.assertEqual(sum(x['kind']=='PrometheusRule' for x in mon),35)
-  self.assertEqual(sum(x['kind']=='Alertmanager' for x in mon),1)
+  self.assertEqual(sum(x['kind']=='Alertmanager' for x in mon),0)
+  self.assertFalse(any(x['kind']=='Secret' and 'alertmanager.yaml' in x.get('data',{}) for x in mon))
+  config=next(x for x in graf if x['kind']=='ConfigMap' and 'grafana.ini' in x['data'])['data']
+  self.assertIn('[unified_alerting]',config['grafana.ini'])
+  self.assertFalse(any(x['type']=='alertmanager' for x in yaml.safe_load(config['datasourcesbb.yaml'])['datasources']))
   self.assertFalse(any(x['kind'] in ['Certificate','Issuer'] for x in mon))
   self.assertTrue(any(x['kind']=='Job' and 'patch' in x['metadata']['name'] for x in mon))
   self.assertFalse(any(x['kind'] in ['Role','RoleBinding','ClusterRole','ClusterRoleBinding','Secret','Ingress'] for x in graf))

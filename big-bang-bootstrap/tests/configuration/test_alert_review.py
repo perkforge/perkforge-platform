@@ -9,13 +9,20 @@ class AlertReview(unittest.TestCase):
   rules=[x for x in self.objects['monitoring'][1] if x['kind']=='PrometheusRule'];self.assertEqual(len(rules),36)
   custom=next(x for x in rules if x['metadata']['name'].endswith('perkforge-lab'));entries=custom['spec']['groups'][0]['rules'];self.assertEqual(len(entries),3)
   self.assertTrue(all(x['labels']['owner']=='platform' and x['for'] in ['5m','10m'] for x in entries))
- def test_single_manager_no_unconfigured_notification_or_credentials(self):
-  objs=self.objects['monitoring'][1];self.assertEqual(sum(x['kind']=='Alertmanager' for x in objs),1)
-  secret=next(x for x in objs if x['kind']=='Secret' and 'alertmanager.yaml' in x.get('data',{}));c=yaml.safe_load(base64.b64decode(secret['data']['alertmanager.yaml']))
-  self.assertEqual(c['route']['receiver'],'null');self.assertEqual(c['receivers'],[{'name':'null'}]);self.assertEqual(c['route']['group_by'],['alertname','namespace','severity'])
-  contract=yaml.safe_load((ROOT/'configuration/observability/notification-contract.yaml').read_text())['notification'];self.assertFalse(contract['enabled']);self.assertFalse(contract['duplicate_direct_grafana_route']);self.assertEqual(contract['adapter'],'UNDECIDED');self.assertTrue(contract['transport']['verify_tls'])
- def test_grafana_is_external_alertmanager_client_not_duplicate_router(self):
-  cfg=next(x for x in self.objects['grafana'][1] if x['kind']=='ConfigMap' and 'datasourcesbb.yaml' in x.get('data',{}))['data'];a=next(x for x in yaml.safe_load(cfg['datasourcesbb.yaml'])['datasources'] if x['uid']=='alertmanager');self.assertFalse(a['jsonData']['handleGrafanaManagedAlerts']);self.assertEqual(a['jsonData']['implementation'],'prometheus');self.assertFalse(any('ntfy' in str(x).lower() for _,xs in self.objects.values() for x in xs))
+ def test_single_builtin_manager_and_unarmed_notification(self):
+  objs=self.objects['monitoring'][1]
+  self.assertFalse(any(x['kind']=='Alertmanager' for x in objs))
+  self.assertFalse(any(x['kind']=='Secret' and 'alertmanager.yaml' in x.get('data',{}) for x in objs))
+  contract=yaml.safe_load((ROOT/'configuration/observability/notification-contract.yaml').read_text())['notification']
+  self.assertEqual(contract['owner'],'grafana-built-in-alertmanager')
+  for key in ['enabled','duplicate_direct_grafana_route','prometheus_notification_route','external_alertmanager']:
+   self.assertFalse(contract[key],key)
+  self.assertTrue(contract['send_resolved']);self.assertTrue(contract['transport']['verify_tls'])
+ def test_grafana_has_builtin_alerting_without_external_forwarder(self):
+  cfg=next(x for x in self.objects['grafana'][1] if x['kind']=='ConfigMap' and 'datasourcesbb.yaml' in x.get('data',{}))['data']
+  self.assertFalse(any(x['type']=='alertmanager' for x in yaml.safe_load(cfg['datasourcesbb.yaml'])['datasources']))
+  self.assertIn('[unified_alerting]',cfg['grafana.ini'])
+  self.assertFalse(any('ntfy' in str(x).lower() for _,xs in self.objects.values() for x in xs))
 
  def test_verifier_defaults_never_probe_or_create_files(self):
   play=ROOT/'configuration/ansible/observability-verify.yaml';doc=yaml.safe_load(play.read_text())[0];self.assertFalse(doc['vars']['observability_verify'])

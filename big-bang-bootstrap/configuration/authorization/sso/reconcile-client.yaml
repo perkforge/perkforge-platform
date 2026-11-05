@@ -1,0 +1,94 @@
+- name: Prepare or activate exactly one independently approved application client
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [desired.yaml, client-scopes.yaml]
+  vars:
+    sso_client_run: false
+    sso_client_stage: UNCONFIGURED
+    sso_client_operation: inspect
+    sso_client_reviewed_scope: UNAPPROVED
+    sso_client_recovery_verified: false
+    sso_client_native_ready: false
+    sso_client_group_id: UNCONFIGURED
+    sso_client_parent_id: UNCONFIGURED
+    sso_client_username_file: /UNCONFIGURED/recovery-username
+    sso_client_password_file: /UNCONFIGURED/recovery-password
+    sso_client_secret_file: /UNCONFIGURED/client-secret
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ sso_public_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      unredirected_headers: [Authorization]
+      timeout: 20
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Client stage={{ sso_client_stage }} operation={{ sso_client_operation }} run={{ sso_client_run | bool }} check={{ ansible_check_mode }}. No realm replacement, user/password reset or cross-app grant.'
+  - when: sso_client_run | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - sso_client_stage in ['headlamp','rancher','openbao']
+        - sso_client_operation in ['inspect','prepare','activate','rollback']
+        - sso_client_reviewed_scope == sso_client_stage + '-client-' + sso_client_operation + '-v1'
+        - sso_client_recovery_verified | bool
+        - sso_client_operation != 'activate' or sso_client_native_ready | bool
+        - sso_client_group_id is match('^[A-Za-z0-9-]+$') and sso_client_group_id != 'UNCONFIGURED'
+        - sso_client_parent_id is match('^[A-Za-z0-9-]+$') and sso_client_parent_id != 'UNCONFIGURED'
+        - sso_client_parent_id != sso_client_group_id
+        - sso_realm == 'perkforge'
+        - sso_environment is match('^[a-z][a-z0-9-]{0,30}$')
+        - sso_keycloak_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - sso_keycloak_path in ['', '/auth']
+        - sso_public_ca_file is match('^/') and not sso_public_ca_file.startswith('/UNCONFIGURED/')
+        - sso_apps.values() | map(attribute='client_id') | unique | length == 3
+    - ansible.builtin.assert:
+        that:
+        - item.value.client_id is match('^[a-z][a-z0-9-]{0,62}$')
+        - item.value.origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+      loop: '{{ sso_apps | dict2items }}'
+    - name: Keep recovery auth, client secret and representation contents private
+      no_log: true
+      block:
+      - ansible.builtin.stat:
+          path: '{{ item }}'
+          follow: false
+        loop: "{{ [sso_client_username_file,sso_client_password_file] + ([sso_client_secret_file] if sso_client_operation != 'rollback' else []) }}"
+        register: sso_client_files
+      - ansible.builtin.assert:
+          that:
+          - item.item is match('^/') and item.item | realpath == item.item
+          - item.stat.isreg | default(false)
+          - not (item.stat.islnk | default(false))
+          - item.stat.mode == '0600'
+          - item.stat.pw_name == lookup('env','USER')
+          - item.stat.size > 0
+        loop: '{{ sso_client_files.results }}'
+      - ansible.builtin.uri:
+          url: '{{ sso_keycloak_origin }}{{ sso_keycloak_path }}/realms/master/protocol/openid-connect/token'
+          method: POST
+          body_format: form-urlencoded
+          body:
+            grant_type: password
+            client_id: admin-cli
+            username: "{{ lookup('file',sso_client_username_file) | trim }}"
+            password: "{{ lookup('file',sso_client_password_file) | trim }}"
+        register: sso_client_login
+      - ansible.builtin.set_fact:
+          sso_client_headers: {Authorization: 'Bearer {{ sso_client_login.json.access_token }}'}
+          sso_client_api: '{{ sso_keycloak_origin }}{{ sso_keycloak_path }}/admin/realms/perkforge'
+          sso_client_candidates: "{{ (lookup('template','templates/clients.yaml.j2') | from_yaml).clients }}"
+      - ansible.builtin.set_fact:
+          sso_client_candidate: '{{ sso_client_candidates[sso_client_stage].representation }}'
+      - ansible.builtin.include_tasks: tasks/client.yaml
+      always:
+      - ansible.builtin.set_fact:
+          sso_client_headers: {}
+          sso_client_login: {}
+          sso_client_secret: ''
+          sso_client_credential: {}
+          cacheable: false
+        no_log: true

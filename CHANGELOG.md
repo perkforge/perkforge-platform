@@ -1,5 +1,187 @@
 # Changelog
 
+## [0.18.1](https://github.com/perkforge/perkforge-platform/compare/v0.18.0...v0.18.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **gitlab-runner:** meet native minimum runner timeout ([#182](https://github.com/perkforge/perkforge-platform/issues/182)) ([953de3e](https://github.com/perkforge/perkforge-platform/commit/953de3e356c99776583b94ddad9f18976d163d6a))
+
+## [0.18.0](https://github.com/perkforge/perkforge-platform/compare/v0.17.11...v0.18.0) (2026-11-05)
+
+
+### Features
+
+* **gitlab:** verify named SSO and document existing runner activation ([#180](https://github.com/perkforge/perkforge-platform/issues/180)) ([d644479](https://github.com/perkforge/perkforge-platform/commit/d644479e59f031fea936f33ac441607fc0ec887f))
+
+## [0.17.11](https://github.com/perkforge/perkforge-platform/compare/v0.17.10...v0.17.11) (2026-11-05)
+
+
+### Bug Fixes
+
+* **gitlab:** allow recommended memory for two Puma workers ([#178](https://github.com/perkforge/perkforge-platform/issues/178)) ([62f5afa](https://github.com/perkforge/perkforge-platform/commit/62f5afa020aaf321d26dcf8aeeadc4ddde58b87c))
+
+## [0.17.10](https://github.com/perkforge/perkforge-platform/compare/v0.17.9...v0.17.10) (2026-11-05)
+
+
+### Bug Fixes
+
+* **gitlab:** mount PostgreSQL CA outside read-only configuration ([#176](https://github.com/perkforge/perkforge-platform/issues/176)) ([bfb3894](https://github.com/perkforge/perkforge-platform/commit/bfb3894f93d7af83c81d83c9db3dab8cf6795ad7))
+
+## [0.17.9](https://github.com/perkforge/perkforge-platform/compare/v0.17.8...v0.17.9) (2026-11-05)
+
+
+### Bug Fixes
+
+* **gitlab:** preserve partial state after failed Helm actions ([#174](https://github.com/perkforge/perkforge-platform/issues/174)) ([9e47e7f](https://github.com/perkforge/perkforge-platform/commit/9e47e7fd31e0a11333017d9b992de5adcd65f858))
+
+## [0.17.8](https://github.com/perkforge/perkforge-platform/compare/v0.17.7...v0.17.8) (2026-11-04)
+
+
+### Bug Fixes
+
+* **gitlab:** reference pull Secret for hooks and workloads ([#172](https://github.com/perkforge/perkforge-platform/issues/172)) ([3428921](https://github.com/perkforge/perkforge-platform/commit/34289219e925c2b3c71c1925d3a107761062fff6))
+
+## [0.17.7](https://github.com/perkforge/perkforge-platform/compare/v0.17.6...v0.17.7) (2026-11-04)
+
+
+### Bug Fixes
+
+* **gitlab:** preserve external namespace ownership ([#170](https://github.com/perkforge/perkforge-platform/issues/170)) ([4a7d392](https://github.com/perkforge/perkforge-platform/commit/4a7d3926a3c43325237a9864220dd5ff5cf9af41))
+
+## [0.17.6](https://github.com/perkforge/perkforge-platform/compare/v0.17.5...v0.17.6) (2026-11-04)
+
+
+### Bug Fixes
+
+* **gitlab:** constrain Gitaly to storage workers ([#168](https://github.com/perkforge/perkforge-platform/issues/168)) ([dc7b902](https://github.com/perkforge/perkforge-platform/commit/dc7b902a1faecb0f9e6e6c6f4910ed722ef60c2c))
+
+## [0.17.5](https://github.com/perkforge/perkforge-platform/compare/v0.17.4...v0.17.5) (2026-11-04)
+
+
+### Bug Fixes
+
+* **gitlab:** delegate namespaced Flux Pod health reads ([#166](https://github.com/perkforge/perkforge-platform/issues/166)) ([97bbb21](https://github.com/perkforge/perkforge-platform/commit/97bbb21bb6de9e07ec5de5e836cdcb1e990394e8))
+
+## [0.17.4](https://github.com/perkforge/perkforge-platform/compare/v0.17.3...v0.17.4) (2026-11-04)
+
+
+### Bug Fixes
+
+* **gitlab:** validate Garage layout before object bootstrap ([#164](https://github.com/perkforge/perkforge-platform/issues/164)) ([307d831](https://github.com/perkforge/perkforge-platform/commit/307d8316fc6efef3c66fc8d82a223856de09b3d8))
+
+## [0.17.3](https://github.com/perkforge/perkforge-platform/compare/v0.17.2...v0.17.3) (2026-11-04)
+
+
+### Bug Fixes
+
+* **gitlab:** launch the pinned Garage executable explicitly ([#162](https://github.com/perkforge/perkforge-platform/issues/162)) ([37ad288](https://github.com/perkforge/perkforge-platform/commit/37ad28884139478f93f08ca95b31d7bb00b20bf5))
+
+## [0.17.2](https://github.com/perkforge/perkforge-platform/compare/v0.17.1...v0.17.2) (2026-11-04)
+
+
+### Bug Fixes
+
+* **gitlab:** guard data placement DNS maintenance and CA lifecycle ([#160](https://github.com/perkforge/perkforge-platform/issues/160)) ([c13ca06](https://github.com/perkforge/perkforge-platform/commit/c13ca06873ec1a0c868f0d631a870c62ae6dd6a8))
+
+## [0.17.1](https://github.com/perkforge/perkforge-platform/compare/v0.17.0...v0.17.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **gitlab:** place persistent Valkey on storage workers ([#158](https://github.com/perkforge/perkforge-platform/issues/158)) ([649f0c7](https://github.com/perkforge/perkforge-platform/commit/649f0c77e413b0184ab29fc9ee55fbfdce502916))
+
+## [0.17.0](https://github.com/perkforge/perkforge-platform/compare/v0.16.1...v0.17.0) (2026-11-03)
+
+
+### Features
+
+* **gitlab:** prepare coordinated SSO, data services and runner ([#156](https://github.com/perkforge/perkforge-platform/issues/156)) ([7aeb06c](https://github.com/perkforge/perkforge-platform/commit/7aeb06c3c69d828159af15514ab94251ce28bd94))
+
+## [0.16.1](https://github.com/perkforge/perkforge-platform/compare/v0.16.0...v0.16.1) (2026-11-03)
+
+
+### Bug Fixes
+
+* **openbao:** allow bounded SSO self-session and UI operations ([#153](https://github.com/perkforge/perkforge-platform/issues/153)) ([701edff](https://github.com/perkforge/perkforge-platform/commit/701edffb1a7ab2112303816c80e09950da2f21f9))
+
+## [0.16.0](https://github.com/perkforge/perkforge-platform/compare/v0.15.2...v0.16.0) (2026-11-03)
+
+
+### Features
+
+* **sso:** prepare gated OpenBao data engines and remaining app acceptance ([#145](https://github.com/perkforge/perkforge-platform/issues/145)) ([f579707](https://github.com/perkforge/perkforge-platform/commit/f5797074f9704374b1366a1db7cfbd740b2d80cd))
+
+
+### Bug Fixes
+
+* **rancher:** validate pinned chart CA mount contract ([#150](https://github.com/perkforge/perkforge-platform/issues/150)) ([dc1470b](https://github.com/perkforge/perkforge-platform/commit/dc1470bee13811d394ed0f6d6b4d0e510669f0d1))
+
+
+### Performance Improvements
+
+* **ci:** parallelize complete offline regression suites ([#149](https://github.com/perkforge/perkforge-platform/issues/149)) ([051e2d4](https://github.com/perkforge/perkforge-platform/commit/051e2d40af7d059187de549478538fb4279d2020))
+* **ci:** select conservative offline suites and remove duplicate triggers ([#146](https://github.com/perkforge/perkforge-platform/issues/146)) ([79e6967](https://github.com/perkforge/perkforge-platform/commit/79e6967dd08288e49fee045fd2b29f54ff0feb3f))
+
+## [0.15.2](https://github.com/perkforge/perkforge-platform/compare/v0.15.1...v0.15.2) (2026-11-03)
+
+
+### Bug Fixes
+
+* **headlamp:** validate pinned OIDC arguments and enable PKCE ([#144](https://github.com/perkforge/perkforge-platform/issues/144)) ([0186c34](https://github.com/perkforge/perkforge-platform/commit/0186c348f064d9e72f12dc76e4393c0e6e8e1182))
+
+## [0.15.1](https://github.com/perkforge/perkforge-platform/compare/v0.15.0...v0.15.1) (2026-11-03)
+
+
+### Bug Fixes
+
+* **identity:** accept canonical empty mapper prefix ([#142](https://github.com/perkforge/perkforge-platform/issues/142)) ([5366e1a](https://github.com/perkforge/perkforge-platform/commit/5366e1ab4f2d88fa7a6d180773a08cd4c2d09c86))
+
+## [0.15.0](https://github.com/perkforge/perkforge-platform/compare/v0.14.0...v0.15.0) (2026-11-03)
+
+
+### Features
+
+* **headlamp:** add gated SSO selection stage ([#140](https://github.com/perkforge/perkforge-platform/issues/140)) ([67b21af](https://github.com/perkforge/perkforge-platform/commit/67b21af75cad7336ccdb6f5fb07ca511fe410f6c))
+* **headlamp:** gate API OIDC maintenance and HTTPS routing ([#141](https://github.com/perkforge/perkforge-platform/issues/141)) ([400e106](https://github.com/perkforge/perkforge-platform/commit/400e106816408ec53281c15cd31ec51829b5dd2f))
+* **headlamp:** preserve temporary admin acceptance and cleanup ([#124](https://github.com/perkforge/perkforge-platform/issues/124)) ([66ac544](https://github.com/perkforge/perkforge-platform/commit/66ac5448b5ca489347ef4596344f386aaa794462))
+* **identity:** add gated PerkForge realm and empty role groups ([#127](https://github.com/perkforge/perkforge-platform/issues/127)) ([f2fa519](https://github.com/perkforge/perkforge-platform/commit/f2fa519434973197a12008805324c08d97a3644d))
+* **identity:** prepare full PerkForge realm administration ([#135](https://github.com/perkforge/perkforge-platform/issues/135)) ([8b22f4f](https://github.com/perkforge/perkforge-platform/commit/8b22f4f957d5e24e7f27cf4cf153539299a8e7b7))
+* **identity:** prepare gated IL2 human TOTP enrollment ([#129](https://github.com/perkforge/perkforge-platform/issues/129)) ([8290d22](https://github.com/perkforge/perkforge-platform/commit/8290d2233e5582d2170d1646dca2ada1a0f1edd2))
+* prepare coordinated platform application SSO ([#139](https://github.com/perkforge/perkforge-platform/issues/139)) ([8214a16](https://github.com/perkforge/perkforge-platform/commit/8214a169a38046d1dbccddbd95244cf3d9a4558c))
+
+
+### Bug Fixes
+
+* **identity:** declare managed ownership markers and guard partial resume ([#131](https://github.com/perkforge/perkforge-platform/issues/131)) ([0da7395](https://github.com/perkforge/perkforge-platform/commit/0da7395eb6bf327538bcae76c4435dc770d5de49))
+* **identity:** resolve nested authentication metadata by execution flow ID ([#132](https://github.com/perkforge/perkforge-platform/issues/132)) ([4dd6481](https://github.com/perkforge/perkforge-platform/commit/4dd6481b351ed2f254c09df490e241d1d8b11c18))
+* **identity:** validate the built-in realm-admin composite graph ([#136](https://github.com/perkforge/perkforge-platform/issues/136)) ([9398fb5](https://github.com/perkforge/perkforge-platform/commit/9398fb589326765606ca36ba1f3716827aeb62e8))
+* validate approved post-grant realm admin representation ([#137](https://github.com/perkforge/perkforge-platform/issues/137)) ([e7cac52](https://github.com/perkforge/perkforge-platform/commit/e7cac52fcc328249de9ef7d704757d6484996b4a))
+
+## [0.14.0](https://github.com/perkforge/perkforge-platform/compare/v0.13.0...v0.14.0) (2026-11-01)
+
+
+### Features
+
+* **openbao:** add exact-SNI TLS passthrough candidate ([#123](https://github.com/perkforge/perkforge-platform/issues/123)) ([07b3d6b](https://github.com/perkforge/perkforge-platform/commit/07b3d6b37667d08e7cfcdd2fe2aa48c4728f5cdf))
+* **openbao:** preserve guarded initialization and custody procedure ([#121](https://github.com/perkforge/perkforge-platform/issues/121)) ([23791c3](https://github.com/perkforge/perkforge-platform/commit/23791c3470ac48872253ef2c8a9f6f20066b115c))
+
+## [0.13.0](https://github.com/perkforge/perkforge-platform/compare/v0.12.0...v0.13.0) (2026-11-01)
+
+
+### Features
+
+* **auth:** review six-role mappings and ongoing authorization evidence ([#107](https://github.com/perkforge/perkforge-platform/issues/107)) ([742c299](https://github.com/perkforge/perkforge-platform/commit/742c2995715448f2ea90748a9c57bae0a211f665))
+* **headlamp:** select token-only initial UI stage ([#104](https://github.com/perkforge/perkforge-platform/issues/104)) ([e750571](https://github.com/perkforge/perkforge-platform/commit/e75057197111a7898ec438d2f1e79bd9fe0a54fe))
+* **keycloak:** select isolated master-admin deployment stage ([#106](https://github.com/perkforge/perkforge-platform/issues/106)) ([7578d78](https://github.com/perkforge/perkforge-platform/commit/7578d78fd02c4ae47d54fe5ca1b8c35cfc8ca65d))
+* **openbao:** prepare TLS-required initial token administration ([#103](https://github.com/perkforge/perkforge-platform/issues/103)) ([d42e360](https://github.com/perkforge/perkforge-platform/commit/d42e36090d7605680cce6d6f1e62efd0f3ece83c))
+* **platform:** gate app selection through ordered release stages ([#119](https://github.com/perkforge/perkforge-platform/issues/119)) ([59ead1f](https://github.com/perkforge/perkforge-platform/commit/59ead1f5e329001775fd1cd2e687dbe2516a434e))
+
+
+### Bug Fixes
+
+* **keycloak:** pin verified Iron Bank 26.8.1 security image ([#120](https://github.com/perkforge/perkforge-platform/issues/120)) ([d3059db](https://github.com/perkforge/perkforge-platform/commit/d3059db89b0decff5b4704645663cdbff6da1b4c))
+
 ## [0.12.0](https://github.com/perkforge/perkforge-platform/compare/v0.11.3...v0.12.0) (2026-11-01)
 
 

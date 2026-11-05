@@ -1,0 +1,75 @@
+# Inactive owner-admin foundation; no live delegation approved.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-runner-installer
+  namespace: bigbang
+  labels:
+    perkforge.io/owner: gitlab-runner-foundation-v1
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-runner-installer
+  namespace: gitlab-runner
+  labels:
+    perkforge.io/owner: gitlab-runner-foundation-v1
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-runner-installer
+  namespace: gitlab-runner
+  labels:
+    perkforge.io/owner: gitlab-runner-foundation-v1
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-runner-installer
+subjects:
+- kind: ServiceAccount
+  name: gitlab-runner-installer
+  namespace: bigbang
