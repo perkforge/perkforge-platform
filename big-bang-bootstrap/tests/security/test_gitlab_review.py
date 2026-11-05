@@ -21,6 +21,15 @@ class GitLabReview(unittest.TestCase):
    if x['kind']=='Role':self.assertTrue(allowed(group,res,x['metadata']['name'],'escalate'))
    if x['kind']=='RoleBinding':self.assertTrue(allowed(group,'roles',x['roleRef']['name'],'bind'))
   self.assertFalse(allowed('rbac.authorization.k8s.io','clusterroles','cluster-admin','bind'))
+ def test_waiter_does_not_require_broad_rbac_reads(self):
+  rules=next(x for x in self.foundation if x['kind']=='Role' and x['metadata']['name']=='gitlab-installer')['rules']
+  for resource in ['roles','rolebindings']:
+   reads=[r for r in rules if 'rbac.authorization.k8s.io' in r['apiGroups'] and resource in r['resources'] and set(r['verbs']) & {'get','list','watch'}]
+   self.assertTrue(reads)
+   for r in reads:self.assertEqual(r['resourceNames'],['gitlab-shared-secrets'])
+   for verb in ['get','list','watch']:
+    self.assertTrue(any(verb in r['verbs'] and 'gitlab-shared-secrets' in r['resourceNames'] for r in reads))
+    self.assertFalse(any(verb in r['verbs'] and ('resourceNames' not in r or 'unrelated-role' in r['resourceNames']) for r in reads))
  def test_no_password_objects_or_vendor_ca_trust_mounts(self):
   secrets=[x for x in self.objects if x['kind']=='Secret'];self.assertEqual(len(secrets),31);self.assertTrue(all(x['metadata']['name'].startswith('ca-certs-') for x in secrets))
   for x in self.objects:

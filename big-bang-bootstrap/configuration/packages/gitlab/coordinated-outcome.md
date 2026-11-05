@@ -47,16 +47,64 @@ upgrade after the failed install's configuration changed. The real
 the pre-upgrade guard rejects that missing metadata with a generic unsupported-
 upgrade-path message. This is not evidence of an actual GitLab version jump.
 Final-failure remediation then reported `MissingRollbackTarget` because there is
-no successful revision to roll back to. Further recovery stopped; no migrations
-or Gitaly claim have started. Three data Pods and four bound claims retain their
+no successful revision to roll back to. At that earlier diagnosis no migration or Gitaly claim had started; the later
+partial recovery is recorded below. Three data Pods and four bound claims retain their
 observed identities. GitLab/root readiness remains unaccepted; SSO, named grants,
 runner and drive access remain outside this recovery.
+
+### Partial recovery and public CA mount correction
+
+Approved v0.17.9 recovery staged the reviewed source/policy with root, umbrella
+and child paused. Native revision 3 hit the CLI watcher's broad Role-list request.
+Four bounded Helm 4.2.4/current-RBAC tests verified legacy hook/job waits, including
+terminal hook/migration failures; optional namespace probes remained denied.
+Approved revision 4 then passed hooks and created real chart-info and workloads.
+Gitaly and Shell became Ready; the new 10Gi Gitaly claim is Bound. Migrations,
+Toolbox and dependency containers cannot create a PostgreSQL CA mount under the
+chart's read-only `/etc/gitlab` configuration volume. The native wait was cancelled
+without cleanup. Revisions 1–4 remain failed; all three reconcilers remain paused.
+Original data services, four claims and eleven credential identity/content checks
+passed after failure. Generated app Secrets and the Gitaly claim are preserved.
+
+The permission boundary is intentional: Role/RoleBinding reads are restricted to
+`gitlab-shared-secrets`. Do not add namespace-wide RBAC reads to accommodate a
+manual CLI waiter. If a separately approved native Helm 4 recovery is needed,
+retain all hooks and use `--wait=legacy --wait-for-jobs` with the reviewed timeout;
+never substitute hook-only/no-wait, take-ownership or skip validation. Flux's own
+polling waiter is different, so do not change its wait strategy to copy the CLI.
+The installer regression checks both allowed named reads and denied unrelated
+Role/RoleBinding reads. No extra permission was granted during recovery.
+
+The durable fix changes only PGSSLROOTCERT and mountPath to
+`/etc/gitlab-postgres-ca`, retaining verify-full, public CA ConfigMap/key,
+readOnly/root filesystem protections, images, resources, RBAC and storage.
+Regression rendering checks eleven consumers: five app containers, four configure
+init containers and two dependency init containers. It reproduces seven old
+read-only parent collisions and compares the full render after normalizing only
+CA paths and ordinary values-hashed Job names.
+
+From the bootstrap directory, explicit offline fixture
+`tests/fixtures/gitlab-ca-mount-runtime.py` uses the cached pinned webservice CNG
+image with no network, pulls or credentials. It checks read-only parent mkdir
+rejection and successful sibling mount/read-only enforcement. Podman can precreate
+nested mount destinations differently from kubelet; this is not a complete kubelet
+or all-image rehearsal. Native libpq tests skip if the host library is absent;
+rendered verify-full and existing transport evidence do not replace live acceptance.
+
+Review and release this source correction before retry. Recheck partial resource
+ownership, all five claims, private inputs and chart-info while paused; deliver
+corrected source-owned values before allowing parent-owned child resume. Real
+chart-info now allows assessment of an ordinary Flux-managed upgrade, retaining
+all hooks/job checks, rather than another fresh installation. No concurrent Helm
+actions, writable configuration directory, TLS downgrade, data reset, credential/
+certificate rotation or new RBAC is needed. Publication alone does not authorize
+live repair. Preserve data/history and stop on unexpected state.
 
 ### Preserve failed state explicitly
 
 Big Bang merges its global Flux failure settings into the child release.
 `retries: 0` alone leaves `upgrade.cleanupOnFail: true` and
-`upgrade.remediation.remediateLastFailure: true`. The prepared correction sets
+`upgrade.remediation.remediateLastFailure: true`. The released v0.17.9 correction sets
 `cleanupOnFail: false` and `remediateLastFailure: false` for upgrades, and
 explicitly sets install `remediateLastFailure: false`. Both retry counts stay
 zero. Pinned rendering proves only these three flags change; values, images,
@@ -66,9 +114,9 @@ it does not undo completed changes, disable normal chart hook deletion policies,
 make Flux choose a fresh install, or authorize another attempt. Review, release
 and separately approved promotion are required before live use.
 
-### Guarded fresh-install design — not executed
+### Original guarded fresh-install design
 
-The least-destructive candidate is one same-name native Helm `install --replace`
+The original approved approach used same-name native Helm `install --replace`
 using the exact reviewed chart and privately resolved values while the root,
 umbrella and child reconcilers are safely paused. No uninstall, Helm-history
 Secret deletion, fabricated chart-info, disabled guard, take-ownership, force
@@ -143,9 +191,9 @@ review/release and application startup/migration/image-pull waits; no wall-clock
 saving is guaranteed. The current install-replace proposal remains the tested
 history-preserving option until an alternative destructive scope is approved.
 
-No live recovery procedure or private-values access is authorized by publishing
-this policy correction. The guarded Ansible procedure and exact live approval
-batch remain to be reviewed; do not improvise the native command from this design.
+Source publication alone does not authorize live recovery/private input access.
+The observed attempts above had separate approval; do not repeat a failed action
+without inspecting its actual outcome or improvise a native command from this design.
 
 ## Versions and lab budget
 

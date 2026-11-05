@@ -90,12 +90,38 @@ class CoordinatedGitLab(unittest.TestCase):
    name=obj['metadata']['name']
    if not any(part in name for part in ('webservice','sidekiq','migrations','toolbox')):continue
    pod=obj['spec']['template']['spec'];vol=next(x for x in pod['volumes'] if x['name']=='gitlab-postgres-public-ca');self.assertEqual(vol['configMap']['items'],[{'key':'ca.crt','path':'ca.crt'}])
-   for c in pod['containers']:
+   for c in pod['containers'] + pod.get('initContainers',[]):
+    if not any(m['name']=='gitlab-postgres-public-ca' for m in c.get('volumeMounts',[])):continue
     env={e['name']:e.get('value') for e in c.get('env',[])}
-    self.assertEqual(env.get('PGSSLMODE'),'verify-full',(name,c['name']));self.assertEqual(env.get('PGSSLROOTCERT'),'/etc/gitlab/database-ca/ca.crt')
+    self.assertEqual(env.get('PGSSLMODE'),'verify-full',(name,c['name']));self.assertEqual(env.get('PGSSLROOTCERT'),'/etc/gitlab-postgres-ca/ca.crt')
     mount=next(x for x in c['volumeMounts'] if x['name']=='gitlab-postgres-public-ca');self.assertTrue(mount['readOnly'])
    found.update(part for part in ('webservice','sidekiq','migrations','toolbox') if part in name)
   self.assertEqual(found,{'webservice','sidekiq','migrations','toolbox'})
+ def test_public_ca_mount_avoids_read_only_parent_for_all_app_and_init_consumers(self):
+  import re
+  from pathlib import PurePosixPath
+  src=Path(os.environ['PREFLIGHT_SOURCES_DIR']);root=build(ROOT/'clusters/local-gitlab-app');parent=next(x for x in root if x['kind']=='HelmRelease' and x['metadata']['name']=='bigbang')
+  outer=helm(src/'bigbang/chart','bigbang','bigbang',ordered_values(root,parent));values=child_values(outer,'gitlab')
+  new=helm(src/'gitlab/chart','gitlab','gitlab',values)
+  old=helm(src/'gitlab/chart','gitlab','gitlab',[v.replace('/etc/gitlab-postgres-ca','/etc/gitlab/database-ca') for v in values])
+  def consumers(objects):
+   return [(o,c,m) for o in objects if o['kind'] in ('Deployment','Job') for c in o['spec']['template']['spec']['containers']+o['spec']['template']['spec'].get('initContainers',[]) for m in c.get('volumeMounts',[]) if m['name']=='gitlab-postgres-public-ca']
+  def collisions(objects):
+   return [(o['metadata']['name'],c['name']) for o,c,ca in consumers(objects) if any(m['name']!=ca['name'] and m.get('readOnly') and PurePosixPath(ca['mountPath']).is_relative_to(PurePosixPath(m['mountPath'])) for m in c['volumeMounts'])]
+  self.assertEqual(len(consumers(new)),11)  # five app containers, four configure, two dependency init containers
+  self.assertEqual(len(collisions(old)),7)  # actual old read-only parent collisions, including dependency init
+  self.assertEqual(collisions(new),[])
+  for o,c,m in consumers(new):
+   self.assertEqual(m['mountPath'],'/etc/gitlab-postgres-ca');self.assertIs(m['readOnly'],True)
+   env={e['name']:e.get('value') for e in c.get('env',[])}
+   if c['name']!='configure':
+    self.assertEqual(env['PGSSLMODE'],'verify-full');self.assertEqual(env['PGSSLROOTCERT'],m['mountPath']+'/ca.crt')
+  def stable(value):
+   if isinstance(value,str):return re.sub(r'(gitlab-(?:shared-secrets|migrations))-[0-9a-f]{7}',r'\1-VALUESHASH',value.replace('/etc/gitlab/database-ca','/etc/gitlab-postgres-ca'))
+   if isinstance(value,list):return [stable(x) for x in value]
+   if isinstance(value,dict):return {k:stable(v) for k,v in value.items()}
+   return value
+  self.assertEqual(stable(old),stable(new))  # no unrelated exact-render changes
  def test_acceptance_job_matches_protected_project_runner_contract(self):
   p=ROOT/'configuration/packages/gitlab-runner'
   d=yaml.safe_load((p/'registration-review.yaml').read_text());self.assertFalse(d['enabled']);self.assertTrue(d['review_only']);b=d['body'];self.assertEqual(b['runner_type'],'project_type');self.assertTrue(b['locked']);self.assertFalse(b['run_untagged']);self.assertEqual(b['access_level'],'ref_protected');self.assertFalse(d['credential_output']['print_token'])
