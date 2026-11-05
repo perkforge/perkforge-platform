@@ -1,16 +1,21 @@
 # Current operator handoff
 
-## Current runner acceptance blocker
+## Current runner checkout blocker
 
-Observed 2026-11-05: the namespace render correction was applied from its approved
-merged source. Runner manager is Ready with zero restarts; runner ID 1 is online,
-unpaused, locked and protected. Root/umbrella/runner reconciliation passed.
-The reviewed acceptance CI file was merged by the owner in the private test
-project. Its first job was denied before Pod creation because init-permissions
-omitted capabilities.drop ALL under restricted Pod admission. Build/helper already
-drop ALL. The narrow source correction adds the same init-container setting;
-no admission policy or RBAC is weakened. Real job/artifact acceptance remains
-pending applying that reviewed correction and retrying the job.
+Observed 2026-11-05: published v0.18.3 is selected and the init drop-ALL correction
+is deployed through GitOps. Corrected manager is Ready and runner ID 1 remains
+online/unpaused, locked/protected, with all three reconcilers healthy. The owner
+retry and fresh pipeline passed Pod admission, image pulls and container startup.
+Both stopped during checkout at permission denied locking `//.gitconfig` under
+the non-root UID. The pending source fix supplies a writable ephemeral Git home
+through the shared runner environment, without root/chmod/RBAC/credential changes.
+The exact pinned helper reproduced HOME=/ failure and passed global Git config
+and local clone with HOME=/tmp under UID1001/drop ALL. Morning jobs also ran on
+the untainted control plane; required standard-role-label exclusion now constrains
+future job Pods to non-control-plane nodes without hostname/storage coupling.
+Live corrected checkout, worker placement and artifact verification remain pending.
+Real checkout/artifact and negative isolation acceptance remain unverified. Root
+web-session retry was denied HTTP403 and signed out; owner retry remains needed.
 
 ## Previous runner activation blocker
 

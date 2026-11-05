@@ -95,9 +95,12 @@ tokens and credentials outside Git, and verify actual function after deployment.
 
 ## Current runner execution evidence
 
-The manager is Ready and native runner ID 1 is online. The first real baseline
-job failed restricted Pod admission on the init-permissions capability setting;
-it did not execute checkout or its script. The source correction, live/source
-audit, morning retry procedure and adding-runner limitations are in the
-[runner guide](../gitlab-runner/README.md). Final execution is deferred until
-after owner review/merge. No successful job or negative-case result is claimed.
+The manager is Ready and native runner ID 1 is online. Released v0.18.3 corrected
+the first restricted-admission failure. The owner retry and fresh morning job both
+passed Pod admission and container startup, then failed locking //.gitconfig at
+checkout. Both ran on the untainted control plane. The pending source changes
+supply a writable ephemeral HOME and required affinity excluding standard
+control-plane/master role labels, retaining the original security boundary.
+Exact helper reproduction/local clone and offline rendering do not prove live
+checkout, worker placement or artifacts. See the [runner guide](../gitlab-runner/README.md).
+No successful job or negative-case result is claimed.

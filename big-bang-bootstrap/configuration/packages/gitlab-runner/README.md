@@ -11,18 +11,34 @@ no separate deployment script or tenant access-sync service.
 Observed 2026-11-05: one manager is Ready, runner ID 1 is online/unpaused and
 locked/protected, rejects untagged work and is assigned only to the private
 `platform/runner-acceptance` project. Root/umbrella/runner reconciliation passed.
-The owner merged acceptance MR !1. Its first job failed before Pod creation:
-restricted admission rejected init-permissions because capabilities.drop ALL was
-missing. Build/helper already drop ALL. The pending source fix applies that same
-setting to init-permissions, without relaxing admission, permissions or images.
-A green manager is not proof that a job can run.
+The init-permissions capability correction is released and deployed in v0.18.3.
+The owner retry and fresh pipeline both passed Pod admission, image pulls and
+container startup. Both then failed checkout: Git could not lock `//.gitconfig`
+under the forced non-root UID. This is filesystem ownership, not missing RBAC.
+The pending shared runner environment sets `HOME=/tmp`, an existing writable
+per-container ephemeral directory, so Git global configuration avoids `/`.
+Non-root UID, dropped capabilities, restricted admission and credentials remain
+unchanged. An exact pinned helper-image test reproduced HOME=/ denial under UID
+1001/drop ALL; HOME=/tmp passed Git global configuration and a harmless local
+clone. This does not prove live GitLab checkout, TLS or artifact upload.
+
+Both morning job Pods also scheduled on the control plane: the node is untainted
+and the executor had no placement constraint. The pending shared configuration
+requires both standard `node-role.kubernetes.io/control-plane` and legacy
+`node-role.kubernetes.io/master` labels to be absent on eligible job nodes. It
+uses required affinity, not a preference or physical hostname/storage label.
+Job-variable node-selector overrides stay disabled. Providers must expose their
+control-plane nodes with these standard labels, or adapt the reviewed placement
+contract before use; managed clusters with no schedulable control plane need no
+custom worker label. A lack of eligible capacity leaves jobs Pending rather than
+falling back to a labeled control-plane node. The manager placement is unchanged. A green manager is not proof that checkout or a complete job passed.
 
 After owner review/merge, select the verified corrected immutable source using
 the existing stage-selection procedure, retain `local-gitlab-runner`, and verify
-that Flux updates the manager ConfigMap and rolls the Deployment. Do not edit the
+that Flux updates the manager ConfigMap with `HOME=/tmp` and rolls the Deployment. Do not edit the
 live ConfigMap or generated runner config. Wait for manager/child/root readiness,
-then retry the failed job in the project UI. The owner deferred this final test
-until morning; no final retry was performed while preparing this PR.
+then retry the failed job in the project UI. The owner performed the morning attempts described above; no further retry or
+live workaround was performed while preparing this correction.
 
 Verify checkout and artifact upload/download, nonroot execution, dropped
 capabilities and no mounted Pod API token. Record actual results; do not call the
@@ -42,7 +58,7 @@ Read-only live/source comparison on 2026-11-05 found:
 | Token and Registry1 copies | GitLab `prepare-credentials.yaml`, `prepare-registry.yaml`, `deliver-credentials.yaml` with separate runner/registry profiles | Three private manifests match live immutable Secrets; delivery repeats changed zero |
 | Public CA | GitLab `deliver-public-ca.yaml`, exact origin/file/hash and runner stage | Public certificate matches live immutable Secret; no signing key copied |
 | Endpoint policies | GitLab `prepare-runner-network.yaml`, reviewed host routes and actual ingress/API ports | Both applied policies match generated output; physical endpoints remain private environment inputs |
-| Manager/chart configuration | `candidate-values.yaml` plus selected cluster runner overlay | Live TOML and all authored Deployment spec fields match the pinned render before the pending init correction, allowing API omission of empty strings |
+| Manager/chart configuration | `candidate-values.yaml` plus selected cluster runner overlay | Live TOML and all authored Deployment spec fields match the pinned render before the pending HOME/placement correction, allowing API omission of empty strings |
 | Namespace adoption fix | Big Bang exact-name Namespace post-render filter | Foundation ownership retained; no Namespace RBAC added |
 | Runtime source/stage handoff | Existing Flux seed selection, source UID/ref and root path guards | Reviewed merged commit and runner root selected; release-tag reconciliation is still due |
 | Test-project CI commit | `acceptance/gitlab-ci.example.yaml`, owner-reviewed private project MR | Owner merged exact reviewed file; protected branch unchanged; first job failed admission |
