@@ -1,6 +1,18 @@
 # Current operator handoff
 
-## Current runner activation blocker
+## Current runner acceptance blocker
+
+Observed 2026-11-05: the namespace render correction was applied from its approved
+merged source. Runner manager is Ready with zero restarts; runner ID 1 is online,
+unpaused, locked and protected. Root/umbrella/runner reconciliation passed.
+The reviewed acceptance CI file was merged by the owner in the private test
+project. Its first job was denied before Pod creation because init-permissions
+omitted capabilities.drop ALL under restricted Pod admission. Build/helper already
+drop ALL. The narrow source correction adds the same init-container setting;
+no admission policy or RBAC is weakened. Real job/artifact acceptance remains
+pending applying that reviewed correction and retrying the job.
+
+## Previous runner activation blocker
 
 Observed 2026-11-05: runner ID 1 receipt resume and a zero-change repeat passed.
 Approved token/public CA delivery and namespace-scoped Registry1 copies completed;

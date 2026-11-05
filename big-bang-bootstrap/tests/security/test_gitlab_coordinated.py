@@ -51,6 +51,11 @@ class CoordinatedGitLab(unittest.TestCase):
   k=config['runners'][0]['kubernetes'];self.assertFalse(k['privileged']);self.assertFalse(k['automount_service_account_token']);self.assertFalse(k['bearer_token_overwrite_allowed'])
   for key in ('namespace_overwrite_allowed','service_account_overwrite_allowed','pod_annotations_overwrite_allowed','pod_labels_overwrite_allowed'):self.assertEqual(k[key],'')
   self.assertEqual(k['namespace'],'gitlab-ci-platform');self.assertEqual(k['service_account'],'gitlab-ci-job');self.assertNotIn('volumes',k)
+  # Restricted Pod admission checks init containers as well as build/helper.
+  for container in ('init_permissions','build','helper'):
+   self.assertEqual(k[container+'_container_security_context']['capabilities'],{'drop':['ALL']})
+  self.assertFalse(k['allow_privilege_escalation'])
+  self.assertTrue(k['pod_security_context']['run_as_non_root'])
   self.assertNotIn('http://gitlab-webservice',text)
  def test_job_boundary_does_not_grant_manager_namespace_or_cluster_access(self):
   objects=build(ROOT/'configuration/packages/gitlab-runner/prerequisites')

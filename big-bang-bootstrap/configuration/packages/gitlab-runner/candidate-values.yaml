@@ -67,7 +67,8 @@ addons:
             \ = \"256Mi\"\n    poll_timeout = 180\n    [runners.kubernetes.pod_security_context]\n\
             \      run_as_non_root = true\n      run_as_user = 1001\n      run_as_group\
             \ = 1001\n      fs_group = 1001\n    [runners.kubernetes.pod_security_context.seccomp_profile]\n\
-            \      type = \"RuntimeDefault\"\n    [runners.kubernetes.build_container_security_context.capabilities]\n\
+            \      type = \"RuntimeDefault\"\n    [runners.kubernetes.init_permissions_container_security_context.capabilities]\n\
+            \      drop = [\"ALL\"]\n    [runners.kubernetes.build_container_security_context.capabilities]\n\
             \      drop = [\"ALL\"]\n    [runners.kubernetes.helper_container_security_context.capabilities]\n\
             \      drop = [\"ALL\"]\n    [runners.kubernetes.pod_labels]\n      \"\
             perkforge.io/ci-scope\" = \"platform\"\n"
