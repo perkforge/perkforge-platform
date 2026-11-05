@@ -1,6 +1,28 @@
 # Current operator handoff
 
-## GitLab partial app rollout — PostgreSQL CA mount correction prepared
+## Current GitLab state — named SSO working; runner token handoff pending
+
+Observed 2026-11-05: the v0.17.11 memory correction is active through GitOps;
+webservice has a 4G limit with its request unchanged. Root/umbrella/GitLab
+reconcilers are Ready and unsuspended. The owner reported root recovery login
+and named Keycloak SSO login after the explicit native instance-admin grant.
+Root remains separate. These supersede the historical app failures below;
+independent restore and real non-admin GitLab denial remain unverified.
+
+Released v0.18.1 passed all post-merge jobs. The approved registration created
+one private-project runner, ID 1, paused/locked/protected, tagged
+`perkforge-platform`, rejecting untagged jobs with maximum timeout 600 seconds.
+Its one-time response is preserved in the owner-only created receipt. The legacy
+format guard then stopped on the installed GitLab routable v1 token before the
+standalone token handoff. Do not create another runner or reset its token.
+The narrow source fix accepts that v1 grammar and legacy tokens in registration
+and credential assembly; tests cover receipt reuse without duplicate creation.
+After review/release, resume the existing receipt and verify a no-change repeat.
+Manager deployment, unpause, real job/egress acceptance and tenant sync remain off.
+
+The remaining sections record earlier, superseded rollout phases.
+
+## Historical GitLab partial app rollout — PostgreSQL CA mount correction prepared
 
 Observed 2026-11-05: verified published v0.17.9 contains the reviewed failure
 policy; all twelve validation jobs passed. Release-please failed afterward during
