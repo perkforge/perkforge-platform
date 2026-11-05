@@ -1,34 +1,36 @@
 # Current operator handoff
 
-## GitLab first install blocked — preserve-on-failure correction prepared
+## GitLab partial app rollout — PostgreSQL CA mount correction prepared
 
-Observed 2026-11-05: the approved old hook cleanup and v0.17.8 promotion are
-complete, and the upgrade-check image pulled successfully. GitLab has two failed
-Helm revisions and no successful install. Flux chose upgrade after the failed
-first install's values changed; the pre-upgrade guard rejects missing real
-`gitlab-gitlab-chart-info`. Inherited final-failure rollback then found no target.
-No migration or Gitaly claim has started. Three data Pods and four original bound
-claims retain their identities. App/root readiness remains unaccepted; SSO,
-named grants, runner and drive access are unchanged.
+Observed 2026-11-05: verified published v0.17.9 contains the reviewed failure
+policy; all twelve validation jobs passed. Release-please failed afterward during
+bookkeeping. The separately approved recovery paused root, umbrella and GitLab,
+staged that source/policy and preserved existing data, credentials and history.
+Native revision 3 stopped at Helm watcher's broad Role-list request; no RBAC was
+expanded. Four bounded Helm/current-RBAC tests then verified legacy hook/job waits,
+including failed hook/migration denial. Approved revision 4 passed hooks, created
+real chart-info and app resources, and brought Gitaly and Shell Ready. The new
+10Gi Gitaly claim is Bound on a storage worker. Migrations, Toolbox and dependency
+containers fail before execution when creating a CA mount below read-only
+`/etc/gitlab`. The native wait was cancelled without cleanup. Revisions 1–4 remain
+failed and all three reconcilers remain paused. GitLab readiness, migrations and
+HTTPS/local recovery are not accepted; SSO, named grants and runner remain off.
 
-The prepared source correction explicitly disables inherited install/upgrade
-last-failure remediation and upgrade cleanup, retaining zero retries. Pinned
-regression rendering isolates exactly those three policy flags. Nothing is live
-or published from this correction; changing policy alone does not select install.
+The prepared two-path correction uses `/etc/gitlab-postgres-ca` for the public CA
+mount and PGSSLROOTCERT, retaining verify-full, read-only mounts/root filesystem
+and existing authority. Exact rendering covers all eleven app/init consumers,
+reproduces seven old parent collisions and permits only paths/values-hashed Job
+names to differ. An isolated exact cached CNG image verifies the sibling mount is
+readable while both volumes remain read-only; its mkdir control is not a complete
+kubelet or all-image rehearsal. Native libpq is unavailable on this host.
 
-A read-only CNPG local-socket catalog transaction verified expected database/owner,
-only prerequisite extensions/public schema, zero non-system relations/non-extension
-routines and no migration metadata; no password or Secret-value retrieval. Repeat
-immediately before recovery. Independent backup/restore is still unverified.
-
-[The coordinated procedure](big-bang-bootstrap/configuration/packages/gitlab/coordinated-outcome.md#current-app-attempt-and-first-install-recovery-gate)
-describes the candidate same-name native install-replace with failed history/data
-preserved, three-manager pause/resume ownership, private-input gates and explicit
-Flux management upgrade/hooks afterward. Real CLI synthetic-API tests cover both
-Helm 4.2.4 (controller runtime) and installed 3.19.0; they do not establish live
-SSA, migration or restore compatibility. Source review/release and a separately
-reviewed guarded recovery procedure/live approval are required. No fake metadata,
-guard bypass, history deletion, automatic uninstall or additional credential grant.
+Post-failure checks preserved all three data Pods/nodes, four original healthy
+Retain claims and eleven protected credential contents/identities. The new Gitaly
+claim and generated app Secrets are retained too. Independent restore remains
+unverified. Review/release the durable correction before source-owned recovery;
+real chart-info now permits assessment of normal Flux upgrade instead of another
+fresh install. No live repair, source publication or data reset was performed
+while preparing this correction.
 
 ## GitLab data stage accepted — application remains off
 
