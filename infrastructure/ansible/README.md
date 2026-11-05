@@ -8,6 +8,7 @@ The operator uses PXE and interactive Anaconda to install RHEL. Infrastructure A
 | `playbooks/prepare-longhorn-hosts.yml` | separately approved worker-only V1 storage prerequisites | no connections |
 | `playbooks/mount-longhorn-disks.yml` | reviewed existing XFS disks, UUID mounts and root-directory guard | no connections |
 | `tests/longhorn-preflight.yml` | read-only worker storage prerequisite audit | no connections |
+| `tests/longhorn-unused-ssd.yml` | reviewed unused-SSD unmount, guard proof and remount | no connections |
 | `playbooks/configure-workstation-dns.yml` | approved first-time workstation split DNS using its existing resolver | no changes |
 | `playbooks/configure-node-dns.yml` | reviewed worker-first node resolver migration with rollback | no connections |
 | `tests/coredns-resolution.yml` | read-only lab/internal/public DNS queries through CoreDNS from control-1 | no cluster access |
@@ -127,3 +128,74 @@ On partial failure, inspect first and rerun only after resolving the reported
 cause; the guarded directory and marker may already exist. Do not clear immutable,
 delete the marker or run `mount -a` as a shortcut. Removal/rollback after Longhorn
 registration requires a separate replica evacuation plan and approval.
+
+### Unused-SSD acceptance before Longhorn registration
+
+Freshly confirm that neither proposed path is registered in `nodes.longhorn.io`;
+keep other storage changes paused. The two acceptance stages require their own
+explicit approval. They operate only on empty, unregistered filesystems.
+
+`files/verify-longhorn-runtime-io.py` runs from stdin inside the existing privileged
+`longhorn-manager` container, using its actual `spc_t` domain. It checks the UUID,
+label, XFS type and host-path device number against the block device. It refuses
+the host root filesystem or any nonempty target. Default mode only inspects;
+`--apply --reviewed` creates a fresh private directory with one 16 MiB random file,
+fsyncs it, reopens and verifies its checksum, then removes only its owned entries.
+Directory descriptors keep all writes/cleanup anchored to the verified filesystem.
+It does not install scripts, relabel, change policies or write Longhorn metadata.
+Do not replace the host procfs-root path with a userspace-resolved symlink.
+
+Find the manager on each planned worker with
+`kubectl -n longhorn-system get pods -l app=longhorn-manager -o wide`. Set
+`SSD_MANAGER_POD`, `SSD_FILESYSTEM_UUID` and `SSD_FILESYSTEM_LABEL` from the reviewed
+pod placement and private disk plan, then run the initial read-only inspection:
+
+```bash
+kubectl -n longhorn-system exec -i "$SSD_MANAGER_POD" -c longhorn-manager -- \
+  python3 - --path /mnt/longhorn-t7 --uuid "$SSD_FILESYSTEM_UUID" \
+  --label "$SSD_FILESYSTEM_LABEL" \
+  < infrastructure/ansible/files/verify-longhorn-runtime-io.py
+```
+
+After explicit approval, repeat with `--apply --reviewed` before the input
+redirection, one worker at a time. The image must provide Python 3.6+ and `blkid`;
+the helper uses the standard library and supports the older interpreter observed
+in the tested manager image. It reads `/proc/self/attr/current` directly because
+`id -Z` can report SELinux unavailable inside that image despite its actual `spc_t`
+domain. No local sudo is needed for this stage, but Kubernetes
+exec authorization and explicit approval for the disposable writes are required.
+
+Then the owner runs the guard/remount stage from the repository root:
+
+```bash
+ansible-playbook -i /ABSOLUTE/PRIVATE/INVENTORY/.topology.yml \
+  infrastructure/ansible/tests/longhorn-unused-ssd.yml \
+  -e @infrastructure/ansible/inventory/.longhorn-mounts.yml \
+  -e ssd_acceptance_apply=true -e ssd_acceptance_reviewed=true \
+  -e ssd_acceptance_unregistered=true --ask-become-pass
+```
+
+It works serially, verifies hostname and mounted identity, refuses occupied disks,
+uses normal `umount` without force/lazy flags, proves the exposed recorded guard,
+remounts the exact fstab entry and reports capacity. A failure stops before the
+next worker and can leave the current unused SSD unmounted; inspect before any
+recovery action. It changes no fstab entries or immutable flags. Do not use this
+test after Longhorn registration. Retain localhost in ordinary mount playbook runs;
+this separate acceptance playbook directly selects inventory `rke2_agents`.
+
+The owner should inspect `sudo ausearch -m AVC,USER_AVC -ts recent -i` locally on
+each worker for the test window; report relevant denials without posting raw audit
+logs or credentials. Recheck mounts, node/PVC health and absence of new kernel I/O
+errors afterward. This is a permission/basic-I/O and guard lifecycle test, not a
+performance, cold-read, power-loss, reboot or unplug qualification. No reboot or
+service restart is part of these stages.
+
+Observed 2026-11-05 before registration: the helper passed on both SSDs from the
+existing manager containers, each verifying 16,777,216 bytes and successful cleanup.
+Independent read-only inspections then confirmed both filesystem roots were empty.
+The owner guard/remount run completed on both workers with ok=11, changed=2,
+unreachable=0 and failed=0. Both SSDs were subsequently registered scheduling-disabled;
+these unused-disk tests must not be rerun against them now. Post-registration volume
+acceptance belongs to the dedicated StorageClass/PVC workflow, not this helper.
+The observed tests do not constitute exhaustive SELinux audit-log review or
+application-data backup/restore acceptance.
