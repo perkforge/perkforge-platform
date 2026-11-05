@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.3](https://github.com/perkforge/perkforge-platform/compare/v0.18.2...v0.18.3) (2026-11-05)
+
+
+### Bug Fixes
+
+* **runner:** complete restricted init context and audit handoff ([#189](https://github.com/perkforge/perkforge-platform/issues/189)) ([98866cf](https://github.com/perkforge/perkforge-platform/commit/98866cf561e4b923991de121a12d45d17cfcf492))
+* **runner:** preserve foundation namespace ownership ([#187](https://github.com/perkforge/perkforge-platform/issues/187)) ([ee7ebc9](https://github.com/perkforge/perkforge-platform/commit/ee7ebc9c57ce02ea741baf25c5f4d91eacc12635))
+
 ## [0.18.2](https://github.com/perkforge/perkforge-platform/compare/v0.18.1...v0.18.2) (2026-11-05)
 
 
