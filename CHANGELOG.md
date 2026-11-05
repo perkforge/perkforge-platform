@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.19.0](https://github.com/perkforge/perkforge-platform/compare/v0.18.4...v0.19.0) (2026-11-05)
+
+
+### Features
+
+* **infrastructure:** persist guarded UUID mounts for worker storage ([#194](https://github.com/perkforge/perkforge-platform/issues/194)) ([4bc1133](https://github.com/perkforge/perkforge-platform/commit/4bc1133a43cb814f37bf8ca06106c194e43303ce))
+* **longhorn:** add dedicated and single-excess storage tiers ([#184](https://github.com/perkforge/perkforge-platform/issues/184)) ([0b8dfd4](https://github.com/perkforge/perkforge-platform/commit/0b8dfd44930afc32dbbd9bbfcc0f747aa4c24c35))
+
 ## [0.18.4](https://github.com/perkforge/perkforge-platform/compare/v0.18.3...v0.18.4) (2026-11-05)
 
 
