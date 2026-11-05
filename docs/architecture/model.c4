@@ -330,7 +330,7 @@ model {
           link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
         }
         alerts = component 'Alertmanager and ntfy routing' {
-          description 'Machine notification sender versus approved recipients/topic subscribers. Native rules retained; Grafana-managed forwarding/ntfy bridge off and unimplemented. No unauthenticated alert mutation/publish or invented native OIDC. PE may propose routing/rule MRs; publishing/mutation credentials remain separate.'
+          description 'Machine notification sender versus approved recipients/topic subscribers. Native rules retained; Grafana built-in routing and ntfy delivery unarmed; rule migration and payload validation pending. No unauthenticated alert mutation/publish or invented native OIDC. PE may propose routing/rule MRs; publishing/mutation credentials remain separate.'
           link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
         }
         velero = component 'Velero recovery operator — ticket only' {
