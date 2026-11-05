@@ -1,6 +1,17 @@
 # Current operator handoff
 
-## Current GitLab state — named SSO working; runner token handoff pending
+## Current runner activation blocker
+
+Observed 2026-11-05: runner ID 1 receipt resume and a zero-change repeat passed.
+Approved token/public CA delivery and namespace-scoped Registry1 copies completed;
+source-generated endpoint policies were applied and the runner stage selected.
+Big Bang then stopped on the pre-owned runner Namespace template under its scoped
+reconciler. No runner manager Pod was created or runner token reset. The narrow
+post-renderer correction omits only that Namespace, retaining foundation ownership
+and existing RBAC. Review/release and separately resume the guarded activation;
+real job and egress acceptance remain pending.
+
+## Earlier GitLab state — named SSO working; runner token handoff pending
 
 Observed 2026-11-05: the v0.17.11 memory correction is active through GitOps;
 webservice has a 4G limit with its request unchanged. Root/umbrella/GitLab
