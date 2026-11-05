@@ -1,0 +1,19 @@
+- ansible.builtin.uri:
+    url: '{{ factor_api }}/users/{{ factor_uid }}'
+    headers: '{{ factor_headers }}'
+  register: factor_owned_user
+- ansible.builtin.assert:
+    that:
+    - factor_owned_user.json.id == factor_uid and factor_uid != factor_human_record.id
+    - factor_owned_user.json.username == factor_name
+    - factor_owned_user.json.attributes == {'perkforge-managed':['true'],'perkforge-enrollment':[factor_marker]}
+- ansible.builtin.uri:
+    url: '{{ factor_api }}/users/{{ factor_uid }}/{{ item }}'
+    headers: '{{ factor_headers }}'
+  loop: [groups, role-mappings]
+  register: factor_access
+- ansible.builtin.assert:
+    that:
+    - factor_access.results[0].json | length == 0
+    - factor_access.results[1].json.clientMappings | default({}) | length == 0
+    - factor_access.results[1].json.realmMappings | default([]) | map(attribute='name') | difference(['default-roles-perkforge']) | length == 0

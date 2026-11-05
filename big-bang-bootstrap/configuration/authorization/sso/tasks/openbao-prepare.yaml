@@ -1,0 +1,32 @@
+- name: Never adopt another pre-existing authentication mount during preparation
+  ansible.builtin.assert:
+    that:
+    - "'oidc/' not in bao_mounts.json.data or bao_mounts.json.data['oidc/'].type == 'oidc'"
+    - "'oidc/' not in bao_mounts.json.data or bao_mounts.json.data['oidc/'].description == 'PerkForge coordinated-sso-v1'"
+- name: Enable only the missing dedicated human OIDC method
+  ansible.builtin.uri:
+    url: '{{ bao_api }}/sys/auth/oidc'
+    headers: '{{ bao_headers }}'
+    method: POST
+    body_format: json
+    body:
+      type: oidc
+      description: PerkForge coordinated-sso-v1
+      config: {default_lease_ttl: 900, max_lease_ttl: 3600}
+    status_code: 204
+  when: "'oidc/' not in bao_mounts.json.data"
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ bao_api }}/sys/auth'
+    headers: '{{ bao_headers }}'
+  register: bao_prepared_mount
+- ansible.builtin.assert:
+    that:
+    - bao_prepared_mount.json.data['oidc/'].type == 'oidc'
+    - bao_prepared_mount.json.data['oidc/'].description == 'PerkForge coordinated-sso-v1'
+    - bao_prepared_mount.json.data['oidc/'].config.default_lease_ttl == 900
+    - bao_prepared_mount.json.data['oidc/'].config.max_lease_ttl == 3600
+    - bao_prepared_mount.json.data['oidc/'].accessor is match('^[A-Za-z0-9_-]+$')
+    - bao_prepared_mount.json.data | dict2items | rejectattr('key','equalto','oidc/') | list == bao_mounts.json.data | dict2items | rejectattr('key','equalto','oidc/') | list
+- ansible.builtin.set_fact:
+    bao_prepared_accessor: "{{ bao_prepared_mount.json.data['oidc/'].accessor }}"

@@ -1,0 +1,16 @@
+- ansible.builtin.stat:
+    path: '{{ api_oidc_journal }}/{{ item | hash("sha256") }}.backup'
+    follow: false
+    checksum_algorithm: sha256
+  loop: '{{ api_oidc_baseline_paths }}'
+  register: api_oidc_backups
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - item.stat.isreg | default(false)
+    - not (item.stat.islnk | default(false))
+    - item.stat.uid == api_oidc_uid and item.stat.mode == '0600'
+    - item.stat.checksum == api_oidc_baseline[item.item]
+  loop: '{{ api_oidc_backups.results }}'
+  no_log: true
+  when: item.stat.exists or api_oidc_backups_required | bool

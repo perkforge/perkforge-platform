@@ -1,0 +1,156 @@
+- name: Select only an explicitly approved single-server OIDC maintenance run
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    api_oidc_run: false
+    api_oidc_operation: inspect
+    api_oidc_scope: UNAPPROVED
+    api_oidc_recovery_verified: false
+    api_oidc_cluster_id: UNCONFIGURED
+    api_oidc_cluster_uid: UNCONFIGURED
+    api_oidc_expected_base_sha256: UNCONFIGURED
+    api_oidc_issuer: UNCONFIGURED
+    api_oidc_client_id: UNCONFIGURED
+    api_oidc_public_ca_file: /UNCONFIGURED/ca.crt
+    api_oidc_ca_fingerprint: UNCONFIGURED
+    api_oidc_release_tag: UNCONFIGURED
+    api_oidc_release_commit: UNCONFIGURED
+  tasks:
+  - name: Reset controller approval even if inventory contains a reserved group
+    ansible.builtin.set_fact:
+      api_oidc_controller_approved: false
+  - ansible.builtin.debug:
+      msg: API OIDC run={{ api_oidc_run | bool }} operation={{ api_oidc_operation }} check={{ ansible_check_mode
+        }}. Defaults/check mode select no SSH hosts. Never install RKE2 or change base config, DNS, sudo, credentials
+        or workers.
+  - when: api_oidc_run | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        quiet: true
+        that:
+        - groups.get('rke2_servers', []) == ['control-1']
+        - api_oidc_operation in ['inspect','apply','rollback']
+        - api_oidc_scope == 'headlamp-api-oidc-v1'
+        - api_oidc_recovery_verified | bool
+        - api_oidc_cluster_id != 'UNCONFIGURED'
+        - api_oidc_cluster_uid is match('^[0-9a-f-]{36}$')
+        - api_oidc_release_tag is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+        - api_oidc_release_commit is match('^[0-9a-f]{40}$')
+        - api_oidc_operation == 'inspect' or api_oidc_expected_base_sha256 is match('^[0-9a-f]{64}$')
+        - api_oidc_issuer is match('^https://[a-z0-9.-]+(:[0-9]+)?/auth/realms/perkforge$')
+        - api_oidc_client_id is match('^[a-z0-9][a-z0-9-]+$')
+        - hostvars['control-1'].ansible_user | default('UNCONFIGURED') != 'UNCONFIGURED'
+    - name: Verify immutable published source before selecting any host
+      ansible.builtin.command:
+        argv:
+        - bash
+        - '{{ playbook_dir }}/../../../scripts/verify-release-ref.sh'
+        - perkforge/perkforge-platform
+        - '{{ api_oidc_release_tag }}'
+        - '{{ api_oidc_release_commit }}'
+      changed_when: false
+      when: api_oidc_operation != 'rollback'
+    - ansible.builtin.command:
+        argv:
+        - git
+        - -C
+        - '{{ playbook_dir }}/../../..'
+        - rev-parse
+        - HEAD
+      register: api_oidc_head
+      changed_when: false
+    - ansible.builtin.command:
+        argv:
+        - git
+        - -C
+        - '{{ playbook_dir }}/../../..'
+        - status
+        - --porcelain
+      register: api_oidc_dirty
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - api_oidc_head.stdout == api_oidc_release_commit
+        - api_oidc_dirty.stdout | length == 0
+    - name: Validate public CA input without any signing key
+      when: api_oidc_operation != 'rollback'
+      block:
+      - ansible.builtin.stat:
+          path: '{{ api_oidc_public_ca_file }}'
+          follow: false
+        register: api_oidc_ca_stat
+      - ansible.builtin.assert:
+          that:
+          - api_oidc_public_ca_file is match('^/') and api_oidc_public_ca_file | realpath == api_oidc_public_ca_file
+          - api_oidc_ca_stat.stat.isreg | default(false)
+          - not (api_oidc_ca_stat.stat.islnk | default(false))
+          - lookup('file',api_oidc_public_ca_file).count('-----BEGIN CERTIFICATE-----') == 1
+          - '''PRIVATE KEY'' not in lookup(''file'',api_oidc_public_ca_file)'
+      - ansible.builtin.command:
+          argv:
+          - openssl
+          - x509
+          - -in
+          - '{{ api_oidc_public_ca_file }}'
+          - -noout
+          - -fingerprint
+          - -sha256
+        register: api_oidc_ca_fp
+        changed_when: false
+      - ansible.builtin.assert:
+          that: api_oidc_ca_fp.stdout.split('=')[-1] | replace(':','') | lower == api_oidc_ca_fingerprint
+    - ansible.builtin.add_host:
+        name: control-1
+        groups: api_oidc_approved_server
+        api_oidc_expected_nodes: '{{ groups[''rke2_servers''] + groups.get(''rke2_agents'',[]) }}'
+        api_oidc_operation: '{{ api_oidc_operation }}'
+        api_oidc_cluster_id: '{{ api_oidc_cluster_id }}'
+        api_oidc_cluster_uid: '{{ api_oidc_cluster_uid }}'
+        api_oidc_expected_base_sha256: '{{ api_oidc_expected_base_sha256 }}'
+        api_oidc_issuer: '{{ api_oidc_issuer }}'
+        api_oidc_client_id: '{{ api_oidc_client_id }}'
+        api_oidc_ca_pem: '{{ lookup(''file'',api_oidc_public_ca_file,rstrip=false) if api_oidc_operation != ''rollback''
+          else '''' }}'
+        ansible_ssh_common_args: -oBatchMode=yes -oIdentitiesOnly=yes -oForwardAgent=no -oStrictHostKeyChecking=yes
+          -oUpdateHostKeys=no {{ hostvars['control-1'].ansible_ssh_common_args | default('') }}
+        api_oidc_release_commit: '{{ api_oidc_release_commit }}'
+        ansible_host_key_checking: true
+        ansible_ssh_host_key_checking: true
+      no_log: true
+    - ansible.builtin.set_fact:
+        api_oidc_controller_approved: true
+  any_errors_fatal: true
+- name: Maintain only owned API OIDC files on the single control-plane
+  hosts: api_oidc_approved_server
+  gather_facts: false
+  serial: 1
+  any_errors_fatal: true
+  become: true
+  vars:
+    api_oidc_root: /etc/rancher/rke2
+    api_oidc_user: root
+    api_oidc_group: root
+    api_oidc_uid: 0
+    api_oidc_host_kubectl: /var/lib/rancher/rke2/bin/kubectl
+    api_oidc_retries: 30
+    api_oidc_delay: 5
+  tasks:
+  - name: A reserved inventory group never authorizes a host operation
+    when: hostvars['localhost'].api_oidc_controller_approved | default(false) | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - inventory_hostname == 'control-1'
+        - api_oidc_root == '/etc/rancher/rke2'
+        - api_oidc_uid == 0 and api_oidc_user == 'root' and api_oidc_group == 'root'
+    - name: Credentials in existing base configuration never enter logs or controller backups
+      ansible.builtin.include_tasks: ../tasks/api-oidc.yml
+      no_log: true
+    - name: Report only safe inspection/transaction metadata
+      ansible.builtin.debug:
+        msg:
+          operation: '{{ api_oidc_operation }}'
+          base_sha256: '{{ api_oidc_base.stat.checksum }}'
+          phase: '{{ api_oidc_state.phase | default("unmanaged") }}'
+          backup_directory: '{{ api_oidc_root }}/perkforge-oidc-v1'

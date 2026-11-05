@@ -1,0 +1,140 @@
+# Explicit one-time operation; deploy/prerequisites/promotion are separate reviewed steps.
+- name: Initialize only the approved new local OpenBao store
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars:
+    openbao_initialize_apply: false
+    openbao_custody_root: /home/corey/src/perkforge-tmp-secrets
+    openbao_forward_port: 18200
+  tasks:
+  - name: Explain safe default
+    ansible.builtin.debug:
+      msg: "OpenBao initialization apply={{ openbao_initialize_apply | bool }}; no action by default"
+  - name: Explicitly approved initial administration only
+    when: openbao_initialize_apply | bool and not ansible_check_mode
+    block:
+    - name: Require exact approved local parameters
+      ansible.builtin.assert:
+        that:
+        - inventory_hostname == 'local'
+        - deployment_environment == 'local'
+        - ansible_play_hosts_all | length == 1
+        - openbao_custody_root == '/home/corey/src/perkforge-tmp-secrets'
+        - openbao_forward_port | int == 18200
+        - expected_cluster_uid != 'UNCONFIGURED'
+        - openbao_custody_run is match('^openbao-v0130-[a-z0-9]+$')
+    - name: Verify cluster identity
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: cluster_identity
+      changed_when: false
+    - name: Refuse wrong cluster
+      ansible.builtin.assert:
+        that: cluster_identity.stdout == expected_cluster_uid
+    - name: Inspect custody directory
+      ansible.builtin.stat:
+        path: '{{ openbao_custody_root }}'
+      register: custody_root
+    - name: Require protected existing owner-only custody
+      ansible.builtin.assert:
+        that:
+        - custody_root.stat.isdir
+        - not custody_root.stat.islnk
+        - custody_root.stat.mode == '0700'
+        - custody_root.stat.uid == lookup('pipe', 'id -u') | int
+    - name: Inspect new run custody path
+      ansible.builtin.stat:
+        path: '{{ openbao_custody_root }}/{{ openbao_custody_run }}'
+      register: custody_run
+    - name: Refuse overwrite of any previous custody
+      ansible.builtin.assert:
+        that: not custody_run.stat.exists
+    - name: Prove uninitialized store through verified loopback TLS
+      ansible.builtin.command:
+        argv: [curl, --silent, --show-error, --fail, --noproxy, '*', --max-time, '20', --cacert, '{{ platform_tls_bundle }}/root-ca.crt', --connect-to, 'openbao.perkforge.home.arpa:8200:127.0.0.1:18200', 'https://openbao.perkforge.home.arpa:8200/v1/sys/init']
+      register: initial_status
+      changed_when: false
+    - name: Refuse initialization of existing data
+      ansible.builtin.assert:
+        that: not (initial_status.stdout | from_json).initialized
+    - name: Create separate root and unseal custody directories
+      ansible.builtin.file:
+        path: '{{ openbao_custody_root }}/{{ openbao_custody_run }}/{{ item }}'
+        state: directory
+        mode: '0700'
+      loop: ['', root, unseal]
+    - name: Initialize once with approved three shares and threshold two
+      ansible.builtin.command:
+        argv: [curl, --silent, --show-error, --fail, --noproxy, '*', --max-time, '30', --cacert, '{{ platform_tls_bundle }}/root-ca.crt', --connect-to, 'openbao.perkforge.home.arpa:8200:127.0.0.1:18200', --request, PUT, --data-binary, '{"secret_shares":3,"secret_threshold":2}', 'https://openbao.perkforge.home.arpa:8200/v1/sys/init']
+      register: initialized
+      no_log: true
+      changed_when: true
+    # Persist before further validation, so an unexpected response remains recoverable.
+    - name: Preserve initialization response privately before any other action
+      ansible.builtin.copy:
+        content: '{{ initialized.stdout }}'
+        dest: '{{ openbao_custody_root }}/{{ openbao_custody_run }}/unseal/initialization-response.json'
+        mode: '0600'
+        force: false
+      no_log: true
+    - name: Check returned custody structure without disclosure
+      ansible.builtin.assert:
+        that:
+        - (initialized.stdout | from_json).keys_base64 | length == 3
+        - (initialized.stdout | from_json).root_token | length > 0
+      no_log: true
+    - name: Store initial root token separately
+      ansible.builtin.copy:
+        content: '{{ (initialized.stdout | from_json).root_token }}'
+        dest: '{{ openbao_custody_root }}/{{ openbao_custody_run }}/root/root-token.txt'
+        mode: '0600'
+        force: false
+      no_log: true
+    - name: Store each unseal share separately
+      ansible.builtin.copy:
+        content: '{{ item }}'
+        dest: '{{ openbao_custody_root }}/{{ openbao_custody_run }}/unseal/share-{{ share_index + 1 }}.txt'
+        mode: '0600'
+        force: false
+      loop: '{{ (initialized.stdout | from_json).keys_base64 }}'
+      loop_control:
+        index_var: share_index
+      no_log: true
+    - name: Replace recovery response with share-only response after root custody saved
+      ansible.builtin.copy:
+        content: '{{ {"keys_base64": (initialized.stdout | from_json).keys_base64} | to_json }}'
+        dest: '{{ openbao_custody_root }}/{{ openbao_custody_run }}/unseal/initialization-response.json'
+        mode: '0600'
+      no_log: true
+    - name: Submit two shares over verified loopback TLS without argument disclosure
+      ansible.builtin.command:
+        argv: [curl, --silent, --show-error, --fail, --noproxy, '*', --max-time, '20', --cacert, '{{ platform_tls_bundle }}/root-ca.crt', --connect-to, 'openbao.perkforge.home.arpa:8200:127.0.0.1:18200', --request, PUT, --data-binary, '@-', 'https://openbao.perkforge.home.arpa:8200/v1/sys/unseal']
+        stdin: '{{ {"key": item} | to_json }}'
+      loop: '{{ (initialized.stdout | from_json).keys_base64[:2] }}'
+      no_log: true
+      changed_when: true
+    - name: Verify unsealed healthy server
+      ansible.builtin.command:
+        argv: [curl, --silent, --show-error, --fail, --noproxy, '*', --max-time, '20', --cacert, '{{ platform_tls_bundle }}/root-ca.crt', --connect-to, 'openbao.perkforge.home.arpa:8200:127.0.0.1:18200', 'https://openbao.perkforge.home.arpa:8200/v1/sys/health']
+      register: healthy
+      changed_when: false
+    - name: Require initialized unsealed standalone server
+      ansible.builtin.assert:
+        that:
+        - (healthy.stdout | from_json).initialized
+        - not (healthy.stdout | from_json).sealed
+        - not (healthy.stdout | from_json).standby
+    - name: Verify initial administrator through stdin-only curl header
+      ansible.builtin.command:
+        argv: [curl, --silent, --show-error, --fail, --noproxy, '*', --max-time, '20', --cacert, '{{ platform_tls_bundle }}/root-ca.crt', --connect-to, 'openbao.perkforge.home.arpa:8200:127.0.0.1:18200', --config, '-', 'https://openbao.perkforge.home.arpa:8200/v1/auth/token/lookup-self']
+        stdin: 'header = "X-Vault-Token: {{ (initialized.stdout | from_json).root_token }}"'
+      register: administrator
+      changed_when: false
+      no_log: true
+    - name: Confirm initial administrator policy without disclosure
+      ansible.builtin.assert:
+        that: "'root' in (administrator.stdout | from_json).data.policies"
+      no_log: true
+    - name: Report only safe completion status
+      ansible.builtin.debug:
+        msg: 'Initialized once (3 shares / threshold 2); unsealed; verified initial administrator. Temporary single-location custody, no independent split custody or backup claim.'

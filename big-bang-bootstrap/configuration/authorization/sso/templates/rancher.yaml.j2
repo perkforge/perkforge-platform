@@ -1,0 +1,17 @@
+# Generic OIDC contract only. Native Keycloak OIDC is a different provider.
+apply: false
+provider: genericoidc
+provider_type: genericOIDCConfig
+installed_schema_verification_required: true
+issuer: '{{ sso_keycloak_origin }}{{ sso_keycloak_path }}/realms/{{ sso_realm }}'
+client_id: '{{ sso_apps.rancher.client_id }}'
+callback: '{{ sso_apps.rancher.origin }}/verify-auth'
+public_ca_file: '{{ sso_public_ca_file }}'
+groups_claim: groups
+pkce: S256
+access_mode: required
+allowed_principals: [genericoidc_group:///platform/admins]
+bindings:
+- {groupPrincipalName: 'genericoidc_group:///platform/admins', globalRoleName: admin}
+local_recovery_required: true
+provider_migration_allowed: false

@@ -1,0 +1,55 @@
+# Suspended operator; chart CRD templates disabled, explicit upgrades only.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: platform-cnpg
+  namespace: bigbang
+spec:
+  interval: 1h
+  url: https://cloudnative-pg.github.io/charts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: platform-cnpg
+  namespace: bigbang
+spec:
+  interval: 10m
+  suspend: true
+  releaseName: platform-cnpg
+  targetNamespace: cnpg-system
+  storageNamespace: bigbang
+  serviceAccountName: platform-cnpg-installer
+  chart:
+    spec:
+      chart: cloudnative-pg
+      version: 0.29.1
+      sourceRef:
+        kind: HelmRepository
+        name: platform-cnpg
+        namespace: bigbang
+  valuesFrom:
+  - kind: ConfigMap
+    name: values-platform-cnpg
+    valuesKey: values.yaml
+  install:
+    createNamespace: false
+    crds: Skip
+    remediation:
+      retries: 0
+  upgrade:
+    crds: Skip
+    remediation:
+      retries: 0
+  uninstall:
+    keepHistory: true
+  postRenderers:
+  - kustomize:
+      patches:
+      - target:
+          kind: Deployment
+          name: platform-cnpg
+        patch: "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: platform-cnpg\n\
+          \  namespace: cnpg-system\nspec:\n  template:\n    spec:\n      containers:\n\
+          \      - name: manager\n        env:\n        - name: WATCH_NAMESPACE\n\
+          \          value: gitlab\n"

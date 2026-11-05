@@ -23,3 +23,26 @@ rancher:
   url: https://releases.rancher.com/server-charts/stable/rancher-2.15.2.tgz
   sha256: 855cb9be954f65a31b9a8c77f7aebce125c2d7797425257d21d35e3380816ac8
   chart: .
+
+gitlab:
+  url: https://repo1.dso.mil/big-bang/product/packages/gitlab/-/archive/10.4.2-bb.0/gitlab-10.4.2-bb.0.tar.gz
+  sha256: 95965feb32dbb0d5a1d1ec26645276741c5185f273723c4e7d1ea089dcfcd2bb
+  chart: chart
+gitlab-runner:
+  url: https://repo1.dso.mil/big-bang/product/packages/gitlab-runner/-/archive/0.91.2-bb.3/gitlab-runner-0.91.2-bb.3.tar.gz
+  sha256: fb6c835ba39cd1510c9d39c32db10e21daf149de9fb91dcd6006529e43faf380
+  chart: chart
+
+cnpg:
+  url: https://github.com/cloudnative-pg/charts/releases/download/cloudnative-pg-v0.29.1/cloudnative-pg-0.29.1.tgz
+  sha256: b53d3991fe84bcf38767e7702cae78666265427a127a26fff168ab4207d2b1df
+  chart: .
+valkey:
+  url: https://github.com/valkey-io/valkey-helm/releases/download/valkey-0.12.1/valkey-0.12.1.tgz
+  sha256: 4ffe1a53f2902ddefd3774c1aab5bd60bfdc4b74cc670614899967972b153f7d
+  chart: .
+
+garage-source:
+  url: https://git.deuxfleurs.fr/Deuxfleurs/garage/archive/v2.2.0.tar.gz
+  sha256: e68b05d4358008e8b29a0ac235f73e3a12d97d9c6388c330b87282db774c04dc
+  chart: script/helm/garage

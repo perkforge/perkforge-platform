@@ -1,0 +1,78 @@
+- name: Wait for API recovery through its independent host certificate
+  ansible.builtin.command:
+    argv: '{{ api_oidc_cli + [''get'',''--raw=/readyz''] }}'
+  register: api_oidc_ready
+  until: api_oidc_ready.rc == 0 and api_oidc_ready.stdout == 'ok'
+  retries: '{{ api_oidc_retries }}'
+  delay: '{{ api_oidc_delay }}'
+  changed_when: false
+  no_log: true
+- ansible.builtin.command:
+    argv: '{{ api_oidc_cli + [''get'',''namespace'',''kube-system'',''-o'',''jsonpath={.metadata.uid}''] }}'
+  register: api_oidc_health_uid
+  changed_when: false
+  no_log: true
+- ansible.builtin.assert:
+    that: api_oidc_health_uid.stdout == api_oidc_cluster_uid
+  no_log: true
+- ansible.builtin.command:
+    argv: '{{ api_oidc_cli + [''get'',''pods'',''-n'',''kube-system'',''-l'',''component=kube-apiserver'',''-o'',''json'']
+      }}'
+  register: api_oidc_api
+  changed_when: false
+  no_log: true
+  until: api_oidc_api.rc == 0 and (api_oidc_api.stdout | from_json)['items'] | length == 1 and (api_oidc_api.stdout
+    | from_json)['items'][0].spec.containers | length == 1 and ((api_oidc_api.stdout | from_json)['items'][0].spec.containers[0].args
+    | select('match','^--oidc-') | list | sort) == (api_oidc_args | map('regex_replace','^','--') | sort if api_oidc_operation
+    == 'apply' else [])
+  retries: '{{ api_oidc_retries }}'
+  delay: '{{ api_oidc_delay }}'
+- ansible.builtin.assert:
+    that:
+    - (api_oidc_api.stdout | from_json)['items'] | length == 1
+    - (api_oidc_api.stdout | from_json)['items'][0].spec.containers | length == 1
+  no_log: true
+- ansible.builtin.set_fact:
+    api_oidc_runtime: '{{ (api_oidc_api.stdout | from_json)[''items''][0].spec.containers[0] }}'
+  no_log: true
+- ansible.builtin.assert:
+    that: api_oidc_runtime.args | select('match','^--oidc-') | list | sort == (api_oidc_args | map('regex_replace','^','--')
+      | sort if api_oidc_operation == 'apply' else [])
+  no_log: true
+- ansible.builtin.assert:
+    that: api_oidc_runtime.volumeMounts | selectattr('mountPath','equalto',api_oidc_ca) | selectattr('readOnly','equalto',true)
+      | list | length == 1
+  when: api_oidc_operation == 'apply'
+  no_log: true
+- ansible.builtin.command:
+    argv: '{{ api_oidc_cli + [''get'',''nodes'',''-o'',''json''] }}'
+  register: api_oidc_nodes
+  changed_when: false
+  no_log: true
+  until: api_oidc_nodes.rc == 0 and ((api_oidc_nodes.stdout | from_json)['items'] | map(attribute='metadata.name')
+    | sort) == (api_oidc_expected_nodes | sort) and ((api_oidc_nodes.stdout | from_json)['items'] | map(attribute='status.conditions')
+    | flatten | selectattr('type','equalto','Ready') | map(attribute='status') | list) == (['True'] * (api_oidc_expected_nodes
+    | length))
+  retries: '{{ api_oidc_retries }}'
+  delay: '{{ api_oidc_delay }}'
+- ansible.builtin.assert:
+    that:
+    - (api_oidc_nodes.stdout | from_json)['items'] | map(attribute='metadata.name') | sort == api_oidc_expected_nodes
+      | sort
+  no_log: true
+- ansible.builtin.assert:
+    that: item.status.conditions | selectattr('type','equalto','Ready') | map(attribute='status') | list == ['True']
+  loop: '{{ (api_oidc_nodes.stdout | from_json)[''items''] }}'
+  no_log: true
+- name: Verify unrelated file bytes after the operation, never restore over concurrent changes
+  ansible.builtin.stat:
+    path: '{{ item.key }}'
+    follow: false
+    checksum_algorithm: sha256
+  loop: '{{ api_oidc_baseline | dict2items }}'
+  register: api_oidc_preserved
+  no_log: true
+- ansible.builtin.assert:
+    that: item.stat.checksum == item.item.value
+  loop: '{{ api_oidc_preserved.results }}'
+  no_log: true

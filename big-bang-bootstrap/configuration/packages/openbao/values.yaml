@@ -17,6 +17,25 @@ packages:
     bbCommonValues: false
     passBigBangValues: false
     values:
+      # Chart-owned exact-SNI TCP routing; activates only after approved promotion.
+      # TLS terminates at OpenBao, never at Traefik. No additional key copy.
+      extraObjects:
+      - apiVersion: traefik.io/v1alpha1
+        kind: IngressRouteTCP
+        metadata:
+          name: openbao-tls-passthrough
+          namespace: openbao
+          annotations:
+            kubernetes.io/ingress.class: traefik
+        spec:
+          entryPoints: [websecure]
+          routes:
+          - match: HostSNI(`openbao.perkforge.home.arpa`)
+            services:
+            - name: openbao
+              port: 8200
+          tls:
+            passthrough: true
       global:
         tlsDisable: false
       injector:

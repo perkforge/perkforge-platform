@@ -1,0 +1,56 @@
+# Initial PA-only stage; PV/tenant/engineer grants require reviewed resource scopes.
+apply: false
+issuer: '{{ sso_keycloak_origin }}{{ sso_keycloak_path }}/realms/{{ sso_realm }}'
+client_id: '{{ sso_apps.headlamp.client_id }}'
+callback: '{{ sso_apps.headlamp.origin }}/oidc-callback'
+public_ca_file: '{{ sso_public_ca_file }}'
+use_access_token: false
+use_pkce: true
+api_prerequisites:
+  issuer: '{{ sso_keycloak_origin }}{{ sso_keycloak_path }}/realms/{{ sso_realm }}'
+  audience: '{{ sso_apps.headlamp.client_id }}'
+  required_azp: '{{ sso_apps.headlamp.client_id }}'
+  username_claim: sub
+  username_prefix: 'oidc:'
+  groups_claim: groups
+  groups_prefix: 'oidc:'
+  signing_algorithms: [RS256]
+  public_ca_file: '{{ sso_public_ca_file }}'
+  missing_trust: stop-separate-provisioning-review-required
+  restart_allowed: false
+# Append only through a separately approved provisioning batch; never replace base config.
+provisioning_fragment:
+  kube-apiserver-arg+:
+  - 'oidc-issuer-url={{ sso_keycloak_origin }}{{ sso_keycloak_path }}/realms/{{ sso_realm }}'
+  - 'oidc-client-id={{ sso_apps.headlamp.client_id }}'
+  - oidc-username-claim=sub
+  - 'oidc-username-prefix=oidc:'
+  - oidc-groups-claim=groups
+  - 'oidc-groups-prefix=oidc:'
+  - oidc-signing-algs=RS256
+  - 'oidc-required-claim=azp={{ sso_apps.headlamp.client_id }}'
+  - 'oidc-ca-file={{ sso_headlamp_apiserver_ca_path }}'
+# RKE2 supplies the read-only CA mount; do not duplicate it or inject /etc/hosts.
+rbac:
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata: {name: perkforge-sso-platform-admins}
+  roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: cluster-admin}
+  subjects: [{kind: Group, apiGroup: rbac.authorization.k8s.io, name: 'oidc:/platform/admins'}]
+# This authority can read Kubernetes Secrets; it cannot promise tenant secrecy.
+
+# Merge this nonsecret overlay through reviewed GitOps; the adapter never deploys it.
+gitops_values:
+  addons:
+    headlamp:
+      values:
+        upstream:
+          config:
+            oidc:
+              usePKCE: true
+              secret: {create: false}
+              externalSecret: {enabled: true, name: perkforge-headlamp-sso-v1, hasScopes: true}
+            extraArgs: [-oidc-ca-file=/identity-ca/ca.crt]
+          env: [{name: SSL_CERT_FILE, value: /identity-ca/ca.crt}]
+          volumes: [{name: identity-ca, configMap: {name: perkforge-headlamp-sso-v1-ca}}]
+          volumeMounts: [{name: identity-ca, mountPath: /identity-ca, readOnly: true}]

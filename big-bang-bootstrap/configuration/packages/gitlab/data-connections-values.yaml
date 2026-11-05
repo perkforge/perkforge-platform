@@ -1,0 +1,40 @@
+# Unselected lab connection overlay. Provider/CA/TLS/bucket preparation comes first.
+addons:
+  gitlab:
+    enabled: false
+    flux: {suspend: true}
+    values:
+      global:
+        redis:
+          host: gitlab-valkey.gitlab.svc.cluster.local
+          port: 6379
+          scheme: rediss
+          auth: {enabled: true, secret: gitlab-redis, key: password}
+          redisTLS:
+            caFile: {secret: gitlab-valkey-public-ca, key: ca.crt}
+        appConfig:
+          object_store:
+            enabled: true
+            proxy_download: true
+            connection: {secret: gitlab-object-store, key: connection}
+          lfs: {enabled: true, bucket: gitlab-lfs}
+          artifacts: {enabled: true, bucket: gitlab-artifacts}
+          uploads: {enabled: true, bucket: gitlab-uploads}
+          packages: {enabled: true, bucket: gitlab-packages}
+          externalDiffs: {enabled: false}
+          terraformState: {enabled: false}
+          ciSecureFiles: {enabled: false}
+          dependencyProxy: {enabled: false}
+          agentPlanContent: {enabled: false}
+          ciCatalogBundles: {enabled: false}
+          backups:
+            bucket: gitlab-backup-staging
+            tmpBucket: gitlab-restore-staging
+      upstream:
+        gitlab:
+          toolbox:
+            backups:
+              cron: {enabled: false}
+              objectStorage:
+                backend: s3
+                config: {secret: gitlab-object-store, key: s3cfg}
