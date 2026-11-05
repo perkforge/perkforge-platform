@@ -1,37 +1,34 @@
 # Current operator handoff
 
-## GitLab app blocked on missing pull-Secret references — source fix prepared
+## GitLab first install blocked — preserve-on-failure correction prepared
 
-Observed 2026-11-04: separately approved source-only promotion to v0.17.7 kept
-the app root unchanged and cleared the Namespace ownership blocker. The GitLab
-child release exists and started its shared-secrets pre-install hook. That Pod
-has no imagePullSecrets; Registry1 reports no basic auth credentials. Further
-changes stopped. Migrations and the Gitaly claim have not started. Existing
-Namespace ownership, three data Pods, four claims and ten original credential
-identities remain preserved. The approved GitLab-only pull Secret and platform/
-Valkey public trust objects are unchanged. Root/app readiness is not accepted;
-SSO, named grants, runner and drive access remain unchanged.
+Observed 2026-11-05: the approved old hook cleanup and v0.17.8 promotion are
+complete, and the upgrade-check image pulled successfully. GitLab has two failed
+Helm revisions and no successful install. Flux chose upgrade after the failed
+first install's values changed; the pre-upgrade guard rejects missing real
+`gitlab-gitlab-chart-info`. Inherited final-failure rollback then found no target.
+No migration or Gitaly claim has started. Three data Pods and four original bound
+claims retain their identities. App/root readiness remains unaccepted; SSO,
+named grants, runner and drive access are unchanged.
 
-Pinned render inspection found Big Bang defaults empty both global pull-Secret
-lists, affecting all nine GitLab Pod templates. The prepared overlay references
-only existing `private-registry` through both supported helper inputs. Tests
-cover every hook/workload including init containers, reproduce missing old refs,
-and permit only references and values-hashed Job names to change. No credential,
-Secret object, image, resource size, RBAC or Namespace change is introduced.
+The prepared source correction explicitly disables inherited install/upgrade
+last-failure remediation and upgrade cleanup, retaining zero retries. Pinned
+regression rendering isolates exactly those three policy flags. Nothing is live
+or published from this correction; changing policy alone does not select install.
 
-Review/release and a separately approved guarded recovery are required. Inspect
-the old hook Job/Pod identities and confirm it never ran and remains the sole
-blocked app Job. The corrected values rename the hooks, and failed old hooks are
-not automatically cleaned; remove only that old Job normally with fresh UID/
-version preconditions before promotion if explicitly approved. Confirm the old
-Helm action has ended and its Pod is gone before promoting. This avoids old
-and new generators running together after an image becomes cached. Do not delete
-unknown or already-running/completed work. Promote the verified corrected tag,
-retain app root and existing credentials/trust, then observe ordinary install/
-upgrade, image access, migrations, worker placement, local recovery and health.
-Any unexpected state or need for a retry reset returns for review; preserve all
-Secrets/PVCs. No live repair, retry, deletion, rollback or publication was done
-while preparing this fix.
+A read-only CNPG local-socket catalog transaction verified expected database/owner,
+only prerequisite extensions/public schema, zero non-system relations/non-extension
+routines and no migration metadata; no password or Secret-value retrieval. Repeat
+immediately before recovery. Independent backup/restore is still unverified.
+
+[The coordinated procedure](big-bang-bootstrap/configuration/packages/gitlab/coordinated-outcome.md#current-app-attempt-and-first-install-recovery-gate)
+describes the candidate same-name native install-replace with failed history/data
+preserved, three-manager pause/resume ownership, private-input gates and explicit
+Flux management upgrade/hooks afterward. Real CLI synthetic-API tests cover both
+Helm 4.2.4 (controller runtime) and installed 3.19.0; they do not establish live
+SSA, migration or restore compatibility. Source review/release and a separately
+reviewed guarded recovery procedure/live approval are required. No fake metadata,
+guard bypass, history deletion, automatic uninstall or additional credential grant.
 
 ## GitLab data stage accepted — application remains off
 

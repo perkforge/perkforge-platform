@@ -29,53 +29,123 @@ off at data acceptance; the later app attempt is described below. SSO, runner an
 drive access remain off and separately gated. Source publication and
 live activation require their own approvals.
 
-## Current app attempt and pull-Secret recovery
+## Current app attempt and first-install recovery gate
 
-The approved v0.17.6 app preparation delivered `gitlab/private-registry`,
-`gitlab-platform-public-ca` and `gitlab-valkey-public-ca`, each with zero-change
-repeat. Existing data credentials and TLS leaves were reused. Its umbrella
-Namespace template caused a pre-upgrade ownership/RBAC failure. The separately
-approved v0.17.7 source-only promotion resolved it by omitting only Namespace/
-gitlab, preserving foundation ownership without adoption or cluster-wide rights.
+The approved v0.17.6 app preparation delivered the GitLab pull credential and
+public trust objects, each with a zero-change repeat; existing data credentials
+and TLS leaves were reused. The separately approved v0.17.7 promotion resolved
+umbrella Namespace rendering without adopting the foundation Namespace or adding
+cluster-wide rights. Its first GitLab install then failed before its shared-
+secrets hook could start because image-pull references were absent.
 
-The selected app root now created the GitLab child release, but its first
-shared-secrets hook Pod has no imagePullSecrets and fails pulling the pinned
-kubectl image with no basic auth credentials. Work stopped without live repair.
-No migration Job or Gitaly claim exists; Namespace ownership, original claims,
-credential identities and data Pods were verified preserved. GitLab and root
-readiness remain unaccepted. SSO, named grants, runner and drive are unchanged.
+Observed 2026-11-05: the approved old never-started hook cleanup and v0.17.8
+promotion completed. Both global pull-Secret lists now reference only existing
+`private-registry`, and the new upgrade-check image pulled successfully. GitLab
+still has two failed Helm revisions and no successful install. Flux selected an
+upgrade after the failed install's configuration changed. The real
+`gitlab-gitlab-chart-info` ConfigMap was never created by the failed first install;
+the pre-upgrade guard rejects that missing metadata with a generic unsupported-
+upgrade-path message. This is not evidence of an actual GitLab version jump.
+Final-failure remediation then reported `MissingRollbackTarget` because there is
+no successful revision to roll back to. Further recovery stopped; no migrations
+or Gitaly claim have started. Three data Pods and four bound claims retain their
+observed identities. GitLab/root readiness remains unaccepted; SSO, named grants,
+runner and drive access remain outside this recovery.
 
-Big Bang's generated defaults empty `global.image.pullSecrets` and
-`global.imagePullSecrets`, overriding package defaults. The upstream shared-
-secrets/self-signing hooks use the former helper; other workloads also use the
-latter. The prepared candidate overlay explicitly references only the existing
-namespace Secret in both fields. The exact selected render proves every Pod
-spec (five workloads, migrations and three hooks), including its init containers,
-receives one `private-registry` reference. No credential values or Secret objects
-are added, read from the live cluster or rotated by the source fix. Images,
-requests/limits, persistent claims, RBAC and Namespace ownership stay unchanged;
-the chart changes shared-secrets and migration Job names through values hashes.
-Offline references are not proof that every real image pull has succeeded.
+### Preserve failed state explicitly
 
-After review and immutable release, obtain guarded recovery approval. Recheck
-cluster/source/root, all prepared object identities, original claims and the
-exact old hook Job/Pod. Require that it never ran, remains blocked on anonymous
-image pull, and is the only existing app Job. Because new values rename hooks
-and their delete policy omits hook-failed, do not assume the old generator is
-removed. A separately approved normal UID/version-guarded deletion of only that
-old Job before source promotion prevents concurrent old/new generators when an
-image later becomes cached. Require its Pod absent and the old Helm action ended
-before promotion. No force-delete, unrelated Job/Pod deletion or data
-cleanup is implied. Stop if its identity or substantive state changed.
+Big Bang merges its global Flux failure settings into the child release.
+`retries: 0` alone leaves `upgrade.cleanupOnFail: true` and
+`upgrade.remediation.remediateLastFailure: true`. The prepared correction sets
+`cleanupOnFail: false` and `remediateLastFailure: false` for upgrades, and
+explicitly sets install `remediateLastFailure: false`. Both retry counts stay
+zero. Pinned rendering proves only these three flags change; values, images,
+requests, claims, hooks, ownership and unrelated releases remain identical.
+This prevents automatic last-failure rollback/uninstall and upgrade cleanup;
+it does not undo completed changes, disable normal chart hook deletion policies,
+make Flux choose a fresh install, or authorize another attempt. Review, release
+and separately approved promotion are required before live use.
 
-Promote only the verified corrected source tag, retain the selected app root,
-and reuse the prepared pull credential and public trust. Let ordinary config-
-driven reconciliation run; inspect any need for retry/reset separately. Verify
-all hook/workload references and actual image access, generated-secret custody,
-Gitaly worker placement and claim binding, migrations, local recovery, TLS,
-no-change checks and cluster health. Stop and preserve database/Secrets/PVCs on
-any new failure. No rollback, credential rotation, Namespace adoption, new RBAC,
-SSO or runner activation is part of this source-only preparation.
+### Guarded fresh-install design — not executed
+
+The least-destructive candidate is one same-name native Helm `install --replace`
+using the exact reviewed chart and privately resolved values while the root,
+umbrella and child reconcilers are safely paused. No uninstall, Helm-history
+Secret deletion, fabricated chart-info, disabled guard, take-ownership, force
+conflict or controller-status edit belongs in this procedure. Real CLI tests on
+a disposable synthetic API verify that Helm 4.2.4 (the controller's runtime) and
+3.19.0 retain both failed records, allocate the next revision, run install hooks,
+reject foreign ownership/deployed-name reuse, and retain history after failure.
+These tests are not a real Kubernetes/SSA, migration or backup/restore rehearsal.
+
+A bounded live read-only catalog transaction on 2026-11-05 verified the expected
+application database/owner, only the four prerequisite extensions and public
+schema, zero non-system relations/non-extension routines, and no migration
+metadata. It used CNPG's existing local administrative socket, no password or
+Secret-value retrieval, and ended with rollback. Repeat this check immediately
+before recovery; it is not proof of backup restoration or absence of object-store
+data. Any application relation/data, unknown owner or pending action stops recovery.
+
+A separately reviewed recovery batch must include all of the following:
+
+1. Verify exact cluster/release/chart, failed-only Helm history, empty application
+   catalog, prepared Secret keys/custody, claim identities/health, existing resource
+   ownership and Gitaly capacity. Resolve private values without printing them;
+   no credential rotation or new persistent access. Independent backup/restore
+   remains unverified and needs explicit risk acceptance or separate verification.
+2. Capture original suspension states and use UID/version guards to pause root,
+   umbrella, then child. Wait for in-flight actions to end and re-read all three;
+   suspension does not cancel a running action. Stage only the separately reviewed
+   source/policy release, retaining the app root. Pausing only the child allows its
+   parent to overwrite the pause. Never edit owner annotations or controller status.
+3. Execute one bounded native installation with existing installer authority,
+   same release/target/storage namespace, normal hooks and no Namespace creation.
+   Shared-secrets hooks can create missing app Secrets, label existing named
+   Secrets and add missing keys; verify expected keys/targets first and preserve
+   credential contents. Installation creates the real chart-info, workloads,
+   migrations and a 10Gi Gitaly claim. Stop and preserve partial state on failure;
+   deployment rollback does not reverse a database migration.
+4. Verify chart-info and app/data health before child resume. Flux treats a native
+   revision it did not observe as unmanaged and performs an upgrade to restore
+   management. Approval must include that upgrade, its normal hook deletion/
+   recreation and possible idempotent migrations; it is not a no-change adoption.
+   Resume umbrella only after child readiness and matching source-owned policy;
+   resume root last, restoring original suspension values and approved source.
+5. Verify real HTTPS/local recovery, migrations, worker placement, preserved data
+   and credential identities/history, controller reconciliation and cluster health.
+   Any unexpected or uncertain result stops further mutation; no automatic broad
+   cleanup or data rollback is authorized.
+
+### Reset comparison and protected data
+
+A data reset offers no demonstrated benefit: the application catalog is empty,
+and no Gitaly claim exists. Valkey, CNPG/PostgreSQL and Garage are separate owned
+resources in the same namespace, not disposable GitLab installation state. Their
+four original claims remain Bound/healthy with Retain reclaim policy and two
+running replicas across the storage workers. Existing credentials, CNPG Cluster,
+Garage layout/key/buckets, Valkey contents and all four claims/PVs/replicas remain
+outside either recovery method. Never delete the namespace or data foundation.
+Retain is a safeguard, not permission to delete claims or proof of independent
+backup. The configured Longhorn paths alone do not prove separate physical disks.
+
+| Candidate | Release history | Controller actions and tradeoff |
+|---|---|---|
+| Native same-name install-replace | Retains failed revisions | One manual install, then Flux management upgrade/hooks; exact private values must be reproduced. Isolated CLI behavior is tested. |
+| Helm-state-only reset | Permanently discards only the two failed GitLab Helm records | Could let Flux perform one normal managed install after explicit failure-counter reset; avoids manual values handoff but needs separate approval for exact record deletion and controller reset. Not yet live-tested. |
+| Database/volume/namespace reset | Risks unrelated accepted data and credentials | No benefit shown; reject this scope for the present blocker. |
+
+No reset is approved or implemented here. A metadata-only reset would still need
+fresh identity/version guards, three-manager coordination, proof of failed-only
+history, exact deletion targets, explicit acceptance of lost diagnostic history,
+and a separately reviewed no-concurrent-action/reset sequence. It does not require
+reinitializing PostgreSQL, Valkey or Garage. Both viable candidates share source
+review/release and application startup/migration/image-pull waits; no wall-clock
+saving is guaranteed. The current install-replace proposal remains the tested
+history-preserving option until an alternative destructive scope is approved.
+
+No live recovery procedure or private-values access is authorized by publishing
+this policy correction. The guarded Ansible procedure and exact live approval
+batch remain to be reviewed; do not improvise the native command from this design.
 
 ## Versions and lab budget
 
