@@ -96,18 +96,6 @@ rules:
 - apiGroups:
   - monitoring.coreos.com
   resources:
-  - alertmanagers
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - monitoring.coreos.com
-  resources:
   - podmonitors
   verbs:
   - get
