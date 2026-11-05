@@ -51,7 +51,14 @@ and API tokens. Disabling a client is not immediate universal token revocation.
 3. Use existing runner-profile credential assembly/delivery, exact-host public CA
    delivery, approved namespace pull credentials and reviewed endpoint egress.
    Do not regenerate application credentials or relax TLS/default-deny to proceed.
-4. Promote the released `local-gitlab-runner` root after checking its diff retains
+4. Run the released default-off `configuration/ansible/activate-gitlab-runner.yaml`
+   with scope `gitlab-runner-stage-v1` after separately approving this live stage.
+   Supply the immutable release/commit/clean checkout, kubeconfig/context, verified
+   cluster/root/source UIDs and GitLab hostname. Explicitly attest the app/SSO,
+   paused native registration and reviewed network prerequisites. It checks the
+   exact source artifact and immutable owned authentication, CA and two namespace
+   pull Secrets, then uses UID/resourceVersion/full-spec tests and a server dry
+   run to change only `cluster-root.spec.path` from app to runner. Check its diff retains
    the stable app, SSO and data services. Verify manager identity, API permissions,
    CA and readiness while the native runner is paused; then explicitly activate.
 5. Commit only `acceptance/gitlab-ci.example.yaml` to the approved protected
@@ -67,3 +74,19 @@ before a separately approved manager change. Preserve original data services.
 
 Completion requires recorded real named MFA/admin access and actual protected
 job/denial evidence. Offline fixtures demonstrate guards, not live compatibility.
+
+## Concrete runner configuration selected by that handoff
+
+`clusters/local-gitlab-runner/values.yaml` enables the reviewed runner against
+`https://gitlab.perkforge.home.arpa`; it inherits the full app/SSO/data root. The
+existing candidate pins chart `0.91.2-bb.3`, one manager, concurrency one, the
+`gitlab-runner-manager` API identity, restricted `gitlab-ci-platform` jobs, exact
+build/helper images, mandatory private-registry references and public CA Secret.
+No API registration token is committed or fabricated. The activation playbook
+selects this real configuration, rather than merely printing instructions.
+
+Still needed after merge/release: live batch approval, Corey's exact approved
+private project and actor IDs/path, a locally entered authorized API credential,
+modern registration's one-time token, approved Registry1 copies in the two runner
+namespaces and actual endpoint egress review. Named account native approval/admin
+grant and browser MFA are also live owner actions. None is implied by MR merge.
