@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.2](https://github.com/perkforge/perkforge-platform/compare/v0.18.1...v0.18.2) (2026-11-05)
+
+
+### Bug Fixes
+
+* **gitlab-runner:** accept routable v1 authentication tokens ([#185](https://github.com/perkforge/perkforge-platform/issues/185)) ([8e0b698](https://github.com/perkforge/perkforge-platform/commit/8e0b698cacecb576c5d19e5c2a67027946531968))
+
 ## [0.18.1](https://github.com/perkforge/perkforge-platform/compare/v0.18.0...v0.18.1) (2026-11-05)
 
 
