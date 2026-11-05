@@ -89,3 +89,9 @@ SSO acceptance is claimed; existing operator trust and capacity blockers remain.
 
 [Entry edition](https://docs.mattermost.com/product-overview/editions-and-offerings),
 [Other OIDC](https://docs.mattermost.com/administration-guide/onboard/sso-openidconnect).
+
+## Entry and tomorrow's SSO testing decision
+
+[Edition/source review](edition-review.md) verifies the pinned source distribution
+and documents official Entry OIDC support, patched-version and non-production
+license decisions. Runtime edition/OIDC acceptance remains untested.
