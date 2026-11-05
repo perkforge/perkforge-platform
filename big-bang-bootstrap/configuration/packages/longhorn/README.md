@@ -277,3 +277,91 @@ including the effect of Retain, rather than assuming namespace deletion erases
 Longhorn data. No forced detach, node reboot or existing workload change is part
 of this test. The observed missing dm_crypt modules did not block this unencrypted
 volume; encrypted storage remains unvalidated and needs separate preparation.
+
+## Dedicated worker disks — draft, unselected
+
+The candidate `dedicated/` StorageClass and offline disk renderer are preparation
+for the 500 GB T7 on worker-1 and 1 TB T7 on worker-2. No cluster root selects the
+class, no existing class/claim changes, and the renderer has no apply operation.
+Keep the PR unmerged until the physical storage work and its evidence are complete.
+The pinned chart and shared settings above remain the policy owner: two workers,
+hard node anti-affinity, 100% overprovisioning setting (no overcommit), and 25%
+minimum available. The new nondefault `longhorn-dedicated` class narrows **new**
+claims to disks tagged `dedicated-storage`; it retains two V1 copies, Retain,
+expansion and WaitForFirstConsumer. `fsType: ext4` is the filesystem **inside a
+new PVC**, not permission to format either T7 host filesystem.
+
+Environment disk details live in
+`clusters/local/longhorn-disks.example.yaml`, separate from reusable class policy
+and Ansible templates. The mount path is a proposal; capacities are advertised
+decimal estimates. Proposed explicit reserves are 50 GB and 100 GB respectively;
+confirm them against measured filesystem sizes and growth before acceptance.
+Longhorn's default-disk reserve percentage does not configure these added disks:
+the renderer authors `storageReserved` bytes explicitly. Minimum-free scheduling
+checks also apply. Neither setting is a quota or a guarantee of usable capacity.
+Two copies on unequal disks are constrained by the smaller worker, not their sum;
+retain the existing 80–100 GiB starting logical budget until usage, imports,
+snapshots and rebuild headroom are measured. With only two eligible workers,
+one-worker loss leaves a single copy and no third-worker rebuild destination.
+
+1. Finish separately approved physical storage preparation first: exact device
+   identity/data-loss review, formatting if required, persistent UUID mount,
+   ownership/SELinux, independent filesystem and boot/missing-drive behavior.
+   This PR contains no formatting, fstab or drive commands and assumes no UUID.
+   Never mount over `/var/lib/longhorn` or copy/delete existing replica data.
+2. Verify each proposed path is the intended mounted filesystem, never a directory
+   on the root filesystem or symlink; inspect `findmnt`, measured capacity,
+   permissions, propagation and current Longhorn disk/replica health. A missing USB
+   drive must not let Longhorn silently write into an underlying root directory.
+   A persistent mount and verified service/boot behavior are activation blockers;
+   the offline renderer cannot verify any of these facts.
+3. Under separately approved read-only access, capture fresh `nodes.longhorn.io`
+   objects (not core Kubernetes Nodes). Copy the example privately, replace sizes
+   with measured bytes and `snapshot` with the corresponding full object. Keep
+   identifiers and generated patches in ignored/protected storage. Existing disk
+   keys and paths are preserved. The renderer rejects identity/path conflicts,
+   duplicate nodes, absent snapshots and nonpositive/out-of-range reserves.
+4. Render review artifacts locally into an existing mode0700 directory:
+
+   ```sh
+   ansible-playbook -i localhost, \
+     big-bang-bootstrap/configuration/ansible/longhorn-disk-plan.yaml \
+     -e @/ABSOLUTE/PROTECTED/disk-inputs.yaml \
+     -e longhorn_disk_output=/ABSOLUTE/PROTECTED/FRESH_OUTPUT
+   ```
+
+   It writes mode0600 JSON patches only. Check mode writes no patches. Existing
+   output files are refused. Patches test node UID, resourceVersion and the entire
+   old disk map, then add a **scheduling-disabled** filesystem disk. They never
+   fabricate Longhorn disk UUIDs. ResourceVersion churn can invalidate a patch:
+   re-read and re-render for review, never remove its tests or force an update.
+5. After review and separate activation approval, register one disk at a time
+   using the reviewed patch and an explicitly verified cluster context/UID. This
+   PR intentionally supplies no live executor. Confirm Longhorn discovers the
+   intended filesystem and reports the disk Ready with correct capacity/reserve,
+   then separately approve enabling scheduling. Partial worker completion is not
+   success; inspect before proceeding. Shared tags must exist only on the reviewed
+   dedicated worker disks; the disk selector uses Longhorn tags, not node labels.
+6. Before selecting `dedicated/` in a future release, review ownership and installer
+   permissions for its cluster-scoped StorageClass. Current app-root authority is
+   not assumed to include StorageClass writes. Publish/promote through the normal
+   reviewed release path; adding a directory does not activate it. Verify a fresh
+   disposable claim binds to the tagged disks with two healthy distinct-worker
+   replicas, then checksum/recreate/reattach. The old smoke verifier pins an older
+   release/class and requires reviewed adaptation before this acceptance test.
+7. Existing PVCs keep their class and placement. Plan migration separately: backup
+   and tested recovery first; inventory every volume; disable root-disk scheduling
+   without deleting it; move/evict replicas one worker at a time with healthy-copy
+   and rebuild checkpoints. No blanket disk-map replacement, PVC class patch,
+   forced detach, replica deletion or automatic eviction is supplied here. On
+   failure stop and preserve the working copies; re-enable an old scheduling path
+   only after review. Retain source disks until migration and recovery pass.
+
+Before Nextcloud imports, select independent protected off-cluster backups,
+application-consistent capture, retention/capacity, encryption/credential custody,
+and verify restore with dummy data (#42/#101/#105). A replica, Retain, snapshot or
+etcd backup alone does not establish application-data recovery. Backup destination
+and restore acceptance remain blockers; this PR creates no credentials/jobs.
+
+References: [disk management](https://longhorn.io/docs/1.13.0/nodes-and-volumes/nodes/multidisk/),
+[StorageClass parameters](https://longhorn.io/docs/1.13.0/references/storage-class-parameters/).

@@ -1,0 +1,75 @@
+---
+# Workstation-only artifact rendering. No kubeconfig, host connection or apply path.
+- name: Render reviewed additive Longhorn disk patches offline
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+  - name: Require explicit complete plan and existing protected output directory
+    ansible.builtin.assert:
+      that:
+      - longhorn_disk_plan is defined
+      - longhorn_disk_plan is sequence
+      - longhorn_disk_plan | length > 0
+      - longhorn_disk_plan | map(attribute='node') | unique | length == longhorn_disk_plan | length
+      - longhorn_disk_output is defined
+      - longhorn_disk_output is match('^/')
+  - name: Inspect output directory without creating it
+    ansible.builtin.stat:
+      path: '{{ longhorn_disk_output }}'
+      follow: false
+    register: disk_output
+  - ansible.builtin.assert:
+      that:
+      - disk_output.stat.isdir | default(false)
+      - not disk_output.stat.islnk | default(false)
+      - disk_output.stat.mode == '0700'
+      - disk_output.stat.uid == lookup('pipe', 'id -u') | int
+  - name: Validate all inputs before rendering any patch
+    ansible.builtin.assert:
+      quiet: true
+      that:
+      - item.node is match('^[a-z0-9][a-z0-9-]*$')
+      - item.disk_name is match('^[a-z0-9][a-z0-9-]*$')
+      - item.path is match('^/mnt/[a-zA-Z0-9_-]+$')
+      - item.capacity_bytes is integer
+      - item.reserve_bytes is integer
+      - item.reserve_bytes > 0
+      - item.capacity_bytes > item.reserve_bytes
+      - item.snapshot.apiVersion == 'longhorn.io/v1beta2'
+      - item.snapshot.kind == 'Node'
+      - item.snapshot.metadata.namespace == 'longhorn-system'
+      - item.snapshot.metadata.name == item.node
+      - item.snapshot.metadata.uid | length > 0
+      - item.snapshot.metadata.resourceVersion | string | length > 0
+      - item.snapshot.spec.disks is mapping
+      - item.disk_name not in item.snapshot.spec.disks
+      - item.path not in (item.snapshot.spec.disks.values() | map(attribute='path') | list)
+    loop: '{{ longhorn_disk_plan }}'
+    no_log: true
+    loop_control:
+      label: '{{ item.node }}'
+  - name: Refuse overwriting prior review artifacts
+    ansible.builtin.stat:
+      path: '{{ longhorn_disk_output }}/{{ item.node }}.json'
+      follow: false
+    loop: '{{ longhorn_disk_plan }}'
+    no_log: true
+    loop_control:
+      label: '{{ item.node }}'
+    register: prior_patches
+  - ansible.builtin.assert:
+      that: not item.stat.exists
+    loop: '{{ prior_patches.results }}'
+    no_log: true
+    loop_control:
+      label: '{{ item.item.node }}'
+  - name: Render disabled disks with concurrency and object identity guards
+    ansible.builtin.template:
+      src: templates/longhorn-disk-patch.json.j2
+      dest: '{{ longhorn_disk_output }}/{{ item.node }}.json'
+      mode: '0600'
+    loop: '{{ longhorn_disk_plan }}'
+    no_log: true
+    loop_control:
+      label: '{{ item.node }}'
