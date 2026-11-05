@@ -13,7 +13,8 @@ body:
   run_untagged: false
   access_level: ref_protected
   tag_list: [perkforge-platform]
-  maximum_timeout: 300
+  # GitLab 19.4.2 requires at least 600 seconds; the baseline job stays at 5m.
+  maximum_timeout: 600
 credential_output:
   authentication_token_prefix: glrt-
   secret_name: gitlab-runner-auth

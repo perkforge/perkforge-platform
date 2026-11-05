@@ -157,7 +157,7 @@
             run_untagged: false
             access_level: ref_protected
             tag_list: perkforge-platform
-            maximum_timeout: 300
+            maximum_timeout: 600
           status_code: 201
         register: gitlab_runner_created
         changed_when: true
@@ -206,7 +206,7 @@
         - gitlab_runner_current.json.locked and not gitlab_runner_current.json.run_untagged
         - gitlab_runner_current.json.access_level == 'ref_protected'
         - gitlab_runner_current.json.tag_list == ['perkforge-platform']
-        - gitlab_runner_current.json.maximum_timeout == 300
+        - gitlab_runner_current.json.maximum_timeout == 600
         - gitlab_runner_current.json.projects | map(attribute='id') | list == [gitlab_runner_project_id]
     - ansible.builtin.uri:
         url: '{{ gitlab_runner_origin }}/api/v4/runners/{{ gitlab_runner_receipt.id }}'
