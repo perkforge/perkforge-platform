@@ -451,7 +451,7 @@ views {
     platform.prerequisite_applier -> platform.observability.metrics_installer '2. Default-off Ansible validates exact API /32s and applies scoped namespace/roles/policies/six dashboards'
     engineer -> platform.flux '3. Future reviewed selection only after credentials/policy and privileged grants are approved'
     platform.bigbang -> platform.observability.metrics_installer '4. Helm-controller uses separate child identities; source writer cannot self-grant'
-    platform.observability.metrics_installer -> platform.observability.stores '5. Native CRDs/operator/Prometheus/Alertmanager; supported certificate patch jobs keep webhooks enabled'
+    platform.observability.metrics_installer -> platform.observability.stores '5. Native CRDs/operator/Prometheus; separate Alertmanager disabled; supported certificate patch jobs keep webhooks enabled'
     platform.observability.metrics_installer -> platform.observability.grafana '6. Native Grafana files plus namespace ConfigMap-only runtime reader; no cross-namespace Secrets'
     platform.observability.grafana -> engineer '7. Verify real scrapes/admin/dashboards, no duplicate pipeline, resource/retention and network deny behavior'
   }
