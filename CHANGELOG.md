@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.9](https://github.com/perkforge/perkforge-platform/compare/v0.17.8...v0.17.9) (2026-11-05)
+
+
+### Bug Fixes
+
+* **gitlab:** preserve partial state after failed Helm actions ([#174](https://github.com/perkforge/perkforge-platform/issues/174)) ([9e47e7f](https://github.com/perkforge/perkforge-platform/commit/9e47e7fd31e0a11333017d9b992de5adcd65f858))
+
 ## [0.17.8](https://github.com/perkforge/perkforge-platform/compare/v0.17.7...v0.17.8) (2026-11-04)
 
 
