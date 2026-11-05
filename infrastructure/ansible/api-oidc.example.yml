@@ -1,0 +1,13 @@
+# Nonsecret review inputs. Copy outside tracked source; never put sudo/SSH passwords here.
+api_oidc_scope: headlamp-api-oidc-v1
+api_oidc_recovery_verified: false
+api_oidc_cluster_id: UNCONFIGURED
+api_oidc_cluster_uid: UNCONFIGURED
+api_oidc_release_tag: UNCONFIGURED
+api_oidc_release_commit: UNCONFIGURED
+# Read-only owner-local inspect reports this before the apply batch is approved.
+api_oidc_expected_base_sha256: UNCONFIGURED
+api_oidc_issuer: https://keycloak.REPLACE_WITH_ENVIRONMENT/auth/realms/perkforge
+api_oidc_client_id: headlamp-local
+api_oidc_public_ca_file: /UNCONFIGURED/public-ca.crt
+api_oidc_ca_fingerprint: UNCONFIGURED

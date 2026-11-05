@@ -1,0 +1,53 @@
+# Review payloads only. Never import/replace the realm or blindly PUT these clients.
+realm: {{ sso_realm }}
+environment: {{ sso_environment }}
+clients:
+{% for app,settings in sso_apps.items() %}
+  {{ app }}:
+    representation:
+      clientId: {{ settings.client_id }}
+      enabled: false
+      protocol: openid-connect
+      publicClient: false
+      clientAuthenticatorType: client-secret
+      standardFlowEnabled: true
+      implicitFlowEnabled: false
+      directAccessGrantsEnabled: false
+      serviceAccountsEnabled: false
+      fullScopeAllowed: false
+      defaultClientScopes: [basic, profile, email]
+      optionalClientScopes: []
+      redirectUris: ['{{ settings.origin }}{{ {"headlamp":"/oidc-callback", "rancher":"/verify-auth", "openbao":"/ui/vault/auth/oidc/oidc/callback"}[app] }}']
+      webOrigins: ['{{ settings.origin }}']
+      attributes:
+        perkforge-managed: 'true'
+        perkforge-purpose: coordinated-sso-v1
+        pkce.code.challenge.method: S256
+      protocolMappers:
+      - name: app-groups
+        protocol: openid-connect
+        protocolMapper: oidc-usermodel-client-role-mapper
+        config:
+          usermodel.clientRoleMapping.clientId: '{{ settings.client_id }}'
+          usermodel.clientRoleMapping.rolePrefix: ''
+          claim.name: groups
+          jsonType.label: String
+          multivalued: 'true'
+          id.token.claim: 'true'
+          access.token.claim: 'true'
+          userinfo.token.claim: 'true'
+          introspection.token.claim: 'true'
+      - name: app-audience
+        protocol: openid-connect
+        protocolMapper: oidc-audience-mapper
+        config:
+          included.client.audience: '{{ settings.client_id }}'
+          userinfo.token.claim: 'false'
+          introspection.token.claim: 'true'
+          id.token.claim: 'true'
+          access.token.claim: 'true'
+    # Client-specific role value retains the canonical path; no other client roles.
+    roles: [{name: /platform/admins, composite: false}]
+    groupRoleMappings: [{group: /platform/admins, roles: [/platform/admins]}]
+    scopeRoles: [/platform/admins]
+{% endfor %}

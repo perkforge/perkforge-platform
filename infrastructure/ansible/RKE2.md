@@ -272,3 +272,13 @@ reboot with temporary-file mocks; they never reboot a machine:
 ```sh
 python3 -m unittest discover -s infrastructure/ansible/tests -p test_reboot_verification.py
 ```
+
+
+## Separate API OIDC maintenance
+
+Use [API-OIDC.md](API-OIDC.md) and its default-off maintenance/rollback playbook
+for the separately approved Headlamp API trust batch. Do not rerun installation,
+rewrite base configuration, copy the historical hosts-file mount or add passwordless
+sudo. Published source, owner-local `--ask-become-pass`, independent recovery and
+exact target/base-hash approval are required. Source and fixtures are not live
+restart or SSO acceptance.

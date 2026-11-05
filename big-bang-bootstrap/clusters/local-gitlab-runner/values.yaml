@@ -1,0 +1,8 @@
+addons:
+  gitlabRunner:
+    enabled: true
+    flux:
+      suspend: false
+    values:
+      upstream:
+        gitlabUrl: https://gitlab.perkforge.home.arpa

@@ -1,0 +1,26 @@
+# Called only for a resource created successfully by this run with a recorded UID.
+- name: Guard and remove only the recorded temporary identity object
+  block:
+  - name: Read exact temporary object UID
+    ansible.builtin.command:
+      argv: '{{ ["kubectl", "--kubeconfig", target_kubeconfig, "--context", target_context, "get", access_cleanup.kind, headlamp_access_name, "--ignore-not-found", "-o", "jsonpath={.metadata.uid}"] + (["-n", "headlamp"] if access_cleanup.kind == "serviceaccount" else []) }}'
+    register: cleanup_identity
+    changed_when: false
+  - name: Never delete a replaced or unrelated object
+    ansible.builtin.assert:
+      that: cleanup_identity.stdout in ['', access_cleanup.uid]
+  - name: Delete only matching temporary object
+    when: cleanup_identity.stdout == access_cleanup.uid
+    ansible.builtin.command:
+      argv: '{{ ["kubectl", "--kubeconfig", target_kubeconfig, "--context", target_context, "delete", access_cleanup.kind, headlamp_access_name, "--wait=true", "--timeout=30s"] + (["-n", "headlamp"] if access_cleanup.kind == "serviceaccount" else []) }}'
+  - name: Verify exact temporary object absent
+    ansible.builtin.command:
+      argv: '{{ ["kubectl", "--kubeconfig", target_kubeconfig, "--context", target_context, "get", access_cleanup.kind, headlamp_access_name, "--ignore-not-found", "-o", "jsonpath={.metadata.uid}"] + (["-n", "headlamp"] if access_cleanup.kind == "serviceaccount" else []) }}'
+    register: cleanup_absence
+    changed_when: false
+    failed_when: cleanup_absence.rc != 0 or cleanup_absence.stdout | length != 0
+  rescue:
+  - ansible.builtin.set_fact:
+      headlamp_access_cleanup_failed: true
+  - ansible.builtin.debug:
+      msg: 'STOP: temporary {{ access_cleanup.kind }} cleanup could not be verified; preserve evidence, never delete a replacement.'

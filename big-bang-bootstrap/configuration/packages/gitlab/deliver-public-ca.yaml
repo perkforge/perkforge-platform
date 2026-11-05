@@ -1,0 +1,125 @@
+# Dedicated public trust delivery, create-only. No certificate/key generation.
+- name: Deliver one separately reviewed public CA for GitLab
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    gitlab_ca_run: false
+    gitlab_ca_scope: UNAPPROVED
+    gitlab_ca_stage: UNCONFIGURED
+    gitlab_origin: https://gitlab.UNCONFIGURED.invalid
+    gitlab_ca_file: /UNCONFIGURED/public-ca
+    gitlab_ca_file_sha256: UNCONFIGURED
+    gitlab_kubectl: /usr/bin/kubectl
+    gitlab_kubeconfig: /UNCONFIGURED/kubeconfig
+    gitlab_context: UNCONFIGURED
+    gitlab_expected_api: https://UNCONFIGURED.invalid:6443
+    gitlab_expected_cluster_uid: UNCONFIGURED
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check mode contacts no API. One public-CA object only; no signing keys, issuance, rotation, host trust or workload restart.'
+  - when: gitlab_ca_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - gitlab_ca_stage in ['platform','postgres','valkey','runner']
+        - gitlab_ca_scope == 'gitlab-ca-' + gitlab_ca_stage + '-v1'
+        - gitlab_ca_file_sha256 is match('^[a-f0-9]{64}$')
+        - gitlab_context != 'UNCONFIGURED'
+        - gitlab_kubectl is match('^/')
+        - gitlab_expected_api is match('^https://[A-Za-z0-9.:-]+$')
+        - "'UNCONFIGURED' not in gitlab_expected_api"
+        - gitlab_expected_cluster_uid != 'UNCONFIGURED' and gitlab_expected_cluster_uid | length > 8
+    - ansible.builtin.assert:
+        that:
+        - gitlab_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - "'UNCONFIGURED' not in gitlab_origin"
+        - gitlab_origin | urlsplit('hostname') is match('^[A-Za-z0-9.-]+$')
+      when: gitlab_ca_stage == 'runner'
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+        checksum_algorithm: sha256
+      loop: '{{ [gitlab_kubeconfig,gitlab_ca_file] }}'
+      register: gitlab_ca_files
+    - ansible.builtin.assert:
+        that:
+        - item.item is match('^/') and item.item | realpath == item.item
+        - item.stat.isreg | default(false)
+        - not (item.stat.islnk | default(false))
+        - item.stat.pw_name == lookup('env','USER')
+      loop: '{{ gitlab_ca_files.results }}'
+    - ansible.builtin.assert:
+        that:
+        - gitlab_ca_files.results[0].stat.mode == '0600'
+        - gitlab_ca_files.results[1].stat.checksum == gitlab_ca_file_sha256
+        - gitlab_ca_files.results[1].stat.size > 0 and gitlab_ca_files.results[1].stat.size < 65536
+        - "'PRIVATE KEY' not in lookup('file',gitlab_ca_file)"
+        - lookup('file',gitlab_ca_file) is search('-----BEGIN CERTIFICATE-----')
+    - ansible.builtin.command:
+        argv: [openssl, x509, -in, '{{ gitlab_ca_file }}', -noout, -ext, basicConstraints, -checkend, '3600']
+      changed_when: false
+      register: gitlab_ca_checked
+    - ansible.builtin.assert:
+        that: "'CA:TRUE' in gitlab_ca_checked.stdout"
+    - ansible.builtin.command:
+        argv: ['{{ gitlab_kubectl }}', --kubeconfig, '{{ gitlab_kubeconfig }}', --context, '{{ gitlab_context }}', config, view, --minify, -o, 'jsonpath={.clusters[0].cluster.server}']
+      changed_when: false
+      register: gitlab_ca_api
+    - ansible.builtin.assert:
+        that: gitlab_ca_api.stdout == gitlab_expected_api
+    - ansible.builtin.command:
+        argv: ['{{ gitlab_kubectl }}', --kubeconfig, '{{ gitlab_kubeconfig }}', --context, '{{ gitlab_context }}', --request-timeout=20s, get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      changed_when: false
+      register: gitlab_ca_cluster
+    - ansible.builtin.assert:
+        that: gitlab_ca_cluster.stdout == gitlab_expected_cluster_uid
+    - ansible.builtin.set_fact:
+        gitlab_ca_target: "{{ {'platform':{'kind':'ConfigMap','name':'gitlab-platform-public-ca','namespace':'gitlab','key':'platform-ca.crt'},'postgres':{'kind':'ConfigMap','name':'gitlab-postgres-public-ca','namespace':'gitlab','key':'ca.crt'},'valkey':{'kind':'Secret','name':'gitlab-valkey-public-ca','namespace':'gitlab','key':'ca.crt'},'runner':{'kind':'Secret','name':'gitlab-runner-public-ca','namespace':'gitlab-runner','key':((gitlab_origin | urlsplit('hostname') | lower) + '.crt')}}[gitlab_ca_stage] }}"
+        cacheable: false
+    - ansible.builtin.set_fact:
+        gitlab_ca_object:
+          apiVersion: v1
+          kind: '{{ gitlab_ca_target.kind }}'
+          immutable: true
+          metadata:
+            name: '{{ gitlab_ca_target.name }}'
+            namespace: '{{ gitlab_ca_target.namespace }}'
+            labels: {perkforge.io/owner: gitlab-trust-v1}
+          data: "{{ {gitlab_ca_target.key: ((lookup('file',gitlab_ca_file) | trim | b64encode) if gitlab_ca_target.kind == 'Secret' else (lookup('file',gitlab_ca_file) | trim))} }}"
+        cacheable: false
+    - ansible.builtin.set_fact:
+        gitlab_ca_object: "{{ gitlab_ca_object | combine({'type':'Opaque'}) }}"
+      when: gitlab_ca_target.kind == 'Secret'
+    - ansible.builtin.command:
+        argv: ['{{ gitlab_kubectl }}', --kubeconfig, '{{ gitlab_kubeconfig }}', --context, '{{ gitlab_context }}', --request-timeout=20s, get, '{{ gitlab_ca_target.kind | lower }}', '{{ gitlab_ca_target.name }}', -n, '{{ gitlab_ca_target.namespace }}', --ignore-not-found, -o, json]
+      changed_when: false
+      register: gitlab_ca_existing
+    - ansible.builtin.assert:
+        that:
+        - (gitlab_ca_existing.stdout | from_json).metadata.labels == gitlab_ca_object.metadata.labels
+        - (gitlab_ca_existing.stdout | from_json).immutable | default(false)
+        - (gitlab_ca_existing.stdout | from_json).data == gitlab_ca_object.data
+        - (gitlab_ca_existing.stdout | from_json).type | default('') == gitlab_ca_object.type | default('')
+      when: gitlab_ca_existing.stdout | length > 0
+    - ansible.builtin.command:
+        argv: ['{{ gitlab_kubectl }}', --kubeconfig, '{{ gitlab_kubeconfig }}', --context, '{{ gitlab_context }}', --request-timeout=20s, create, -f, '-']
+        stdin: '{{ gitlab_ca_object | to_json }}'
+      when: gitlab_ca_existing.stdout | length == 0
+    - ansible.builtin.command:
+        argv: ['{{ gitlab_kubectl }}', --kubeconfig, '{{ gitlab_kubeconfig }}', --context, '{{ gitlab_context }}', --request-timeout=20s, get, '{{ gitlab_ca_target.kind | lower }}', '{{ gitlab_ca_target.name }}', -n, '{{ gitlab_ca_target.namespace }}', -o, json]
+      changed_when: false
+      register: gitlab_ca_after
+    - ansible.builtin.assert:
+        that:
+        - (gitlab_ca_after.stdout | from_json).data == gitlab_ca_object.data
+        - (gitlab_ca_after.stdout | from_json).metadata.labels == gitlab_ca_object.metadata.labels
+        - (gitlab_ca_after.stdout | from_json).immutable
+    always:
+    - ansible.builtin.set_fact:
+        gitlab_ca_object: {}
+        gitlab_ca_existing: {}
+        gitlab_ca_after: {}
+        cacheable: false
+      no_log: true

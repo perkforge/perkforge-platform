@@ -1,0 +1,41 @@
+# GitLab is a dedicated trusted application namespace, not a tenant workload namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: gitlab-default-deny-ingress, namespace: gitlab}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: gitlab-internal-ingress, namespace: gitlab}
+spec:
+  podSelector:
+    matchExpressions: [{key: app, operator: NotIn, values: [gitlab-garage]}]
+  policyTypes: [Ingress]
+  ingress:
+  - from: [{podSelector: {}}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: gitlab-web-from-traefik, namespace: gitlab}
+spec:
+  podSelector: {matchLabels: {app: webservice, release: gitlab}}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+      podSelector: {matchLabels: {app.kubernetes.io/name: rke2-traefik}}
+    ports: [{protocol: TCP, port: 8181}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: gitlab-postgres-from-operator, namespace: gitlab}
+spec:
+  podSelector: {matchLabels: {cnpg.io/cluster: gitlab-postgres}}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: cnpg-system}}
+      podSelector: {matchLabels: {app.kubernetes.io/instance: platform-cnpg, app.kubernetes.io/name: cloudnative-pg}}
+    ports: [{protocol: TCP, port: 5432}, {protocol: TCP, port: 8000}]

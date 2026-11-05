@@ -1,0 +1,76 @@
+# Audit only; not Kubernetes grant resources.
+review_only: true
+installation_approved: false
+watch_namespace: gitlab
+aggregate_builtin_roles: false
+chart: cloudnative-pg-0.29.1
+global_objects:
+- kind: CustomResourceDefinition
+  name: backups.postgresql.cnpg.io
+- kind: CustomResourceDefinition
+  name: clusterimagecatalogs.postgresql.cnpg.io
+- kind: CustomResourceDefinition
+  name: clusters.postgresql.cnpg.io
+- kind: CustomResourceDefinition
+  name: databaseroles.postgresql.cnpg.io
+- kind: CustomResourceDefinition
+  name: databases.postgresql.cnpg.io
+- kind: CustomResourceDefinition
+  name: failoverquorums.postgresql.cnpg.io
+- kind: CustomResourceDefinition
+  name: imagecatalogs.postgresql.cnpg.io
+- kind: CustomResourceDefinition
+  name: poolers.postgresql.cnpg.io
+- kind: CustomResourceDefinition
+  name: publications.postgresql.cnpg.io
+- kind: CustomResourceDefinition
+  name: scheduledbackups.postgresql.cnpg.io
+- kind: CustomResourceDefinition
+  name: subscriptions.postgresql.cnpg.io
+- kind: ClusterRole
+  name: platform-cnpg
+- kind: ClusterRole
+  name: platform-cnpg-view
+- kind: ClusterRole
+  name: platform-cnpg-edit
+- kind: ClusterRoleBinding
+  name: platform-cnpg
+- kind: MutatingWebhookConfiguration
+  name: cnpg-mutating-webhook-configuration
+- kind: ValidatingWebhookConfiguration
+  name: cnpg-validating-webhook-configuration
+runtime_cluster_rules:
+- role: platform-cnpg
+  rules:
+  - apiGroups:
+    - ''
+    resources:
+    - nodes
+    verbs:
+    - get
+    - list
+    - watch
+  - apiGroups:
+    - admissionregistration.k8s.io
+    resources:
+    - mutatingwebhookconfigurations
+    - validatingwebhookconfigurations
+    verbs:
+    - get
+    - patch
+  - apiGroups:
+    - postgresql.cnpg.io
+    resources:
+    - clusterimagecatalogs
+    verbs:
+    - get
+    - list
+    - watch
+collision_policy: refuse foreign existing CRDs, webhook configurations or operator
+  ownership; no adoption or replacement
+installer_authority: authored but unselected owner-admin foundation; no live grant
+architecture_chosen: true
+operator_namespace: cnpg-system
+platform_owner: shared-foundation
+crd_owner: owner-admin-create-only
+operator_crd_templates_enabled: false

@@ -1,0 +1,12 @@
+addons:
+  gitlab:
+    enabled: true
+    flux:
+      suspend: false
+    values:
+      domain: perkforge.home.arpa
+      global:
+        hosts:
+          domain: perkforge.home.arpa
+          gitlab:
+            name: gitlab.perkforge.home.arpa

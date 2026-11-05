@@ -1,0 +1,79 @@
+# Review data, not a runnable OmniAuth Secret or a realm import.
+enabled: false
+review_only: true
+live_apply_implemented: false # full coordinated rollout remains incomplete
+client_lifecycle_implemented: true
+native_tenant_membership_implemented: true
+account_approval_implemented: false
+live_activation_performed: false
+protocol: oidc
+application: gitlab
+edition: Self-Managed Free on existing EE image; no paid feature assumption
+keycloak:
+  realm: perkforge
+  client_id: gitlab
+  enabled: false
+  flow: authorization-code
+  pkce: S256
+  redirect_uri: https://gitlab.UNCONFIGURED.invalid/users/auth/openid_connect/callback
+  full_scope_allowed: false
+  direct_access_grants: false
+native_provider_public_fields:
+  name: openid_connect
+  args:
+    name: openid_connect
+    issuer: https://identity.UNCONFIGURED.invalid/auth/realms/perkforge
+    discovery: true
+    response_type: code
+    scope:
+    - openid
+    - profile
+    - email
+    pkce: true
+    client_auth_method: basic
+    client_options:
+      identifier: gitlab
+      redirect_uri: https://gitlab.UNCONFIGURED.invalid/users/auth/openid_connect/callback
+protected_provider_secret:
+  name: gitlab-oidc-provider
+  key: provider
+  private_input: args.client_options.secret; protected application-profile assembly,
+    never commit/render its value
+mappings:
+  tenant_global_admin: false
+  platform_admin: explicit separately reviewed GitLab administrator assignment, not
+    a Free OIDC claim feature
+  platform_engineer: reviewed platform project permissions only
+  platform_viewer: explicit approved read-only project memberships
+  tenant_admin: own GitLab group Owner, not instance admin
+  tenant_developer: own project Developer
+  tenant_viewer: own approved project Reporter; no group writes
+limitations:
+- Free OIDC login does not provide Premium/Ultimate required_groups or instance-role
+  mapping
+- OIDC does not add GitLab group membership
+- no automatic email linking; new OIDC accounts remain blocked pending approval
+- bounded tenant-group membership is implemented; whole-person offboarding is not
+transport:
+  verify_tls: true
+  skip_certificate_verification: false
+  public_ca_ref: reviewed GitLab custom CA
+recovery:
+  independent_local_access: true
+  custody: protected independent local root; verify before linking/rollback
+activation_gates:
+- separate reviewed client/app apply wiring
+- protected provider Secret and TLS
+- Free-tier admission/membership/offboarding implementation and native deny tests
+- capacity/data services unchanged blockers
+acceptance:
+  positive:
+  - approved existing person authenticates using fresh MFA and intended project scope
+  negative:
+  - unapproved OIDC registration remains blocked
+  - cross-tenant project access and instance-admin escalation denied
+  - lost membership removes native access, not just token claim
+  rollback:
+  - disable only owned provider/client integration
+  - preserve user identities/projects and local root
+  - measure existing sessions/API tokens; no delete/recreate migration

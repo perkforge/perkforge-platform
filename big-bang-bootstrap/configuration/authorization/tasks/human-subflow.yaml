@@ -1,0 +1,33 @@
+# GET authentication/flows lists top-level flows only in Keycloak 26.8.1.
+# The parent execution's flowId identifies the actual child metadata resource.
+- ansible.builtin.uri:
+    url: '{{ human_api }}/authentication/flows/{{ human_flow_alias }}/executions'
+    headers: '{{ human_headers }}'
+  register: human_subflow_executions
+- ansible.builtin.set_fact:
+    human_subflows: "{{ human_subflow_executions.json | selectattr('level','equalto',0) | selectattr('authenticationFlow','defined') | selectattr('authenticationFlow','equalto',true) | list }}"
+- name: Refuse unknown, duplicate or missing bound subflows before any repair
+  ansible.builtin.assert:
+    that:
+    - human_subflows | length <= 1
+    - human_subflows | length == 1 or human_subflow_may_be_missing | bool
+- name: Verify exact existing nested ownership without rebuilding the flow
+  when: human_subflows | length == 1
+  block:
+  - ansible.builtin.assert:
+      that:
+      - human_subflows[0].displayName == human_forms_alias
+      - human_subflows[0].flowId is defined
+      - human_subflows[0].flowId is match('^[A-Za-z0-9-]+$')
+  - ansible.builtin.uri:
+      url: '{{ human_api }}/authentication/flows/{{ human_subflows[0].flowId }}'
+      headers: '{{ human_headers }}'
+    register: human_subflow_metadata
+  - ansible.builtin.assert:
+      that:
+      - human_subflow_metadata.json.id == human_subflows[0].flowId
+      - human_subflow_metadata.json.alias == human_forms_alias
+      - human_subflow_metadata.json.description == human_flow_description
+      - human_subflow_metadata.json.providerId == 'basic-flow'
+      - not human_subflow_metadata.json.builtIn
+      - not human_subflow_metadata.json.topLevel

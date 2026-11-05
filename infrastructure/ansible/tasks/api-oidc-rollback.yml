@@ -1,0 +1,58 @@
+- ansible.builtin.set_fact:
+    api_oidc_rollback_needed: '{{ api_oidc_state.phase | default(''unmanaged'') != ''rolled-back'' }}'
+  no_log: true
+- name: Rollback needs owned journal identity, not a working API or app secret
+  ansible.builtin.assert:
+    that: api_oidc_state | length > 0
+  no_log: true
+- name: Once rollback completed, never silently recreate its files
+  when: api_oidc_state.phase == 'rolled-back'
+  ansible.builtin.assert:
+    that: not item.stat.exists
+  loop: '{{ api_oidc_owned.results }}'
+  no_log: true
+- when: api_oidc_rollback_needed | bool
+  block:
+  - name: Persist recovery intent before removing either owned file
+    ansible.builtin.set_fact:
+      api_oidc_state: '{{ api_oidc_state | combine({"phase":"rollback-pending"}) }}'
+    no_log: true
+  - ansible.builtin.copy:
+      content: '{{ api_oidc_state | to_nice_json }}'
+      dest: '{{ api_oidc_journal }}/owner.json'
+      owner: '{{ api_oidc_user }}'
+      group: '{{ api_oidc_group }}'
+      mode: '0600'
+    no_log: true
+  - name: Remove only hash-verified files created by this transaction
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: absent
+    loop:
+    - '{{ api_oidc_dropin }}'
+    - '{{ api_oidc_ca }}'
+    no_log: true
+  - ansible.builtin.command:
+      argv:
+      - systemctl
+      - restart
+      - rke2-server
+    async: 300
+    poll: 5
+    no_log: true
+  - ansible.builtin.include_tasks: api-oidc-health.yml
+    no_log: true
+  - ansible.builtin.set_fact:
+      api_oidc_state: '{{ api_oidc_state | combine({"phase":"rolled-back"}) }}'
+    no_log: true
+  - ansible.builtin.copy:
+      content: '{{ api_oidc_state | to_nice_json }}'
+      dest: '{{ api_oidc_journal }}/owner.json'
+      owner: '{{ api_oidc_user }}'
+      group: '{{ api_oidc_group }}'
+      mode: '0600'
+    no_log: true
+  no_log: true
+- ansible.builtin.include_tasks: api-oidc-health.yml
+  when: not (api_oidc_rollback_needed | bool)
+  no_log: true

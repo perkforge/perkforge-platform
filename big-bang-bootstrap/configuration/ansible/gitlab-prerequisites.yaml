@@ -1,0 +1,66 @@
+# Default-off owner-admin foundation: 11 pinned create-only CRDs and delegated RBAC.
+- name: Prepare the separately approved GitLab and shared database foundation
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars:
+    gitlab_foundation_apply: false
+    gitlab_foundation_scope: UNAPPROVED
+    gitlab_foundation_cache: /UNCONFIGURED/private-cache
+    gitlab_package_directory: "{{ playbook_dir }}/../packages"
+    gitlab_expected_api: https://UNCONFIGURED.invalid:6443
+    gitops_path: ./big-bang-bootstrap/clusters/local-gitlab-review
+  tasks:
+  - ansible.builtin.assert:
+      that:
+      - inventory_hostname == 'local' and deployment_environment == 'local'
+      - ansible_play_hosts_all | length == 1
+      - gitops_path == './big-bang-bootstrap/clusters/local-gitlab-review'
+  - ansible.builtin.debug:
+      msg: 'Default/check mode contacts no API. Owner-admin foundation includes 11 pinned CRDs and delegated RBAC; no workload deployment, credentials, source promotion or data pruning.'
+  - when: gitlab_foundation_apply | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - gitlab_foundation_scope == 'gitlab-platform-foundation-v1'
+        - gitlab_package_directory | realpath == (playbook_dir + '/../packages') | realpath
+        - gitlab_expected_api is match('^https://[A-Za-z0-9.:-]+$')
+        - "'UNCONFIGURED' not in gitlab_expected_api"
+    - ansible.builtin.include_tasks: verify-release.yaml
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', rev-parse, HEAD]
+      changed_when: false
+      register: gitlab_foundation_checkout
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', status, --porcelain]
+      changed_when: false
+      register: gitlab_foundation_changes
+    - ansible.builtin.assert:
+        that:
+        - gitlab_foundation_checkout.stdout == config_release.resolvedCommit
+        - gitlab_foundation_changes.stdout | length == 0
+        - target_context != 'UNCONFIGURED' and expected_cluster_uid != 'UNCONFIGURED'
+        - target_kubeconfig != '/UNCONFIGURED/kubeconfig'
+    - ansible.builtin.stat:
+        path: '{{ target_kubeconfig }}'
+        follow: false
+      register: gitlab_foundation_kubeconfig
+    - ansible.builtin.assert:
+        that:
+        - target_kubeconfig is match('^/') and target_kubeconfig | realpath == target_kubeconfig
+        - gitlab_foundation_kubeconfig.stat.isreg and not (gitlab_foundation_kubeconfig.stat.islnk | default(false))
+        - gitlab_foundation_kubeconfig.stat.mode == '0600' and gitlab_foundation_kubeconfig.stat.pw_name == lookup('env','USER')
+    - ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', config, view, --minify, -o, 'jsonpath={.clusters[0].cluster.server}']
+      changed_when: false
+      register: gitlab_foundation_api
+    - ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      changed_when: false
+      register: gitlab_foundation_cluster
+    - ansible.builtin.assert:
+        that:
+        - gitlab_foundation_api.stdout == gitlab_expected_api
+        - gitlab_foundation_cluster.stdout == expected_cluster_uid
+    - ansible.builtin.include_tasks: tasks/render-cnpg-crds.yaml
+    - ansible.builtin.include_tasks: tasks/gitlab-foundation.yaml

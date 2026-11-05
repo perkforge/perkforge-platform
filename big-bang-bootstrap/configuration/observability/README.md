@@ -25,21 +25,17 @@ Alloy. Keep metrics-server: its resource-metrics API is not a second Prometheus.
 No new live inventory was taken. Existing household apps/Nextcloud are not proven
 present by this review; do not manufacture healthy application metrics.
 
-Local child rendering of the candidate produced 88 Monitoring objects including
-35 upstream PrometheusRules, one Prometheus, one Alertmanager, node-exporter and
-kube-state-metrics/operator components; separate Grafana produced 44 objects.
-Monitoring's bundled Grafana is explicitly off. Preserve upstream rules and the
-bundled Alertmanager. Complete installer/lookup/escalation audits, CRD version
-compatibility and dependency ordering remain **required before selection**.
-The CRD chart's app version differs from Monitoring's operator app version; this
-comes from Big Bang's own pins, not proof of complete runtime compatibility.
+The historical render included a separate Alertmanager. The revised inactive
+candidate disables it and Monitoring's bundled Grafana. Upstream PrometheusRules
+remain for recording rules and reviewed migration of useful alerts. Grafana's
+built-in Alertmanager owns the eventual single notification route. Exact revised
+renders and installer/CRD compatibility checks are required before selection.
 
 ## Conservative starting budget — proposals, not measured ingestion
 
 | Component | Initial request / memory limit | Persistent capacity / retention |
 |---|---|---|
 | Prometheus, one replica | 250m / 1Gi; limit 2Gi | 10Gi Longhorn; 7d and 8GB block cap |
-| Alertmanager, one replica | 10m / 64Mi; limit 256Mi | 1Gi Longhorn for state/silences |
 | Grafana, one replica | 100m / 256Mi; limit 512Mi | 1Gi Longhorn; Git owns configuration |
 | Loki, proposed single-binary | review ~100m / 512Mi; limit ~1Gi | propose 10Gi, 3d initially; **not configured/validated yet** |
 | Alloy, node log collection | review ~50m / 128Mi per worker/node as scoped | bounded durable positions; **not configured/validated yet** |
@@ -47,9 +43,9 @@ comes from Big Bang's own pins, not proof of complete runtime compatibility.
 The actual node snapshot showed low load: control 4.44Gi, workers ~1.6Gi RAM,
 15.2Gi allocatable each. Requests are not usage; numerous existing containers have
 no requests/limits. Measure peak ingest/cardinality before accepting this budget.
-The 22Gi proposed monitoring claims cost roughly 44Gi scheduled with two Longhorn
+The 21Gi proposed monitoring/logging claims cost roughly 42Gi scheduled with two Longhorn
 replicas, before snapshots and actual store overhead. Including queued OpenBao/
-Keycloak and retained test claim gives ~37Gi logical, ~74Gi replicated scheduling.
+Keycloak and retained test claim gives ~36Gi logical, ~72Gi replicated scheduling.
 Shared worker OS disks reported ~222Gi available each, ~70.7Gi reserved; these
 figures are not additive logical capacity or a dedicated storage pool.
 
@@ -96,21 +92,27 @@ secret/user content. Ingest failures and dropped/noisy records need visible coun
 
 ## Alert/notification decision — one path, not duplicate delivery
 
-Proposed: native PrometheusRules → Prometheus → bundled Alertmanager, and optional
-Git-owned Grafana-managed rules → the same external Alertmanager → one approved
-authenticated TLS ntfy-compatible integration → topic-scoped Android client.
-Grafana is the main viewing/silencing interface. Prometheus Alertmanager routing/
-contact configuration is read-only in Grafana, so Git remains its owner. Grafana's
-own Alertmanager cannot receive arbitrary external Prometheus alerts. Verify
-external-only forwarding and disable duplicate direct receivers before activation.
+Owner decision: Grafana-managed rules → Grafana built-in Alertmanager → one
+authenticated TLS ntfy contact point. No separate Prometheus Alertmanager or
+external Alertmanager datasource/forwarder is selected. Preserve useful upstream
+rules: keep recording rules in Prometheus, inventory alert expressions and import
+reviewed alerts into Grafana against datasource UID `prometheus`. Prometheus does
+not push arbitrary external alerts into Grafana's built-in manager. Source rules
+must not acquire a parallel notification route. Compare labels, pending periods,
+recording-rule dependencies, no-data/error handling and resolved behavior before
+claiming alert coverage. Imported rules need a single Git/API owner and stable IDs.
 
-The exact ntfy endpoint, topic-scoped credentials and compatible payload/adapter
-are unresolved; no endpoint, token, contact point or delivery is configured.
-Do not blindly send Grafana/Alertmanager JSON to ntfy and call it tested. Keep
-upstream rules; review the proposed custom thresholds in #39, grouping/severity,
-silences and resolved/delivery-failure behavior. Cluster-local alerting cannot
-notify when the whole cluster/network is down; independent detection is a separate
-design decision. OpenBao/ESO credential delivery is future work, not currently live.
+Native Grafana webhook custom payloads and ntfy templating are candidates; a
+separate adapter is not assumed necessary. Pinned-version payload compatibility,
+exact endpoint/topic and protected publisher credentials remain unverified.
+Delivery stays unarmed until firing/resolved, grouping/repeat, silence expiry,
+credential/TLS denial and bounded failure tests pass. Whole-cluster/network failure
+needs independent detection. No credentials or contact point are created here.
+
+See [Grafana rule import](https://grafana.com/docs/grafana/latest/alerting/alerting-rules/alerting-migration/),
+[Grafana webhooks](https://grafana.com/docs/grafana/latest/alerting/configure-notifications/manage-contact-points/integrations/webhook-notifier/)
+and [ntfy publishing](https://docs.ntfy.sh/publish/). These describe available
+mechanisms, not successful acceptance of this pinned inactive deployment.
 
 ## Remaining staged work and acceptance
 

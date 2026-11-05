@@ -4,6 +4,7 @@
   gather_facts: false
   vars_files: [vars.yaml]
   vars:
+    legacy_test_enrollment_apply: false
     enrollment_username: platform-admin-test-user
     enrollment_password_file: "{{ platform_checkout }}/.secrets/platform-admin-test-user-password"
     enrollment_record_file: "{{ platform_checkout }}/.secrets/openbao/recovery/platform-admin-test-user.record.json"
@@ -22,12 +23,16 @@
           - enrollment_username == 'platform-admin-test-user'
           - keycloak_realm == 'perkforge'
           - keycloak_url is match('^https://')
+    - name: Legacy compatibility is synthetic localhost only
+      ansible.builtin.assert:
+        that: keycloak_url is match('^https://localhost:[0-9]+/kc$')
+      when: legacy_test_enrollment_apply | bool and not ansible_check_mode
     - name: Explain check mode boundary
       ansible.builtin.debug:
         msg: Static validation only; no password generation, authentication or account/group changes.
       when: ansible_check_mode
     - name: Perform only the approved enrollment
-      when: not ansible_check_mode
+      when: legacy_test_enrollment_apply | bool and not ansible_check_mode
       block:
         - name: Inspect protected input and destination metadata without following links
           ansible.builtin.stat:
