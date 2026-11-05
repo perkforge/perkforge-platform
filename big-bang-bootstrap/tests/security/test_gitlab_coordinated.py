@@ -5,7 +5,7 @@ from fixtures.collaboration import package_render
 from fixtures.render_helpers import build,ordered_values,helm,child_values
 ROOT=Path(__file__).resolve().parents[2]
 class CoordinatedGitLab(unittest.TestCase):
- def test_lab_replica_reduction_preserves_container_requests(self):
+ def test_lab_preserves_resources_except_webservice_oom_limit(self):
   _,base=package_render(ROOT,'gitlab')['gitlab']
   _,lab=package_render(ROOT,'gitlab',extra_values=(ROOT/'configuration/packages/gitlab/lab-values.yaml',))['gitlab']
   from collections import Counter
@@ -16,7 +16,28 @@ class CoordinatedGitLab(unittest.TestCase):
    if x['kind']=='HorizontalPodAutoscaler':self.assertEqual((x['spec']['minReplicas'],x['spec']['maxReplicas']),(1,1))
    if x['kind'] in ('Deployment','StatefulSet'):
     def sizes(o):return {c['name']:c.get('resources',{}) for c in o['spec']['template']['spec']['containers']}
-    self.assertEqual(sizes(x),sizes(a[name]))
+    expected=sizes(a[name])
+    if 'webservice' in expected:
+     self.assertEqual(expected['webservice']['limits']['memory'],'3G')
+     expected['webservice']['limits']['memory']='4G'
+     env={e['name']:e.get('value') for c in x['spec']['template']['spec']['containers'] if c['name']=='webservice' for e in c.get('env',[])}
+     self.assertEqual(env['WORKER_PROCESSES'],'2')
+    self.assertEqual(sizes(x),expected)
+ def test_app_memory_fix_changes_only_limit_and_values_hashed_job_names(self):
+  import re
+  src=Path(os.environ['PREFLIGHT_SOURCES_DIR']);root=build(ROOT/'clusters/local-gitlab-app');parent=next(x for x in root if x['kind']=='HelmRelease' and x['metadata']['name']=='bigbang')
+  outer=helm(src/'bigbang/chart','bigbang','bigbang',ordered_values(root,parent));values=child_values(outer,'gitlab')
+  new=helm(src/'gitlab/chart','gitlab','gitlab',values)
+  old=helm(src/'gitlab/chart','gitlab','gitlab',values,('--set','upstream.gitlab.webservice.resources.limits.memory=3G'))
+  def stable(objects):
+   import copy
+   objects=copy.deepcopy(objects)
+   for o in objects:
+    if o['kind']=='Deployment':
+     for c in o['spec']['template']['spec']['containers']:
+      if c['name']=='webservice':c['resources']['limits']['memory']='CAP'
+   return re.sub(r'(gitlab-(?:shared-secrets|migrations))-[0-9a-f]{7}',r'\1-VALUESHASH',yaml.safe_dump(objects))
+  self.assertEqual(stable(old),stable(new))
  def test_runner_render_and_protected_secret_references(self):
   src=Path(os.environ['PREFLIGHT_SOURCES_DIR']);root=build(ROOT/'clusters/local');parent=next(x for x in root if x['kind']=='HelmRelease')
   values=ordered_values(root,parent)+[(ROOT/'configuration/packages/gitlab-runner/candidate-values.yaml').read_text()]
