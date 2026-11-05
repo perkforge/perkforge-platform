@@ -34,3 +34,24 @@ def verify(expected, user, group, direct, effective, operation):
         if not isinstance(member,dict) or type(member.get('id')) is not int or type(member.get('access_level')) is not int or member.get('id')!=expected['user_id'] or member.get('access_level')!=expected['access_level']:
             raise ValueError('unexpected direct or inherited effective role')
     return {'native_group_access_verified':True,'other_groups_or_projects_verified':False}
+
+
+def verify_platform_admin(expected, user):
+    """GET-only acceptance of the exact owner-approved named OIDC administrator.
+
+    This does not approve a blocked user, link identities or grant privileges.
+    Never substitute matching email, username or Keycloak groups for subject.
+    """
+    if type(expected.get('user_id')) is not int or expected['user_id'] <= 0:
+        raise ValueError('explicit positive named user ID required')
+    subject = expected.get('subject')
+    if expected.get('provider') != 'openid_connect' or not isinstance(subject, str) or not subject.strip():
+        raise ValueError('exact OIDC provider and stable subject required')
+    if type(user.get('id')) is not int or user['id'] != expected['user_id']:
+        raise ValueError('wrong named user identity')
+    if user.get('username') == 'root' or user.get('state') != 'active' or user.get('is_admin') is not True:
+        raise ValueError('active named native administrator required; preserve local root')
+    identities = [x for x in user.get('identities', []) if x.get('provider') == 'openid_connect']
+    if len(identities) != 1 or identities[0].get('extern_uid') != subject:
+        raise ValueError('provider subject mismatch; never substitute email matching')
+    return {'named_native_admin_verified': True, 'fresh_mfa_verified': False}
