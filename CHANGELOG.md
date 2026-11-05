@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.10](https://github.com/perkforge/perkforge-platform/compare/v0.17.9...v0.17.10) (2026-11-05)
+
+
+### Bug Fixes
+
+* **gitlab:** mount PostgreSQL CA outside read-only configuration ([#176](https://github.com/perkforge/perkforge-platform/issues/176)) ([bfb3894](https://github.com/perkforge/perkforge-platform/commit/bfb3894f93d7af83c81d83c9db3dab8cf6795ad7))
+
 ## [0.17.9](https://github.com/perkforge/perkforge-platform/compare/v0.17.8...v0.17.9) (2026-11-05)
 
 
