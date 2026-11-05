@@ -17,25 +17,9 @@ monitoring:
     upstream:
       grafana:
         enabled: false
+      # Grafana built-in Alertmanager owns notifications; retain upstream rules.
       alertmanager:
-        enabled: true
-        alertmanagerSpec:
-          replicas: 1
-          resources:
-            requests:
-              cpu: 10m
-              memory: 64Mi
-            limits:
-              memory: 256Mi
-          storage:
-            volumeClaimTemplate:
-              spec:
-                storageClassName: longhorn
-                accessModes:
-                - ReadWriteOnce
-                resources:
-                  requests:
-                    storage: 1Gi
+        enabled: false
       prometheus:
         prometheusSpec:
           replicas: 1
@@ -92,6 +76,8 @@ grafana:
       ingress:
         enabled: false
       grafana.ini:
+        unified_alerting:
+          enabled: true
         auth.anonymous:
           enabled: false
         auth.generic_oauth:

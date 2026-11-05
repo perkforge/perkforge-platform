@@ -189,11 +189,11 @@ model {
       grafana = component 'Grafana admin UI and Git-owned configuration' {
         description 'One separate Grafana; bundled Monitoring Grafana off. External admin Secret ref, anonymous/OIDC/ingress off. Native provisioning candidate; six dashboards and tenant query isolation not implemented. Folders/variables are not a tenant security boundary.'
       }
-      alerts = component 'Bundled Alertmanager notification owner' {
-        description 'Retain upstream PrometheusRules/Alertmanager. Proposed Grafana-managed alerts forward to the same external Alertmanager; one ntfy path only after compatibility tests. Grafana UI can silence Prometheus Alertmanager but its contact/routing configuration is read-only there and remains Git-owned.'
+      alerts = component 'Grafana built-in Alertmanager notification owner' {
+        description 'Preserve upstream recording rules and inventory/import useful alerts as Grafana-managed rules querying Prometheus. Built-in Grafana Alertmanager owns one ntfy path; separate Prometheus Alertmanager is disabled. Rule migration and pinned webhook compatibility remain gates.'
       }
       notification = component 'Authenticated ntfy destination — unresolved' {
-        description 'TLS topic-scoped publisher/subscriber credentials and compatible payload/adapter remain unselected, not generated. No direct duplicate Grafana receiver. Whole-cluster/network failure needs independent detection. No live delivery tested.'
+        description 'TLS topic-scoped publisher/subscriber credentials and compatible payload/adapter remain unselected, not generated. No parallel Prometheus notification receiver. Whole-cluster/network failure needs independent detection. No live delivery tested.'
       }
     }
     queued_app_access = component 'Queued native app authorization — proposed' {

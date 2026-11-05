@@ -317,8 +317,8 @@ views {
     engineer -> platform.observability.collectors '1. Review source pins, scoped collector identity, no duplicates and sensitive-log exclusions'
     platform.observability.collectors -> platform.observability.stores '2. Proposed metrics/log ingestion; enforce bounded labels, tenant auth and reviewed capacity'
     platform.observability.stores -> platform.observability.grafana '3. Proposed Git-owned datasources/six dashboards; no tenant access via mere filters'
-    platform.observability.stores -> platform.observability.alerts '4. Preserve native PrometheusRules and bundled Alertmanager evaluation/routing'
-    platform.observability.grafana -> platform.observability.alerts '5. Optional Grafana-managed alerts to same external manager; prove no duplicate path'
+    platform.observability.stores -> platform.observability.alerts '4. Preserve upstream recording rules and reviewed alert expressions; no Prometheus notification route'
+    platform.observability.grafana -> platform.observability.alerts '5. Grafana-managed evaluation to built-in Alertmanager; inventory/import rules and prevent duplicate delivery'
     platform.observability.alerts -> platform.observability.notification '6. Future compatible authenticated TLS ntfy path, grouping/silences/firing/resolved/failure tests'
     platform.observability.notification -> engineer '7. Verify intended client, disk/ingest impact, isolation and isolated restore; whole-cluster blind spot remains'
   }
