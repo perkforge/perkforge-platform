@@ -5,6 +5,8 @@
     storage_test_apply: false
     storage_test_namespace: UNCONFIGURED
     storage_test_output: /UNCONFIGURED/output
+    storage_test_storage_class: longhorn
+    storage_test_policy_file: ''
     storage_expected_checksum: 55f473d7eef1f1248d1d5e39a95c5ae90dc86150b20799614ab64ad97607c3b3
   tasks:
   - ansible.builtin.debug:
@@ -19,6 +21,8 @@
         - storage_test_output is match('^/')
         - not storage_test_output.startswith('/UNCONFIGURED/')
         - expected_cluster_uid != 'UNCONFIGURED'
+        - storage_test_storage_class in ['longhorn', 'longhorn-dedicated']
+        - (storage_test_storage_class == 'longhorn' and storage_test_policy_file == '') or (storage_test_storage_class == 'longhorn-dedicated' and storage_test_policy_file is match('^/'))
     - ansible.builtin.set_fact:
         storage_k: ['kubectl', '--kubeconfig', '{{ target_kubeconfig }}', '--context', '{{ target_context }}', '--request-timeout=30s']
     - ansible.builtin.command:
@@ -29,7 +33,7 @@
         that: test_uid.stdout == expected_cluster_uid
     - name: Verify release, empty namespace and worker storage before creation
       ansible.builtin.command:
-        argv: [python3, '{{ playbook_dir }}/files/verify-longhorn-smoke.py', preflight, '{{ target_kubeconfig }}', '{{ target_context }}', '{{ expected_cluster_uid }}', '{{ storage_test_namespace }}', '{{ storage_test_output }}']
+        argv: [python3, '{{ playbook_dir }}/files/verify-longhorn-smoke.py', preflight, '{{ target_kubeconfig }}', '{{ target_context }}', '{{ expected_cluster_uid }}', '{{ storage_test_namespace }}', '{{ storage_test_output }}', '{{ storage_test_policy_file }}']
       changed_when: false
     - name: Render isolated namespace and 1Gi claim; create refuses existing objects
       ansible.builtin.template:
@@ -57,7 +61,7 @@
         loop_var: storage_stage
     - name: Verify two healthy replicas and RW engine modes after cross-worker move
       ansible.builtin.command:
-        argv: [python3, '{{ playbook_dir }}/files/verify-longhorn-smoke.py', health, '{{ target_kubeconfig }}', '{{ target_context }}', '{{ expected_cluster_uid }}', '{{ storage_test_namespace }}', '{{ storage_test_output }}', '{{ storage_volume_handle }}', worker-2]
+        argv: [python3, '{{ playbook_dir }}/files/verify-longhorn-smoke.py', health, '{{ target_kubeconfig }}', '{{ target_context }}', '{{ expected_cluster_uid }}', '{{ storage_test_namespace }}', '{{ storage_test_output }}', '{{ storage_volume_handle }}', worker-2, '{{ storage_test_policy_file }}']
       register: volume_health
       changed_when: false
       until: volume_health.rc == 0
