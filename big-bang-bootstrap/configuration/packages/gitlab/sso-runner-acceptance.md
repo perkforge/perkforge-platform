@@ -51,14 +51,8 @@ and API tokens. Disabling a client is not immediate universal token revocation.
 3. Use existing runner-profile credential assembly/delivery, exact-host public CA
    delivery, approved namespace pull credentials and reviewed endpoint egress.
    Do not regenerate application credentials or relax TLS/default-deny to proceed.
-4. Run the released default-off `configuration/ansible/activate-gitlab-runner.yaml`
-   with scope `gitlab-runner-stage-v1` after separately approving this live stage.
-   Supply the immutable release/commit/clean checkout, kubeconfig/context, verified
-   cluster/root/source UIDs and GitLab hostname. Explicitly attest the app/SSO,
-   paused native registration and reviewed network prerequisites. It checks the
-   exact source artifact and immutable owned authentication, CA and two namespace
-   pull Secrets, then uses UID/resourceVersion/full-spec tests and a server dry
-   run to change only `cluster-root.spec.path` from app to runner. Check its diff retains
+4. Select the released `local-gitlab-runner` stage through the existing reviewed
+   source/stage-selection workflow, after checking its diff retains
    the stable app, SSO and data services. Verify manager identity, API permissions,
    CA and readiness while the native runner is paused; then explicitly activate.
 5. Commit only `acceptance/gitlab-ci.example.yaml` to the approved protected
@@ -75,18 +69,26 @@ before a separately approved manager change. Preserve original data services.
 Completion requires recorded real named MFA/admin access and actual protected
 job/denial evidence. Offline fixtures demonstrate guards, not live compatibility.
 
-## Concrete runner configuration selected by that handoff
+## Existing Big Bang configuration, without another deployment mechanism
 
-`clusters/local-gitlab-runner/values.yaml` enables the reviewed runner against
-`https://gitlab.perkforge.home.arpa`; it inherits the full app/SSO/data root. The
-existing candidate pins chart `0.91.2-bb.3`, one manager, concurrency one, the
-`gitlab-runner-manager` API identity, restricted `gitlab-ci-platform` jobs, exact
-build/helper images, mandatory private-registry references and public CA Secret.
-No API registration token is committed or fabricated. The activation playbook
-selects this real configuration, rather than merely printing instructions.
+`clusters/local-gitlab-runner/values.yaml` already sets
+`addons.gitlabRunner.enabled: true`, `flux.suspend: false` and the exact GitLab
+HTTPS URL. Its root inherits the app/SSO/data roots and appends that final values
+overlay. The candidate pins chart `0.91.2-bb.3`, one manager and concurrency one,
+the manager identity, restricted job namespace, exact build/helper images,
+private-registry references and the public CA Secret. Big Bang deploys that chart;
+Flux owns its reconciliation. No additional activation playbook or selector is
+needed. This MR does not claim to introduce already-merged runner configuration,
+and its merge is not a prerequisite to use that existing stage.
 
-Still needed after merge/release: live batch approval, Corey's exact approved
-private project and actor IDs/path, a locally entered authorized API credential,
-modern registration's one-time token, approved Registry1 copies in the two runner
-namespaces and actual endpoint egress review. Named account native approval/admin
-grant and browser MFA are also live owner actions. None is implied by MR merge.
+Use the established reviewed stage-selection procedure after registration/token,
+CA, registry and network preparation. Native registration necessarily calls the
+GitLab API to create a project runner identity and receive its one-time token.
+The existing adapter handles that operation with a private receipt and uncertain
+mutation guard. It does not require a new Kubernetes deployment mechanism.
+
+Remaining live inputs: the approved private project/actor IDs and project path,
+a privately supplied authorized API credential, approved pull-credential copies
+and endpoint egress. Named account approval/native authority and fresh browser
+MFA are owner actions. Merge does not supply or approve those inputs. Keep all
+tokens and credentials outside Git, and verify actual function after deployment.
