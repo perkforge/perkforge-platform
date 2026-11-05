@@ -13,9 +13,11 @@ addons:
       storageNamespace: gitlab
       install:
         createNamespace: false
-        remediation: {retries: 0}
+        # Override inherited final-failure remediation; preserve partial state.
+        remediation: {retries: 0, remediateLastFailure: false}
       upgrade:
-        remediation: {retries: 0}
+        cleanupOnFail: false
+        remediation: {retries: 0, remediateLastFailure: false}
     values:
       domain: UNCONFIGURED.invalid
       istio: {enabled: false}
