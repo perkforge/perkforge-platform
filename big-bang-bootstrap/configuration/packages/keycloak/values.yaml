@@ -6,6 +6,10 @@ addons:
       tag: 7.3.2-bb.1
     values:
       upstream:
+        # Security patch on the compatible chart; image metadata verified separately.
+        image:
+          tag: 26.8.1
+          digest: sha256:3796d06a0a7b530ed0425644b27780411a585272ed40540c4ca942da31e8da36
         replicas: 1
         resources:
           requests:

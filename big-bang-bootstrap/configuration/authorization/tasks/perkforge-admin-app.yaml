@@ -1,0 +1,39 @@
+- name: Validate explicit SSO identity inputs; never infer trusted apps from live mappings
+  ansible.builtin.assert:
+    that:
+    - pa_app.value.keys() | list | sort == ['client_id','client_name','role_id']
+    - pa_app.value.client_name is match('^[a-z][a-z0-9-]{0,62}$')
+    - pa_app.value.client_name != 'realm-management'
+    - pa_app.value.client_id is match('^[A-Za-z0-9-]+$')
+    - pa_app.value.role_id is match('^[A-Za-z0-9-]+$')
+- name: Independently verify canonical owned app, role catalog and direct group binding
+  ansible.builtin.uri:
+    url: '{{ pa_api }}{{ item }}'
+    headers: '{{ pa_headers }}'
+  loop:
+  - '/clients/{{ pa_app.value.client_id }}'
+  - '/clients/{{ pa_app.value.client_id }}/roles?first=0&max=2&briefRepresentation=false'
+  - '/roles-by-id/{{ pa_app.value.role_id }}/composites'
+  - '/groups/{{ perkforge_admin_group_id }}/role-mappings/clients/{{ pa_app.value.client_id }}'
+  register: pa_app_checks
+- ansible.builtin.assert:
+    that:
+    - pa_app_checks.results[0].json.id == pa_app.value.client_id
+    - pa_app_checks.results[0].json.clientId == pa_app.value.client_name
+    - pa_app_checks.results[0].json.attributes['perkforge-managed'] == 'true'
+    - pa_app_checks.results[0].json.attributes['perkforge-purpose'] == 'coordinated-sso-v1'
+    - pa_app_checks.results[0].json.enabled
+    - not pa_app_checks.results[0].json.fullScopeAllowed
+    - not pa_app_checks.results[0].json.serviceAccountsEnabled
+    - pa_app_checks.results[1].json | length == 1
+    - pa_app_checks.results[2].json | length == 0
+    - pa_app_checks.results[3].json | length == 1
+- ansible.builtin.assert:
+    that:
+    - item.id == pa_app.value.role_id
+    - item.name == '/platform/admins'
+    - item.clientRole and item.containerId == pa_app.value.client_id
+    - not item.composite
+  loop: '{{ pa_app_checks.results[1].json + pa_app_checks.results[3].json }}'
+- ansible.builtin.set_fact:
+    pa_app_group_names: "{{ pa_app_group_names | combine({pa_app.value.client_name:['/platform/admins']}) }}"

@@ -1,0 +1,26 @@
+# Dormant local data stage; environment-only HTTPS names.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-gitlab-providers
+- ../../configuration/packages/gitlab/data-services/runtime
+- ../../configuration/packages/gitlab/routing
+commonAnnotations:
+  platform.perkforge.io/cluster: local
+  platform.perkforge.io/environment: local
+  platform.perkforge.io/profile: il2
+patches:
+- target:
+    group: networking.k8s.io
+    version: v1
+    kind: Ingress
+    name: gitlab-web
+  patch: "- op: replace\n  path: /spec/tls/0/hosts/0\n  value: gitlab.perkforge.home.arpa\n\
+    - op: replace\n  path: /spec/rules/0/host\n  value: gitlab.perkforge.home.arpa\n"
+- target:
+    group: networking.k8s.io
+    version: v1
+    kind: Ingress
+    name: gitlab-objects
+  patch: "- op: replace\n  path: /spec/tls/0/hosts/0\n  value: gitlab-objects.perkforge.home.arpa\n\
+    - op: replace\n  path: /spec/rules/0/host\n  value: gitlab-objects.perkforge.home.arpa\n"

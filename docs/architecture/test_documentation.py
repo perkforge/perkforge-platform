@@ -70,11 +70,128 @@ class Documentation(unittest.TestCase):
         self.assertNotIn('ansible',str(package['scripts']))
         self.assertNotIn('pilot.sh',str(package['scripts']))
 
+    def test_initial_app_instructions_follow_the_declarative_stages(self):
+        runbook=(REPO/'big-bang-bootstrap/configuration/ansible/README.md').read_text()
+        step=next(line for line in runbook.splitlines() if line.startswith('6. Initial app access:'))
+        self.assertIn('default `clusters/local` root selects OpenBao only',step)
+        self.assertIn('after OpenBao acceptance, `clusters/local-headlamp`'.lower(),step.lower())
+        self.assertIn('after Headlamp acceptance, `clusters/local-keycloak`'.lower(),step.lower())
+        self.assertIn('same immutable release',step)
+        self.assertNotIn('selects OpenBao and Headlamp',step)
+
+    def test_openbao_observed_flow_links_real_one_time_procedure(self):
+        views=(ROOT/'views.c4').read_text().split('dynamic view openbao_initial_admin {',1)[1].split('\n  dynamic view',1)[0]
+        for term in ['observed v0.13.0','openbao-initialize.yaml','3/2','custody','stdin','close port-forward']:
+            self.assertIn(term,views)
+        play=(REPO/'big-bang-bootstrap/configuration/ansible/openbao-initialize.yaml').read_text()
+        for term in ['openbao_initialize_apply: false','no_log: true','127.0.0.1:18200','secret_threshold','Refuse initialization of existing data']:
+            self.assertIn(term,play)
+
+    def test_openbao_lan_flow_keeps_tls_and_activation_boundaries(self):
+        flow=(ROOT/'views.c4').read_text().split('dynamic view openbao_lan_https {',1)[1].split('\n  dynamic view',1)[0]
+        for term in ['observed v0.14.0','namespaced IngressRouteTCP CRUD','no additional app selection','no automatic token login','OpenBao alone terminates TLS','Rancher route']:
+            self.assertIn(term,flow)
+        page=(ROOT/'public/runbook.html').read_text().split('<section id="openbao-lan">',1)[1]
+        self.assertIn('accepted',page)
+        self.assertIn('not runtime routing',page)
+
+    def test_headlamp_observed_access_flow_links_real_code_and_revocation(self):
+        flow=(ROOT/'views.c4').read_text().split('dynamic view headlamp_initial_admin {',1)[1].split('\n  dynamic view',1)[0]
+        for term in ['observed v0.14.0','headlamp-access-smoke.yaml','3600s','Always UID-check/delete','old token denied','personal browser']:
+            self.assertIn(term,flow)
+
+    def test_production_tls_design_preserves_current_and_proposed_boundaries(self):
+        design=(REPO/'docs/platform/tls.md').read_text()
+        for term in ['Proposed production contract', 'Keycloak-to-PostgreSQL',
+                     'unencrypted', 'Headlamp', 'passthrough', 'revocation',
+                     'rotation', 'profile', 'signing key', 'not compliance evidence',
+                     'user-reported tablet acceptance', 'CA certificate',
+                     'Trusted credentials → User', 'Restart Chrome',
+                     'not a one-host', 'D6:A5:96:0A']:
+            self.assertIn(term,design)
+        view=(ROOT/'views.c4').read_text().split('dynamic view production_tls_lifecycle {',1)[1]
+        self.assertEqual(re.findall(r"-> [A-Za-z0-9_.]+ '([1-5])\.",view),list('12345'))
+        self.assertIn('Design only',view)
+        self.assertIn('No Istio/Gateway API implementation',design)
+
+    def test_rancher_denial_acceptance_keeps_scope_without_stale_pending_claims(self):
+        paths=[REPO/'big-bang-bootstrap/configuration/authorization/MATRIX.md',
+               ROOT/'model.c4', ROOT/'public/runbook.html']
+        stale=['and real non-admin denial remain unverified',
+               'non-admin denial, fresh factor prompts and live rollback remain unverified',
+               'real no-grant denial and rollback acceptance remain unverified']
+        for path in paths:
+            text=path.read_text()
+            for claim in stale:
+                self.assertNotIn(claim,text,str(path))
+            self.assertIn('no-grant',text)
+            self.assertIn('rollback',text)
+        procedure=(REPO/'big-bang-bootstrap/configuration/authorization/sso/README.md').read_text()
+        self.assertIn('Rancher bounded denial acceptance — executed',procedure)
+        self.assertIn('83 ok / 7 changed /',procedure)
+        self.assertIn('0 failed',procedure)
+        self.assertIn('No native session was issued',procedure)
+
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
         copies={
          'logging-sso-review.yaml': 'big-bang-bootstrap/configuration/observability/logging-sso-review.yaml',
          'grafana-sso-values.yaml': 'big-bang-bootstrap/configuration/observability/grafana-sso-values.yaml',
          'queued-sso.yaml': 'big-bang-bootstrap/configuration/observability/sso-review.yaml',
+         'openbao-data.yaml': 'big-bang-bootstrap/configuration/authorization/sso/tasks/openbao-data.yaml',
+         'api-oidc.md': 'infrastructure/ansible/API-OIDC.md',
+         'api-oidc.yml': 'infrastructure/ansible/playbooks/configure-api-oidc.yml',
+         'api-oidc-tasks.yml': 'infrastructure/ansible/tasks/api-oidc.yml',
+         'headlamp-routing.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-headlamp-routing.yaml',
+         'gitlab-outcome.md': 'big-bang-bootstrap/configuration/packages/gitlab/coordinated-outcome.md',
+         'gitlab-postgres-ca.md': 'big-bang-bootstrap/configuration/packages/gitlab/postgres-ca-lifecycle.md',
+         'dns-maintenance.md': 'infrastructure/ansible/DNS-MAINTENANCE.md',
+         'maintain-lab-dns.yaml': 'infrastructure/ansible/playbooks/maintain-lab-dns.yml',
+         'maintain-lab-dns-tasks.yaml': 'infrastructure/ansible/tasks/maintain-lab-dns.yml',
+         'platform-cnpg.md': 'big-bang-bootstrap/configuration/packages/cloudnative-pg/README.md',
+         'gitlab-garage.yaml': 'big-bang-bootstrap/configuration/packages/gitlab/reconcile-garage.yaml',
+         'gitlab-transport.yaml': 'big-bang-bootstrap/configuration/packages/gitlab/prepare-transport.yaml',
+         'platform-sso.md': 'big-bang-bootstrap/configuration/authorization/sso/README.md',
+         'sso-client.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-client.yaml',
+         'sso-headlamp.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-headlamp.yaml',
+         'rancher-denial.yaml': 'big-bang-bootstrap/configuration/authorization/rancher-denial-acceptance.yaml',
+         'rancher-denial.py': 'big-bang-bootstrap/configuration/authorization/files/verify-rancher-denial.py',
+         'sso-rancher.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-rancher.yaml',
+         'openbao-policy-acceptance.yaml': 'big-bang-bootstrap/configuration/authorization/sso/accept-policy.yaml',
+         'openbao-policy-acceptance-test.py': 'big-bang-bootstrap/tests/integration/test_sso_openbao_policy_acceptance.py',
+         'sso-openbao.yaml': 'big-bang-bootstrap/configuration/authorization/sso/reconcile-openbao.yaml',
+         'perkforge-admin-app.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/perkforge-admin-app.yaml',
+         'production-tls.md': 'docs/platform/tls.md',
+         'platform-tls.yaml': 'big-bang-bootstrap/configuration/ansible/platform-tls.yaml',
+         'administer-perkforge.yaml': 'big-bang-bootstrap/configuration/authorization/administer-perkforge.yaml',
+         'perkforge-admin.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/perkforge-admin.yaml',
+         'perkforge-admin.md': 'big-bang-bootstrap/configuration/authorization/PERKFORGE-ADMIN.md',
+         'test-perkforge-admin.py': 'big-bang-bootstrap/tests/integration/test_perkforge_admin.py',
+         'factor-acceptance.yaml': 'big-bang-bootstrap/configuration/authorization/factor-acceptance.yaml',
+         'verify-factor-browser.py': 'big-bang-bootstrap/configuration/authorization/files/verify-factor-browser.py',
+         'factor-admin-login.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/factor-admin-login.yaml',
+         'factor-owned.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/factor-owned.yaml',
+         'test-factor-browser.py': 'big-bang-bootstrap/tests/integration/test_factor_browser.py',
+         'enroll-human.yaml': 'big-bang-bootstrap/configuration/authorization/enroll-human.yaml',
+         'human-example.yaml': 'big-bang-bootstrap/configuration/authorization/human.example.yaml',
+         'test-human-totp.py': 'big-bang-bootstrap/tests/integration/test_human_totp.py',
+         'human-preflight.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-preflight.yaml',
+         'human-profile.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-profile.yaml',
+         'human-flow.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-flow.yaml',
+         'human-subflow.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-subflow.yaml',
+         'human-execution.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-execution.yaml',
+         'human-user.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-user.yaml',
+         'human-access-check.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/human-access-check.yaml',
+
+         'realm-foundation.yaml': 'big-bang-bootstrap/configuration/authorization/foundation.yaml',
+         'test-realm-foundation.py': 'big-bang-bootstrap/tests/integration/test_realm_foundation.py',
+         'realm-foundation-inspect.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/foundation-inspect.yaml',
+         'realm-foundation-create.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/foundation-create.yaml',
+         'realm-foundation-tenant.yaml': 'big-bang-bootstrap/configuration/authorization/tasks/foundation-tenant.yaml',
+
+         'headlamp-access-smoke.yaml': 'big-bang-bootstrap/configuration/ansible/headlamp-access-smoke.yaml',
+         'headlamp-access-cleanup.yaml': 'big-bang-bootstrap/configuration/ansible/headlamp-access-cleanup.yaml',
+         'verify-headlamp-access.py': 'big-bang-bootstrap/configuration/ansible/files/verify-headlamp-access.py',
+         'openbao-initialize.yaml': 'big-bang-bootstrap/configuration/ansible/openbao-initialize.yaml',
          'longhorn-storage-smoke.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-storage-smoke.yaml',
          'longhorn-smoke-stage.yaml': 'big-bang-bootstrap/configuration/ansible/longhorn-smoke-stage.yaml',
          'verify-longhorn-smoke.py': 'big-bang-bootstrap/configuration/ansible/files/verify-longhorn-smoke.py',

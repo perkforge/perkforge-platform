@@ -1,0 +1,96 @@
+# Unselected namespace-only standalone Garage; no chart discovery/CRD authority.
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: gitlab-garage, namespace: gitlab}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: gitlab-garage-config, namespace: gitlab}
+data:
+  garage.toml: |
+    metadata_dir = "/data/meta"
+    data_dir = "/data/objects"
+    db_engine = "lmdb"
+    replication_factor = 1
+    rpc_bind_addr = "127.0.0.1:3901"
+    rpc_public_addr = "127.0.0.1:3901"
+    rpc_secret_file = "/runtime/rpcSecret"
+    bootstrap_peers = []
+    [s3_api]
+    s3_region = "garage"
+    api_bind_addr = "[::]:3900"
+    [admin]
+    api_bind_addr = "127.0.0.1:3903"
+    admin_token_file = "/runtime/adminToken"
+---
+apiVersion: v1
+kind: Service
+metadata: {name: gitlab-garage, namespace: gitlab}
+spec:
+  selector: {app: gitlab-garage}
+  ports: [{name: s3, port: 3900, targetPort: 3900}]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: {name: gitlab-garage, namespace: gitlab}
+spec:
+  replicas: 1
+  serviceName: gitlab-garage
+  selector: {matchLabels: {app: gitlab-garage}}
+  persistentVolumeClaimRetentionPolicy: {whenDeleted: Retain, whenScaled: Retain}
+  template:
+    metadata: {labels: {app: gitlab-garage}}
+    spec:
+      nodeSelector: {storage.perkforge.io/worker: 'true'}
+      serviceAccountName: gitlab-garage
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        fsGroup: 1000
+        seccompProfile: {type: RuntimeDefault}
+      initContainers:
+      - name: private-files
+        image: docker.io/library/busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4
+        command: [sh, -ec]
+        args: ['umask 077; cp /protected/rpcSecret /runtime/rpcSecret; cp /protected/adminToken /runtime/adminToken; chmod 600 /runtime/rpcSecret /runtime/adminToken']
+        securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+        resources:
+          requests: {cpu: 10m, memory: 16Mi}
+          limits: {cpu: 100m, memory: 32Mi}
+        volumeMounts:
+        - {name: protected, mountPath: /protected, readOnly: true}
+        - {name: runtime, mountPath: /runtime}
+      containers:
+      - name: garage
+        image: docker.io/dxflrs/garage:v2.2.0@sha256:45a61ce3f7c9c24fc23d9ed2b09b27ed560ab87b34605d175d5c588f539c24e4
+        command: [/garage]
+        args: [-c, /etc/garage/garage.toml, server]
+        securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+        resources:
+          requests: {cpu: 500m, memory: 1Gi}
+          limits: {cpu: '1', memory: 2Gi}
+        ports: [{name: s3, containerPort: 3900}]
+        volumeMounts:
+        - {name: config, mountPath: /etc/garage, readOnly: true}
+        - {name: runtime, mountPath: /runtime, readOnly: true}
+        - {name: meta, mountPath: /data/meta}
+        - {name: objects, mountPath: /data/objects}
+        readinessProbe: {tcpSocket: {port: s3}, initialDelaySeconds: 10, periodSeconds: 10}
+      volumes:
+      - {name: config, configMap: {name: gitlab-garage-config}}
+      - {name: protected, secret: {secretName: gitlab-garage-private, defaultMode: 288}}
+      - {name: runtime, emptyDir: {medium: Memory, sizeLimit: 64Ki}}
+  volumeClaimTemplates:
+  - metadata: {name: meta}
+    spec:
+      accessModes: [ReadWriteOnce]
+      storageClassName: longhorn
+      resources: {requests: {storage: 1Gi}}
+  - metadata: {name: objects}
+    spec:
+      accessModes: [ReadWriteOnce]
+      storageClassName: longhorn
+      resources: {requests: {storage: 32Gi}}

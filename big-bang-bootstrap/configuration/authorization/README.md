@@ -8,8 +8,7 @@ review rendering, existing pilot evidence and unimplemented integration mechanic
 
 **Merging does not configure a realm, create users/credentials, apply Kubernetes
 or OpenBao grants, enable clients, or extend SSO.** Nothing in this folder is
-selected by the platform root or existing API configurators. Live realm/tenant
-migration and new app integration wiring remain incomplete.
+selected by the platform root or existing API configurators. The separately approved platform-only realm/group foundation below is live-tested; tenant migration, memberships and new app integration wiring remain incomplete.
 
 ## Review contract and current implementation
 
@@ -111,3 +110,348 @@ Offline tests render two synthetic tenants and model exact allow/deny rules;
 preserved synthetic API tests cover create/idempotence/conflict/redaction. They
 are not live authorizer, admission, OpenBao capability, app-login or data-isolation
 acceptance. See matrix [primary guidance](MATRIX.md#primary-guidance-used-for-this-review).
+
+## Realm/group foundation
+
+[foundation.yaml](foundation.yaml) is the first operational step, separate from
+`preview.yaml`. Big Bang still owns deployment; Ansible owns this Admin API state.
+It reuses the established TLS/private-login, ownership-marker, exact-group and
+empty-role-mapping patterns from the earlier Ansible API owners. It deliberately
+**does not invoke** the older `keycloak-realm.yaml` trial bootstrap, which creates
+trial users and an app client, or import the review renderer's disabled clients.
+
+### Who does what and why
+
+1. Review this code, target UID, CA/HTTPS URL and explicit tenant IDs. Keep tested
+   master recovery access and its independent protected custody intact. No new
+   administrator, service account, credentials, user or membership is created.
+2. Default/check mode performs no API calls or credential reads. Explicit
+   `realm_foundation_inspect=true` authenticates/read-compares without writes;
+   `realm_foundation_apply=true` separately permits the bounded writes below.
+3. Verify the physical Kubernetes target UID, then authenticate the existing master
+   administrator through verified HTTPS using owner-only username/password files.
+   No redirects/proxy/netrc, token persistence or credential output. The existing
+   master credential is powerful; the playbook's scope is not a narrower credential.
+4. Create only a missing owned `perkforge` realm (display name PerkForge; registration
+   and password reset off, brute-force protection and bounded sessions on). An
+   existing realm must match declared security settings and ownership purpose;
+   unknown/legacy realms are refused, never adopted, PUT, deleted or reimported.
+   Keycloak supplies its normal built-in clients/roles; this playbook adds no app
+   clients or privileged role mappings and assigns none to users.
+5. Read all desired exact group paths and direct role mappings before group writes.
+   Create only missing parent-first groups without IDs, moves, updates or grants.
+   `/platform/{admins,engineers,viewers}` and `/tenants` are always defined. Only
+   explicitly supplied tenants get `/tenants/<id>/{admins,developers,viewers}`.
+   Empty tenant input creates no fictional tenant. The six role **families** are
+   not six globally privileged realm roles. Parent groups and leaves have no
+   Keycloak role mappings; merely belonging to one does not authorize an app.
+6. Reread paths/mappings. A rerun makes no writes when owned state matches. Partial
+   successful creates survive a later failure; a reviewed rerun adds missing paths
+   only. Conflicts/default groups/unexpected mappings/concurrent appearance stop
+   the run. No rollback, pruning, password reset or membership cleanup occurs.
+
+The playbook intentionally does not enumerate/change shared users, assign members,
+reset passwords, delete identities, enable delegated administration/FGAP, create
+client claims, or apply Kubernetes/OpenBao/app permissions. Multi-tenant identity
+membership stays unchanged: tenant-admin membership management needs a separately
+reviewed allowlist/API owner; no tenant may reset/delete a shared user or grant a
+role in another tenant. Platform-engineer remains an empty group with unsettled
+diagnostics/secret/live-write scope, never inherited administrator authority.
+
+### Proposed live approval and inputs
+
+An action-time approval would permit authenticating the existing master admin,
+creating the missing realm and canonical empty groups for the **explicitly reviewed
+tenant list**, and readback. It grants no human/app permissions. Required private
+inputs: target kubeconfig/context/expected UID; exact HTTPS URL and public CA;
+`realm_foundation_username_file`/`realm_foundation_password_file` (regular owner-only
+0600 files); `realm_foundation_recovery_preserved=true`; `authorization_tenants`.
+Default URL is `https://keycloak.perkforge.home.arpa/auth`. No new credential or
+Secret delivery, release promotion, chart change or cluster RBAC is needed. Keep
+safe output automatically in the operator's existing protected evidence directory;
+never log API bodies/tokens. Check mode is offline validation, **not** a live diff.
+The explicit inspect mode supplies the authenticated read-only comparison.
+
+Future approved apply uses the existing bootstrap inventory and a protected vars
+file with [foundation.yaml](foundation.yaml), not the review artifacts. No runnable
+live command or private target inputs are embedded here. Bootstrap retirement and
+permanent recovery remain separate approvals. A foundation group is not proof of
+working six-role authorization: each subsequent app/membership MR needs allowed/
+denied tests, token/session revocation and multi-tenant isolation acceptance.
+
+### Tests and limits
+
+Real Ansible runs against a synthetic localhost HTTPS Keycloak-shaped API cover
+create, idempotence, read-only inspection, interrupted creation/resume, canonical
+multi-tenant paths, unchanged shared memberships, refusal of ownership/role/default
+inheritance conflicts, wrong target/CA and denied access, and credential redaction.
+These are offline protocol/safety tests, not actual Keycloak authorizer or human
+login evidence. Live platform-only creation/readback and second-run zero-change
+acceptance subsequently passed as recorded below. Tenant creation, human/app
+permission denial and independent recovery drills remain unexecuted. No app
+integration is enabled.
+
+Versioned API contract: [Keycloak 26.8.1 Admin REST API](https://www.keycloak.org/docs-api/26.8.1/rest-api/index.html)
+(realm create/read, exact group-by-path, child creation, role mappings). Group-create
+requests carry no existing ID and accept only Created; concurrent conflicts stop.
+The API is not transactional; inspect state after any uncertain request outcome.
+
+### Observed platform-only execution — 2026-11-01 20:20:07 UTC
+
+Explicitly approved `authorization_tenants: []` used clean merged #127. The realm
+was absent before writes. Inspect changed 0; initial apply changed 6 (realm plus
+five groups); second apply changed 0, failed/unreachable 0. Independent API readback
+verified exactly `/platform`, its `admins`/`engineers`/`viewers` children, and
+`/tenants`; all memberships and custom group mappings empty, users 0, default groups
+0, custom app clients 0. Normal Keycloak built-ins are expected and were verified.
+Existing master access, source/root specifications, application readiness and
+Keycloak/database pod identities remained intact. No new credential, user, app
+client, role grant, tenant group or SSO was created. Protected automatic evidence
+contains recaps/readback only; credential values were absent from saved logs.
+
+This is proof of structural creation and idempotence, **not human authorization**.
+Future tenant/member/client operations and permanent recovery/bootstrap retirement
+still require review and action-specific approval. Nothing here authorizes reruns
+or expands platform-engineer rights. No cluster release promotion was required;
+source remains v0.14.0/local-keycloak, while reviewed Ansible came from merged #127.
+
+## Named-human IL2 TOTP enrollment — configured; manual acceptance pending
+
+[enroll-human.yaml](enroll-human.yaml) supersedes the historical hard-coded test
+user entrypoint. [Nonsecret inputs](human.example.yaml) leave identity and scope
+explicit; an email-shaped **username is not an email address or verified mailbox**.
+No personal identity is embedded in source. Email/name fields are omitted from the
+API payload, no email-as-username/SMTP configuration changes occur, and no email
+is marked verified. Keycloak 26.8.1's default user profile requires email/first/last
+name for user login: private first-browser completion was approved but is pending. Do
+not fake values, mark email verified or weaken realm profile rules to hide it.
+
+### Observed configuration and historical partial recovery
+
+The first approved physical run bound the owned browser policy and created the
+pending human, then stopped before group membership: Keycloak 26.8.1 filtered
+both undeclared ownership markers. The old HTTPS fixture accepted arbitrary
+attributes and missed the default profile behavior. The separately approved
+#131 live repair then declared both admin-only fields and restored the markers,
+verifying other returned user fields and password credential metadata unchanged.
+
+The second historical stop occurred because the flow ownership check expected the nested forms flow in
+`GET authentication/flows`, but Keycloak 26.8.1 filters that collection to
+**top-level** flows. The nested executions and bound password/TOTP policy remain
+unchanged. The fixture again overstated the API response. [human-subflow.yaml](tasks/human-subflow.yaml) now resolves nested metadata
+through the parent execution flow ID, verifies exact ID/alias/description/provider/
+non-top-level ownership, and preserves the existing execution/order requirements.
+Read-only live metadata inspection confirmed this endpoint/shape. The corrected
+#132 normal run subsequently passed and did not rebuild or weaken the flow.
+Historical failed-run evidence and the original password/record remain protected.
+
+Source: [26.8.1 flow-list filtering and flow-by-ID endpoint](https://github.com/keycloak/keycloak/blob/26.8.1/services/src/main/java/org/keycloak/services/resources/admin/AuthenticationManagementResource.java).
+
+**Observed 2026-11-02 02:52:34 UTC:** the separately approved normal run from merged
+#132 verified the existing recorded identity/profile/flow/recovery and added only
+nominal `/platform/admins` membership (123 ok, 1 changed, 0 failed). Its repeat
+passed with 122 ok, **0 changed**, 0 failed. Readback verified user fields,
+password credential metadata, pending actions, admin-only markers, master and MFA
+executions unchanged; group application-role mappings remain empty. Three nodes
+were Ready without pressure and all six selected releases Ready. Existing
+source/root and Keycloak/database pod identities were unchanged. No profile,
+flow, password, client, app-grant or restart changes occurred in this final batch.
+
+**Operator report, 2026-11-02 13:08 UTC:** a new password and TOTP were configured.
+That initial report alone was not independent credential metadata or fresh
+browser-challenge proof. At 13:09 UTC the operator reported signing out and back in; at 13:15 UTC explicitly confirmed both new-password and fresh-TOTP prompts.
+Fresh password+TOTP login therefore passed **by user report**, not automated
+authentication as the user.
+At 13:12:58 UTC, an independent GET-only check using existing master access
+confirmed the recorded account's exact `/platform/admins` membership, **empty
+required-actions list**, and credential **type names password / otp**. It did not
+use the user's credentials or retain profile values, credential contents or an
+admin token. No permission/reset/session-configuration change occurred.
+These metadata support completed enrollment; they do not prove fresh two-factor
+enforcement, negative-factor denial, SSO behavior or recovery.
+
+The old temporary-password file remains untouched; the reported change makes it
+historical custody, not a current login instruction. No cleanup/reset/session or
+permission change is authorized by the report. User-reported fresh positive MFA and same-browser fresh-tab SSO reuse are now
+accepted. The separate disposable-identity factor/recovery drill below also passed. Anonymous
+page HTTP 200 is not personal-login evidence. Preserve independent master/direct
+recovery; Headlamp OIDC/application grants remain separate approvals.
+
+The realistic HTTPS fixture now lists only top-level flows, serves nested metadata
+by ID and omits authenticator `authenticationFlow=false` fields, while the default
+profile filters undeclared attributes. Full playbook tests cover first creation,
+normal no-write rerun after modeled human completion, original missing-marker
+repair, the current already-repaired account before membership, another no-write
+rerun, and foreign/dangling nested metadata refusal. These remain orchestration
+fixtures, not live browser factor/recovery validation.
+
+[human-profile.yaml](tasks/human-profile.yaml) declares only `perkforge-managed`
+and `perkforge-enrollment`, each view/edit **admin only**, optional/single-valued.
+It preserves every existing profile field/group/requirement and leaves unmanaged
+attributes disabled. Existing conflicting definitions stop; there is no blanket
+`ADMIN_EDIT`/`ENABLED` switch. This realm-profile change was explicitly approved and applied; future changes
+need their own approval. Synthetic tests verify authored permissions, not actual
+Keycloak end-user write denial.
+
+Normal reruns still require both markers. A separately approved repair may set
+`human_resume_missing_ownership_id` to the exact UUID already in the private record.
+It must also match the server account and verify no attributes/profile/email
+verification, exactly pending password/TOTP actions, no memberships/custom roles
+and one existing password credential. Otherwise stop before any write. It sends the unchanged username for profile validation and adds
+only the two marker attributes, then checks all other returned user fields and
+credential metadata unchanged. No credential reset, seed, user adoption/deletion,
+required-action rewrite or profile completion occurs. A second normal run must
+write nothing; future completed enrollment is not eligible for marker repair.
+
+Version-specific sources: [default profile](https://github.com/keycloak/keycloak/blob/26.8.1/services/src/main/resources/org/keycloak/userprofile/config/keycloak-default-user-profile.json),
+[attribute filtering and access](https://github.com/keycloak/keycloak/blob/26.8.1/server-spi-private/src/main/java/org/keycloak/userprofile/DefaultAttributes.java),
+[profile permissions](https://github.com/keycloak/keycloak/blob/26.8.1/core/src/main/java/org/keycloak/representations/userprofile/config/UPAttributePermissions.java),
+[profile Admin API](https://www.keycloak.org/docs-api/26.8.1/rest-api/index.html).
+
+### Who does what and why
+
+1. Review exact username, IL2 target/HTTPS, existing master recovery/custody and
+   approved initial `human_mfa_scope=perkforge-browser`. Both apply and this scope are
+   explicit gates; default/check mode does not read credentials or call APIs.
+2. Validate existing foundation ownership, exact account collision/record, allowed
+   self-service default roles, empty parent/admin-group role mappings, no automatic
+   memberships and no client browser-flow overrides. Unknown accounts are never
+   adopted; orphaned records/users stop for review. This is the first-human bootstrap,
+   not a general account manager: additional users/custom clients require review.
+3. Ansible creates an owned, versioned **PerkForge-only browser flow**: Cookie
+   Alternative (reuse an already authenticated SSO session), or Forms Alternative
+   containing Password **Required** then OTP **Required**. No conditional OTP,
+   identity-provider/passwordless shortcut or copied built-in flow is imported.
+   Verify exact order/provider/requirements before binding the realm. Binding is
+   approved and bound **realm-wide for future PerkForge browser users**, not just this account;
+   future changes require renewed review. Master, direct-grant/service authentication and other
+   realms are unchanged; this is not a claim every authentication path requires MFA.
+4. Only when the flow is verified, create the missing owned human using a supplied
+   owner-only temporary-password file. It is temporary, with `UPDATE_PASSWORD` and
+   `CONFIGURE_TOTP` actions. No password or TOTP seed is generated by the playbook.
+   Save only username/realm/server UUID in a 0600 record under an existing 0700
+   protected directory. API-success/record-failure is an uncertain orphan: stop,
+   never recreate/adopt/reset automatically. Keep recovery accessible throughout.
+5. Join only `/platform/admins` after reading exact membership/direct-role state.
+   This nominal group currently grants **no application permissions**. No Keycloak
+   realm-admin, Kubernetes binding, client, tenant/engineer membership or SSO is added.
+6. The human uses the trusted Keycloak account console to complete profile/password/
+   TOTP privately, storing custody in the chosen password manager. Never send a QR,
+   seed, password, recovery code or bearer token through chat/logs. Password-only and
+   wrong-OTP **fresh** browser login must fail in later actual acceptance; API flags
+   and presence of an OTP credential alone do not prove that. SSO-cookie reuse is
+   intentional, not a promise of a new OTP prompt for every app/page.
+7. Reruns preserve user UUID, human-entered profile/password/required-action state,
+   OTP and memberships. Normal reruns never PUT/reset an existing user or re-add completed
+   enrollment actions; the initial password file may be retired before rerun.
+   Bound-flow drift (conditional/disabled OTP, unknown provider or wrong ownership)
+   stops rather than repairs. Partial unbound flow construction can be resumed;
+   no user is created until the flow is bound and verified. No automatic deletion,
+   rollback, recovery-account retirement or token/seed export occurs.
+
+### Profile-aware method and recovery boundaries
+
+**Current IL2 choice: TOTP.** The entrypoint refuses non-IL2 targets. The user's
+intended future **IL5 policy is CAC**; no CAC/X.509, PKI mapping, IL5 configuration,
+password fallback or compliance determination is implemented here. Do not treat
+TOTP as the universal platform method or reuse this playbook to bypass IL5 policy.
+
+Existing master recovery and independent direct SSH/Kubernetes administration must
+remain usable before/after. Group membership is not master/realm administration.
+Durable break-glass design/custody and temporary master retirement remain separate
+checkpoints, as do MFA-loss recovery (recovery codes/administrator process) and
+actual recovery tests. This draft does not enable recovery-code alternatives or
+create a permanent recovery account. No token expiry/session revocation claim is
+made by structural tests.
+
+### Execution boundaries and remaining browser acceptance
+
+Before any execution, confirm the exact username/profile completion decision,
+realm-wide browser TOTP scope and independent recovery custody. The username is
+passed privately, not inferred into email. Supply reviewed existing master
+username/password references, public CA and exact target UID plus a separately
+approved temporary initial password and protected ownership-record location.
+Authenticating master, binding the PerkForge browser flow, creating one human and
+joining `/platform/admins` are **new explicit live changes**, not authorized by
+merging this draft. No Headlamp source promotion, TLS/registry delivery, API-server
+restart, client, app permission or broader identity grant is included.
+
+Synthetic real-Ansible HTTPS tests exercise create, required-versus-conditional OTP,
+collision/inherited-privilege refusal, safe defaults/non-IL2 refusal, redaction and
+no-reset repetition after modeled human enrollment. These test API orchestration
+and configuration, **not Keycloak factor validation**. Actual browser first login,
+profile/password/TOTP completion, fresh password-only/wrong-OTP denial, SSO reuse,
+loss recovery and negative user authorization remain **unexecuted acceptance**.
+Update this matrix/C4 with that evidence before calling daily access accepted.
+
+Sources: [26.8.1 authentication Admin API](https://www.keycloak.org/docs-api/26.8.1/rest-api/index.html),
+[Keycloak authentication/MFA guide](https://www.keycloak.org/docs/latest/server_admin/index.html),
+[26.8.1 default user profile](https://github.com/keycloak/keycloak/blob/26.8.1/services/src/main/resources/org/keycloak/userprofile/config/keycloak-default-user-profile.json).
+
+## Bounded factor and recovery acceptance — observed
+
+[factor-acceptance.yaml](factor-acceptance.yaml) is default/check-mode inert.
+An explicit, separately approved run creates exactly one unique `mfa-check-` test
+identity, synthetic `.invalid` profile, no groups/custom roles and only reviewed
+standard self-service defaults. Existing master credentials are used only locally;
+all API payloads are no-log. The playbook preserves realm/lockout/flow settings and
+Corey's identity/session/password/MFA. Ansible owns creation, test-only factor
+removal/re-enrollment requirement and exact-UID deletion; the
+[browser verifier](files/verify-factor-browser.py) performs protocol verification.
+
+Observed run: initial enrollment/PKCE login succeeded; exactly one wrong-password,
+one missing-OTP and one wrong-OTP submission were rejected; valid factor login
+then succeeded. Administrator removal of only the test OTP and `CONFIGURE_TOTP`
+was followed by a different test seed and successful recovery login. No realm
+flow repair, warning bypass or privileged memberships were used. Cleanup deleted
+the exact owned UID, proved its absence and rejected all three issued access/refresh
+pairs at userinfo/refresh, then removed the generated password/seed/token file.
+Protected nonsecret UID/source-hash/cleanup evidence remains. Ansible temp and
+private credential directories were empty afterward. Health at 14:19:15 UTC
+remained three Ready/no-pressure nodes and six Ready releases at the same stage.
+
+### Reproduce only after a new explicit approval
+
+1. Reuse protected human/target input **references**, public CA and existing master
+   credential references from the accepted enrollment. Never use the human password.
+2. Under umask 077, make a fresh ignored `infrastructure/ansible/inventory/.rke2-state/`
+   run directory (0700) and `private/` (0700). Create `private/test.json` exclusively
+   (0600): username `mfa-check-` plus 12 cryptographically random hex characters,
+   and a unique strong random password of at least 32 characters. Do not print either
+   secret. This is controller-generated disposable test custody, not an app account.
+3. Set `factor_evidence_dir` to that directory in protected runtime inputs; execute
+   the standard inventory's `local` target with `factor-acceptance.yaml`, the private
+   input file and explicit `factor_apply=true`. Normal callers must never enable
+   this from CI/default tests. A public login-form probe and default-role/collision
+   checks precede the one create request. Do not retry an uncertain create.
+4. Each browser phase has a 180-second deadline, same-HTTPS-origin redirect checks,
+   CA verification and PKCE. Test password/TOTP/token values stay only in that new
+   private file/memory. Three failed submissions maximum; pacing honors the existing
+   quick-login interval. The test refuses insufficient lockout budget/unsupported
+   policy rather than changing it. Recovery affects only the owned test UID.
+5. Inspect sanitized phase JSON plus cleanup and final health, and retain the exact
+   source checksums. On failure, `always` attempts guarded exact-owned-UID cleanup;
+   do not claim success or secret removal unless cleanup evidence confirms it.
+   Stop on unexpected identity/state; never delete an unrelated object or rerun blindly.
+
+The [offline verifier tests](../../tests/integration/test_factor_browser.py) cover
+RFC TOTP math, pinned form parsing, redirect/state safety and default/check-mode
+inertness. They do not replace the observed live protocol drill. Official form
+contracts: [26.8.1 TOTP setup](https://github.com/keycloak/keycloak/blob/26.8.1/themes/src/main/resources/theme/keycloak.v2/login/login-config-totp.ftl),
+[OTP challenge](https://github.com/keycloak/keycloak/blob/26.8.1/themes/src/main/resources/theme/keycloak.v2/login/login-otp.ftl).
+
+Scope limits: no actual Corey factor reset, no IdP/database outage recovery,
+recovery-code/CAC test or new app authorization. This verifies server-side
+browser-form/OIDC behavior, not JavaScript rendering across all browsers/apps.
+Deletion plus userinfo/refresh denial is not universal immediate revocation at
+external offline JWT verifiers; no test identity had privileged app access.
+
+## PerkForge realm administration — applied; rerun follow-up
+
+[Exact composite and review gates](PERKFORGE-ADMIN.md) describe separately invoked,
+default-off `administer-perkforge.yaml`. The clarified PA intent is full authority
+inside PerkForge through `realm-management/realm-admin`, including impersonation,
+authentication flows and realm settings. This explicitly supersedes PA's earlier
+`realm_admin: false`; master/other realms remain excluded. A separately approved #136 run applied one mapping; exact readback passed. The no-change rerun failed safely at a remaining group-representation guard, so successful merged-source idempotence is not yet claimed. A local narrow fix passes the active state in GET-only mode (38 ok, changed 0, failed 0) and realistic apply/repeat fixtures; review/publication is pending.
+Earlier empty-mapping workflows remain pre-delegation checks and intentionally
+refuse after a grant. Publication is not live approval.

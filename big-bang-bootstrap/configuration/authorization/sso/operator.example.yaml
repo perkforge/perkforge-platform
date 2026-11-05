@@ -1,0 +1,50 @@
+# Copy outside the repository, review environment/UID/UUIDs and supply private file
+# references. No credential values. Every run flag intentionally remains false.
+sso_environment: example
+sso_realm: perkforge
+sso_keycloak_origin: https://identity.example.invalid
+sso_keycloak_path: /auth
+sso_public_ca_file: /UNCONFIGURED/public-ca.pem
+sso_apps:
+  headlamp: {client_id: headlamp, origin: 'https://headlamp.example.invalid', apply: false}
+  rancher: {client_id: rancher, origin: 'https://rancher.example.invalid', apply: false}
+  openbao: {client_id: openbao, origin: 'https://openbao.example.invalid', apply: false}
+sso_client_run: false
+sso_client_stage: UNCONFIGURED
+sso_client_operation: inspect
+sso_client_reviewed_scope: UNAPPROVED
+sso_client_recovery_verified: false
+sso_client_native_ready: false
+sso_client_group_id: UNCONFIGURED
+sso_client_parent_id: UNCONFIGURED
+sso_client_username_file: /UNCONFIGURED/recovery-username
+sso_client_password_file: /UNCONFIGURED/recovery-password
+sso_client_secret_file: /UNCONFIGURED/client-secret
+sso_headlamp_run: false
+sso_headlamp_operation: inspect
+sso_headlamp_reviewed_scope: UNAPPROVED
+sso_headlamp_recovery_verified: false
+sso_kubeconfig: /UNCONFIGURED/kubeconfig
+sso_context: UNCONFIGURED
+sso_cluster_uid: UNCONFIGURED
+sso_headlamp_secret_file: /UNCONFIGURED/headlamp-client-secret
+sso_rancher_run: false
+sso_rancher_operation: inspect
+sso_rancher_reviewed_scope: UNAPPROVED
+sso_rancher_recovery_verified: false
+rancher_kubeconfig: /UNCONFIGURED/kubeconfig
+rancher_context: UNCONFIGURED
+rancher_cluster_uid: UNCONFIGURED
+rancher_oidc_secret_file: /UNCONFIGURED/rancher-client-secret
+sso_openbao_run: false
+sso_openbao_operation: inspect
+sso_openbao_reviewed_scope: UNAPPROVED
+sso_openbao_recovery_verified: false
+sso_openbao_cluster_id: UNCONFIGURED
+sso_openbao_accessor: UNCONFIGURED
+sso_openbao_token_file: /UNCONFIGURED/openbao-operator-token
+sso_openbao_client_secret_file: /UNCONFIGURED/openbao-client-secret
+
+# Separate optional engine preparation: sso_openbao_operation: prepare-data
+# Requires explicit sso_openbao_reviewed_scope: openbao-data-v1 and run/recovery approval.
+# Creates no secret values or SSO grants; never automatically deletes engines.

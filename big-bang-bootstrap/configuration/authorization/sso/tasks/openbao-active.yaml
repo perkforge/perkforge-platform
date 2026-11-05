@@ -1,0 +1,171 @@
+- ansible.builtin.assert:
+    that:
+    - bao_mounts.json.data['oidc/'].type in ['oidc', 'jwt']
+    - bao_mounts.json.data['oidc/'].accessor == sso_openbao_accessor
+- name: Apply policy only to existing reviewed KV-v2 logical mounts; never create engines
+  when: sso_openbao_operation in ['apply','inspect']
+  block:
+  - ansible.builtin.uri:
+      url: '{{ bao_api }}/sys/mounts'
+      headers: '{{ bao_headers }}'
+    register: bao_data_mounts
+  - ansible.builtin.assert:
+      that:
+      - bao_data_mounts.json.data[item].type == 'kv'
+      - bao_data_mounts.json.data[item].options.version | string == '2'
+    loop: [platform/, tenants/]
+- name: Refuse unrelated legacy login roles instead of reactivating broad access
+  ansible.builtin.uri:
+    url: '{{ bao_api }}/auth/oidc/role?list=true'
+    headers: '{{ bao_headers }}'
+    status_code: [200, 404]
+  register: bao_login_roles
+- ansible.builtin.assert:
+    that:
+    - bao_login_roles.status == 404 or bao_login_roles.json.data['keys'] | difference(['perkforge-sso-v1-platform-admin']) | length == 0
+- name: Inspect alias IDs only; inspect matching OIDC alias entities privately
+  ansible.builtin.uri:
+    url: '{{ bao_api }}/identity/entity-alias/id?list=true'
+    headers: '{{ bao_headers }}'
+    status_code: [200, 404]
+  register: bao_alias_ids
+- ansible.builtin.assert:
+    that:
+    - bao_alias_ids.status == 404 or bao_alias_ids.json.data['keys'] | length <= 1000
+    - bao_alias_ids.status == 404 or bao_alias_ids.json.data['keys'] | unique | length == bao_alias_ids.json.data['keys'] | length
+- ansible.builtin.include_tasks: openbao-alias.yaml
+  loop: "{{ bao_alias_ids.json.data['keys'] if bao_alias_ids.status == 200 else [] }}"
+  loop_control: {loop_var: bao_alias_id}
+- name: Refuse external group aliases on this accessor; role claims need no aliases
+  ansible.builtin.uri:
+    url: '{{ bao_api }}/identity/group-alias/id?list=true'
+    headers: '{{ bao_headers }}'
+    status_code: [200, 404]
+  register: bao_group_alias_ids
+- ansible.builtin.assert:
+    that:
+    - bao_group_alias_ids.status == 404 or bao_group_alias_ids.json.data['keys'] | length <= 1000
+    - item is match('^[A-Za-z0-9-]+$')
+  loop: "{{ bao_group_alias_ids.json.data['keys'] if bao_group_alias_ids.status == 200 else [] }}"
+- ansible.builtin.uri:
+    url: '{{ bao_api }}/identity/group-alias/id/{{ item }}'
+    headers: '{{ bao_headers }}'
+  loop: "{{ bao_group_alias_ids.json.data['keys'] if bao_group_alias_ids.status == 200 else [] }}"
+  register: bao_group_aliases
+- ansible.builtin.assert:
+    that: item.json.data.mount_accessor != sso_openbao_accessor
+  loop: '{{ bao_group_aliases.results }}'
+- ansible.builtin.uri:
+    url: '{{ bao_api }}/auth/oidc/config'
+    headers: '{{ bao_headers }}'
+    status_code: [200, 404]
+  register: bao_configuration
+- name: Refuse adoption of another issuer/client or unrelated default role
+  ansible.builtin.assert:
+    that:
+    - bao_configuration.status == 404 or bao_configuration.json.data.oidc_client_id | default('') in ['', bao_candidate.client_id]
+    - bao_configuration.status == 404 or bao_configuration.json.data.oidc_discovery_url | default('') in ['', bao_candidate.issuer]
+    - bao_configuration.status == 404 or bao_configuration.json.data.default_role | default('') == ''
+- ansible.builtin.set_fact:
+    bao_policy_name: perkforge-sso-v1-platform-admin
+    bao_role_name: perkforge-sso-v1-platform-admin
+    bao_policy: '{{ bao_candidate.policies["perkforge-sso-platform-admin"] }}'
+    bao_role: "{{ bao_candidate.roles['platform-admin'] | combine({'token_policies':['perkforge-sso-v1-platform-admin']}) }}"
+- name: Read only this versioned policy and role before any write
+  ansible.builtin.uri:
+    url: '{{ bao_api }}{{ item }}'
+    headers: '{{ bao_headers }}'
+    status_code: [200, 404]
+  loop: ['{{ "/sys/policies/acl/" + bao_policy_name }}', '{{ "/auth/oidc/role/" + bao_role_name }}']
+  register: bao_owned
+- name: Refuse replacing existing role or policy of ambiguous ownership
+  ansible.builtin.assert:
+    that:
+    - bao_owned.results[0].status == 404 or bao_owned.results[0].json.data.policy | trim == bao_policy | trim
+    - bao_owned.results[1].status == 404 or bao_owned.results[1].json.data | combine(bao_role) == bao_owned.results[1].json.data
+    - bao_owned.results[1].status == 404 or bao_owned.results[1].json.data.groups_claim | default('') == ''
+    - bao_owned.results[1].status == 404 or bao_owned.results[1].json.data.policies | default([]) in [[], ['perkforge-sso-v1-platform-admin']]
+    - bao_owned.results[1].status == 404 or bao_owned.results[1].json.data.period | default(0) == 0
+- name: Remove only exact owned human role and policy on approved rollback
+  when: sso_openbao_operation == 'rollback'
+  block:
+  - ansible.builtin.uri:
+      url: '{{ bao_api }}/auth/oidc/role/{{ bao_role_name }}'
+      headers: '{{ bao_headers }}'
+      method: DELETE
+      status_code: 204
+    when: bao_owned.results[1].status == 200
+    changed_when: true
+  - ansible.builtin.uri:
+      url: '{{ bao_api }}/sys/policies/acl/{{ bao_policy_name }}'
+      headers: '{{ bao_headers }}'
+      method: DELETE
+      status_code: 204
+    when: bao_owned.results[0].status == 200
+    changed_when: true
+- name: Reconcile only public OIDC fields and new versioned PA policy/role
+  when: sso_openbao_operation == 'apply'
+  block:
+  - ansible.builtin.set_fact:
+      bao_secret: "{{ lookup('file', sso_openbao_client_secret_file) | trim }}"
+      bao_desired_config:
+        oidc_discovery_url: '{{ bao_candidate.issuer }}'
+        oidc_client_id: '{{ bao_candidate.client_id }}'
+        oidc_discovery_ca_pem: "{{ lookup('file', sso_public_ca_file) | trim }}"
+        default_role: ''
+        oidc_response_types: [code]
+        oidc_response_mode: query
+  - ansible.builtin.assert:
+      that: bao_secret | length >= 16
+  - name: Initial configuration only; opaque credential rotation requires separate procedure
+    ansible.builtin.uri:
+      url: '{{ bao_api }}/auth/oidc/config'
+      headers: '{{ bao_headers }}'
+      method: POST
+      body_format: json
+      body: "{{ bao_desired_config | combine({'oidc_client_secret':bao_secret}) }}"
+      status_code: 204
+    when: bao_configuration.status == 404 or not (bao_configuration.json.data.oidc_client_id | default(''))
+    changed_when: true
+  - name: Existing configuration must already match; never silently rotate/adopt
+    ansible.builtin.assert:
+      that: bao_configuration.json.data | combine(bao_desired_config) == bao_configuration.json.data
+    when: bao_configuration.status == 200 and bao_configuration.json.data.oidc_client_id | default('') | length > 0
+  - ansible.builtin.uri:
+      url: '{{ bao_api }}/sys/policies/acl/{{ bao_policy_name }}'
+      headers: '{{ bao_headers }}'
+      method: PUT
+      body_format: json
+      body: {policy: '{{ bao_policy }}'}
+      status_code: 204
+    when: bao_owned.results[0].status == 404
+    changed_when: true
+  - ansible.builtin.uri:
+      url: '{{ bao_api }}/auth/oidc/role/{{ bao_role_name }}'
+      headers: '{{ bao_headers }}'
+      method: POST
+      body_format: json
+      body: '{{ bao_role }}'
+      status_code: 204
+    when: bao_owned.results[1].status == 404
+    changed_when: true
+- name: Read back all affected native objects
+  ansible.builtin.uri:
+    url: '{{ bao_api }}{{ item }}'
+    headers: '{{ bao_headers }}'
+    status_code: [200, 404]
+  loop: ['{{ "/sys/policies/acl/" + bao_policy_name }}', '{{ "/auth/oidc/role/" + bao_role_name }}', /auth/oidc/config]
+  register: bao_verified
+- ansible.builtin.assert:
+    that:
+    - bao_verified.results[0].status == 404 and bao_verified.results[1].status == 404
+  when: sso_openbao_operation == 'rollback'
+- ansible.builtin.assert:
+    that:
+    - bao_verified.results[0].json.data.policy | trim == bao_policy | trim
+    - bao_verified.results[1].json.data | combine(bao_role) == bao_verified.results[1].json.data
+    - bao_verified.results[1].json.data.groups_claim | default('') == ''
+    - bao_verified.results[2].json.data.oidc_client_id == bao_candidate.client_id
+    - bao_verified.results[2].json.data.oidc_discovery_url == bao_candidate.issuer
+    - bao_verified.results[2].json.data.default_role | default('') == ''
+  when: sso_openbao_operation == 'apply'

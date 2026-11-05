@@ -1,0 +1,33 @@
+- ansible.builtin.include_tasks: headlamp-private.yaml
+- name: Inspect both exact dedicated objects before creating either
+  ansible.builtin.command:
+    argv: ['{{ sso_kubectl }}', --kubeconfig, '{{ sso_kubeconfig }}', --context, '{{ sso_context }}', --request-timeout=20s, get, '{{ item.kind }}', '{{ item.metadata.name }}', -n, headlamp, --ignore-not-found, -o, json]
+  loop: '{{ headlamp_delivery_objects }}'
+  register: headlamp_delivery_reads
+  changed_when: false
+- name: Refuse adoption or implicit credential/trust rotation
+  ansible.builtin.assert:
+    that:
+    - (item.stdout | from_json).metadata.labels == headlamp_owner
+    - (item.stdout | from_json).immutable
+    - (item.stdout | from_json).data == item.item.data
+  loop: '{{ headlamp_delivery_reads.results }}'
+  when: item.stdout | length > 0
+- name: Create only missing immutable objects through private stdin
+  ansible.builtin.command:
+    argv: ['{{ sso_kubectl }}', --kubeconfig, '{{ sso_kubeconfig }}', --context, '{{ sso_context }}', --request-timeout=20s, create, -f, '-']
+    stdin: '{{ item.item | to_json }}'
+  loop: '{{ headlamp_delivery_reads.results }}'
+  when: item.stdout | length == 0
+- name: Verify delivered contents without printing them
+  ansible.builtin.command:
+    argv: ['{{ sso_kubectl }}', --kubeconfig, '{{ sso_kubeconfig }}', --context, '{{ sso_context }}', --request-timeout=20s, get, '{{ item.kind }}', '{{ item.metadata.name }}', -n, headlamp, -o, json]
+  loop: '{{ headlamp_delivery_objects }}'
+  register: headlamp_delivery_after
+  changed_when: false
+- ansible.builtin.assert:
+    that:
+    - (item.stdout | from_json).data == item.item.data
+    - (item.stdout | from_json).immutable
+    - (item.stdout | from_json).metadata.labels == headlamp_owner
+  loop: '{{ headlamp_delivery_after.results }}'

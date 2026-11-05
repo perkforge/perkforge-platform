@@ -1,0 +1,22 @@
+# Copy only to an explicitly approved private platform acceptance project.
+# Native runner must be project-scoped, protected, locked and reject untagged jobs.
+workflow:
+  rules:
+  - if: '$CI_COMMIT_REF_PROTECTED == "true" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  - when: never
+stages: [verify]
+runner-baseline:
+  stage: verify
+  image: registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8
+  tags: [perkforge-platform]
+  timeout: 5m
+  script:
+  - test "$(id -u)" -ne 0
+  - test ! -e /var/run/secrets/kubernetes.io/serviceaccount/token
+  - 'grep -Eq "^CapEff:[[:space:]]+0+$" /proc/self/status'
+  - mkdir -p acceptance
+  - printf 'Harmless runner artifact; no secrets or environment dump.\n' > acceptance/result.txt
+  artifacts:
+    when: on_success
+    expire_in: 1 day
+    paths: [acceptance/result.txt]

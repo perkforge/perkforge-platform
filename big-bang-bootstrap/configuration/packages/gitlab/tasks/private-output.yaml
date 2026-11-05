@@ -1,0 +1,31 @@
+# Caller supplies gitlab_private_output_directory/name/payload under no_log.
+- ansible.builtin.stat:
+    path: '{{ gitlab_private_output_directory }}'
+    follow: false
+  register: gitlab_private_directory
+- ansible.builtin.assert:
+    that:
+    - gitlab_private_output_directory is match('^/') and gitlab_private_output_directory | realpath == gitlab_private_output_directory
+    - gitlab_private_directory.stat.isdir | default(false)
+    - not (gitlab_private_directory.stat.islnk | default(false))
+    - gitlab_private_directory.stat.pw_name == lookup('env','USER')
+    - gitlab_private_directory.stat.mode == '0700'
+    - gitlab_private_output_name is match('^[a-z-]+[.]json$')
+- ansible.builtin.stat:
+    path: '{{ gitlab_private_output_directory }}/{{ gitlab_private_output_name }}'
+    follow: false
+  register: gitlab_private_existing
+- when: gitlab_private_existing.stat.exists
+  block:
+  - ansible.builtin.assert:
+      that:
+      - gitlab_private_existing.stat.isreg and not (gitlab_private_existing.stat.islnk | default(false))
+      - gitlab_private_existing.stat.pw_name == lookup('env','USER')
+      - gitlab_private_existing.stat.mode == '0600'
+  - ansible.builtin.assert:
+      that: lookup('file',gitlab_private_output_directory + '/' + gitlab_private_output_name) | from_json == gitlab_private_payload
+- ansible.builtin.copy:
+    dest: '{{ gitlab_private_output_directory }}/{{ gitlab_private_output_name }}'
+    content: "{{ gitlab_private_payload | to_nice_json }}\n"
+    mode: '0600'
+    force: false

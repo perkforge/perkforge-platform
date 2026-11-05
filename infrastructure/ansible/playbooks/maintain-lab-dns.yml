@@ -1,0 +1,87 @@
+---
+- name: Review a released record-only DNS maintenance operation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    lab_dns_maintenance_apply: false
+    lab_dns_maintenance_scope: UNAPPROVED
+    lab_dns_maintenance_expected_sha256: UNCONFIGURED
+    lab_dns_maintenance_release_evidence: /UNCONFIGURED/platform-release.json
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check mode makes no connections. Explicit scope adds only the two GitLab A records to the existing owned service; no install, credentials, unit, listener, upstream or firewall changes.'
+  - when: lab_dns_maintenance_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - lab_dns_maintenance_scope == 'gitlab-dns-records-v1'
+        - lab_dns_maintenance_expected_sha256 is match('^[a-f0-9]{64}$')
+        - lab_dns_maintenance_release_evidence is match('^/')
+        - "'UNCONFIGURED' not in lab_dns_maintenance_release_evidence"
+        - groups.get('rke2_servers', []) == ['control-1']
+        - groups.get('rke2_agents', []) | sort == ['worker-1', 'worker-2']
+    - ansible.builtin.set_fact:
+        dns_release: "{{ lookup('file',lab_dns_maintenance_release_evidence) | from_json }}"
+    - ansible.builtin.assert:
+        that:
+        - dns_release.repository == 'perkforge/perkforge-platform'
+        - dns_release.tag is match('^v[0-9]+[.][0-9]+[.][0-9]+$')
+        - dns_release.resolvedCommit is match('^[a-f0-9]{40}$')
+    - ansible.builtin.command:
+        argv: [bash, '{{ playbook_dir }}/../../../scripts/verify-release-ref.sh', '{{ dns_release.repository }}', '{{ dns_release.tag }}', '{{ dns_release.resolvedCommit }}']
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', rev-parse, HEAD]
+      register: dns_checkout
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', status, --porcelain]
+      register: dns_changes
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - dns_checkout.stdout == dns_release.resolvedCommit
+        - dns_changes.stdout | length == 0
+        - hostvars['control-1'].ansible_host is match('^[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+$')
+        - hostvars['worker-1'].ansible_host is match('^[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+$')
+    - ansible.builtin.add_host:
+        name: control-1
+        groups: lab_dns_maintenance_server
+        lab_dns_server_ip: '{{ hostvars["control-1"].ansible_host }}'
+        lab_dns_ingress_ip: '{{ hostvars["worker-1"].ansible_host }}'
+        lab_dns_maintenance_expected_sha256: '{{ lab_dns_maintenance_expected_sha256 }}'
+
+- name: Maintain only the existing owned DNS records
+  hosts: lab_dns_maintenance_server
+  gather_facts: false
+  become: true
+  vars:
+    lab_dns_config: /etc/dnsmasq.d/perkforge-lab.conf
+    lab_dns_unit: /etc/systemd/system/perkforge-lab-dns.service
+    lab_dns_backup: /var/backups/perkforge-lab-dns
+    lab_dns_owner: root
+    lab_dns_binary: /usr/sbin/dnsmasq
+    lab_dns_unit_expected: "{{ lookup('file',playbook_dir + '/../templates/lab-dns.service.j2',rstrip=false) }}"
+  tasks:
+  - when: lab_dns_maintenance_apply | default(false) | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - lab_dns_maintenance_scope == 'gitlab-dns-records-v1'
+        - lab_dns_config == '/etc/dnsmasq.d/perkforge-lab.conf'
+        - lab_dns_unit == '/etc/systemd/system/perkforge-lab-dns.service'
+        - lab_dns_backup == '/var/backups/perkforge-lab-dns'
+        - lab_dns_owner == 'root' and lab_dns_binary == '/usr/sbin/dnsmasq'
+    - ansible.builtin.setup:
+        gather_subset: [min, network]
+    - ansible.builtin.command: {argv: [hostname]}
+      register: dns_hostname
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - dns_hostname.stdout | trim == 'control-1'
+        - ansible_facts.distribution == 'RedHat' and ansible_facts.distribution_version == '10.2'
+        - ansible_facts.selinux.mode == 'enforcing'
+        - lab_dns_server_ip in ansible_facts.all_ipv4_addresses
+    - ansible.builtin.include_tasks: ../tasks/maintain-lab-dns.yml

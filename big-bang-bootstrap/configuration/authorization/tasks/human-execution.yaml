@@ -1,0 +1,68 @@
+- name: Inspect exact direct children, never silently remove an unknown execution
+  ansible.builtin.uri:
+    url: '{{ human_api }}/authentication/flows/{{ human_step.parent }}/executions'
+    headers: '{{ human_headers }}'
+  register: human_executions
+- ansible.builtin.set_fact:
+    human_direct: "{{ human_executions.json | selectattr('level', 'equalto', 0) | list }}"
+- ansible.builtin.assert:
+    that:
+    - human_direct | length <= 2
+    - (human_direct | selectattr('providerId','defined') | list | length) + (human_direct | selectattr('authenticationFlow','defined') | selectattr('authenticationFlow','equalto',true) | list | length) == human_direct | length
+    - >-
+      (human_step.parent == human_flow_alias and
+       human_direct | selectattr('providerId', 'defined') | map(attribute='providerId') | difference(['auth-cookie']) | length == 0 and
+       human_direct | selectattr('authenticationFlow', 'defined') | selectattr('authenticationFlow', 'equalto', true) | map(attribute='displayName') | difference([human_forms_alias]) | length == 0)
+      or (human_step.parent == human_forms_alias and human_direct | map(attribute='providerId') | difference(['auth-username-password-form','auth-otp-form']) | length == 0)
+- ansible.builtin.set_fact:
+    human_matching: "{{ (human_direct | selectattr('authenticationFlow', 'defined') | selectattr('authenticationFlow', 'equalto', true) | selectattr('displayName', 'equalto', human_forms_alias) | list) if human_step.kind == 'forms' else (human_direct | selectattr('providerId', 'defined') | selectattr('providerId', 'equalto', human_step.provider) | list) }}"
+- name: Bound-policy drift is failure, not automatic repair
+  ansible.builtin.assert:
+    that:
+    - human_matching | length <= 1
+    - human_matching | length == 1 or human_constructing | bool
+    - human_constructing | bool or human_matching[0].requirement == human_step.requirement
+- name: Create a missing known authenticator in the still-unbound owned flow
+  ansible.builtin.uri:
+    url: '{{ human_api }}/authentication/flows/{{ human_step.parent }}/executions/execution'
+    method: POST
+    headers: '{{ human_headers }}'
+    body_format: json
+    body: {provider: '{{ human_step.provider }}'}
+    status_code: 201
+  when: human_matching | length == 0 and human_step.kind == 'authenticator'
+  changed_when: true
+- name: Create the missing owned password/TOTP forms subflow
+  ansible.builtin.uri:
+    url: '{{ human_api }}/authentication/flows/{{ human_step.parent }}/executions/flow'
+    method: POST
+    headers: '{{ human_headers }}'
+    body_format: json
+    body:
+      alias: '{{ human_forms_alias }}'
+      description: '{{ human_flow_description }}'
+      provider: basic-flow
+      type: basic-flow
+    status_code: 201
+  when: human_matching | length == 0 and human_step.kind == 'forms'
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ human_api }}/authentication/flows/{{ human_step.parent }}/executions'
+    headers: '{{ human_headers }}'
+  register: human_execution_saved
+- ansible.builtin.set_fact:
+    human_selected: "{{ ((human_execution_saved.json | selectattr('level','equalto',0) | selectattr('authenticationFlow','defined') | selectattr('authenticationFlow','equalto',true) | selectattr('displayName','equalto',human_forms_alias) | list) if human_step.kind == 'forms' else (human_execution_saved.json | selectattr('level','equalto',0) | selectattr('providerId','defined') | selectattr('providerId','equalto',human_step.provider) | list)) }}"
+- ansible.builtin.assert:
+    that:
+    - human_selected | length == 1
+    - human_selected[0].requirement in ['DISABLED', human_step.requirement]
+- name: Set the declared requirement only during unbound construction
+  ansible.builtin.uri:
+    url: '{{ human_api }}/authentication/flows/{{ human_step.parent }}/executions'
+    method: PUT
+    headers: '{{ human_headers }}'
+    body_format: json
+    body: {id: '{{ human_selected[0].id }}', requirement: '{{ human_step.requirement }}'}
+    status_code: 204
+  when: human_selected[0].requirement != human_step.requirement and human_constructing | bool
+  changed_when: true

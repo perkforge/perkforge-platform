@@ -1,0 +1,133 @@
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}'
+    headers: '{{ sso_client_headers }}'
+  register: gitlab_client_realm
+- ansible.builtin.assert:
+    that:
+    - gitlab_client_realm.json.realm == 'perkforge' and gitlab_client_realm.json.enabled
+    - gitlab_client_realm.json.attributes['perkforge-managed'] == 'true'
+    - gitlab_client_realm.json.attributes['perkforge-purpose'] == 'realm-foundation-v1'
+- ansible.builtin.set_fact:
+    gitlab_client_candidate:
+      clientId: gitlab
+      enabled: false
+      protocol: openid-connect
+      publicClient: false
+      clientAuthenticatorType: client-secret
+      standardFlowEnabled: true
+      implicitFlowEnabled: false
+      directAccessGrantsEnabled: false
+      serviceAccountsEnabled: false
+      fullScopeAllowed: false
+      defaultClientScopes: [basic, profile, email]
+      optionalClientScopes: []
+      redirectUris: ['{{ gitlab_origin }}/users/auth/openid_connect/callback']
+      webOrigins: ['{{ gitlab_origin }}']
+      attributes:
+        perkforge-managed: 'true'
+        perkforge-purpose: gitlab-sso-v1
+        pkce.code.challenge.method: S256
+      protocolMappers: []
+    cacheable: false
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}/client-scopes'
+    headers: '{{ sso_client_headers }}'
+  register: gitlab_scope_catalog
+- ansible.builtin.set_fact:
+    gitlab_selected_scopes: '{{ gitlab_scope_catalog.json | selectattr("name","in",["basic","profile","email"]) | list }}'
+- ansible.builtin.assert:
+    that:
+    - gitlab_selected_scopes | map(attribute='name') | sort == ['basic','email','profile']
+    - gitlab_selected_scopes | map(attribute='id') | unique | length == 3
+- ansible.builtin.include_tasks: ../../../authorization/sso/tasks/client-scope.yaml
+  loop: '{{ gitlab_selected_scopes }}'
+  loop_control: {loop_var: sso_scope}
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients?clientId=gitlab'
+    headers: '{{ sso_client_headers }}'
+  register: gitlab_client_lookup
+- ansible.builtin.assert:
+    that:
+    - gitlab_client_lookup.json | length <= 1
+    - gitlab_client_lookup.json | length == 1 or gitlab_client_operation == 'prepare'
+- ansible.builtin.assert:
+    that: lookup('file',gitlab_client_secret_file) | trim | length >= 16
+  when: gitlab_client_operation != 'rollback'
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients'
+    headers: '{{ sso_client_headers }}'
+    method: POST
+    body_format: json
+    body: "{{ gitlab_client_candidate | combine({'secret':lookup('file',gitlab_client_secret_file) | trim}) }}"
+    status_code: 201
+  when: gitlab_client_lookup.json | length == 0 and gitlab_client_operation == 'prepare'
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients?clientId=gitlab'
+    headers: '{{ sso_client_headers }}'
+  register: gitlab_client_current
+- ansible.builtin.assert:
+    that:
+    - gitlab_client_current.json | length == 1
+    - gitlab_client_current.json[0].id is match('^[A-Za-z0-9-]+$')
+- ansible.builtin.set_fact:
+    gitlab_client_uuid: '{{ gitlab_client_current.json[0].id }}'
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients/{{ gitlab_client_uuid }}'
+    headers: '{{ sso_client_headers }}'
+  register: gitlab_client_canonical
+- ansible.builtin.assert:
+    that: gitlab_client_canonical.json.get(item.key) == item.value
+  loop: '{{ gitlab_client_candidate | dict2items | rejectattr("key","in",["enabled","attributes","defaultClientScopes","optionalClientScopes","protocolMappers"]) | list }}'
+- ansible.builtin.assert:
+    that:
+    - gitlab_client_canonical.json.attributes.get(item.key) == item.value
+  loop: '{{ gitlab_client_candidate.attributes | dict2items }}'
+- ansible.builtin.assert:
+    that:
+    - gitlab_client_canonical.json.authenticationFlowBindingOverrides | default({}) == {}
+    - gitlab_client_canonical.json.attributes.get('oauth2.device.authorization.grant.enabled','false') == 'false'
+    - gitlab_client_canonical.json.attributes.get('oidc.ciba.grant.enabled','false') == 'false'
+    - gitlab_client_canonical.json.attributes.get('standard.token.exchange.enabled','false') == 'false'
+    - gitlab_client_canonical.json.attributes.get('token.exchange.grant.enabled','false') == 'false'
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients/{{ gitlab_client_uuid }}/{{ item }}'
+    headers: '{{ sso_client_headers }}'
+  loop: [default-client-scopes, optional-client-scopes, protocol-mappers/models, roles, scope-mappings]
+  register: gitlab_client_surfaces
+- ansible.builtin.assert:
+    that:
+    - gitlab_client_surfaces.results[0].json | map(attribute='id') | sort == gitlab_selected_scopes | map(attribute='id') | sort
+    - gitlab_client_surfaces.results[1].json | length == 0
+    - gitlab_client_surfaces.results[2].json | length == 0
+    - gitlab_client_surfaces.results[3].json | length == 0
+    - gitlab_client_surfaces.results[4].json.realmMappings | default([]) | length == 0
+    - gitlab_client_surfaces.results[4].json.clientMappings | default({}) | length == 0
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients/{{ gitlab_client_uuid }}/client-secret'
+    headers: '{{ sso_client_headers }}'
+  register: gitlab_client_credential
+  when: gitlab_client_operation != 'rollback'
+- ansible.builtin.assert:
+    that: gitlab_client_credential.json.value == lookup('file',gitlab_client_secret_file) | trim
+  when: gitlab_client_operation != 'rollback'
+- name: Toggle only the existing owned client's enabled flag; never resend masked secret
+  ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients/{{ gitlab_client_uuid }}'
+    headers: '{{ sso_client_headers }}'
+    method: PUT
+    body_format: json
+    body: "{{ {'clientId':'gitlab','enabled':gitlab_client_operation == 'activate'} }}"
+    status_code: 204
+  when: (gitlab_client_operation == 'activate' and not gitlab_client_canonical.json.enabled) or (gitlab_client_operation == 'rollback' and gitlab_client_canonical.json.enabled)
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ sso_client_api }}/clients/{{ gitlab_client_uuid }}'
+    headers: '{{ sso_client_headers }}'
+  register: gitlab_client_after
+- ansible.builtin.assert:
+    that:
+    - gitlab_client_after.json.id == gitlab_client_uuid
+    - gitlab_client_after.json.clientId == 'gitlab'
+    - gitlab_client_after.json.enabled == (gitlab_client_operation == 'activate' if gitlab_client_operation in ['activate','rollback'] else gitlab_client_canonical.json.enabled)
+    - (gitlab_client_after.json | dict2items | rejectattr('key','equalto','enabled') | items2dict) == (gitlab_client_canonical.json | dict2items | rejectattr('key','equalto','enabled') | items2dict)
