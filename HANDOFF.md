@@ -6,12 +6,6 @@
 rendered disabled profile with protected Secret references, no generated values.
 External data services, TLS/network/capacity and explicit scanner scope need review.
 
-## GitLab candidate is blocked, not queued live activation
-
-[GitLab review](big-bang-bootstrap/configuration/packages/gitlab/README.md) commits
-the actual pinned disabled profile and namespace installer audit. External
-PostgreSQL/Redis/object store and roughly17Gi app requests need capacity decisions;
-no license, credentials, ingress or deployment. No obsolete direct installer found.
 
 ## Inactive alert/validation preparation
 
