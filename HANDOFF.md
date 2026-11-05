@@ -1,21 +1,24 @@
 # Current operator handoff
 
-## Current runner checkout blocker
+## Current GitLab runner baseline accepted
 
-Observed 2026-11-05: published v0.18.3 is selected and the init drop-ALL correction
-is deployed through GitOps. Corrected manager is Ready and runner ID 1 remains
-online/unpaused, locked/protected, with all three reconcilers healthy. The owner
-retry and fresh pipeline passed Pod admission, image pulls and container startup.
-Both stopped during checkout at permission denied locking `//.gitconfig` under
-the non-root UID. The pending source fix supplies a writable ephemeral Git home
-through the shared runner environment, without root/chmod/RBAC/credential changes.
-The exact pinned helper reproduced HOME=/ failure and passed global Git config
-and local clone with HOME=/tmp under UID1001/drop ALL. Morning jobs also ran on
-the untainted control plane; required standard-role-label exclusion now constrains
-future job Pods to non-control-plane nodes without hostname/storage coupling.
-Live corrected checkout, worker placement and artifact verification remain pending.
-Real checkout/artifact and negative isolation acceptance remain unverified. Root
-web-session retry was denied HTTP403 and signed out; owner retry remains needed.
+Observed 2026-11-05 15:15 UTC: owner-triggered pipeline 3, job 4 succeeded on
+worker-2 using the original protected project runner ID 1. Checkout of main
+commit 8ad6c47d completed. The script verified non-root execution, absence of the
+default Kubernetes service-account token mount and zero effective capabilities.
+Artifact upload returned 201 and an independent download verified the exact
+harmless acceptance/result.txt contents. The job Pod was cleaned up; manager is
+Ready with zero restarts and root/umbrella/runner reconciliation is healthy.
+Original credential contents/identities, four retained claims, three data Pods
+and all three nodes passed the preservation check.
+
+The source-owned init capability, writable HOME and required control-plane/master
+exclusion fixes are deployed; no live-only workload patch or broader RBAC was
+used. Published v0.18.4 is selected and the tagged source/root are Ready. The
+accepted manager Pod UID stayed unchanged with zero restarts during tag-only
+reconciliation. This is a basic
+protected runner acceptance, not proof of every negative tenant/network/image
+boundary, independent restore or non-admin GitLab denial. Those remain unverified.
 
 ## Previous runner activation blocker
 

@@ -95,12 +95,11 @@ tokens and credentials outside Git, and verify actual function after deployment.
 
 ## Current runner execution evidence
 
-The manager is Ready and native runner ID 1 is online. Released v0.18.3 corrected
-the first restricted-admission failure. The owner retry and fresh morning job both
-passed Pod admission and container startup, then failed locking //.gitconfig at
-checkout. Both ran on the untainted control plane. The pending source changes
-supply a writable ephemeral HOME and required affinity excluding standard
-control-plane/master role labels, retaining the original security boundary.
-Exact helper reproduction/local clone and offline rendering do not prove live
-checkout, worker placement or artifacts. See the [runner guide](../gitlab-runner/README.md).
-No successful job or negative-case result is claimed.
+Owner-triggered pipeline 3/job 4 passed on worker-2 at 2026-11-05 15:15 UTC using
+existing runner ID 1 and protected main commit 8ad6c47d. Checkout, non-root/no-Pod-
+API-token/zero-effective-capability assertions and artifact upload passed. The
+artifact was independently downloaded and its exact expected bytes verified.
+The source-owned init, HOME and placement fixes are active; no permission or
+credential expansion was required. See the [runner guide](../gitlab-runner/README.md).
+This establishes the basic protected-runner outcome, not the separate negative
+runner/CNI cases, independent restore or real non-admin GitLab denial.
