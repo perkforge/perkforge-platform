@@ -543,3 +543,10 @@ increase adds about 0.93 GiB to its finite limits, not to scheduling requests.
 This source-only correction still requires publication, release and approved
 promotion. Verify fresh HTTPS login/dashboard requests, readiness, restart count
 and memory through a settling period before claiming stable UI acceptance.
+
+## Remaining named SSO and runner acceptance
+
+Use [the consolidated acceptance handoff](sso-runner-acceptance.md) after the
+released memory fix is stable. Named native-admin GET verification is available;
+account approval and grants remain explicit owner actions. Tenant access-sync is
+future work, not an additional implementation in this outcome.
