@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/perkforge/perkforge-platform/compare/v0.17.11...v0.18.0) (2026-11-05)
+
+
+### Features
+
+* **gitlab:** verify named SSO and document existing runner activation ([#180](https://github.com/perkforge/perkforge-platform/issues/180)) ([d644479](https://github.com/perkforge/perkforge-platform/commit/d644479e59f031fea936f33ac441607fc0ec887f))
+
 ## [0.17.11](https://github.com/perkforge/perkforge-platform/compare/v0.17.10...v0.17.11) (2026-11-05)
 
 
