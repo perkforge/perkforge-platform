@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.11](https://github.com/perkforge/perkforge-platform/compare/v0.17.10...v0.17.11) (2026-11-05)
+
+
+### Bug Fixes
+
+* **gitlab:** allow recommended memory for two Puma workers ([#178](https://github.com/perkforge/perkforge-platform/issues/178)) ([62f5afa](https://github.com/perkforge/perkforge-platform/commit/62f5afa020aaf321d26dcf8aeeadc4ddde58b87c))
+
 ## [0.17.10](https://github.com/perkforge/perkforge-platform/compare/v0.17.9...v0.17.10) (2026-11-05)
 
 
