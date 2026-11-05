@@ -294,8 +294,10 @@ new PVC**, not permission to format either T7 host filesystem.
 Environment disk details live in
 `clusters/local/longhorn-disks.example.yaml`, separate from reusable class policy
 and Ansible templates. The mount path is a proposal; capacities are advertised
-decimal estimates. Proposed explicit reserves are 50 GB and 100 GB respectively;
-confirm them against measured filesystem sizes and growth before acceptance.
+decimal estimates. Preserve the agreed reserve of 30% of each measured formatted
+filesystem capacity, rounded up to whole bytes: `(capacity_bytes * 30 + 99) // 100`.
+The illustrative advertised sizes give 150 GB and 300 GB reserves, respectively;
+replace both capacity and reserve with measured values before acceptance.
 Longhorn's default-disk reserve percentage does not configure these added disks:
 the renderer authors `storageReserved` bytes explicitly. Minimum-free scheduling
 checks also apply. Neither setting is a quota or a guarantee of usable capacity.
@@ -320,7 +322,7 @@ one-worker loss leaves a single copy and no third-worker rebuild destination.
    with measured bytes and `snapshot` with the corresponding full object. Keep
    identifiers and generated patches in ignored/protected storage. Existing disk
    keys and paths are preserved. The renderer rejects identity/path conflicts,
-   duplicate nodes, absent snapshots and nonpositive/out-of-range reserves.
+   duplicate nodes, absent snapshots and reserves that differ from the 30% baseline.
 4. Render review artifacts locally into an existing mode0700 directory:
 
    ```sh

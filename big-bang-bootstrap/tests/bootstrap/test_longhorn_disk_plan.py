@@ -40,6 +40,9 @@ class DedicatedDiskPlanTests(unittest.TestCase):
 
     def test_additive_disabled_patches_preserve_existing_disks(self):
         plan = self.plan()
+        # Exercise rounding against measured capacity that is not divisible by 100.
+        plan[0]['capacity_bytes'] += 1
+        plan[0]['reserve_bytes'] += 1
         result, files = self.render(plan)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(len(files), 2)
@@ -53,7 +56,7 @@ class DedicatedDiskPlanTests(unittest.TestCase):
             self.assertNotIn('diskUUID', patch[3]['value'])
 
     def test_refuses_missing_identity_conflict_and_invalid_reserve_before_output(self):
-        for invalid in ('identity', 'conflict', 'reserve', 'duplicate', 'missing'):
+        for invalid in ('identity', 'conflict', 'reserve', 'reduced-reserve', 'duplicate', 'missing'):
             with self.subTest(invalid=invalid):
                 plan = self.plan()
                 if invalid == 'identity':
@@ -62,6 +65,8 @@ class DedicatedDiskPlanTests(unittest.TestCase):
                     plan[1]['snapshot']['spec']['disks']['dedicated-t7'] = {'path': '/elsewhere'}
                 elif invalid == 'reserve':
                     plan[1]['reserve_bytes'] = 0
+                elif invalid == 'reduced-reserve':
+                    plan[1]['reserve_bytes'] = plan[1]['capacity_bytes'] // 10
                 elif invalid == 'duplicate':
                     plan[1]['node'] = plan[0]['node']
                 else:

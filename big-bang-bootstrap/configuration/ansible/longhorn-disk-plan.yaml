@@ -36,6 +36,8 @@
       - item.reserve_bytes is integer
       - item.reserve_bytes > 0
       - item.capacity_bytes > item.reserve_bytes
+      # Preserve the agreed 30% baseline for added filesystem disks.
+      - item.reserve_bytes == ((item.capacity_bytes * 30 + 99) // 100)
       - item.snapshot.apiVersion == 'longhorn.io/v1beta2'
       - item.snapshot.kind == 'Node'
       - item.snapshot.metadata.namespace == 'longhorn-system'
