@@ -1,0 +1,51 @@
+- name: Create only a missing human with a temporary password and required enrollment
+  ansible.builtin.uri:
+    url: '{{ human_api }}/users'
+    method: POST
+    headers: '{{ human_headers }}'
+    body_format: json
+    body:
+      username: '{{ human_username }}'
+      enabled: true
+      attributes: {perkforge-managed: ['true'], perkforge-enrollment: [human-totp-il2-v1]}
+      requiredActions: [UPDATE_PASSWORD, CONFIGURE_TOTP]
+      credentials:
+      - type: password
+        temporary: true
+        value: "{{ lookup('file', human_initial_password_file) | trim }}"
+    status_code: 201
+  when: human_found | length == 0
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ human_api }}/users?username={{ human_username | urlencode }}&exact=true'
+    headers: '{{ human_headers }}'
+  register: human_saved
+- ansible.builtin.assert:
+    that:
+    - human_saved.json | length == 1
+    - human_saved.json[0].username == human_username
+- name: Save only a new account's ownership UUID; never a password or TOTP seed
+  ansible.builtin.copy:
+    dest: '{{ human_record_file }}'
+    content: "{{ {'realm':'perkforge', 'username':human_username, 'id':human_saved.json[0].id} | to_nice_json }}\n"
+    mode: '0600'
+    force: false
+  when: human_found | length == 0
+- ansible.builtin.set_fact:
+    human_user: '{{ human_saved.json[0] }}'
+    human_record: "{{ lookup('file', human_record_file) | from_json }}"
+- ansible.builtin.include_tasks: human-access-check.yaml
+- name: Assign only the separately approved nominal platform-admin group
+  ansible.builtin.uri:
+    url: '{{ human_api }}/users/{{ human_user.id }}/groups/{{ human_group.json.id }}'
+    method: PUT
+    headers: '{{ human_headers }}'
+    status_code: 204
+  when: human_group.json.id not in (human_access.results[0].json | map(attribute='id') | list)
+  changed_when: true
+- ansible.builtin.include_tasks: human-access-check.yaml
+- ansible.builtin.assert:
+    that:
+    - human_access.results[0].json | length == 1
+    - human_access.results[0].json[0].path == '/platform/admins'
+# No user PUT/reset/credential export: a repeat must preserve completed human enrollment.

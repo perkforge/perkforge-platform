@@ -15,6 +15,6 @@ class ObservabilityReview(unittest.TestCase):
   out=helm(src/'bigbang/chart','bigbang','bigbang',values+[(p/'candidate-values.yaml').read_text()],tuple(y for key in mapping for y in ['--set',key+'.enabled=true']))
   names={o['metadata']['name']:o for o in out if o['kind']=='HelmRelease'}
   for name in mapping.values():self.assertTrue(names[name]['spec']['suspend'])
-  self.assertFalse(v['monitoring']['values']['upstream']['grafana']['enabled']);self.assertTrue(v['monitoring']['values']['upstream']['alertmanager']['enabled'])
+  self.assertFalse(v['monitoring']['values']['upstream']['grafana']['enabled']);self.assertFalse(v['monitoring']['values']['upstream']['alertmanager']['enabled'])
   prom=v['monitoring']['values']['upstream']['prometheus']['prometheusSpec'];self.assertEqual(prom['retention'],'7d');self.assertEqual(prom['retentionSize'],'8GB')
   graf=v['grafana']['values']['upstream'];self.assertFalse(graf['ingress']['enabled']);self.assertFalse(graf['grafana.ini']['auth.anonymous']['enabled']);self.assertFalse(graf['grafana.ini']['auth.generic_oauth']['enabled']);self.assertEqual(graf['admin']['existingSecret'],'grafana-admin')

@@ -1,0 +1,90 @@
+- ansible.builtin.command:
+    argv: "{{ headlamp_route_cli + ['get','namespace','kube-system','-o','jsonpath={.metadata.uid}'] }}"
+  register: headlamp_route_uid
+  changed_when: false
+- ansible.builtin.assert:
+    that: headlamp_route_uid.stdout == headlamp_route_cluster_uid
+- ansible.builtin.command:
+    argv: "{{ headlamp_route_cli + ['get','ingress','headlamp-identity','-n','headlamp','--ignore-not-found','-o','json'] }}"
+  register: headlamp_route_read
+  changed_when: false
+- ansible.builtin.set_fact:
+    headlamp_route_existing: '{{ headlamp_route_read.stdout | from_json if headlamp_route_read.stdout | length else {} }}'
+- name: Refuse adoption or mutation of any existing unowned or different route
+  ansible.builtin.assert:
+    that:
+    - headlamp_route_existing.metadata.labels == headlamp_route_owner
+    - headlamp_route_existing.metadata.annotations == headlamp_route_candidate.metadata.annotations
+    - headlamp_route_existing.spec == headlamp_route_candidate.spec
+  when: headlamp_route_existing | length > 0
+- when: headlamp_route_operation != 'rollback'
+  block:
+  - ansible.builtin.stat:
+      path: '{{ headlamp_route_public_ca }}'
+      follow: false
+    register: headlamp_route_ca_stat
+  - ansible.builtin.assert:
+      that:
+      - headlamp_route_ca_stat.stat.isreg | default(false)
+      - not (headlamp_route_ca_stat.stat.islnk | default(false))
+      - "'PRIVATE KEY' not in lookup('file',headlamp_route_public_ca)"
+  - ansible.builtin.command:
+      argv: [openssl, x509, -in, '{{ headlamp_route_public_ca }}', -noout, -fingerprint, -sha256]
+    register: headlamp_route_fp
+    changed_when: false
+  - ansible.builtin.assert:
+      that: headlamp_route_fp.stdout.split('=')[-1] | replace(':','') | lower == headlamp_route_ca_fingerprint
+  - name: Emit only the public certificate and type from kubectl, never the TLS private key
+    ansible.builtin.command:
+      argv: "{{ headlamp_route_cli + ['get','secret','headlamp-local-tls','-n','headlamp','-o','jsonpath={.type}{\"\\n\"}{.data.tls\\.crt}'] }}"
+    register: headlamp_route_certificate
+    changed_when: false
+  - ansible.builtin.assert:
+      that:
+      - headlamp_route_certificate.stdout_lines[0] == 'kubernetes.io/tls'
+      - headlamp_route_certificate.stdout_lines | length == 2
+  - ansible.builtin.command:
+      argv: [openssl, verify, -CAfile, '{{ headlamp_route_public_ca }}', -verify_hostname, '{{ headlamp_route_origin | urlsplit("hostname") }}', -purpose, sslserver, /dev/stdin]
+      stdin: '{{ headlamp_route_certificate.stdout_lines[1] | b64decode }}'
+    changed_when: false
+  - ansible.builtin.command:
+      argv: "{{ headlamp_route_cli + ['get','service','headlamp-headlamp','-n','headlamp','-o','json'] }}"
+    register: headlamp_route_service
+    changed_when: false
+  - ansible.builtin.assert:
+      that: (headlamp_route_service.stdout | from_json).spec.ports | selectattr('port','equalto',4466) | list | length == 1
+  - name: Create only the missing Headlamp ingress, never the shared routing kustomization
+    ansible.builtin.command:
+      argv: "{{ headlamp_route_cli + ['create','-f','-'] }}"
+      stdin: '{{ headlamp_route_candidate | to_json }}'
+    when: headlamp_route_operation == 'apply' and headlamp_route_existing | length == 0
+  - name: Trusted HTTPS must work before routing acceptance; a failed check leaves an inspectable owned ingress
+    ansible.builtin.uri:
+      url: '{{ headlamp_route_origin }}/'
+      ca_path: '{{ headlamp_route_public_ca }}'
+      validate_certs: true
+      use_proxy: false
+      follow_redirects: none
+      status_code: [200,302,303]
+      timeout: 15
+    register: headlamp_route_https
+    retries: 6
+    delay: 5
+    until: headlamp_route_https is succeeded
+- name: Rollback only the exact owned ingress; preserve all TLS and other routes
+  ansible.builtin.command:
+    argv: "{{ headlamp_route_cli + ['delete','--raw=/apis/networking.k8s.io/v1/namespaces/headlamp/ingresses/headlamp-identity','-f','-'] }}"
+    stdin: "{{ {'apiVersion':'v1','kind':'DeleteOptions','preconditions':{'uid':headlamp_route_existing.metadata.uid,'resourceVersion':headlamp_route_existing.metadata.resourceVersion}} | to_json }}"
+  when: headlamp_route_operation == 'rollback' and headlamp_route_existing | length > 0
+- ansible.builtin.command:
+    argv: "{{ headlamp_route_cli + ['get','ingress','headlamp-identity','-n','headlamp','--ignore-not-found','-o','json'] }}"
+  register: headlamp_route_final
+  changed_when: false
+- ansible.builtin.assert:
+    that: headlamp_route_final.stdout | length == 0
+  when: headlamp_route_operation == 'rollback'
+- ansible.builtin.assert:
+    that:
+    - (headlamp_route_final.stdout | from_json).spec == headlamp_route_candidate.spec
+    - (headlamp_route_final.stdout | from_json).metadata.labels == headlamp_route_owner
+  when: headlamp_route_operation != 'rollback'

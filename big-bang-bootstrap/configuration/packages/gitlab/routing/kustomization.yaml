@@ -1,0 +1,1 @@
+resources: [ingress.yaml, garage-network.yaml]

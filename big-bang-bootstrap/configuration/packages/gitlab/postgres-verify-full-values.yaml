@@ -1,0 +1,41 @@
+# Unselected supported-extraEnv overlay: native libpq verifies CA AND hostname.
+# Leave the chart's optional mTLS helper off; it emits explicit verify-ca.
+# Public CA ConfigMap must be delivered/verified separately; never a signing key.
+# Keep this mount outside the chart's read-only /etc/gitlab configuration volume.
+addons:
+  gitlab:
+    enabled: false
+    flux: {suspend: true}
+    values:
+      global:
+        psql:
+          host: gitlab-postgres-rw.gitlab.svc.cluster.local
+          port: 5432
+          username: gitlab
+          database: gitlabhq_production
+          ssl: null
+          password: {secret: gitlab-database, key: password}
+        extraEnv:
+          PGSSLMODE: verify-full
+          PGSSLROOTCERT: /etc/gitlab-postgres-ca/ca.crt
+      upstream:
+        gitlab:
+          webservice:
+            extraVolumes: &postgres-ca-volume |
+              - name: gitlab-postgres-public-ca
+                configMap:
+                  name: gitlab-postgres-public-ca
+                  items: [{key: ca.crt, path: ca.crt}]
+            extraVolumeMounts: &postgres-ca-mount |
+              - name: gitlab-postgres-public-ca
+                mountPath: /etc/gitlab-postgres-ca
+                readOnly: true
+          sidekiq:
+            extraVolumes: *postgres-ca-volume
+            extraVolumeMounts: *postgres-ca-mount
+          migrations:
+            extraVolumes: *postgres-ca-volume
+            extraVolumeMounts: *postgres-ca-mount
+          toolbox:
+            extraVolumes: *postgres-ca-volume
+            extraVolumeMounts: *postgres-ca-mount

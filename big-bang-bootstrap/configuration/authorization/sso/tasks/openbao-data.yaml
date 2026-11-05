@@ -1,0 +1,46 @@
+# Explicit engine preparation; never combine with login/policy activation.
+- ansible.builtin.set_fact:
+    bao_data_targets: [platform/, tenants/]
+    bao_data_owner: PerkForge coordinated-sso-v1 data mount
+- name: Inspect engines before any creation
+  ansible.builtin.uri:
+    url: '{{ bao_api }}/sys/mounts'
+    headers: '{{ bao_headers }}'
+  register: bao_data_before
+- name: Refuse adoption or conversion of existing engines
+  ansible.builtin.assert:
+    that:
+    - item not in bao_data_before.json.data or bao_data_before.json.data[item].type == 'kv'
+    - item not in bao_data_before.json.data or bao_data_before.json.data[item].options.version | string == '2'
+    - item not in bao_data_before.json.data or bao_data_before.json.data[item].description | default('') == bao_data_owner
+  loop: '{{ bao_data_targets }}'
+- name: Create only absent reviewed KV-v2 engines; no values, retention tuning or permissions
+  ansible.builtin.uri:
+    url: '{{ bao_api }}/sys/mounts/{{ item | regex_replace("/$", "") }}'
+    headers: '{{ bao_headers }}'
+    method: POST
+    body_format: json
+    body:
+      type: kv
+      description: '{{ bao_data_owner }}'
+      options: {version: '2'}
+    status_code: 204
+  loop: '{{ bao_data_targets }}'
+  when: item not in bao_data_before.json.data
+  changed_when: true
+- name: Verify prepared engines and preserve every other mount
+  ansible.builtin.uri:
+    url: '{{ bao_api }}/sys/mounts'
+    headers: '{{ bao_headers }}'
+  register: bao_data_after
+- ansible.builtin.assert:
+    that:
+    - bao_data_after.json.data[item].type == 'kv'
+    - bao_data_after.json.data[item].options.version | string == '2'
+    - bao_data_after.json.data[item].description == bao_data_owner
+  loop: '{{ bao_data_targets }}'
+- ansible.builtin.assert:
+    that:
+    - (bao_data_before.json.data | dict2items | rejectattr('key','in',bao_data_targets) | items2dict) == (bao_data_after.json.data | dict2items | rejectattr('key','in',bao_data_targets) | items2dict)
+# No automatic rollback: disabling an engine can destroy data. SSO rollback
+# removes only owned human authority and retains engines for separate review.

@@ -1,0 +1,349 @@
+# Native ACL acceptance only. No Keycloak/group/role/client or auth configuration writes.
+- name: Bounded OpenBao platform allow and tenant-value denial on disposable keys
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    bao_test_apply: false
+    bao_test_scope: UNAPPROVED
+    bao_test_origin: https://openbao.perkforge.home.arpa
+    bao_test_cluster_id: UNCONFIGURED
+    bao_test_ca_file: /UNCONFIGURED/public-ca
+    bao_test_root_file: /UNCONFIGURED/operator-token
+    bao_test_evidence_dir: /UNCONFIGURED/evidence
+    bao_test_id: UNCONFIGURED
+    bao_test_policy: perkforge-sso-v1-platform-admin
+    bao_test_key: 'acceptance/{{ bao_test_id }}/sample'
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ bao_test_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      unredirected_headers: [X-Vault-Token]
+      timeout: 20
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check is inert. Explicit approval covers one 5-minute nonrenewable PA-policy test token and two synthetic keys, including root-only permanent cleanup. No human or OIDC identity changes.'
+  - when: bao_test_apply | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - bao_test_scope == 'openbao-policy-acceptance-v1'
+        - bao_test_policy == 'perkforge-sso-v1-platform-admin'
+        - bao_test_key == 'acceptance/' + bao_test_id + '/sample'
+        - bao_test_root_file | realpath == bao_test_root_file
+        - bao_test_evidence_dir | realpath == bao_test_evidence_dir
+        - bao_test_id is match('^openbao-check-[0-9a-f]{12}$')
+        - bao_test_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - bao_test_cluster_id != 'UNCONFIGURED'
+        - bao_test_evidence_dir is match('^/') and not bao_test_evidence_dir.startswith('/UNCONFIGURED/')
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop: ['{{ bao_test_root_file }}', '{{ bao_test_evidence_dir }}', '{{ bao_test_evidence_dir }}/test-token.json']
+      register: bao_test_files
+    - ansible.builtin.assert:
+        that:
+        - bao_test_files.results[0].stat.isreg and not bao_test_files.results[0].stat.islnk
+        - bao_test_files.results[0].stat.mode == '0600'
+        - bao_test_files.results[0].stat.pw_name == lookup('env','USER')
+        - bao_test_files.results[1].stat.isdir and not bao_test_files.results[1].stat.islnk
+        - bao_test_files.results[1].stat.mode == '0700'
+        - bao_test_files.results[1].stat.pw_name == lookup('env','USER')
+        - not bao_test_files.results[2].stat.exists
+    - ansible.builtin.stat:
+        path: '{{ bao_test_evidence_dir }}/scope.json'
+      register: bao_test_previous_scope
+    - ansible.builtin.assert:
+        that: not bao_test_previous_scope.stat.exists
+    - ansible.builtin.uri:
+        url: '{{ bao_test_origin }}/v1/sys/health'
+      register: bao_test_health
+    - ansible.builtin.assert:
+        that:
+        - bao_test_health.json.initialized and not bao_test_health.json.sealed
+        - bao_test_health.json.version == '2.7.2'
+        - bao_test_health.json.cluster_id == bao_test_cluster_id
+    - ansible.builtin.set_fact:
+        bao_test_root_headers: {X-Vault-Token: "{{ lookup('file',bao_test_root_file) | trim }}"}
+        bao_test_passed: false
+        bao_test_revoked: false
+        bao_test_data_clean: false
+        bao_test_requested: false
+    - ansible.builtin.uri:
+        url: '{{ bao_test_origin }}/v1/auth/token/lookup-self'
+        headers: '{{ bao_test_root_headers }}'
+      register: bao_test_root
+    - ansible.builtin.assert:
+        that: "'root' in bao_test_root.json.data.policies"
+    - ansible.builtin.uri:
+        url: '{{ bao_test_origin }}/v1/sys/policies/acl/{{ bao_test_policy }}'
+        headers: '{{ bao_test_root_headers }}'
+      register: bao_test_policy_before
+    - ansible.builtin.assert:
+        that: >-
+          bao_test_policy_before.json.data.policy | trim ==
+          ((lookup('file',playbook_dir + '/templates/openbao.yaml.j2') | from_yaml).policies['perkforge-sso-platform-admin'] | trim)
+    - ansible.builtin.uri:
+        url: '{{ bao_test_origin }}/v1/sys/mounts'
+        headers: '{{ bao_test_root_headers }}'
+      register: bao_test_mounts
+    - ansible.builtin.assert:
+        that:
+        - bao_test_mounts.json.data[item].type == 'kv'
+        - bao_test_mounts.json.data[item].options.version | string == '2'
+        - bao_test_mounts.json.data[item].description == 'PerkForge coordinated-sso-v1 data mount'
+      loop: [platform/, tenants/]
+    - name: Refuse overwriting either pre-existing key, even if its name looks owned
+      ansible.builtin.uri:
+        url: '{{ bao_test_origin }}/v1/{{ item }}/metadata/{{ bao_test_key }}'
+        headers: '{{ bao_test_root_headers }}'
+        status_code: [200,404]
+      loop: [platform, tenants]
+      register: bao_test_absent
+    - ansible.builtin.assert:
+        that: item.status == 404
+      loop: '{{ bao_test_absent.results }}'
+    - name: Record scope before any write; interruption requires exact recorded cleanup
+      ansible.builtin.copy:
+        dest: '{{ bao_test_evidence_dir }}/scope.json'
+        content: '{{ {"testId":bao_test_id,"key":bao_test_key,"mounts":["platform","tenants"],"policy":bao_test_policy,"tokenTTL":300,"tokenMaximum":600} | to_nice_json }}'
+        mode: '0600'
+        force: false
+    - block:
+      - name: Mark only the two absent disposable metadata records
+        ansible.builtin.uri:
+          url: '{{ bao_test_origin }}/v1/{{ item }}/metadata/{{ bao_test_key }}'
+          method: POST
+          headers: '{{ bao_test_root_headers }}'
+          body_format: json
+          body: {custom_metadata: {perkforge-test-id: '{{ bao_test_id }}'}}
+          status_code: 204
+        loop: [platform, tenants]
+        changed_when: true
+      - name: Seed only the synthetic tenant value; never read real tenant values
+        ansible.builtin.uri:
+          url: '{{ bao_test_origin }}/v1/tenants/data/{{ bao_test_key }}'
+          method: POST
+          headers: '{{ bao_test_root_headers }}'
+          body_format: json
+          body: {data: {sample: 'synthetic-{{ bao_test_id }}'}}
+        changed_when: true
+      - ansible.builtin.copy:
+          dest: '{{ bao_test_evidence_dir }}/issuance-started.json'
+          content: '{"requested":true,"ttl":300,"explicitMaximum":600,"renewable":false}'
+          mode: '0600'
+          force: false
+      - ansible.builtin.set_fact:
+          bao_test_requested: true
+      - name: Mint one actual PA-policy token; no default or identity-policy inheritance
+        ansible.builtin.uri:
+          url: '{{ bao_test_origin }}/v1/auth/token/create'
+          method: POST
+          headers: '{{ bao_test_root_headers }}'
+          body_format: json
+          body:
+            policies: ['{{ bao_test_policy }}']
+            no_default_policy: true
+            display_name: '{{ bao_test_id }}'
+            ttl: 300
+            explicit_max_ttl: 600
+            renewable: false
+        register: bao_test_issued
+        changed_when: true
+      - ansible.builtin.copy:
+          dest: '{{ bao_test_evidence_dir }}/test-token.json'
+          content: '{{ bao_test_issued.json.auth | to_nice_json }}'
+          mode: '0600'
+          force: false
+      - ansible.builtin.assert:
+          that:
+          - bao_test_issued.json.auth.policies == [bao_test_policy]
+          - bao_test_issued.json.auth.identity_policies | default([]) | length == 0
+          - bao_test_issued.json.auth.accessor != bao_test_root.json.data.accessor
+          - not bao_test_issued.json.auth.renewable
+          - bao_test_issued.json.auth.lease_duration | int <= 300
+      - ansible.builtin.set_fact:
+          bao_test_headers: {X-Vault-Token: '{{ bao_test_issued.json.auth.client_token }}'}
+      - name: Create and update only the platform dummy value as the test actor
+        ansible.builtin.uri:
+          url: '{{ bao_test_origin }}/v1/platform/data/{{ bao_test_key }}'
+          method: POST
+          headers: '{{ bao_test_headers }}'
+          body_format: json
+          body: {data: {sample: '{{ item }}'}}
+        loop: [synthetic-first, synthetic-updated]
+        changed_when: true
+      - ansible.builtin.uri:
+          url: '{{ bao_test_origin }}/v1/platform/data/{{ bao_test_key }}'
+          headers: '{{ bao_test_headers }}'
+        register: bao_test_platform_read
+      - ansible.builtin.assert:
+          that: bao_test_platform_read.json.data.data == {'sample':'synthetic-updated'}
+      - name: List only names under this run's tenant prefix
+        ansible.builtin.uri:
+          url: '{{ bao_test_origin }}/v1/tenants/metadata/acceptance/{{ bao_test_id }}?list=true'
+          headers: '{{ bao_test_headers }}'
+        register: bao_test_tenant_names
+      - ansible.builtin.assert:
+          that: bao_test_tenant_names.json.data['keys'] == ['sample']
+      - name: Tenant dummy value and detailed metadata must both return 403
+        ansible.builtin.uri:
+          url: '{{ bao_test_origin }}/v1/tenants/{{ item }}/{{ bao_test_key }}'
+          headers: '{{ bao_test_headers }}'
+          status_code: 403
+        loop: [data, metadata]
+      - name: Inspect denials without attempting dangerous auth/policy or destruction writes
+        ansible.builtin.uri:
+          url: '{{ bao_test_origin }}/v1/sys/capabilities-self'
+          method: POST
+          headers: '{{ bao_test_headers }}'
+          body_format: json
+          body:
+            paths: ['sys/policies/acl/{{ bao_test_id }}', 'sys/auth/oidc', 'auth/token/create', 'platform/metadata/{{ bao_test_key }}', 'platform/destroy/{{ bao_test_key }}']
+        register: bao_test_denials
+      - ansible.builtin.assert:
+          that: item.value == ['deny']
+        loop: '{{ bao_test_denials.json.data | dict2items }}'
+        when: item.key != 'platform/metadata/' + bao_test_key
+      - ansible.builtin.assert:
+          that: bao_test_denials.json.data['platform/metadata/' + bao_test_key] | sort == ['list','read']
+      - name: Soft-delete only the platform dummy value as the test actor
+        ansible.builtin.uri:
+          url: '{{ bao_test_origin }}/v1/platform/data/{{ bao_test_key }}'
+          method: DELETE
+          headers: '{{ bao_test_headers }}'
+          status_code: 204
+        changed_when: true
+      - name: Exercise own-token revocation and require bearer rejection
+        ansible.builtin.uri:
+          url: '{{ bao_test_origin }}/v1/auth/token/revoke-self'
+          method: POST
+          headers: '{{ bao_test_headers }}'
+          status_code: 204
+        changed_when: true
+      - ansible.builtin.uri:
+          url: '{{ bao_test_origin }}/v1/auth/token/lookup-self'
+          headers: '{{ bao_test_headers }}'
+          status_code: 403
+      - ansible.builtin.set_fact:
+          bao_test_passed: true
+      always:
+      - ansible.builtin.set_fact:
+          bao_test_revoked: true
+        when: not bao_test_requested | bool
+      - name: Revoke only the recorded accessor; unknown issuance is never called clean
+        when: bao_test_requested | bool
+        block:
+        - ansible.builtin.assert:
+            that: bao_test_issued.json.auth.accessor is defined
+            fail_msg: 'Uncertain issuance; no global token enumeration or blind retry. Preserve scope/evidence; short token lifetime is bounded but cleanup is unproven.'
+        - ansible.builtin.uri:
+            url: '{{ bao_test_origin }}/v1/auth/token/lookup-accessor'
+            method: POST
+            headers: '{{ bao_test_root_headers }}'
+            body_format: json
+            body: {accessor: '{{ bao_test_issued.json.auth.accessor }}'}
+            status_code: [200,400]
+          register: bao_test_accessor
+        - when: bao_test_accessor.status == 200
+          block:
+          - ansible.builtin.assert:
+              that:
+              - bao_test_accessor.json.data.display_name == 'token-' + bao_test_id
+              - bao_test_accessor.json.data.policies == [bao_test_policy]
+              - bao_test_accessor.json.data.explicit_max_ttl | int == 600
+              - bao_test_issued.json.auth.accessor != bao_test_root.json.data.accessor
+          - ansible.builtin.uri:
+              url: '{{ bao_test_origin }}/v1/auth/token/revoke-accessor'
+              method: POST
+              headers: '{{ bao_test_root_headers }}'
+              body_format: json
+              body: {accessor: '{{ bao_test_issued.json.auth.accessor }}'}
+              status_code: 204
+            changed_when: true
+        - ansible.builtin.uri:
+            url: '{{ bao_test_origin }}/v1/auth/token/lookup-accessor'
+            method: POST
+            headers: '{{ bao_test_root_headers }}'
+            body_format: json
+            body: {accessor: '{{ bao_test_issued.json.auth.accessor }}'}
+            status_code: 400
+          register: bao_test_accessor_after
+        - ansible.builtin.assert:
+            that: "'invalid accessor' in (bao_test_accessor_after.json.errors | join(' ') | lower)"
+        - ansible.builtin.uri:
+            url: '{{ bao_test_origin }}/v1/auth/token/lookup-self'
+            headers: {X-Vault-Token: '{{ bao_test_issued.json.auth.client_token }}'}
+            status_code: 403
+        - ansible.builtin.set_fact:
+            bao_test_revoked: true
+        rescue:
+        - ansible.builtin.set_fact:
+            bao_test_revoked: false
+      - name: Permanently clean only owned dummy metadata/versions, independent of token-test failure
+        block:
+        - ansible.builtin.uri:
+            url: '{{ bao_test_origin }}/v1/{{ item }}/metadata/{{ bao_test_key }}'
+            headers: '{{ bao_test_root_headers }}'
+            status_code: [200,404]
+          loop: [platform, tenants]
+          register: bao_test_cleanup_keys
+        - ansible.builtin.assert:
+            that:
+            - item.json.data.custom_metadata['perkforge-test-id'] == bao_test_id
+            - item.json.data.current_version | int <= (2 if item.item == 'platform' else 1)
+          loop: '{{ bao_test_cleanup_keys.results }}'
+          when: item.status == 200
+        - ansible.builtin.uri:
+            url: '{{ bao_test_origin }}/v1/{{ item.item }}/metadata/{{ bao_test_key }}'
+            method: DELETE
+            headers: '{{ bao_test_root_headers }}'
+            status_code: 204
+          loop: '{{ bao_test_cleanup_keys.results }}'
+          when: item.status == 200
+          changed_when: true
+        - ansible.builtin.uri:
+            url: '{{ bao_test_origin }}/v1/{{ item }}/metadata/{{ bao_test_key }}'
+            headers: '{{ bao_test_root_headers }}'
+            status_code: 404
+          loop: [platform, tenants]
+        - ansible.builtin.set_fact:
+            bao_test_data_clean: true
+        rescue:
+        - ansible.builtin.set_fact:
+            bao_test_data_clean: false
+      - ansible.builtin.file:
+          path: '{{ bao_test_evidence_dir }}/test-token.json'
+          state: absent
+        when: bao_test_revoked | bool
+      - ansible.builtin.uri:
+          url: '{{ bao_test_origin }}/v1/sys/policies/acl/{{ bao_test_policy }}'
+          headers: '{{ bao_test_root_headers }}'
+        register: bao_test_policy_after
+      - ansible.builtin.assert:
+          that: bao_test_policy_after.json.data == bao_test_policy_before.json.data
+      - ansible.builtin.uri:
+          url: '{{ bao_test_origin }}/v1/auth/token/lookup-self'
+          headers: '{{ bao_test_root_headers }}'
+        register: bao_test_root_after
+      - ansible.builtin.assert:
+          that:
+          - bao_test_root_after.json.data.accessor == bao_test_root.json.data.accessor
+          - "'root' in bao_test_root_after.json.data.policies"
+      - ansible.builtin.copy:
+          dest: '{{ bao_test_evidence_dir }}/result.json'
+          content: '{{ {"testId":bao_test_id,"testsPassed":bao_test_passed,"exactTokenRevoked":bao_test_revoked,"exactDummyKeysDestroyed":bao_test_data_clean,"policyAndRecoveryPreserved":true,"oidcGroupDenialTested":false} | to_nice_json }}'
+          mode: '0600'
+      - ansible.builtin.assert:
+          that: bao_test_revoked | bool and bao_test_data_clean | bool
+    always:
+    - ansible.builtin.set_fact:
+        bao_test_root_headers: {}
+        bao_test_headers: {}
+        bao_test_issued: {}
+        cacheable: false
+      no_log: true

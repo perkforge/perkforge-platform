@@ -1,0 +1,162 @@
+---
+- ansible.builtin.stat:
+    path: '{{ item }}'
+    follow: false
+    checksum_algorithm: sha256
+  loop: ['{{ lab_dns_config }}', '{{ lab_dns_unit }}']
+  register: dns_owned_files
+- ansible.builtin.assert:
+    that:
+    - item.stat.isreg | default(false)
+    - not (item.stat.islnk | default(false))
+    - item.stat.pw_name == lab_dns_owner and item.stat.mode == '0644'
+  loop: '{{ dns_owned_files.results }}'
+- ansible.builtin.slurp: {src: '{{ lab_dns_unit }}'}
+  register: dns_unit_bytes
+- ansible.builtin.assert:
+    that: (dns_unit_bytes.content | b64decode) == lab_dns_unit_expected
+- ansible.builtin.command:
+    argv: [systemctl, show, perkforge-lab-dns, --property=FragmentPath, --property=DropInPaths, --property=NeedDaemonReload]
+  register: dns_loaded_unit
+  changed_when: false
+- ansible.builtin.assert:
+    that:
+    - "('FragmentPath=' ~ lab_dns_unit) in dns_loaded_unit.stdout_lines"
+    - "'DropInPaths=' in dns_loaded_unit.stdout_lines"
+    - "'NeedDaemonReload=no' in dns_loaded_unit.stdout_lines"
+- ansible.builtin.slurp: {src: '{{ lab_dns_config }}'}
+  register: dns_config_bytes
+- ansible.builtin.set_fact:
+    dns_current: '{{ dns_config_bytes.content | b64decode }}'
+    dns_record_block: "\n# BEGIN PerkForge GitLab DNS v1\nhost-record=gitlab.perkforge.home.arpa,{{ lab_dns_ingress_ip }}\nhost-record=gitlab-objects.perkforge.home.arpa,{{ lab_dns_ingress_ip }}\n# END PerkForge GitLab DNS v1\n"
+- ansible.builtin.set_fact:
+    dns_base: "{{ dns_current | regex_replace((dns_record_block | regex_escape) ~ '$','') }}"
+- ansible.builtin.assert:
+    that:
+    - dns_base | hash('sha256') == lab_dns_maintenance_expected_sha256
+    - dns_base.endswith('\n')
+    - dns_current == dns_base or dns_current == dns_base ~ dns_record_block
+    - dns_base | regex_findall('(?im)^[^#\n]*gitlab(?:-objects)?[.]perkforge[.]home[.]arpa') | length == 0
+    - "('listen-address=' ~ lab_dns_server_ip ~ '\n') in dns_base"
+    - "'port=53\n' in dns_base and 'no-resolv\n' in dns_base"
+- ansible.builtin.assert:
+    that: "('host-record=' ~ item ~ '.perkforge.home.arpa,' ~ lab_dns_ingress_ip ~ '\n') in dns_base"
+  loop: [headlamp, keycloak, rancher, openbao]
+- ansible.builtin.command: {argv: [systemctl, is-active, perkforge-lab-dns]}
+  changed_when: false
+- ansible.builtin.command:
+    argv: [dig, '@{{ lab_dns_server_ip }}', '{{ item.0 }}.perkforge.home.arpa', A, +short, +time=2, +tries=1, '{{ item.1 }}']
+  loop: "{{ ['headlamp','keycloak','rancher','openbao'] | product(['+notcp','+tcp']) | list }}"
+  register: dns_before_answers
+  changed_when: false
+- ansible.builtin.assert:
+    that: item.stdout | trim == lab_dns_ingress_ip
+  loop: '{{ dns_before_answers.results }}'
+- ansible.builtin.stat: {path: '{{ lab_dns_backup }}', follow: false}
+  register: dns_backup_stat
+- ansible.builtin.assert:
+    that:
+    - dns_backup_stat.stat.isdir and not dns_backup_stat.stat.islnk
+    - dns_backup_stat.stat.pw_name == lab_dns_owner and dns_backup_stat.stat.mode == '0700'
+  when: dns_backup_stat.stat.exists
+- ansible.builtin.file:
+    path: '{{ lab_dns_backup }}'
+    state: directory
+    owner: '{{ lab_dns_owner }}'
+    mode: '0700'
+- ansible.builtin.command: {argv: [mkdir, -m, '0700', '{{ lab_dns_backup }}/maintenance.lock']}
+  changed_when: false
+- block:
+  - ansible.builtin.stat:
+      path: '{{ lab_dns_backup }}/{{ lab_dns_maintenance_expected_sha256 }}.conf'
+      follow: false
+      checksum_algorithm: sha256
+    register: dns_saved
+  - ansible.builtin.assert:
+      that:
+      - dns_saved.stat.isreg and not dns_saved.stat.islnk
+      - dns_saved.stat.pw_name == lab_dns_owner and dns_saved.stat.mode == '0600'
+      - dns_saved.stat.checksum == lab_dns_maintenance_expected_sha256
+    when: dns_saved.stat.exists
+  - ansible.builtin.copy:
+      dest: '{{ lab_dns_backup }}/{{ lab_dns_maintenance_expected_sha256 }}.conf'
+      content: '{{ dns_base }}'
+      owner: '{{ lab_dns_owner }}'
+      mode: '0600'
+      force: false
+  - ansible.builtin.stat:
+      path: '{{ lab_dns_config }}'
+      checksum_algorithm: sha256
+      follow: false
+    register: dns_before_write
+  - ansible.builtin.assert:
+      that: dns_before_write.stat.checksum == dns_current | hash('sha256')
+  - block:
+    - ansible.builtin.copy:
+        dest: '{{ lab_dns_config }}'
+        content: '{{ dns_base ~ dns_record_block }}'
+        owner: '{{ lab_dns_owner }}'
+        mode: '0644'
+        validate: '{{ lab_dns_binary }} --test --conf-file=%s'
+      register: dns_record_write
+    - ansible.builtin.command: {argv: [restorecon, '{{ lab_dns_config }}']}
+      changed_when: false
+      when: dns_record_write.changed
+    - ansible.builtin.command: {argv: [systemctl, restart, perkforge-lab-dns]}
+      when: dns_record_write.changed
+    - ansible.builtin.command: {argv: [systemctl, is-active, perkforge-lab-dns]}
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [dig, '@{{ lab_dns_server_ip }}', '{{ item.0 }}.perkforge.home.arpa', A, +short, +time=2, +tries=1, '{{ item.1 }}']
+      loop: "{{ ['headlamp','keycloak','rancher','openbao','gitlab','gitlab-objects'] | product(['+notcp','+tcp']) | list }}"
+      register: dns_after_answers
+      changed_when: false
+    - ansible.builtin.assert:
+        that: item.stdout | trim == lab_dns_ingress_ip
+      loop: '{{ dns_after_answers.results }}'
+    - ansible.builtin.command:
+        argv: [dig, '@{{ lab_dns_server_ip }}', example.com, A, +short, +time=2, +tries=1, '{{ item }}']
+      loop: ['+notcp', '+tcp']
+      register: dns_external_answers
+      changed_when: false
+    - ansible.builtin.assert:
+        that: item.stdout | trim is match('^[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+')
+      loop: '{{ dns_external_answers.results }}'
+    rescue:
+    - ansible.builtin.stat:
+        path: '{{ lab_dns_config }}'
+        checksum_algorithm: sha256
+        follow: false
+      register: dns_failed_config
+    - ansible.builtin.assert:
+        that:
+        - dns_failed_config.stat.isreg and not dns_failed_config.stat.islnk
+        - dns_failed_config.stat.checksum in [dns_base | hash('sha256'), (dns_base ~ dns_record_block) | hash('sha256')]
+      # A concurrent/foreign edit must never be overwritten by rollback.
+    - ansible.builtin.fail:
+        msg: 'DNS verification/validation failed before any configuration write in this run. Current configuration and service preserved; stop for review.'
+      when: not (dns_record_write.changed | default(false))
+    - ansible.builtin.copy:
+        dest: '{{ lab_dns_config }}'
+        content: '{{ dns_base }}'
+        owner: '{{ lab_dns_owner }}'
+        mode: '0644'
+        validate: '{{ lab_dns_binary }} --test --conf-file=%s'
+    - ansible.builtin.command: {argv: [restorecon, '{{ lab_dns_config }}']}
+      changed_when: false
+    - ansible.builtin.command: {argv: [systemctl, restart, perkforge-lab-dns]}
+    - ansible.builtin.command: {argv: [systemctl, is-active, perkforge-lab-dns]}
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [dig, '@{{ lab_dns_server_ip }}', '{{ item.0 }}.perkforge.home.arpa', A, +short, +time=2, +tries=1, '{{ item.1 }}']
+      loop: "{{ ['headlamp','keycloak','rancher','openbao'] | product(['+notcp','+tcp']) | list }}"
+      register: dns_restored_answers
+      changed_when: false
+    - ansible.builtin.assert:
+        that: item.stdout | trim == lab_dns_ingress_ip
+      loop: '{{ dns_restored_answers.results }}'
+    - ansible.builtin.fail:
+        msg: 'DNS maintenance failed; original configuration restored and original records verified. Stop for review; no other service or settings changed.'
+  always:
+  - ansible.builtin.command: {argv: [rmdir, '{{ lab_dns_backup }}/maintenance.lock']}
+    changed_when: false

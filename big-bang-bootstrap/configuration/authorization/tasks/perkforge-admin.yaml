@@ -1,0 +1,183 @@
+- name: Read owned realm, exact parent/leaf, defaults and built-in management client
+  ansible.builtin.uri:
+    url: '{{ pa_api }}{{ item }}'
+    headers: '{{ pa_headers }}'
+  loop: ['', /group-by-path/platform, /group-by-path/platform/admins, /default-groups, '/clients?clientId=realm-management']
+  register: pa_surface
+- name: Refuse unmanaged, replaced, default or implicitly privileged groups
+  ansible.builtin.assert:
+    that:
+    - pa_surface.results[0].json.realm == 'perkforge'
+    - pa_surface.results[0].json.enabled
+    - pa_surface.results[0].json.attributes['perkforge-managed'] == 'true'
+    - pa_surface.results[0].json.attributes['perkforge-purpose'] == 'realm-foundation-v1'
+    - pa_surface.results[1].json.id == perkforge_admin_parent_id
+    - pa_surface.results[1].json.path == '/platform'
+    - pa_surface.results[1].json.attributes == {'perkforge-managed':['true'], 'perkforge-foundation':['v1']}
+    - pa_surface.results[2].json.id == perkforge_admin_group_id
+    - pa_surface.results[2].json.path == '/platform/admins'
+    - pa_surface.results[2].json.attributes == {'perkforge-managed':['true'], 'perkforge-foundation':['v1'], 'perkforge-role':['platform-admin']}
+    - pa_surface.results[1].json.realmRoles | default([]) | length == 0
+    - pa_surface.results[1].json.clientRoles | default({}) | length == 0
+    - pa_surface.results[2].json.realmRoles | default([]) | length == 0
+    - pa_surface.results[2].json.clientRoles | default({}) in [pa_app_group_names, pa_app_group_names | combine({'realm-management':['realm-admin']})]
+    - pa_surface.results[3].json | length == 0
+    - pa_surface.results[4].json | length == 1
+    - pa_surface.results[4].json[0].clientId == 'realm-management'
+    - pa_surface.results[4].json[0].id is match('^[A-Za-z0-9-]+$')
+- name: Verify the admin role leaf has no nested groups receiving inherited power
+  ansible.builtin.uri:
+    url: '{{ pa_api }}/groups/{{ perkforge_admin_group_id }}/children?first=0&max=1'
+    headers: '{{ pa_headers }}'
+  register: pa_children
+- ansible.builtin.assert:
+    that: pa_children.json | length == 0
+- ansible.builtin.set_fact:
+    pa_client_id: '{{ pa_surface.results[4].json[0].id }}'
+- ansible.builtin.assert:
+    that:
+    - pa_api == perkforge_admin_url + '/admin/realms/perkforge'
+    - pa_role_names == ['realm-admin']
+    - pa_child_names | sort == ['create-client','impersonation','manage-authorization','manage-clients','manage-events','manage-identity-providers','manage-organizations','manage-realm','manage-users','query-clients','query-groups','query-organizations','query-realms','query-users','view-authorization','view-clients','view-events','view-identity-providers','view-organizations','view-realm','view-users'] | sort
+- name: Resolve the built-in PerkForge realm-admin composite without redefining it
+  ansible.builtin.uri:
+    url: '{{ pa_api }}/clients/{{ pa_client_id }}/roles/realm-admin'
+    headers: '{{ pa_headers }}'
+  register: pa_role
+- ansible.builtin.assert:
+    that:
+    - pa_role.json.name == 'realm-admin'
+    - pa_role.json.id is match('^[A-Za-z0-9-]+$')
+    - pa_role.json.clientRole and pa_role.json.containerId == pa_client_id
+    - pa_role.json.composite
+- name: Inspect every composite child before granting broad realm authority
+  ansible.builtin.uri:
+    url: '{{ pa_api }}/clients/{{ pa_client_id }}/roles/realm-admin/composites'
+    headers: '{{ pa_headers }}'
+  register: pa_children_roles
+- ansible.builtin.assert:
+    that:
+    - pa_children_roles.json | map(attribute='name') | sort == pa_child_names | sort
+    - pa_children_roles.json | map(attribute='id') | unique | length == pa_child_names | length
+- name: Read the bounded canonical management-role catalog without truncated acceptance
+  ansible.builtin.uri:
+    url: '{{ pa_api }}/clients/{{ pa_client_id }}/roles?first=0&max=23&briefRepresentation=false'
+    headers: '{{ pa_headers }}'
+  register: pa_canonical_roles
+- name: Verify every canonical identity and the built-in composite flags
+  ansible.builtin.assert:
+    that:
+    - pa_canonical_roles.json | map(attribute='name') | sort == (['realm-admin'] + pa_child_names) | sort
+    - pa_canonical_roles.json | map(attribute='id') | unique | length == pa_child_names | length + 1
+- ansible.builtin.assert:
+    that:
+    - item.id is match('^[A-Za-z0-9-]+$')
+    - item.clientRole and item.containerId == pa_client_id
+    - item.composite == (item.name in ['realm-admin','view-users','view-clients','view-organizations'])
+  loop: '{{ pa_canonical_roles.json }}'
+- ansible.builtin.assert:
+    that:
+    - pa_role.json.id == (pa_canonical_roles.json | selectattr('name', 'equalto', 'realm-admin') | first).id
+- ansible.builtin.set_fact:
+    pa_role_definitions: '{{ [pa_role.json] }}'
+    pa_effective_definitions: '{{ pa_canonical_roles.json }}'
+    # Keycloak 26.8.1 RealmManager.addQueryCompositeRoles; exact bounded DAG.
+    pa_expected_edges:
+      realm-admin: '{{ pa_child_names }}'
+      view-users: [query-users, query-groups]
+      view-clients: [query-clients]
+      view-organizations: [query-organizations]
+- name: Bind root child representations to canonical role IDs and flags
+  ansible.builtin.assert:
+    that:
+    - item.id == (pa_effective_definitions | selectattr('name', 'equalto', item.name) | first).id
+    - item.clientRole and item.containerId == pa_client_id
+    - item.composite == (item.name in ['view-users','view-clients','view-organizations'])
+  loop: '{{ pa_children_roles.json }}'
+- name: Inspect every graph node including leaves to detect hidden expansion
+  ansible.builtin.uri:
+    url: '{{ pa_api }}/clients/{{ pa_client_id }}/roles/{{ item }}/composites'
+    headers: '{{ pa_headers }}'
+  loop: "{{ ['realm-admin'] + pa_child_names }}"
+  register: pa_edges
+- name: Verify the exact transitive graph, not just an allowlist of descendants
+  ansible.builtin.assert:
+    that:
+    - item.json | map(attribute='name') | sort == pa_expected_edges.get(item.item, []) | sort
+    - item.json | map(attribute='id') | unique | length == item.json | length
+  loop: '{{ pa_edges.results }}'
+- name: Verify every edge points to the exact canonical same-client role
+  ansible.builtin.assert:
+    that:
+    - item.id == (pa_effective_definitions | selectattr('name', 'equalto', item.name) | first).id
+    - item.clientRole and item.containerId == pa_client_id
+    - item.composite == (item.name in ['realm-admin','view-users','view-clients','view-organizations'])
+  loop: "{{ pa_edges.results | map(attribute='json') | flatten }}"
+- name: Read all parent/leaf direct mappings and effective management roles
+  ansible.builtin.uri:
+    url: '{{ pa_api }}/{{ item }}'
+    headers: '{{ pa_headers }}'
+  loop:
+  - 'groups/{{ perkforge_admin_parent_id }}/role-mappings'
+  - 'groups/{{ perkforge_admin_group_id }}/role-mappings'
+  - 'groups/{{ perkforge_admin_group_id }}/role-mappings/clients/{{ pa_client_id }}/composite'
+  register: pa_mappings
+- name: Refuse extra authority instead of removing or adopting it
+  ansible.builtin.assert:
+    that:
+    - pa_mappings.results[0].json.realmMappings | default([]) | length == 0
+    - pa_mappings.results[0].json.clientMappings | default({}) | length == 0
+    - pa_mappings.results[1].json.realmMappings | default([]) | length == 0
+    - pa_mappings.results[1].json.clientMappings | default({}) | list | difference(['realm-management'] + (pa_app_group_names | list)) | length == 0
+- name: Bind each explicitly reviewed app mapping in the aggregate response to canonical IDs
+  ansible.builtin.assert:
+    that:
+    - pa_mappings.results[1].json.clientMappings[item.value.client_name].id == item.value.client_id
+    - pa_mappings.results[1].json.clientMappings[item.value.client_name].client == item.value.client_name
+    - pa_mappings.results[1].json.clientMappings[item.value.client_name].mappings | map(attribute='id') | list == [item.value.role_id]
+    - pa_mappings.results[1].json.clientMappings[item.value.client_name].mappings | map(attribute='name') | list == ['/platform/admins']
+  loop: '{{ perkforge_admin_expected_sso_clients | dict2items }}'
+- ansible.builtin.set_fact:
+    pa_direct: "{{ (pa_mappings.results[1].json.clientMappings | default({})).get('realm-management', {}).get('mappings', []) }}"
+- name: Existing direct state is empty or the one exact owned composite mapping
+  ansible.builtin.assert:
+    that:
+    - pa_direct | length <= 1
+    - pa_direct | map(attribute='name') | difference(['realm-admin']) | length == 0
+    - pa_direct | map(attribute='id') | difference([pa_role.json.id]) | length == 0
+- name: Require group representation to agree with independent direct-role metadata
+  ansible.builtin.assert:
+    that:
+    - pa_surface.results[2].json.clientRoles | default({}) == (pa_app_group_names | combine({'realm-management':['realm-admin']} if pa_direct | length == 1 else {}))
+- ansible.builtin.assert:
+    that:
+    - item.clientRole and item.containerId == pa_client_id and item.composite
+  loop: '{{ pa_direct }}'
+- name: Verify empty or fully expanded effective state without hidden authority
+  ansible.builtin.assert:
+    that:
+    - pa_mappings.results[2].json | map(attribute='name') | sort == (pa_effective_definitions | map(attribute='name') | sort if pa_direct | length == 1 else [])
+    - pa_mappings.results[2].json | map(attribute='id') | sort == (pa_effective_definitions | map(attribute='id') | sort if pa_direct | length == 1 else [])
+- name: Add only the existing realm-admin composite to the exact PerkForge admin leaf
+  ansible.builtin.uri:
+    url: '{{ pa_api }}/groups/{{ perkforge_admin_group_id }}/role-mappings/clients/{{ pa_client_id }}'
+    headers: '{{ pa_headers }}'
+    method: POST
+    body_format: json
+    body: '{{ pa_role_definitions }}'
+    status_code: 204
+  when: perkforge_admin_apply | bool and pa_direct | length == 0
+  changed_when: true
+- name: Verify direct and expanded effective read-after-write authority
+  ansible.builtin.uri:
+    url: '{{ pa_api }}/groups/{{ perkforge_admin_group_id }}/role-mappings/clients/{{ pa_client_id }}{{ item }}'
+    headers: '{{ pa_headers }}'
+  loop: ['', /composite]
+  register: pa_verified
+- ansible.builtin.assert:
+    that:
+    - pa_verified.results[0].json | map(attribute='name') | list == ['realm-admin']
+    - pa_verified.results[0].json | map(attribute='id') | list == [pa_role.json.id]
+    - pa_verified.results[1].json | map(attribute='name') | sort == pa_effective_definitions | map(attribute='name') | sort
+    - pa_verified.results[1].json | map(attribute='id') | sort == pa_effective_definitions | map(attribute='id') | sort
+  when: perkforge_admin_apply | bool or pa_direct | length == 1

@@ -1,0 +1,157 @@
+# Inactive owner-admin foundation; no live delegation approved.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitlab-runner
+  labels:
+    perkforge.io/owner: gitlab-runner-foundation-v1
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitlab-ci-platform
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.36
+    perkforge.io/owner: gitlab-runner-foundation-v1
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-runner-manager
+  namespace: gitlab-runner
+  labels:
+    perkforge.io/owner: gitlab-runner-foundation-v1
+automountServiceAccountToken: true
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-ci-job
+  namespace: gitlab-ci-platform
+  labels:
+    perkforge.io/owner: gitlab-runner-foundation-v1
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-runner-jobs
+  namespace: gitlab-ci-platform
+  labels:
+    perkforge.io/owner: gitlab-runner-foundation-v1
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+  - delete
+- apiGroups:
+  - ''
+  resources:
+  - pods/attach
+  - pods/exec
+  verbs:
+  - create
+  - get
+  - patch
+  - delete
+- apiGroups:
+  - ''
+  resources:
+  - pods/log
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - ''
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
+  - update
+  - delete
+- apiGroups:
+  - ''
+  resources:
+  - services
+  verbs:
+  - create
+  - get
+  - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-runner-jobs
+  namespace: gitlab-ci-platform
+  labels:
+    perkforge.io/owner: gitlab-runner-foundation-v1
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-runner-jobs
+subjects:
+- kind: ServiceAccount
+  name: gitlab-runner-manager
+  namespace: gitlab-runner
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-ci-budget
+  namespace: gitlab-ci-platform
+  labels:
+    perkforge.io/owner: gitlab-runner-foundation-v1
+spec:
+  hard:
+    requests.cpu: '2'
+    requests.memory: 2Gi
+    limits.cpu: '3'
+    limits.memory: 3Gi
+    pods: '2'
+    persistentvolumeclaims: '0'
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: gitlab-ci-platform
+  labels:
+    perkforge.io/owner: gitlab-runner-foundation-v1
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dns-only
+  namespace: gitlab-ci-platform
+  labels:
+    perkforge.io/owner: gitlab-runner-foundation-v1
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53

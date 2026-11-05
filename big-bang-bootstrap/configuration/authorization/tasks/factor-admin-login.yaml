@@ -1,0 +1,12 @@
+- ansible.builtin.uri:
+    url: '{{ human_url }}/realms/master/protocol/openid-connect/token'
+    method: POST
+    body_format: form-urlencoded
+    body:
+      grant_type: password
+      client_id: admin-cli
+      username: "{{ lookup('file',human_admin_username_file) | trim }}"
+      password: "{{ lookup('file',human_admin_password_file) | trim }}"
+  register: factor_login
+- ansible.builtin.set_fact:
+    factor_headers: {Authorization: 'Bearer {{ factor_login.json.access_token }}'}

@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+configMapGenerator:
+- name: values-gitlab
+  namespace: bigbang
+  files:
+  - values.yaml=candidate-values.yaml
+- name: values-gitlab-lab
+  namespace: bigbang
+  files:
+  - values.yaml=lab-values.yaml
+- name: values-gitlab-sso
+  namespace: bigbang
+  files:
+  - values.yaml=sso-values.yaml
+- name: values-gitlab-postgres-tls
+  namespace: bigbang
+  files:
+  - values.yaml=postgres-verify-full-values.yaml
+- name: values-gitlab-data
+  namespace: bigbang
+  files:
+  - values.yaml=data-connections-values.yaml
+generatorOptions:
+  disableNameSuffixHash: true

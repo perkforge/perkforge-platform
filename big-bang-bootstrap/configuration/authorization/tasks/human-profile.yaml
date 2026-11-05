@@ -1,0 +1,50 @@
+# Keycloak 26.8.1 drops undeclared attributes with the default unmanaged policy.
+# Declare only these ownership fields; preserve all existing profile requirements.
+- ansible.builtin.set_fact:
+    human_marker_schema:
+    - name: perkforge-managed
+      permissions: {view: [admin], edit: [admin]}
+      multivalued: false
+      validations: {length: {min: 1, max: 64}}
+    - name: perkforge-enrollment
+      permissions: {view: [admin], edit: [admin]}
+      multivalued: false
+      validations: {length: {min: 1, max: 64}}
+- ansible.builtin.uri:
+    url: '{{ human_api }}/users/profile'
+    headers: '{{ human_headers }}'
+  register: human_profile
+- name: Refuse permissive unmanaged attributes or conflicting marker definitions
+  ansible.builtin.assert:
+    that:
+    - human_profile.json.get('unmanagedAttributePolicy') in [none, 'DISABLED']
+    - human_profile.json.attributes | map(attribute='name') | list | unique | length == human_profile.json.attributes | length
+    - human_profile.json.attributes | selectattr('name','equalto',item.name) | list in [[], [item]]
+  loop: '{{ human_marker_schema }}'
+- ansible.builtin.set_fact:
+    human_missing_schema: "{{ human_marker_schema | rejectattr('name','in',human_profile.json.attributes | map(attribute='name') | list) | list }}"
+- name: Declare only missing administrator-only ownership fields
+  when: human_missing_schema | length > 0
+  block:
+  - ansible.builtin.uri:
+      url: '{{ human_api }}/users/profile'
+      headers: '{{ human_headers }}'
+    register: human_profile_fresh
+  - ansible.builtin.assert:
+      that: human_profile_fresh.json == human_profile.json
+  - ansible.builtin.uri:
+      url: '{{ human_api }}/users/profile'
+      method: PUT
+      headers: '{{ human_headers }}'
+      body_format: json
+      body: "{{ human_profile.json | combine({'attributes': human_profile.json.attributes + human_missing_schema}) }}"
+      status_code: 200
+    changed_when: true
+- ansible.builtin.uri:
+    url: '{{ human_api }}/users/profile'
+    headers: '{{ human_headers }}'
+  register: human_profile_verified
+- name: Verify full profile preserved except explicitly managed marker additions
+  ansible.builtin.assert:
+    that: >-
+      human_profile_verified.json == human_profile.json | combine({'attributes': human_profile.json.attributes + human_missing_schema})
