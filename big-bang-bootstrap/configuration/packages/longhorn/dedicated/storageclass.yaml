@@ -13,6 +13,7 @@ parameters:
   numberOfReplicas: '2'
   dataEngine: v1
   dataLocality: best-effort
+  replicaAutoBalance: disabled
   replicaSoftAntiAffinity: disabled
   replicaDiskSoftAntiAffinity: disabled
   diskSelector: dedicated-storage

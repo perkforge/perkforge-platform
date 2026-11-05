@@ -1,0 +1,11 @@
+# Not selected by any root. Choose the consumer namespace before activation.
+# Sum quotas across all approved consumer namespaces must not exceed 300Gi.
+# This does not cap snapshots, retained PVs or other classes on the same disk.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: single-excess-storage
+  namespace: UNCONFIGURED
+spec:
+  hard:
+    longhorn-single-excess.storageclass.storage.k8s.io/requests.storage: 300Gi

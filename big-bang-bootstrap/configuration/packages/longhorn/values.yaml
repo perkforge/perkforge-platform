@@ -50,6 +50,10 @@ packages:
         createDefaultDiskLabeledNodes: true
         replicaSoftAntiAffinity: false
         replicaDiskSoftAntiAffinity: false
+        replicaAutoBalance: disabled
+        # Keep selector-less legacy volumes on untagged root disks after SSD activation.
+        # Review globally: this also constrains future selector-less replica rebuilds.
+        allowEmptyDiskSelectorVolume: false
         allowVolumeCreationWithDegradedAvailability: false
         storageOverProvisioningPercentage: 100
         storageMinimalAvailablePercentage: 25
