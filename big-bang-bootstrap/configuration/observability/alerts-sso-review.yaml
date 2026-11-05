@@ -8,7 +8,7 @@ human_entrypoint: Grafana dedicated OIDC; PA administers, engineer/viewer read-o
   initially
 machine_identity:
   rule_evaluation: existing Prometheus identity
-  notification_sender: bundled Alertmanager, one authenticated route
+  notification_sender: Grafana built-in Alertmanager, one authenticated route
   receiver: topic-scoped subscriber credentials, no invented OIDC browser client
 transport:
   verify_tls: true
@@ -20,7 +20,7 @@ recovery:
 activation_gates:
 - Grafana role/datasource isolation
 - notification adapter choice and protected credential refs
-- Grafana-managed forwarding remains unimplemented/off
+- Grafana rule migration and native ntfy webhook payload remain unimplemented/off
 - no direct unauthenticated Alertmanager/ntfy admin ingress
 acceptance:
   positive:
@@ -32,4 +32,4 @@ acceptance:
   - cross-tenant alert query/action denied
   rollback:
   - remove only owned notification route/SSO authority
-  - preserve existing upstream rules, bundled Alertmanager and recovery
+  - preserve useful upstream rule sources and recovery; separate Alertmanager disabled

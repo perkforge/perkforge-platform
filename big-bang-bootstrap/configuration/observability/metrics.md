@@ -12,8 +12,7 @@ architecture gaps superseded here only where explicitly implemented below.
   CRDs, roleRefs and named escalation/bind delegation are checked. YAML enum `=`
   in upstream CRD schemas is parsed as a string with a narrow safe-loader adapter;
   unknown tags are not broadly accepted.
-- Ten CRDs explicitly marked Helm resource-policy keep (not deletion-proof), all35 native PrometheusRules, Prometheus and bundled Alertmanager
-  preserved. One separate Grafana; no second Prometheus, Grafana or Alertmanager.
+- Ten CRDs explicitly marked Helm resource-policy keep (not deletion-proof), all35 native PrometheusRules and Prometheus preserved. Separate Alertmanager is disabled; Grafana built-in Alertmanager owns the eventual notification route.
 - Operator admission webhooks remain enabled. The **supported upstream patch Job**
   supplies their serving certificate/CABundle instead of requiring a second
   cert-manager installation. Its exact upstream helper image is
@@ -23,7 +22,7 @@ architecture gaps superseded here only where explicitly implemented below.
 - `metrics-prerequisites/` includes explicit installer identities/policies and six
   immutable starting dashboards: cluster, workloads, tenants, Nextcloud, logging,
   alerting. Native datasource/dashboard files own configuration; no API provisioner
-  competes. Prometheus and Alertmanager datasource definitions are not UI-editable.
+  competes. Prometheus datasource is not UI-editable; no external Alertmanager datasource is provisioned.
   Absent Nextcloud/Loki metrics yield NoData, not fabricated successful acceptance.
 - Grafana's runtime sidecar reader gets **ConfigMaps only, in monitoring**. Its
   chart's broad cross-namespace Secret/config reader is off. Helm release storage
