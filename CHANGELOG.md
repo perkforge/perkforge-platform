@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.1](https://github.com/perkforge/perkforge-platform/compare/v0.18.0...v0.18.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **gitlab-runner:** meet native minimum runner timeout ([#182](https://github.com/perkforge/perkforge-platform/issues/182)) ([953de3e](https://github.com/perkforge/perkforge-platform/commit/953de3e356c99776583b94ddad9f18976d163d6a))
+
 ## [0.18.0](https://github.com/perkforge/perkforge-platform/compare/v0.17.11...v0.18.0) (2026-11-05)
 
 
