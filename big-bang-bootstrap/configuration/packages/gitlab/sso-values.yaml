@@ -5,6 +5,10 @@ addons:
     flux: {suspend: true}
     values:
       global:
+        certificates:
+          customCAs:
+          - configMap: gitlab-platform-public-ca
+            keys: [platform-ca.crt]
         appConfig:
           omniauth:
             enabled: true

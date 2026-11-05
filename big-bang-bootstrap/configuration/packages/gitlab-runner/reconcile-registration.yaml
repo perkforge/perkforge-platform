@@ -1,0 +1,251 @@
+# Modern project-runner lifecycle. Default/check mode never contacts GitLab.
+- name: Prepare or pause exactly one protected platform project runner
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    gitlab_runner_run: false
+    gitlab_runner_operation: inspect
+    gitlab_runner_scope: UNAPPROVED
+    gitlab_runner_recovery_verified: false
+    gitlab_runner_manager_verified: false
+    gitlab_runner_origin: https://gitlab.UNCONFIGURED.invalid
+    gitlab_runner_ca_file: /UNCONFIGURED/public-ca
+    gitlab_runner_api_token_file: /UNCONFIGURED/api-token
+    gitlab_runner_private_directory: /UNCONFIGURED/runner-state
+    gitlab_runner_actor_id: 0
+    gitlab_runner_project_id: 0
+    gitlab_runner_project_path: UNCONFIGURED
+    gitlab_runner_branch: main
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ gitlab_runner_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      unredirected_headers: [PRIVATE-TOKEN]
+      timeout: 20
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check mode contacts no API. One exact protected project runner; prepare creates paused, activate requires manager verification, pause never cancels jobs or deletes identity. Returned authentication token stays private.'
+  - when: gitlab_runner_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - gitlab_runner_operation in ['inspect','prepare','activate','pause']
+        - gitlab_runner_scope == 'gitlab-runner-' + gitlab_runner_operation + '-v1'
+        - gitlab_runner_recovery_verified | bool
+        - gitlab_runner_operation != 'activate' or gitlab_runner_manager_verified | bool
+        - gitlab_runner_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - "'UNCONFIGURED' not in gitlab_runner_origin"
+        - gitlab_runner_actor_id | type_debug == 'int' and gitlab_runner_actor_id > 0
+        - gitlab_runner_project_id | type_debug == 'int' and gitlab_runner_project_id > 0
+        - gitlab_runner_project_path is match('^platform/[a-z][a-z0-9-]{0,62}$')
+        - gitlab_runner_branch is match('^[A-Za-z0-9._-]+$')
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop: '{{ [gitlab_runner_api_token_file,gitlab_runner_private_directory] }}'
+      register: gitlab_runner_files
+    - ansible.builtin.assert:
+        that:
+        - item.item is match('^/') and item.item | realpath == item.item
+        - not (item.stat.islnk | default(false))
+        - item.stat.pw_name == lookup('env','USER')
+      loop: '{{ gitlab_runner_files.results }}'
+    - ansible.builtin.assert:
+        that:
+        - gitlab_runner_files.results[0].stat.isreg and gitlab_runner_files.results[0].stat.mode == '0600'
+        - gitlab_runner_files.results[0].stat.size > 0 and gitlab_runner_files.results[0].stat.size < 4096
+        - gitlab_runner_files.results[1].stat.isdir and gitlab_runner_files.results[1].stat.mode == '0700'
+    - ansible.builtin.find:
+        paths: '{{ gitlab_runner_private_directory }}'
+        hidden: true
+        file_type: any
+        recurse: false
+      register: gitlab_runner_directory
+    - ansible.builtin.assert:
+        that: gitlab_runner_directory.files | map(attribute='path') | map('basename') | difference(['runner-receipt.json','runner-token','.registration-lock']) | length == 0
+    - name: Acquire an exclusive local transaction lock; never remove another run's lock
+      ansible.builtin.command:
+        argv: [mkdir, -m, '0700', '{{ gitlab_runner_private_directory }}/.registration-lock']
+      register: gitlab_runner_lock
+      changed_when: false
+    - ansible.builtin.set_fact:
+        gitlab_runner_headers: {PRIVATE-TOKEN: "{{ lookup('file',gitlab_runner_api_token_file) | trim }}"}
+        gitlab_runner_contract:
+          owner: perkforge-runner-v1
+          origin: '{{ gitlab_runner_origin }}'
+          project_id: '{{ gitlab_runner_project_id }}'
+          project_path: '{{ gitlab_runner_project_path }}'
+        cacheable: false
+    - ansible.builtin.stat:
+        path: '{{ gitlab_runner_private_directory }}/runner-receipt.json'
+        follow: false
+      register: gitlab_runner_receipt_stat
+    - when: gitlab_runner_receipt_stat.stat.exists
+      block:
+      - ansible.builtin.assert:
+          that:
+          - gitlab_runner_receipt_stat.stat.isreg and not (gitlab_runner_receipt_stat.stat.islnk | default(false))
+          - gitlab_runner_receipt_stat.stat.mode == '0600'
+          - gitlab_runner_receipt_stat.stat.pw_name == lookup('env','USER')
+      - ansible.builtin.set_fact:
+          gitlab_runner_receipt: "{{ lookup('file',gitlab_runner_private_directory + '/runner-receipt.json') | from_json }}"
+          cacheable: false
+      - ansible.builtin.assert:
+          that:
+          - gitlab_runner_receipt.contract == gitlab_runner_contract
+          - gitlab_runner_receipt.phase == 'created'
+          - gitlab_runner_receipt.id | type_debug == 'int' and gitlab_runner_receipt.id > 0
+          - gitlab_runner_receipt.token is match('^glrt-[A-Za-z0-9_-]+$')
+          fail_msg: 'Uncertain prior runner creation or mismatched private receipt. Stop for verified owner recovery; never create a duplicate or reset a token automatically.'
+    - ansible.builtin.uri:
+        url: '{{ gitlab_runner_origin }}/api/v4/{{ item }}'
+        headers: '{{ gitlab_runner_headers }}'
+      loop: [version, user, 'projects/{{ gitlab_runner_project_id }}', 'projects/{{ gitlab_runner_project_id }}/protected_branches/{{ gitlab_runner_branch }}']
+      register: gitlab_runner_baseline
+    - ansible.builtin.assert:
+        that:
+        - gitlab_runner_baseline.results[0].json.version in ['19.4.2','19.4.2-ee']
+        - gitlab_runner_baseline.results[1].json.id == gitlab_runner_actor_id
+        - gitlab_runner_baseline.results[2].json.id == gitlab_runner_project_id
+        - gitlab_runner_baseline.results[2].json.path_with_namespace == gitlab_runner_project_path
+        - gitlab_runner_baseline.results[2].json.visibility == 'private'
+        - gitlab_runner_baseline.results[2].json.default_branch == gitlab_runner_branch
+        - gitlab_runner_baseline.results[3].json.name == gitlab_runner_branch
+        - not gitlab_runner_baseline.results[3].json.allow_force_push
+        - gitlab_runner_baseline.results[3].json.push_access_levels | map(attribute='access_level') | difference([0,40]) | length == 0
+    - ansible.builtin.uri:
+        url: '{{ gitlab_runner_origin }}/api/v4/projects/{{ gitlab_runner_project_id }}/runners?per_page=100'
+        headers: '{{ gitlab_runner_headers }}'
+      register: gitlab_runner_project_runners
+    - ansible.builtin.assert:
+        that:
+        - gitlab_runner_project_runners.json | length < 100
+        - gitlab_runner_project_runners.x_next_page | default('') == ''
+    - ansible.builtin.set_fact:
+        gitlab_runner_matches: '{{ gitlab_runner_project_runners.json | selectattr("description","equalto","PerkForge protected platform acceptance") | list }}'
+    - ansible.builtin.assert:
+        that:
+        - gitlab_runner_matches | length <= 1
+        - gitlab_runner_receipt_stat.stat.exists or gitlab_runner_matches | length == 0
+        - gitlab_runner_receipt_stat.stat.exists or gitlab_runner_operation == 'prepare'
+        fail_msg: 'Existing or uncertain runner without the private receipt must not be adopted, recreated or have its token reset.'
+    - when: not gitlab_runner_receipt_stat.stat.exists
+      block:
+      - name: Save intent before any request that could return a one-time token
+        ansible.builtin.copy:
+          dest: '{{ gitlab_runner_private_directory }}/runner-receipt.json'
+          mode: '0600'
+          force: false
+          content: "{{ {'phase':'creation-pending','contract':gitlab_runner_contract} | to_nice_json }}\n"
+      - ansible.builtin.uri:
+          url: '{{ gitlab_runner_origin }}/api/v4/user/runners'
+          headers: '{{ gitlab_runner_headers }}'
+          method: POST
+          body_format: json
+          body:
+            runner_type: project_type
+            project_id: '{{ gitlab_runner_project_id }}'
+            description: PerkForge protected platform acceptance
+            maintenance_note: perkforge-runner-v1
+            paused: true
+            locked: true
+            run_untagged: false
+            access_level: ref_protected
+            tag_list: perkforge-platform
+            maximum_timeout: 600
+          status_code: 201
+        register: gitlab_runner_created
+        changed_when: true
+      - ansible.builtin.assert:
+          that:
+          - gitlab_runner_created.json.id | type_debug == 'int' and gitlab_runner_created.json.id > 0
+          - gitlab_runner_created.json.token is string and gitlab_runner_created.json.token | length > 0
+      - name: Persist the one-time response privately before any further verification
+        ansible.builtin.copy:
+          dest: '{{ gitlab_runner_private_directory }}/runner-receipt.json'
+          mode: '0600'
+          content: "{{ {'phase':'created','contract':gitlab_runner_contract,'id':gitlab_runner_created.json.id,'token':gitlab_runner_created.json.token} | to_nice_json }}\n"
+      - ansible.builtin.set_fact:
+          gitlab_runner_receipt: "{{ lookup('file',gitlab_runner_private_directory + '/runner-receipt.json') | from_json }}"
+          cacheable: false
+    - ansible.builtin.assert:
+        that:
+        - gitlab_runner_receipt.token is match('^glrt-[A-Za-z0-9_-]+$')
+        - gitlab_runner_matches | length == 0 or gitlab_runner_matches[0].id == gitlab_runner_receipt.id
+    - ansible.builtin.stat:
+        path: '{{ gitlab_runner_private_directory }}/runner-token'
+        follow: false
+      register: gitlab_runner_token_stat
+    - when: gitlab_runner_token_stat.stat.exists
+      ansible.builtin.assert:
+        that:
+        - gitlab_runner_token_stat.stat.isreg and not (gitlab_runner_token_stat.stat.islnk | default(false))
+        - gitlab_runner_token_stat.stat.mode == '0600'
+        - gitlab_runner_token_stat.stat.pw_name == lookup('env','USER')
+        - lookup('file',gitlab_runner_private_directory + '/runner-token') | trim == gitlab_runner_receipt.token
+    - ansible.builtin.copy:
+        dest: '{{ gitlab_runner_private_directory }}/runner-token'
+        mode: '0600'
+        force: false
+        content: '{{ gitlab_runner_receipt.token }}'
+    - ansible.builtin.uri:
+        url: '{{ gitlab_runner_origin }}/api/v4/runners/{{ gitlab_runner_receipt.id }}'
+        headers: '{{ gitlab_runner_headers }}'
+      register: gitlab_runner_current
+    - ansible.builtin.assert:
+        that:
+        - gitlab_runner_current.json.id == gitlab_runner_receipt.id
+        - gitlab_runner_current.json.runner_type == 'project_type'
+        - gitlab_runner_current.json.description == 'PerkForge protected platform acceptance'
+        - gitlab_runner_current.json.maintenance_note == 'perkforge-runner-v1'
+        - gitlab_runner_current.json.locked and not gitlab_runner_current.json.run_untagged
+        - gitlab_runner_current.json.access_level == 'ref_protected'
+        - gitlab_runner_current.json.tag_list == ['perkforge-platform']
+        - gitlab_runner_current.json.maximum_timeout == 600
+        - gitlab_runner_current.json.projects | map(attribute='id') | list == [gitlab_runner_project_id]
+    - ansible.builtin.uri:
+        url: '{{ gitlab_runner_origin }}/api/v4/runners/{{ gitlab_runner_receipt.id }}'
+        headers: '{{ gitlab_runner_headers }}'
+        method: PUT
+        body_format: json
+        body: '{{ {"paused":gitlab_runner_operation == "pause"} }}'
+      when: (gitlab_runner_operation == 'activate' and gitlab_runner_current.json.paused) or (gitlab_runner_operation == 'pause' and not gitlab_runner_current.json.paused)
+      changed_when: true
+    - ansible.builtin.uri:
+        url: '{{ gitlab_runner_origin }}/api/v4/runners/{{ gitlab_runner_receipt.id }}'
+        headers: '{{ gitlab_runner_headers }}'
+      register: gitlab_runner_after
+    - ansible.builtin.assert:
+        that:
+        - gitlab_runner_after.json.id == gitlab_runner_receipt.id
+        - gitlab_runner_after.json.paused == (gitlab_runner_operation == 'pause' if gitlab_runner_operation in ['activate','pause'] else gitlab_runner_current.json.paused)
+        - gitlab_runner_after.json.projects | map(attribute='id') | list == [gitlab_runner_project_id]
+    - ansible.builtin.assert:
+        that: gitlab_runner_after.json.get(item) == gitlab_runner_current.json.get(item)
+      loop: [id, runner_type, description, maintenance_note, locked, run_untagged, access_level, tag_list, maximum_timeout]
+    - when: gitlab_runner_operation == 'pause'
+      block:
+      - ansible.builtin.uri:
+          url: '{{ gitlab_runner_origin }}/api/v4/runners/{{ gitlab_runner_receipt.id }}/jobs?status=running&per_page=1'
+          headers: '{{ gitlab_runner_headers }}'
+        register: gitlab_runner_active_jobs
+      - ansible.builtin.assert:
+          that: gitlab_runner_active_jobs.json | length == 0
+          fail_msg: 'Runner is paused but not drained. Existing jobs were not cancelled; wait for reviewed completion before maintenance.'
+    always:
+    - name: Release only this run's empty local lock
+      ansible.builtin.command:
+        argv: [rmdir, '{{ gitlab_runner_private_directory }}/.registration-lock']
+      when: gitlab_runner_lock is defined and gitlab_runner_lock.rc | default(1) == 0
+      changed_when: false
+    - ansible.builtin.set_fact:
+        gitlab_runner_headers: {}
+        gitlab_runner_receipt: {}
+        gitlab_runner_created: {}
+        cacheable: false
+      no_log: true

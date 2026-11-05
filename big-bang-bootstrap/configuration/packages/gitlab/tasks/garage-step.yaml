@@ -1,0 +1,89 @@
+- when: not gitlab_garage_ready | bool
+  block:
+  - ansible.builtin.include_tasks: garage-snapshot.yaml
+  - ansible.builtin.assert:
+      that: gitlab_garage_allow_first_layout | bool
+    when: gitlab_garage_verdict.phase != 'ready'
+  - ansible.builtin.set_fact:
+      gitlab_garage_action: "{{ 'UpdateClusterLayout' if gitlab_garage_verdict.phase == 'stage' else ('ApplyClusterLayout' if gitlab_garage_verdict.phase == 'apply' else ('ImportKey' if not gitlab_garage_receipt.key_imported else ('CreateBucket' if gitlab_garage_verdict.missing | length > 0 else ('AllowBucketKey' if gitlab_garage_verdict.ungranted | length > 0 else 'ready')))) }}"
+      gitlab_garage_alias: '{{ (gitlab_garage_verdict.missing + gitlab_garage_verdict.ungranted + [""]) | first }}'
+      cacheable: false
+  - ansible.builtin.set_fact:
+      gitlab_garage_ready: true
+    when: gitlab_garage_action == 'ready'
+  - when: gitlab_garage_action != 'ready'
+    block:
+    - when: gitlab_garage_action == 'ApplyClusterLayout'
+      block:
+      - ansible.builtin.uri:
+          url: '{{ gitlab_garage_url }}/v2/PreviewClusterLayoutChanges'
+          method: POST
+          body: {}
+        register: gitlab_garage_preview
+      - ansible.builtin.assert:
+          that:
+          - "'error' not in gitlab_garage_preview.json"
+          - gitlab_garage_preview.json.newLayout.version == 1
+          - gitlab_garage_preview.json.newLayout.roles | length == 1
+          - gitlab_garage_preview.json.newLayout.stagedRoleChanges | length == 0
+          - gitlab_garage_preview.json.newLayout.stagedParameters | default(none) == none
+          - gitlab_garage_preview.json.newLayout.roles[0].id == gitlab_garage_expected_role.id
+          - gitlab_garage_preview.json.newLayout.roles[0].zone == gitlab_garage_expected_role.zone
+          - gitlab_garage_preview.json.newLayout.roles[0].capacity == gitlab_garage_expected_role.capacity
+          - gitlab_garage_preview.json.newLayout.roles[0].tags == gitlab_garage_expected_role.tags
+    - ansible.builtin.set_fact:
+        gitlab_garage_receipt: "{{ gitlab_garage_receipt | combine({'pending':{'operation':gitlab_garage_action,'alias':gitlab_garage_alias}}) }}"
+        cacheable: false
+    - ansible.builtin.copy:
+        dest: '{{ gitlab_garage_state_directory }}/garage-bootstrap.json'
+        content: "{{ gitlab_garage_receipt | to_nice_json }}\n"
+        mode: '0600'
+    - ansible.builtin.set_fact:
+        gitlab_garage_body: '{{ gitlab_garage_bodies[gitlab_garage_action] }}'
+        cacheable: false
+      vars:
+        gitlab_garage_bodies:
+          UpdateClusterLayout: {roles: ['{{ gitlab_garage_expected_role }}']}
+          ApplyClusterLayout: {version: 1}
+          ImportKey: {accessKeyId: '{{ gitlab_garage_key_id }}', secretAccessKey: '{{ gitlab_garage_key_secret }}', name: perkforge-gitlab-data-v1}
+          CreateBucket: {globalAlias: '{{ gitlab_garage_alias }}'}
+          AllowBucketKey:
+            bucketId: '{{ gitlab_garage_receipt.buckets.get(gitlab_garage_alias, "") }}'
+            accessKeyId: '{{ gitlab_garage_key_id }}'
+            permissions: '{{ gitlab_garage_permissions }}'
+    - ansible.builtin.uri:
+        url: '{{ gitlab_garage_url }}/v2/{{ gitlab_garage_action }}'
+        method: POST
+        body: '{{ gitlab_garage_body }}'
+      register: gitlab_garage_mutation
+      changed_when: true
+    - ansible.builtin.set_fact:
+        gitlab_garage_receipt: "{{ gitlab_garage_receipt | combine({'key_imported':true}) }}"
+      when: gitlab_garage_action == 'ImportKey'
+    - when: gitlab_garage_action == 'CreateBucket'
+      block:
+      - ansible.builtin.assert:
+          that:
+          - gitlab_garage_mutation.json.id is match('^[a-f0-9]{64}$')
+          - gitlab_garage_mutation.json.globalAliases == [gitlab_garage_alias]
+      - ansible.builtin.set_fact:
+          gitlab_garage_receipt: "{{ gitlab_garage_receipt | combine({'buckets':gitlab_garage_receipt.buckets | combine({gitlab_garage_alias:gitlab_garage_mutation.json.id})}) }}"
+    - ansible.builtin.include_tasks: garage-snapshot.yaml
+    - ansible.builtin.assert:
+        that: gitlab_garage_verdict.phase == 'apply'
+      when: gitlab_garage_action == 'UpdateClusterLayout'
+    - ansible.builtin.assert:
+        that: gitlab_garage_verdict.phase == 'ready'
+      when: gitlab_garage_action == 'ApplyClusterLayout'
+    - ansible.builtin.assert:
+        that: gitlab_garage_alias not in gitlab_garage_verdict.ungranted
+      when: gitlab_garage_action == 'AllowBucketKey'
+    - ansible.builtin.set_fact:
+        gitlab_garage_receipt: "{{ gitlab_garage_receipt | combine({'pending':none}) }}"
+        gitlab_garage_changes: '{{ gitlab_garage_changes | int + 1 }}'
+        gitlab_garage_body: {}
+        cacheable: false
+    - ansible.builtin.copy:
+        dest: '{{ gitlab_garage_state_directory }}/garage-bootstrap.json'
+        content: "{{ gitlab_garage_receipt | to_nice_json }}\n"
+        mode: '0600'

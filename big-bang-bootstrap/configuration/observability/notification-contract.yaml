@@ -2,11 +2,14 @@
 # A real reviewed endpoint/adapter must satisfy this before routing is armed.
 notification:
   enabled: false
-  owner: bundled-prometheus-alertmanager
+  owner: grafana-built-in-alertmanager
   destination: ntfy-compatible-authenticated-tls
   endpoint_ref: UNCONFIGURED
   credential_ref: UNCONFIGURED
-  adapter: UNDECIDED
+  adapter: native-webhook-custom-payload-or-ntfy-template-pending-version-test
+  rule_migration: upstream-alert-inventory-and-grafana-import-required
+  prometheus_notification_route: false
+  external_alertmanager: false
   send_resolved: true
   duplicate_direct_grafana_route: false
   transport:

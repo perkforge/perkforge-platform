@@ -1,0 +1,25 @@
+# Native API creation contract only; no request or token exists from this file.
+enabled: false
+review_only: true
+method: POST
+path: /api/v4/user/runners
+body:
+  runner_type: project_type
+  project_id: UNCONFIGURED
+  description: PerkForge protected platform acceptance
+  maintenance_note: perkforge-runner-v1
+  paused: true
+  locked: true
+  run_untagged: false
+  access_level: ref_protected
+  tag_list: [perkforge-platform]
+  # GitLab 19.4.2 requires at least 600 seconds; the baseline job stays at 5m.
+  maximum_timeout: 600
+credential_output:
+  authentication_token_prefix: glrt-
+  secret_name: gitlab-runner-auth
+  namespace: gitlab-runner
+  print_token: false
+recovery:
+  pause_and_drain_before_change: true
+  delete_identity_on_rollback: false

@@ -1,0 +1,125 @@
+# Default-off owner-local bootstrap through an already established loopback forward.
+- name: Bootstrap the dedicated Garage store without adoption or destructive repair
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    gitlab_garage_run: false
+    gitlab_garage_scope: UNAPPROVED
+    gitlab_garage_url: http://127.0.0.1:UNCONFIGURED
+    gitlab_garage_node: UNCONFIGURED
+    gitlab_garage_allow_first_layout: false
+    gitlab_garage_admin_file: /UNCONFIGURED/admin-token
+    gitlab_garage_key_id_file: /UNCONFIGURED/access-key
+    gitlab_garage_key_secret_file: /UNCONFIGURED/secret-key
+    gitlab_garage_state_directory: /UNCONFIGURED/private-state
+    gitlab_garage_buckets: [gitlab-lfs, gitlab-artifacts, gitlab-uploads, gitlab-packages, gitlab-backup-staging, gitlab-restore-staging]
+    gitlab_garage_expected_role:
+      id: '{{ gitlab_garage_node }}'
+      zone: gitlab-local
+      capacity: 30064771072
+      tags: [perkforge-gitlab-data-v1]
+    gitlab_garage_permissions: {read: true, write: true, owner: false}
+  module_defaults:
+    ansible.builtin.uri:
+      headers: {Authorization: 'Bearer {{ gitlab_garage_admin }}'}
+      use_proxy: false
+      use_netrc: false
+      unredirected_headers: [Authorization]
+      follow_redirects: none
+      timeout: 15
+      return_content: true
+      status_code: 200
+      body_format: json
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check mode contacts no API. Explicit scope only: initial layout, one supplied key and six buckets; no deletion, rotation, repair, backup or port-forward creation.'
+  - when: gitlab_garage_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - gitlab_garage_scope == 'gitlab-garage-init-v1'
+        - gitlab_garage_url is match('^http://127[.]0[.]0[.]1:[1-9][0-9]{3,4}$')
+        - gitlab_garage_url.split(':')[-1] | int >= 1024 and gitlab_garage_url.split(':')[-1] | int <= 65535
+        - gitlab_garage_node is match('^[a-f0-9]{64}$')
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop: '{{ [gitlab_garage_admin_file,gitlab_garage_key_id_file,gitlab_garage_key_secret_file,gitlab_garage_state_directory] }}'
+      register: gitlab_garage_files
+    - ansible.builtin.assert:
+        that:
+        - item.item is match('^/') and item.item | realpath == item.item
+        - not (item.stat.islnk | default(false))
+        - item.stat.pw_name == lookup('env','USER')
+      loop: '{{ gitlab_garage_files.results }}'
+    - ansible.builtin.assert:
+        that:
+        - item.stat.isreg and item.stat.mode == '0600'
+      loop: '{{ gitlab_garage_files.results[:3] }}'
+    - ansible.builtin.assert:
+        that:
+        - gitlab_garage_files.results[3].stat.isdir and gitlab_garage_files.results[3].stat.mode == '0700'
+    - ansible.builtin.set_fact:
+        gitlab_garage_admin: "{{ lookup('file',gitlab_garage_admin_file) | trim }}"
+        gitlab_garage_key_id: "{{ lookup('file',gitlab_garage_key_id_file) | trim }}"
+        gitlab_garage_key_secret: "{{ lookup('file',gitlab_garage_key_secret_file) | trim }}"
+        gitlab_garage_ready: false
+        gitlab_garage_changes: 0
+        cacheable: false
+    - ansible.builtin.assert:
+        that:
+        - gitlab_garage_admin is match('^[A-Za-z0-9_-]{16,256}$')
+        - gitlab_garage_key_id is match('^GK[a-fA-F0-9]{24}$')
+        - gitlab_garage_key_secret is match('^[a-fA-F0-9]{64}$')
+    - ansible.builtin.command:
+        argv: [mkdir, -m, '0700', '{{ gitlab_garage_state_directory }}/garage-bootstrap.lock']
+      register: gitlab_garage_lock
+      changed_when: false
+    - block:
+      - ansible.builtin.stat:
+          path: '{{ gitlab_garage_state_directory }}/garage-bootstrap.json'
+          follow: false
+        register: gitlab_garage_saved
+      - ansible.builtin.assert:
+          that:
+          - gitlab_garage_saved.stat.isreg and not (gitlab_garage_saved.stat.islnk | default(false))
+          - gitlab_garage_saved.stat.pw_name == lookup('env','USER') and gitlab_garage_saved.stat.mode == '0600'
+        when: gitlab_garage_saved.stat.exists
+      - ansible.builtin.set_fact:
+          gitlab_garage_fingerprint: "{{ [gitlab_garage_node,gitlab_garage_key_id,gitlab_garage_key_secret] | to_json | hash('sha256') }}"
+          cacheable: false
+      - ansible.builtin.set_fact:
+          gitlab_garage_receipt: "{{ lookup('file',gitlab_garage_state_directory + '/garage-bootstrap.json') | from_json if gitlab_garage_saved.stat.exists else {'scope':'gitlab-garage-init-v1','fingerprint':gitlab_garage_fingerprint,'pending':none,'key_imported':false,'buckets':{}} }}"
+          cacheable: false
+      - ansible.builtin.assert:
+          that:
+          - gitlab_garage_receipt.keys() | sort == ['buckets','fingerprint','key_imported','pending','scope']
+          - gitlab_garage_receipt.scope == 'gitlab-garage-init-v1'
+          - gitlab_garage_receipt.fingerprint == gitlab_garage_fingerprint
+          - gitlab_garage_receipt.pending == none
+      - ansible.builtin.include_tasks: tasks/garage-step.yaml
+        loop: '{{ range(0,20) | list }}'
+        loop_control: {loop_var: gitlab_garage_iteration}
+        when: not gitlab_garage_ready | bool
+      - ansible.builtin.assert:
+          that: gitlab_garage_ready | bool
+      always:
+      - ansible.builtin.command:
+          argv: [rmdir, '{{ gitlab_garage_state_directory }}/garage-bootstrap.lock']
+        changed_when: false
+    always:
+    - ansible.builtin.set_fact:
+        gitlab_garage_admin: ''
+        gitlab_garage_key_secret: ''
+        gitlab_garage_body: {}
+        gitlab_garage_mutation: {}
+        gitlab_garage_key: {}
+        cacheable: false
+      no_log: true
+  - ansible.builtin.debug:
+      msg:
+        ready: '{{ gitlab_garage_ready | default(false) }}'
+        scoped_changes: '{{ gitlab_garage_changes | default(0) }}'
+        backup_verified: false

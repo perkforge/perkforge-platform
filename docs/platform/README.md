@@ -21,3 +21,7 @@ For every application addition or authorization change, the **same MR** must:
 Review these together before merge. Offline models and successful login are not
 live authorization proof; deployment/grant approvals and acceptance remain separate.
 This checklist uses existing docs/tests, not a generic policy framework.
+
+See [TLS ownership and production design](tls.md) for proposed profile-specific PKI, lifecycle and current internal transport gaps.
+
+[Change-aware offline CI](ci.md) describes conservative test selection, full/security fallbacks and measured turnaround limits.

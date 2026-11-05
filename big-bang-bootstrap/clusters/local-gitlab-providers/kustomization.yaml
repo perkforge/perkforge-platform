@@ -1,0 +1,23 @@
+# Dormant or disabled review stage; explicit immutable-release selection required.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-gitlab-review
+- ../../configuration/packages/gitlab/data-services
+patches:
+- target:
+    group: helm.toolkit.fluxcd.io
+    version: v2
+    kind: HelmRelease
+    name: platform-cnpg
+  patch: "- op: replace\n  path: /spec/suspend\n  value: false\n"
+- target:
+    group: helm.toolkit.fluxcd.io
+    version: v2
+    kind: HelmRelease
+    name: gitlab-valkey
+  patch: "- op: replace\n  path: /spec/suspend\n  value: false\n"
+commonAnnotations:
+  platform.perkforge.io/cluster: local
+  platform.perkforge.io/environment: local
+  platform.perkforge.io/profile: il2

@@ -1,92 +1,93 @@
-# GitLab initial administration — blocked inactive candidate (#78)
+# GitLab, Keycloak and protected-project runner — inactive preparation
 
-Installer accounts live in `bigbang`, alongside their HelmReleases. Target-namespace
-Roles bind those exact identities; targetNamespace/storageNamespace do not relocate
-the impersonated account. No API token automount on installer accounts.
+This current-main feature reconciles GitLab-only work from stacked #114. It does
+not import observability predecessors or change their PR bases. GitLab, SSO and a
+working runner are one acceptance outcome. The ordinary roots and
+`clusters/local-gitlab-review` remain disabled; none of this work is deployed.
 
-Big Bang 3.35.1 pins package 10.4.2-bb.0 / GitLab 19.4.2. The actual candidate renders
-75 objects at RKE2 Kubernetes1.36.5; this is syntax/resource review, not a vendor
-support certification or successful installation. Root does not include this file;
-package disabled/paused, hostname/data-service addresses deliberately UNCONFIGURED.
-No deployment/prerequisite-apply entrypoint is exposed while these gates remain.
+Read [the coordinated procedure](coordinated-outcome.md) and
+[the shared operator contract](../cloudnative-pg/README.md) before activation.
 
-## What is implemented
+| Area | Prepared source | Remaining live evidence |
+|---|---|---|
+| GitLab | Big Bang 3.35.1 / package 10.4.2-bb.0 / 19.4.2-ee Free, exact tested webservice digest | Real install, capacity/support, initial recovery and persistence |
+| Lab sizing | One webservice/shell/Sidekiq HPA replica, original container requests retained | Explicit non-HA acceptance, placement, migrations and surge |
+| Data services | Shared CNPG operator, dedicated PostgreSQL/Valkey, no-discovery Garage | Approved foundation, credentials/TLS, native startup and S3 behavior |
+| PostgreSQL TLS | Supported extraEnv/CA mount with native verify-full, exact CNG transport tests | Real provider CA/SAN, generated application config and database flow |
+| Credentials | Private existing-input assembly, create-only immutable Secret/CA delivery | Separately approved real generation/delivery and rotation plan |
+| Keycloak | Dedicated disabled-client prepare/activate/disable, S256 and exact scopes | Fresh MFA/browser flow, native account approval and instance-admin assignment |
+| Native access | Exact UID/provider/subject, bounded private-group grant/revoke | Real tenant/project cases; complete session/token offboarding is separate |
+| Runner | Protected project, paused registration, private token receipt, isolated manager/job identities | Actual registration, CNI/DNAT egress, clone/artifact/deny/drain cases |
+| Backup | Owner-selected encrypted external drive; cron disabled | Drive authorization, capacity, backup and independent restore |
 
-`candidate-values.yaml` selects neither app nor permissions. A test-only override
-renders the real child with protected initial-root-password/database/Redis/object-
-store references, EE **unlicensed Free baseline**, no license Secret, no OmniAuth.
-A license is not required for the Free tier; do not enable paid features/security
-reports as an initial prerequisite. Optional later license input is
-`global.gitlab.license.secret/key` **inside the package values**; the vendor only
-loads it at installation, later renewals use Admin UI. No license purchased/read.
+## Authored configuration entrypoints
 
-No bundled ingress controller/cert-manager/Prometheus/runner/registry, AI gateway,
-Zoekt or separate embedded OpenBao. This avoids duplicating current controllers,
-monitoring, future Harbor and platform OpenBao. No Istio or Gateway API deployment.
-Reusable public template, checksummed source and actual render tests are committed;
-protected per-node/app inputs remain outside Git.
+Ansible owns all configuration management. Python under verification/filter
+plugins validates state; independent models and runtime probes live in tests.
+Every playbook defaults off and contacts no API in check mode.
 
-`prerequisites/` is versioned inactive Kubernetes YAML for the separately approved
-Ansible actor, not permission for Flux to self-grant. No cluster-scoped chart RBAC
-or cluster-admin. Installer has trusted namespace Secret/workload CRUD and named
-bind/escalate only `gitlab-shared-secrets`. Its runtime shared-secrets Job can
-get/list/create/patch namespace Secrets and generates application recovery material;
-this needs separate approval/custody, not merely an admin password cache. All75
-rendered kinds/roleRefs are checked. Matching initial and upgrade Helm server-dry-run paths passed against the existing
-synthetic API with namespace Secret reads and no cluster-role lookup; this is not
-proof of live authorization or existing-store migration behavior.
+- `prepare-foundation.yaml`: existing recovery password and Garage RPC/admin files.
+- `prepare-credentials.yaml`: separate `application` (DB/Valkey/OIDC) and later
+  `runner` profiles. App preparation never requires or writes a runner token.
+- `prepare-object-credentials.yaml`: existing S3 key to GitLab/Fog and Toolbox formats.
+- `prepare-registry.yaml`: separately approved existing Registry1 input files to one
+  private image-pull manifest; exact app/manager/job delivery profiles, no login.
+- `prepare-transport.yaml`: existing directly CA-signed web/object/Valkey leaves;
+  verifies reviewed CA hash, constraints, server purpose, hostname, key match and
+  at least one day of validity. It issues/renews nothing; intermediate chains
+  need an explicit extension.
+- `deliver-credentials.yaml`: create-only exact application, runner, foundation, object-store
+  or per-leaf TLS profile. Context/API/cluster UID, ownership, private files and
+  existing-object comparisons guard every write; no implicit adoption/rotation.
+- `deliver-public-ca.yaml`: separately reviewed public trust only, including
+  `runner` → `gitlab-runner/gitlab-runner-public-ca` with the hostname `.crt` key;
+  no signing key.
+- `reconcile-garage.yaml`: owner-local forwarded admin API, full node ID, supplied
+  dedicated key, explicit first-layout gate, private intent receipt and local lock.
+- `reconcile-client.yaml`: dedicated disabled GitLab client lifecycle with no
+  role/group grants. It reuses exact shared canonical mapper validation.
+- `reconcile-membership.yaml`: bounded native private tenant-group membership.
+- `prepare-runner-network.yaml`: private endpoint-specific NetworkPolicy manifest;
+  no DNS lookup or policy application.
+- Runner `../gitlab-runner/reconcile-registration.yaml`: paused modern native
+  project-runner lifecycle with protected-project checks and one-time token custody.
 
-The chart unconditionally emits 31 public DoD/partner CA bundle Secrets. The profile
-clears customCA mounts, so those bundles are not trusted by workloads. They are
-public certificates, not app credentials, but unnecessary objects still need an
-explicit package/post-render review before deployment. Do not silently replace
-current physical CA trust with vendor bundle defaults.
+Private input files are canonical, owned, mode 0600. Output/state directories
+must already exist as owner-only mode 0700. Private outputs refuse drift rather
+than rotating. Never put passwords/tokens in command-line variables or chat; use
+owner-local protected vars/files. No signing keys, credentials or physical IP/MAC
+inventory are tracked. Public topology uses hostnames and relationships only.
 
-## Actual blockers, not tomorrow activation promises
+## Ownership and stages
 
-GitLab chart10 **does not bundle PostgreSQL/Redis/object storage**. Their supported
-versions, providers, TLS/credentials, persistence/backup and resource budget must
-be decided and supplied. This draft references placeholders rather than pretending
-those services exist. Gitaly alone proposes10Gi Longhorn; repositories, object
-buckets, DB, Redis persistence, backups/replica overhead are additional.
+Shared CNPG lives in `cnpg-system`, initially watches only `gitlab`, and needs
+explicit namespace Role bindings. Global CRDs/webhooks and privileged installer
+permissions are separate owner-admin foundation inputs, not self-granted by an
+application. Additional database namespaces require reviewed watch/RBAC changes.
+The application database belongs to GitLab; the operator remains reusable.
 
-Preserved vendor requests include toolbox3.5Gi, sidekiq3GB, **two webservice pods
-with2.5GB Rails +2.5GB workhorse each**, shell2x300Mi, Gitaly600Mi, plus init/jobs
-and external services. This is already about 17 GiB requested app memory before DB/
-Redis/object storage, monitoring and other queued apps; all queued apps cannot
-be accepted from the earlier idle snapshot. No dishonest request shrinking or
-unsupported all-in-one install has been made. Review selective activation/capacity
-before making it deployable. Current three16Gi nodes also run RKE2/Rancher/Longhorn.
+Dormant roots select providers → data → app → runner from the same immutable
+release. They have no effect until separately approved source promotion. The
+review root adds only disabled public values. Provider CRDs must be established
+before selecting database CRs, preventing a dry-run/bootstrap dependency cycle.
+Private credentials, namespace/pull credentials, trust, delegated installers and
+native app/runner approvals must precede their stage.
 
-Before release/activation: complete vendor Kubernetes/DB compatibility review,
-exact current physical PKI/hostname/backend TLS, namespace network/access boundary,
-protected bootstrap and generated-secret custody, database/object/repository backups,
-review rendered upgrade/lookups and approve exact grants/source promotion. First
-verify trusted local-admin access, project clone/push, persistence and backup/restore;
-SSO/groups, runners/ingestion/scanning(#79), migration/dev-home promotion(#80) later.
-No credential, existing repo, retained test data or node has been touched here.
+All package installers are in `bigbang`, matching HelmRelease ownership, with
+namespace-scoped app permissions. Installer automount is off. CNPG is explicitly
+privileged for its named cluster resources; no installer is bound to cluster-admin.
+Kubernetes create cannot be name-scoped. Garage GitOps has no Secret CRUD and no
+automatic persistent-data deletion authority.
 
-[GitLab chart secrets/initial license](https://docs.gitlab.com/charts/installation/secrets/),
-[GitLab chart architecture](https://docs.gitlab.com/charts/architecture/),
-[exact package](https://repo1.dso.mil/big-bang/product/packages/gitlab/-/tree/10.4.2-bb.0).
+Registry, KAS, Zoekt, AI, embedded OpenBao, bundled runner, Prometheus, ingress
+controllers and cert-manager stay disabled. The required database, Redis and
+object store are real external dependencies; chart 10 does not bundle them.
+Free OIDC provides login, not paid group sync, group-derived admin or tenant ACLs.
+No paid license is assumed. Generated Rails secrets as well as root recovery
+material must be preserved and independently restored.
 
-## Keycloak OIDC — Free-tier review payload
+Render, synthetic API and isolated transport results do not establish full
+application, browser, runner, persistence or backup success. See
+[the acceptance boundary](coordinated-outcome.md#coordinated-acceptance).
 
-`sso-values.yaml` is an optional, unselected/paused native OmniAuth overlay using
-only the external `gitlab-oidc-provider` Secret reference. `sso-review.yaml` records
-the public provider/client fields, protected missing secret field and native roles.
-No client, Secret values, users or membership are created; apply wiring is pending.
-Free supports OIDC login but not Premium/Ultimate required-group restrictions or
-instance-role claims, and OIDC does not manage GitLab group membership. Do not
-add paid admin_groups/required_groups settings as if they enforced Free access.
-
-New OIDC users remain blocked, and automatic email linking is disabled. Before
-activation implement reviewed approval/membership/offboarding, prove tenant/project
-denial and prevent unintended personal project/group creation. Platform admin is
-an explicit native instance assignment; tenant admin is only its own group Owner,
-developer own project Developer, viewer approved Reporter. Preserve independent
-local root and existing users/projects; disabling a client does not revoke every
-GitLab session/API token. Existing capacity, TLS and external-service gates remain.
-
-[GitLab OIDC and tier limits](https://docs.gitlab.com/administration/auth/oidc/),
-[chart OmniAuth Secret](https://docs.gitlab.com/charts/charts/globals/#omniauth).
+Data-stage recovery and pending node-origin checks: [health-read recovery](health-read-recovery.md).

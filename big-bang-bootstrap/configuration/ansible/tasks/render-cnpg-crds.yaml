@@ -1,0 +1,60 @@
+- ansible.builtin.stat:
+    path: '{{ gitlab_foundation_cache }}'
+    follow: false
+  register: gitlab_foundation_cache_stat
+- ansible.builtin.assert:
+    that:
+    - gitlab_foundation_cache is match('^/') and gitlab_foundation_cache | realpath == gitlab_foundation_cache
+    - gitlab_foundation_cache_stat.stat.isdir and not (gitlab_foundation_cache_stat.stat.islnk | default(false))
+    - gitlab_foundation_cache_stat.stat.pw_name == lookup('env','USER') and gitlab_foundation_cache_stat.stat.mode == '0700'
+- ansible.builtin.set_fact:
+    gitlab_cnpg_pin: "{{ lookup('file',gitlab_package_directory + '/cloudnative-pg/source-pin.yaml') | from_yaml }}"
+- ansible.builtin.set_fact:
+    gitlab_cnpg_archive: '{{ gitlab_foundation_cache }}/cloudnative-pg-{{ gitlab_cnpg_pin.chart_version }}.tgz'
+- ansible.builtin.stat:
+    path: '{{ gitlab_cnpg_archive }}'
+    follow: false
+    checksum_algorithm: sha256
+  register: gitlab_cnpg_archive_stat
+- ansible.builtin.assert:
+    that:
+    - gitlab_cnpg_archive_stat.stat.isreg and not (gitlab_cnpg_archive_stat.stat.islnk | default(false))
+    - gitlab_cnpg_archive_stat.stat.pw_name == lookup('env','USER') and gitlab_cnpg_archive_stat.stat.mode == '0600'
+    - gitlab_cnpg_archive_stat.stat.checksum == gitlab_cnpg_pin.sha256
+  when: gitlab_cnpg_archive_stat.stat.exists
+- ansible.builtin.get_url:
+    url: '{{ gitlab_cnpg_pin.url }}'
+    checksum: 'sha256:{{ gitlab_cnpg_pin.sha256 }}'
+    use_netrc: false
+    validate_certs: true
+    dest: '{{ gitlab_cnpg_archive }}'
+    mode: '0600'
+  when: not gitlab_cnpg_archive_stat.stat.exists
+- ansible.builtin.tempfile:
+    path: '{{ gitlab_foundation_cache }}'
+    state: directory
+    prefix: cnpg-render-
+  register: gitlab_cnpg_temporary
+  changed_when: false
+- block:
+  - ansible.builtin.unarchive:
+      src: '{{ gitlab_cnpg_archive }}'
+      dest: '{{ gitlab_cnpg_temporary.path }}'
+      remote_src: true
+    changed_when: false
+  - ansible.builtin.command:
+      argv: [helm, template, platform-cnpg, '{{ gitlab_cnpg_temporary.path }}/{{ gitlab_cnpg_pin.chart_directory }}', --namespace, cnpg-system, --include-crds, -f, '{{ gitlab_package_directory }}/cloudnative-pg/values.yaml', --set, crds.create=true]
+    environment: {KUBECONFIG: /dev/null}
+    changed_when: false
+    register: gitlab_cnpg_render
+  - ansible.builtin.set_fact:
+      gitlab_cnpg_crds: "{{ gitlab_cnpg_render.stdout | from_yaml_all | select | selectattr('kind','equalto','CustomResourceDefinition') | list }}"
+  - ansible.builtin.assert:
+      that:
+      - gitlab_cnpg_crds | length == 11
+      - (lookup('file',gitlab_cnpg_temporary.path + '/' + gitlab_cnpg_pin.chart_directory + '/Chart.yaml') | from_yaml).version == gitlab_cnpg_pin.chart_version
+  always:
+  - ansible.builtin.file:
+      path: '{{ gitlab_cnpg_temporary.path }}'
+      state: absent
+    changed_when: false

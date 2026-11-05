@@ -1,0 +1,41 @@
+- ansible.builtin.stat:
+    path: '{{ sso_headlamp_secret_file }}'
+    follow: false
+  register: headlamp_private_read
+- ansible.builtin.assert:
+    that:
+    - sso_headlamp_secret_file is match('^/') and sso_headlamp_secret_file | realpath == sso_headlamp_secret_file
+    - headlamp_private_read.stat.isreg | default(false)
+    - not (headlamp_private_read.stat.islnk | default(false))
+    - headlamp_private_read.stat.mode == '0600'
+    - headlamp_private_read.stat.pw_name == lookup('env','USER')
+    - headlamp_private_read.stat.size >= 16
+- name: Public trust input must never contain a private key
+  ansible.builtin.assert:
+    that:
+    - "'-----BEGIN CERTIFICATE-----' in lookup('file',sso_public_ca_file)"
+    - "'PRIVATE KEY' not in lookup('file',sso_public_ca_file)"
+- ansible.builtin.set_fact:
+    headlamp_secret_data:
+      OIDC_CLIENT_ID: '{{ headlamp_candidate.client_id | b64encode }}'
+      OIDC_CLIENT_SECRET: "{{ lookup('file',sso_headlamp_secret_file) | trim | b64encode }}"
+      OIDC_ISSUER_URL: '{{ headlamp_candidate.issuer | b64encode }}'
+      OIDC_SCOPES: '{{ "openid,profile,email" | b64encode }}'
+      OIDC_CALLBACK_URL: '{{ headlamp_candidate.callback | b64encode }}'
+      OIDC_VALIDATOR_CLIENT_ID: '{{ headlamp_candidate.client_id | b64encode }}'
+      OIDC_VALIDATOR_ISSUER_URL: '{{ headlamp_candidate.issuer | b64encode }}'
+      OIDC_USE_PKCE: '{{ "true" | b64encode }}'
+      OIDC_USE_ACCESS_TOKEN: '{{ "false" | b64encode }}'
+- ansible.builtin.set_fact:
+    headlamp_delivery_objects:
+    - apiVersion: v1
+      kind: Secret
+      metadata: {name: '{{ headlamp_secret_name }}', namespace: headlamp, labels: '{{ headlamp_owner }}'}
+      immutable: true
+      type: Opaque
+      data: '{{ headlamp_secret_data }}'
+    - apiVersion: v1
+      kind: ConfigMap
+      metadata: {name: '{{ headlamp_ca_name }}', namespace: headlamp, labels: '{{ headlamp_owner }}'}
+      immutable: true
+      data: {ca.crt: "{{ lookup('file',sso_public_ca_file) | trim }}"}
