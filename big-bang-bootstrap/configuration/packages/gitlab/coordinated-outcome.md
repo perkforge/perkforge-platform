@@ -530,3 +530,16 @@ Offline tests are synthetic proof of validation/transactions, not vendor support
 certification or live browser/startup/backup evidence. Tests are discovered by the
 existing full platform CI residual shard; new package/shared paths conservatively
 select full coverage. The optional CNG probe never pulls/authenticates by default.
+
+### Webservice memory correction awaiting release and live acceptance
+
+The first recovery-console request reached the admin page, then the two-worker
+Puma container was OOMKilled at the inherited 3G limit. The lab overlay raises
+only that container limit to 4G, following the upstream two-worker recommendation:
+https://docs.gitlab.com/charts/charts/gitlab/webservice/#memory-requestslimits
+Requests, CPU limits, worker count, Workhorse resources and placement are unchanged.
+The observed control-plane node had about 5.7 GiB actual memory headroom; the
+increase adds about 0.93 GiB to its finite limits, not to scheduling requests.
+This source-only correction still requires publication, release and approved
+promotion. Verify fresh HTTPS login/dashboard requests, readiness, restart count
+and memory through a settling period before claiming stable UI acceptance.
