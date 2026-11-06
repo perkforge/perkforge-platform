@@ -43,10 +43,34 @@ class ReleaseWorkflowTests(unittest.TestCase):
         record = steps[-1]
         self.assertEqual(record['if'], "steps.release.outputs.release_created == 'true'")
         self.assertEqual(record['env']['RELEASE_TAG'], '${{ steps.release.outputs.tag_name }}')
+        self.assertEqual(record['env']['RELEASE_SHA'], '${{ steps.release.outputs.sha }}')
+        self.assertEqual(steps[-2]['with']['ref'], '${{ steps.release.outputs.sha }}')
         self.assertIn('git rev-parse "$RELEASE_TAG^{commit}"', record['run'])
-        self.assertIn('test "$resolved" = "$GITHUB_SHA"', record['run'])
+        self.assertIn('test "$resolved" = "$RELEASE_SHA"', record['run'])
         self.assertNotRegex(record['run'], r'git (push|tag)')
         self.assertFalse(any('workflow_run' in str(value) for value in self.workflow['on']))
+
+    def test_queued_run_records_the_actual_release_and_rejects_wrong_sha(self):
+        with tempfile.TemporaryDirectory() as directory:
+            def git(*args):
+                return subprocess.check_output(['git', *args], cwd=directory, text=True, stderr=subprocess.DEVNULL).strip()
+            git('init', '-q')
+            git('config', 'user.name', 'Fixture')
+            git('config', 'user.email', 'fixture@example.invalid')
+            git('commit', '--allow-empty', '-qm', 'older queued run')
+            older = git('rev-parse', 'HEAD')
+            git('commit', '--allow-empty', '-qm', 'later merged release')
+            release = git('rev-parse', 'HEAD')
+            git('tag', 'v1.2.3')
+            script = self.jobs['release']['steps'][-1]['run']
+            for name, sha, allowed in [('later release', release, True), ('same run', release, True),
+                                       ('wrong release', older, False), ('missing', '', False), ('invalid', 'main', False)]:
+                with self.subTest(name=name):
+                    env = {**os.environ, 'RELEASE_TAG': 'v1.2.3', 'RELEASE_SHA': sha,
+                           'GITHUB_SHA': release if name == 'same run' else older,
+                           'GITHUB_STEP_SUMMARY': directory + '/summary'}
+                    result = subprocess.run(['bash', '-c', script], cwd=directory, env=env, capture_output=True)
+                    self.assertEqual(result.returncode == 0, allowed)
 
     def test_historical_bootstrap_fixture_keeps_released_path(self):
         check = yaml.load(Path('.github/workflows/gitops-selection.yml').read_text(), Loader=yaml.BaseLoader)

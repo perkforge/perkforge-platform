@@ -1,0 +1,61 @@
+---
+- name: Select explicitly reviewed dedicated filesystem mounts
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    longhorn_mount_apply: false
+    longhorn_mount_reviewed: false
+    longhorn_mount_guard_reviewed: false
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Dedicated mounts apply={{ longhorn_mount_apply | bool }}; check={{ ansible_check_mode }}. Default/check modes never connect.'
+  - name: Validate all operator inputs before any worker connection
+    when: longhorn_mount_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - longhorn_mount_reviewed | bool
+        - longhorn_mount_guard_reviewed | bool
+        - longhorn_mount_plan is defined
+        - longhorn_mount_plan is sequence and longhorn_mount_plan is not string
+        - longhorn_mount_plan | length > 0
+        - longhorn_mount_plan | map(attribute='node') | unique | length == longhorn_mount_plan | length
+        - longhorn_mount_plan | map(attribute='uuid') | unique | length == longhorn_mount_plan | length
+        - longhorn_mount_plan | map(attribute='usb_serial') | unique | length == longhorn_mount_plan | length
+    - name: Require worker-only targets, explicit SSH identity and complete disk identities
+      ansible.builtin.assert:
+        quiet: true
+        that:
+        - item.node in groups.get('rke2_agents', [])
+        - item.node not in groups.get('rke2_servers', [])
+        - hostvars[item.node].ansible_host | default('UNCONFIGURED') != 'UNCONFIGURED'
+        - hostvars[item.node].ansible_user | default('UNCONFIGURED') != 'UNCONFIGURED'
+        - item.uuid is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+        - item.usb_serial is match('^[A-Za-z0-9]{6,64}$')
+        - item.label is match('^[A-Za-z0-9_-]{1,12}$')
+        - item.raw_size_bytes is integer and item.raw_size_bytes > 0
+        - item.path is match('^/mnt/[A-Za-z0-9_-]+$')
+      loop: '{{ longhorn_mount_plan }}'
+      no_log: true
+    - name: Select only this invocation's reviewed worker mounts
+      ansible.builtin.add_host:
+        name: '{{ item.node }}'
+        groups: longhorn_approved_mounts
+        longhorn_mount_spec: '{{ item }}'
+      loop: '{{ longhorn_mount_plan }}'
+      no_log: true
+
+- name: Persist only the approved UUID mounts with protected underlying directories
+  hosts: longhorn_approved_mounts
+  serial: 1
+  any_errors_fatal: true
+  become: true
+  gather_facts: false
+  vars:
+    longhorn_mount_options: rw,noatime,nosuid,nodev,nofail,x-systemd.device-timeout=15s,x-systemd.device-bound
+  tasks:
+  - name: Apply only in the explicitly approved noncheck stage
+    when: longhorn_mount_apply | default(false) | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.include_tasks: ../tasks/longhorn-mount.yml

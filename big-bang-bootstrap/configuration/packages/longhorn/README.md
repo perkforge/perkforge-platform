@@ -277,3 +277,196 @@ including the effect of Retain, rather than assuming namespace deletion erases
 Longhorn data. No forced detach, node reboot or existing workload change is part
 of this test. The observed missing dm_crypt modules did not block this unencrypted
 volume; encrypted storage remains unvalidated and needs separate preparation.
+
+## Dedicated storage tiers — draft, unselected
+
+The candidate `dedicated/` classes and offline disk renderers support the 500 GB
+T7 on worker-1 and 1 TB T7 on worker-2. No cluster root selects these classes;
+existing class/claim definitions are unchanged. Neither renderer has an apply
+operation. Source review and release promotion precede live policy activation.
+The pinned chart and shared settings above remain the policy owner: two workers,
+hard node anti-affinity, 100% overprovisioning setting (no overcommit), and 25%
+minimum available. The nondefault `longhorn-dedicated` class narrows **new**
+claims to disks tagged `dedicated-storage`; it retains two V1 copies, Retain,
+expansion and WaitForFirstConsumer. `fsType: ext4` is the filesystem **inside a
+new PVC**, not permission to format either T7 host filesystem. Auto-balancing is
+explicitly disabled. Important household files and Nextcloud data use this class.
+
+`longhorn-single-excess` is a separate nondefault V1 class with one replica,
+Retain, expansion and WaitForFirstConsumer. It requires disk tags
+`dedicated-storage,excess-capacity` AND the Longhorn node tag `excess-capacity`.
+Only the designated larger SSD/node receives those excess tags through the
+reviewed private activation plan. These are Longhorn tags, not Kubernetes labels.
+Locality and replica auto-balancing are disabled. Losing that worker or SSD loses
+access to the sole copy; use this class only for disposable or independently
+recoverable data, never as the default for household photos or credentials.
+
+The proposed shared setting `allowEmptyDiskSelectorVolume: false` keeps existing
+selector-less volumes eligible for the untagged root disks, rather than allowing
+their future replicas onto tagged SSDs. The observed live setting is currently
+true: tags alone do not isolate empty-selector claims. This is a deliberate global
+eligibility change to review before promotion; it does not migrate existing
+replicas. Leave the empty **node** selector setting unchanged so existing volumes
+can still use both workers after the larger node receives its excess tag.
+
+Environment disk details live in
+`clusters/local/longhorn-disks.example.yaml`, separate from reusable class policy
+and Ansible templates. Its advertised capacities are illustrative, not current
+measurements. Actual snapshots, disk UUIDs and measured activation inputs belong
+in protected operator storage. Preserve 30% of each measured formatted
+filesystem capacity, rounded up to whole bytes: `(capacity_bytes * 30 + 99) // 100`.
+The illustrative advertised sizes give 150 GB and 300 GB reserves, respectively;
+replace both capacity and reserve with measured values before acceptance.
+Longhorn's default-disk reserve percentage does not configure these added disks:
+the renderer authors `storageReserved` bytes explicitly. Minimum-free scheduling
+checks also apply. Neither setting is a quota or a guarantee of usable capacity.
+Observed 2026-11-05: both UUID-mounted XFS SSDs passed the bounded 16 MiB
+write/fsync/checksum/cleanup test from Longhorn's actual `spc_t` runtime. The owner
+completed serial unused-disk unmount/immutable-guard/remount checks successfully.
+Both SSDs are registered as `dedicated-t7`, Ready with scheduling disabled and no
+scheduled replicas. Existing root-disk definitions, disk IDs and replica placement
+were verified unchanged; seven attached volumes remain healthy. Reboot/unplug
+qualification is separate planned maintenance, not a claim made by these tests.
+
+| Worker | Measured formatted bytes | Reserved bytes | Budget after reserve |
+|---|---:|---:|---:|
+| worker-1 | 499862597632 | 149958779290 | 325.87 GiB |
+| worker-2 | 999714713600 | 299914414080 | 651.74 GiB |
+
+Two copies are constrained by the smaller disk: at most about 325.87 GiB logical
+on this SSD pair before other scheduling/physical-space constraints. Initial
+planning budgets are **300 GiB important** plus **300 GiB single-excess**, leaving
+about 25.87 GiB and 51.74 GiB above their respective planned replica footprints,
+in addition to the 30% reserves. If the existing 76 GiB is later migrated from
+root disks, count it within the important budget (224 GiB then remains for new
+important allocation). No migration occurs here. Current root-disk capacity is
+separate; these tagged classes cannot pool its free space into a larger SSD replica.
+
+The budgets are not physical partitions. Both classes share the larger filesystem;
+snapshots, retained PVs, expansion and concurrent requests compete for it. Choose
+consumer namespaces before single-excess activation, enforce an aggregate 300 GiB
+logical quota across those namespaces using
+`clusters/local/longhorn-single-excess-quota.example.yaml`, and keep the important
+budget explicit. The example is unselected and has no valid namespace until the
+operator chooses one. Namespace quota does not reserve physical bytes or cap
+snapshots/retained PVs, and multiple 300 GiB namespace quotas would exceed the
+aggregate plan. Do not select the single class broadly without this capacity review.
+With only two eligible workers,
+one-worker loss leaves a single copy and no third-worker rebuild destination.
+
+1. Finish separately approved physical storage preparation first: exact device
+   identity/data-loss review, formatting if required, persistent UUID mount,
+   ownership/SELinux, independent filesystem and boot/missing-drive behavior.
+   This PR contains no formatting, fstab or drive commands and assumes no UUID.
+   Never mount over `/var/lib/longhorn` or copy/delete existing replica data.
+2. Verify each proposed path is the intended mounted filesystem, never a directory
+   on the root filesystem or symlink; inspect `findmnt`, measured capacity,
+   permissions, propagation and current Longhorn disk/replica health. A missing USB
+   drive must not let Longhorn silently write into an underlying root directory.
+   A persistent mount and verified guard/remount behavior are activation checks;
+   the offline renderer cannot verify any of these facts.
+3. Under separately approved read-only access, capture fresh `nodes.longhorn.io`
+   objects (not core Kubernetes Nodes). Copy the example privately, replace sizes
+   with measured bytes and `snapshot` with the corresponding full object. Keep
+   identifiers and generated patches in ignored/protected storage. Existing disk
+   keys and paths are preserved. The renderer rejects identity/path conflicts,
+   duplicate nodes, absent snapshots and reserves that differ from the 30% baseline.
+4. Render review artifacts locally into an existing mode0700 directory:
+
+   ```sh
+   ansible-playbook -i localhost, \
+     big-bang-bootstrap/configuration/ansible/longhorn-disk-plan.yaml \
+     -e @/ABSOLUTE/PROTECTED/disk-inputs.yaml \
+     -e longhorn_disk_output=/ABSOLUTE/PROTECTED/FRESH_OUTPUT
+   ```
+
+   It writes mode0600 JSON patches only. Check mode writes no patches. Existing
+   output files are refused. Patches test node UID, resourceVersion and the entire
+   old disk map, then add a **scheduling-disabled** filesystem disk. They never
+   fabricate Longhorn disk UUIDs. ResourceVersion churn can invalidate a patch:
+   re-read and re-render for review, never remove its tests or force an update.
+5. After review and separate activation approval, register one disk at a time
+   using the reviewed patch and an explicitly verified cluster context/UID. This
+   PR intentionally supplies no live executor. Confirm Longhorn discovers the
+   intended filesystem and reports the disk Ready with correct capacity/reserve,
+   then separately approve enabling scheduling. Partial worker completion is not
+   success; inspect before proceeding. Shared tags must exist only on the reviewed
+   dedicated worker disks; the disk selector uses Longhorn tags, not node labels.
+   Registration is now complete for this environment. Do not replay the add-only
+   renderer against already registered disks or fabricate/reuse registration IDs.
+   For the next stage, privately fill
+   `clusters/local/longhorn-disk-activation.example.yaml` from fresh snapshots.
+   It requires both disks Ready, unused, scheduling-disabled, measured capacities,
+   exact reserves and Longhorn-generated UUIDs. Render activation artifacts with:
+
+   ```sh
+   ansible-playbook -i localhost, \
+     big-bang-bootstrap/configuration/ansible/longhorn-disk-activation-plan.yaml \
+     -e @/ABSOLUTE/PROTECTED/activation-inputs.yaml \
+     -e longhorn_activation_reviewed=true \
+     -e longhorn_activation_output=/ABSOLUTE/PROTECTED/FRESH_OUTPUT
+   ```
+
+   The offline patch tests UID/resourceVersion/full disk map, enables only each
+   named dedicated disk, and adds excess tags to exactly one node/disk while
+   preserving other node tags. It never alters the root disk, reserves, status or
+   replica objects. Before applying, confirm policy promotion and consumer budgets,
+   refresh snapshots, server-dry-run, then apply one guarded patch at a time and
+   verify existing placement and health. Check mode produces no patches. A stale
+   snapshot requires a fresh review; no force or automatic retry is supplied.
+6. Before selecting `dedicated/` in a future release, review ownership and installer
+   permissions for its cluster-scoped StorageClasses. The current `platform-reconciler`
+   was checked and cannot create StorageClasses; the existing operator can. Keep
+   these resources outside app-root reconciliation and use the explicit operator
+   prerequisite entrypoint `longhorn-tier-prerequisites.yaml` from a clean published
+   checkout, with normal private release/target inputs plus `longhorn_tiers_apply=true`
+   and `longhorn_tiers_reviewed=true`. It checks release commit and cluster UID,
+   refuses existing names, server-validates before create, and does not widen RBAC.
+   It creates only `longhorn-dedicated` by default. Add
+   `longhorn_tiers_include_single_excess=true` and
+   `longhorn_single_excess_consumers_reviewed=true` only after choosing consumer
+   namespaces and their aggregate quota; creating the class does not enforce quotas.
+   Partial creation is not an invitation to overwrite; inspect before repeating.
+   Publish/promote policy through the normal
+   reviewed release path; adding a directory does not activate it. Verify a fresh
+   disposable claim binds to the tagged disks with two healthy distinct-worker
+   replicas, then checksum/recreate/reattach. The smoke verifier preserves its
+   historical default, but now accepts a protected dedicated-policy JSON file
+   based on `clusters/local/longhorn-smoke-policy.example.json`: fill the exact
+   promoted revision and both Longhorn-generated SSD IDs, chmod0600, then invoke
+   `longhorn-storage-smoke.yaml` with the explicit existing cluster access inputs,
+   fresh namespace/output and these additional variables:
+
+   ```sh
+   -e storage_test_apply=true \
+   -e storage_test_storage_class=longhorn-dedicated \
+   -e storage_test_policy_file=/ABSOLUTE/PROTECTED/smoke-policy.json
+   ```
+
+   The preflight checks exact Ready source/root revisions, the dedicated class and
+   both named SSD IDs; health checks reject even healthy replicas on old root disks.
+   Start with a 1 GiB two-replica PVC explicitly using `longhorn-dedicated` in a
+   fresh test namespace and a nonprivileged consumer so WaitForFirstConsumer can
+   bind it. Verify both replica disk IDs are the new SSDs, persist/checksum data,
+   recreate the consumer, then reattach it on the other worker and verify again.
+   Do not change existing PVCs. Retain means deleting the test PVC alone does not
+   remove its PV or Longhorn volume; plan explicit test-owned cleanup. Test the
+   single class separately only after consumer namespace/quota approval: verify
+   one replica exclusively on the designated larger SSD. Do not fail a live node
+   or unplug a disk for these initial acceptance tests.
+7. Existing PVCs keep their class and placement. Plan migration separately: backup
+   and tested recovery first; inventory every volume; disable root-disk scheduling
+   without deleting it; move/evict replicas one worker at a time with healthy-copy
+   and rebuild checkpoints. No blanket disk-map replacement, PVC class patch,
+   forced detach, replica deletion or automatic eviction is supplied here. On
+   failure stop and preserve the working copies; re-enable an old scheduling path
+   only after review. Retain source disks until migration and recovery pass.
+
+Before Nextcloud imports, select independent protected off-cluster backups,
+application-consistent capture, retention/capacity, encryption/credential custody,
+and verify restore with dummy data (#42/#101/#105). A replica, Retain, snapshot or
+etcd backup alone does not establish application-data recovery. Backup destination
+and restore acceptance remain blockers; this PR creates no credentials/jobs.
+
+References: [disk management](https://longhorn.io/docs/1.13.0/nodes-and-volumes/nodes/multidisk/),
+[StorageClass parameters](https://longhorn.io/docs/1.13.0/references/storage-class-parameters/).
