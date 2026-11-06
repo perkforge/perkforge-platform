@@ -95,7 +95,25 @@ Source lookup review found Alloy's legacy upgrade migration lookup and Loki's
 StatefulSet recreation lookup; both supported automatic migration/recreation
 switches are explicitly off. This is not a proof of every future upgrade branch.
 
-No Alloy/Loki binary validation, controller execution, network/auth allow/deny,
+The official Alloy v1.18.0 CLI (revision `a435563`) accepted the exact rendered
+7,011-byte collector configuration with `validate` at generally-available stability.
+The official `alloy-linux-amd64.zip` archive was checked against GitHub's release
+asset digest `92f4c950aec4ec16a7fdbf6f805be4334d4d5fbbe458eecf514319c1c491bef4`.
+This checks syntax/components/required properties; it starts no collector and
+does not verify the separately packaged Iron Bank runtime image. It uses no
+Kubernetes credential or live API. Reproduce the optional check with:
+
+```sh
+ALLOY_VALIDATE_BIN=/absolute/path/to/verified/alloy-linux-amd64 \
+PYTHONPATH=big-bang-bootstrap/tests PREFLIGHT_SOURCES_DIR=/path/to/pinned-fixtures \
+KUBECONFIG=/dev/null python3 -m unittest \
+  security.test_logging_installer.LoggingInstaller.test_optional_exact_alloy_binary_validates_rendered_configuration -v
+```
+
+See the [official release](https://github.com/grafana/alloy/releases/tag/v1.18.0)
+and [validator scope](https://grafana.com/docs/alloy/latest/reference/cli/validate/).
+
+No Loki binary validation, controller execution, network/auth allow/deny,
 actual log ingestion/query/redaction/cardinality, disk retention/load, admin login,
 upgrade/redeploy or independent restore has run. Preserve the Alloy CRD and data;
 chart uninstall includes finalizer/removal hooks and needs separate approval.
