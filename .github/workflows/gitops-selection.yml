@@ -261,7 +261,7 @@ jobs:
       run: python3 scripts/ci_suite.py --family sso --shard "$CI_SUITE"
     - name: Verify disabled Nextcloud SSO preparation without API access
       if: matrix.suite == 'apps'
-      run: python3 -m unittest discover -s big-bang-bootstrap/tests/security -p test_nextcloud_sso_preparation.py -v
+      run: python3 -m unittest discover -s big-bang-bootstrap/tests/security -p 'test_nextcloud_sso*.py' -v
 
   headlamp-prerequisites:
     needs: [changes]

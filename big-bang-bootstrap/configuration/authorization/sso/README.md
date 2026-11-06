@@ -556,4 +556,6 @@ Publication alone activates neither and does not authorize repeating a prior bat
 
 [Nextcloud preparation](nextcloud/README.md) renders an independent disabled
 client/provider candidate. Existing lifecycle adapters and coexistence inventory
-remain unchanged. No activation or user provisioning is implemented by that stage.
+remain unchanged. Independent default-off client/native lifecycle adapters now
+provide bounded direct-subject grants, explicit activation and removal; they
+remain outside selection and require action-specific approval.

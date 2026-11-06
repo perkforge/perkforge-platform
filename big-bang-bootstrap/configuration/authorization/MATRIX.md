@@ -336,4 +336,7 @@ activation. Native apply wiring remains explicit where unimplemented.
 [Nextcloud SSO](sso/nextcloud/README.md) has no active grants. Local recovery stays
 native admin; platform-admin and household identities have no new Nextcloud
 authority. Subject provisioning and native admin grant/removal require separate
-review. Unique OIDC group IDs do not map directly to native admin.
+review. Source adapters now bound JIT creation to reviewed direct own-client
+roles, and native admin grant/removal verifies exact provider/subject/backend.
+Removal disables that account and revokes its Nextcloud tokens before own-client
+role revocation. Unique OIDC groups do not map directly to native admin.
