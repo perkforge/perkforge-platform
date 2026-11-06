@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.1](https://github.com/perkforge/perkforge-platform/compare/v0.22.0...v0.22.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* **nextcloud:** select released disabled cron correction ([12317e4](https://github.com/perkforge/perkforge-platform/commit/12317e4191fa560360ccb0efaad4f13cd47804ec))
+* **nextcloud:** select released disabled cron correction ([5bbc17f](https://github.com/perkforge/perkforge-platform/commit/5bbc17f96e84ca512c3e6c2370cb92f1bb330260))
+
 ## [0.22.0](https://github.com/perkforge/perkforge-platform/compare/v0.21.0...v0.22.0) (2026-11-06)
 
 
