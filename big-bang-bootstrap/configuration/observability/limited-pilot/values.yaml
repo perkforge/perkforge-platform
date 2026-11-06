@@ -1,6 +1,12 @@
-# Unselected source proposal; requires reviewed stage wiring and publication.
+# Optional limited metrics roots only; requires published source and access approval.
 monitoring:
   values:
+    # Umbrella injects a Headlamp blackbox target; app probes remain deferred.
+    blackboxExporter:
+      enabled: false
+      serviceMonitor:
+        enabled: false
+        targets: []
     upstream:
       kubeControllerManager:
         serviceMonitor: {enabled: false}

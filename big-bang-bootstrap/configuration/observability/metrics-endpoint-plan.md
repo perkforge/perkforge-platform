@@ -8,14 +8,19 @@ host listener reachable from a Prometheus Pod.
 
 ## Recommended initial scope
 
-Use the unselected [limited values proposal](pilot/limited-host-metrics-values.yaml)
+Use the optional [limited values profile](limited-pilot/values.yaml)
 for the initial node/workload pilot, after explicit scope/access approval and source
 wiring/publication. It defers controller-manager, scheduler, etcd and kube-proxy
-ServiceMonitors, removes the unnecessary CoreDNS HTTP bearer reference, and enables
+ServiceMonitors and the umbrella-injected Headlamp blackbox probe, removes the
+unnecessary CoreDNS HTTP bearer reference, and enables
 kubelet certificate verification. Exact pinned renders retain all 35 native rule
 objects and seven ServiceMonitors, with no HTTP bearer references or TLS bypasses.
-No existing stage consumes this file: choosing it still requires a reviewed source
-change, published release and guarded root selection, not a live Helm override.
+The optional `local-metrics-limited-pilot` and `local-logging-limited-pilot` roots
+consume this profile. Existing roots remain unchanged. Neither optional root is
+selected live: choosing one requires merged/published source, explicit access/scope
+approval and guarded root selection, not a live Helm override. Deliver/revalidate
+protected inputs using that exact root path; existing default-off delivery, clean
+released checkout, cluster identity and immutable-input checks still apply.
 
 Credential-free preflight verified all three existing kubelet serving certificates
 against the cluster CA and their node-IP identities. This supports strict kubelet
