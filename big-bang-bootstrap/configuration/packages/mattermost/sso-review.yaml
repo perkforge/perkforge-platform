@@ -1,0 +1,66 @@
+# Source review only; not live settings, realm import or license activation.
+enabled: false
+review_only: true
+live_apply_implemented: false
+protocol: oidc
+application: mattermost
+planning_edition: Entry, free mode of Enterprise Edition; no purchase
+pinned_chart: 11.11.0-bb.0
+pinned_image_version: 11.11.0
+edition_verified: false
+source_edition_verified: true
+source_edition: Enterprise binary, free Entry mode
+edition_evidence: edition-review.md
+runtime_edition_verified: false
+keycloak:
+  realm: perkforge
+  client_id: mattermost
+  enabled: false
+  flow: authorization-code
+  full_scope_allowed: false
+  redirect_uri: https://mattermost.UNCONFIGURED.invalid/signup/openid/complete
+credential_ref: mattermost-oidc-client/client-secret; protected delivery approval
+  required
+mappings:
+  tenant_global_admin: false
+  platform_admin: explicit native System Admin after review
+  platform_engineer: ordinary assigned team/channel member initially; no system admin
+  platform_viewer: ordinary assigned team/channel member; chat allowed, no operations
+  tenant_admin: own Team Admin, never System Admin
+  tenant_developer: ordinary assigned team/channel member
+  tenant_viewer: ordinary assigned team/channel member; chat allowed
+limitations:
+- pinned chart sso helper configures GitLab auth, not Generic OpenID Other
+- Source manifest selects Enterprise binary; runtime Entry/OIDC feature availability and license terms still require verification
+- OIDC login does not synchronize tenant team/channel roles by itself
+- v12.1 claim/ABAC features and delegated granular system-admin roles are not assumed
+  for 11.11.0 Entry
+- Entry has a 10000-channel-message visible history cap and no HA/compliance features
+- new-person provisioning/linking/offboarding is unimplemented; user creation stays
+  disabled
+transport:
+  verify_tls: true
+  skip_certificate_verification: false
+  public_ca_ref: approved runtime issuer CA; no TLS bypass
+recovery:
+  independent_local_access: true
+  custody: initial local System Admin established before SSO; external protected custody
+activation_gates:
+- separate reviewed client/app apply wiring
+- exact Entry-compatible image and no paid license assumption
+- owner-reviewed linking/provisioning with signup closed
+- tenant team/channel membership and removal tests
+- TLS and protected client Secret delivery
+- operator trust/capacity gates remain
+acceptance:
+  positive:
+  - approved linked person authenticates through Keycloak Other OIDC and fresh MFA
+  - assigned viewer can chat
+  negative:
+  - unprovisioned person cannot self-register
+  - cross-tenant private team/channel denied
+  - Team Admin cannot become System Admin
+  rollback:
+  - disable only owned Other OIDC/client mapping
+  - preserve teams/messages/users and local admin
+  - measure native sessions and preserve recovery; no bulk account conversion
