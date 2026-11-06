@@ -51,6 +51,40 @@ jobs:
         npm --prefix docs/architecture ci --ignore-scripts --no-audit --no-fund
         npm --prefix docs/architecture run validate
         npm --prefix docs/architecture run build
+  metrics-placement:
+    needs: [changes]
+    if: needs.changes.outputs.full == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      KUBECONFIG: /dev/null
+      GOTOOLCHAIN: local
+      GOMAXPROCS: '2'
+      GOMEMLIMIT: 2GiB
+      REQUIRE_NATIVE_OPERATOR_PLACEMENT: '1'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/setup-go@v7.0.0
+      with:
+        go-version: '1.27.3'
+        cache: false
+    - uses: azure/setup-helm@v4.3.1
+      with:
+        version: v3.19.0
+    - run: python3 -m pip install PyYAML==6.0.3
+    - name: Fetch integrity-pinned public charts and native operator source
+      run: |
+        python3 big-bang-bootstrap/tests/fixtures/fetch_sources.py "$RUNNER_TEMP/placement-charts"
+        curl --fail --location --retry 2 https://codeload.github.com/prometheus-operator/prometheus-operator/tar.gz/2e4af1d7d8f0ae634fcf0ac967a76fb381a65542 -o "$RUNNER_TEMP/operator.tgz"
+        echo "bada8d81e2bd3d6f4ce9e63f59a876bc9f5b74b83dd148dc37d52d25c72fd4ef  $RUNNER_TEMP/operator.tgz" | sha256sum --check
+        mkdir "$RUNNER_TEMP/operator"
+        tar -xzf "$RUNNER_TEMP/operator.tgz" -C "$RUNNER_TEMP/operator" --strip-components=1
+    - name: Verify pinned PVC consumer placement including native StatefulSet generation
+      run: |
+        PREFLIGHT_SOURCES_DIR="$RUNNER_TEMP/placement-charts" PROMETHEUS_OPERATOR_SOURCE="$RUNNER_TEMP/operator" PYTHONPATH=big-bang-bootstrap/tests python3 -m unittest integration.test_metrics_worker_placement -v
+
   selection:
     needs: [changes]
     if: needs.changes.outputs.full == 'true'
