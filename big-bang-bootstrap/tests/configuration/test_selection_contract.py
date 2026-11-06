@@ -146,7 +146,7 @@ class SelectionContractTests(unittest.TestCase):
 
 
     def test_only_physical_local_template_and_explicit_inputs(self):
-        self.assertEqual({p.name for p in (EXAMPLES / 'clusters').iterdir()}, {'local', 'local-headlamp', 'local-keycloak', 'local-headlamp-sso', 'local-gitlab-review', 'local-gitlab-providers', 'local-gitlab-data', 'local-gitlab-app', 'local-gitlab-runner', 'local-metrics-review', 'local-metrics-crds', 'local-metrics-pilot'})
+        self.assertEqual({p.name for p in (EXAMPLES / 'clusters').iterdir()}, {'local', 'local-headlamp', 'local-keycloak', 'local-headlamp-sso', 'local-gitlab-review', 'local-gitlab-providers', 'local-gitlab-data', 'local-gitlab-app', 'local-gitlab-runner', 'local-nextcloud', 'local-metrics-review', 'local-metrics-crds', 'local-metrics-pilot'})
         self.assertEqual({p.name for p in (EXAMPLES / 'profiles').iterdir()}, {'il2'})
         values = yaml.safe_load((EXAMPLES / 'clusters/local/values.yaml').read_text())
         for name in ('headlamp', 'keycloak'):
