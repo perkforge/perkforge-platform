@@ -12,6 +12,14 @@ namespace-only Role is mirrored into the watched database namespace and bound to
 the operator's real ServiceAccount; no global Secret-reading rule is added.
 Future database namespaces require reviewed namespace Roles/bindings and matching
 watch-list changes, not another instance or an implicit all-namespace watch.
+The `local-nextcloud` stage explicitly sets both chart configuration and the
+post-rendered Deployment to `gitlab,tenant-home-nextcloud`; other stages retain
+`gitlab`. Apply the separately published Nextcloud foundation's operator-only Role
+and RoleBinding before promoting this stage. Tenant identities gain none of these
+permissions. This rolls only the controller at the same pinned version, briefly
+pausing reconciliation; do not restart database Pods. Recheck GitLab readiness,
+controller watch list and denied access in an unrelated namespace before creating
+the Nextcloud database.
 
 Its 11 CRDs and two fixed-name admission webhooks remain global. Node discovery,
 ClusterImageCatalog reads and webhook get/patch are runtime cluster permissions.
