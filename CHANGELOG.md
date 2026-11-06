@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.22.0](https://github.com/perkforge/perkforge-platform/compare/v0.21.0...v0.22.0) (2026-11-06)
+
+
+### Features
+
+* **observability:** gate immutable logging pilot input delivery ([c2afe2f](https://github.com/perkforge/perkforge-platform/commit/c2afe2f14de99db8658a4c8c5ce13dd9fd83822b))
+
+
+### Bug Fixes
+
+* **observability:** restrict logging inputs to the pinned CA ([c25ada3](https://github.com/perkforge/perkforge-platform/commit/c25ada355a7e0ebba9dea7435feb923435d591e1))
+
 ## [0.21.0](https://github.com/perkforge/perkforge-platform/compare/v0.20.0...v0.21.0) (2026-11-06)
 
 
