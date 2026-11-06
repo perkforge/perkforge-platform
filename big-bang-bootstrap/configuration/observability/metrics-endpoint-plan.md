@@ -36,9 +36,9 @@ Grafana remains local platform-admin-only: anonymous, OIDC and public ingress of
 | `bigbang:monitoring-installer` | New Role/RoleBinding `kube-system:monitoring-system-services`: Service creation in kube-system; Kubernetes cannot name-limit create. Other read/watch/update/patch/delete rights cover only the five generated names below. No existing DNS/control Service, Secret, Pod or ConfigMap mutation rights are added. |
 | `monitoring:monitoring-monitoring-kube-prometheus` | Existing candidate runtime ClusterRole: get/list/watch nodes, nodes/metrics, Services, Endpoints, Pods, EndpointSlices and Ingresses; GET `/metrics` and `/metrics/cadvisor`. No new permission is needed merely to reach a listener. Pod discovery can read Pod specifications, not just labels. |
 | Prometheus credential | The pinned chart creates `monitoring-monitoring-kube-prometheus-token`, a Kubernetes service-account-token Secret, referenced by API/kubelet authorization. Treat it as a long-lived API credential; do not send it to anonymous HTTP targets or reuse an administrator/etcd key. This proposal does not replace its lifecycle with a projected-token design. |
-| Prometheus operator | The existing reviewed candidate manages Secrets/workloads across namespaces. This is trusted infrastructure authority, not a tenant/human role. |
-| kube-state-metrics | The existing reviewed candidate includes global Secret list/watch. Exporting metadata does not remove that API data-access consequence. |
-| Grafana runtime | Namespaced ConfigMap get/list/watch for provisioning; no broad Secret reader. Bootstrap credentials are separately delivered immutable inputs. No tenant/engineer/viewer grants are enabled. |
+| `monitoring:monitoring-monitoring-kube-operator` | The existing reviewed candidate manages Secrets/workloads across namespaces. This is trusted infrastructure authority, not a tenant/human role. |
+| `monitoring:monitoring-monitoring-kube-state-metrics` | The existing reviewed candidate includes global Secret list/watch. Exporting metadata does not remove that API data-access consequence. |
+| `monitoring:monitoring-grafana` | Namespaced ConfigMap get/list/watch for provisioning; no broad Secret reader. Bootstrap credentials are separately delivered immutable inputs. No tenant/engineer/viewer grants are enabled. |
 
 The five exact Service names are:
 
