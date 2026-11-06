@@ -157,3 +157,7 @@ turns any tenant admin into server/org admin in every membership. Per-tenant nat
 mapping/apply and lifecycle/revocation wiring are not implemented by this overlay.
 Test fresh MFA and native roles/denials, independent recovery, stale sessions,
 rollback and per-app resources before activation. No new public endpoint is exposed.
+
+The [endpoint and approval plan](metrics-endpoint-plan.md) records the exact new
+Service delegation, existing runtime identities, transport findings and unselected
+limited-scrape alternative. No host maintenance is included or authorized by #208.

@@ -89,3 +89,22 @@ class MetricsInstaller(unittest.TestCase):
    self.assertFalse(self.allowed('monitoring-installer','Role','',resource,'arbitrary','create','kube-system'))
   self.assertFalse(self.allowed('grafana-installer','Role','','services',services[0]['metadata']['name'],'create','kube-system'))
   self.assertFalse(self.allowed('monitoring-installer','Role','','services',services[0]['metadata']['name'],'create','unrelated'))
+
+ def test_unselected_limited_endpoint_profile_preserves_rules_and_transport(self):
+  from fixtures.observability import metrics_render
+  values=ROOT/'configuration/observability/pilot/limited-host-metrics-values.yaml'
+  _,objects=metrics_render(ROOT,[ROOT/'configuration/observability/pilot/values.yaml',values])['monitoring']
+  self.assertEqual(sum(x['kind']=='PrometheusRule' for x in objects),35)
+  monitors=[x for x in objects if x['kind']=='ServiceMonitor'];self.assertEqual(len(monitors),7)
+  for monitor in monitors:
+   self.assertFalse(any(v in monitor['metadata']['name'] for v in ['controller-manager','kube-scheduler','kube-etcd','kube-proxy']))
+   for endpoint in monitor['spec']['endpoints']:
+    self.assertFalse(endpoint.get('tlsConfig',{}).get('insecureSkipVerify',False))
+    if endpoint.get('scheme','http')=='http':self.assertFalse(endpoint.get('authorization') or endpoint.get('bearerTokenSecret') or endpoint.get('bearerTokenFile'))
+  daemon=next(x for x in objects if x['kind']=='DaemonSet')['spec']['template']['spec']
+  self.assertFalse(daemon.get('hostNetwork',False));self.assertFalse(daemon.get('hostPID',False))
+  host_names={v['name'] for v in daemon['volumes'] if 'hostPath' in v}
+  self.assertTrue(all(m.get('readOnly',False) for c in daemon['containers'] for m in c.get('volumeMounts',[]) if m['name'] in host_names))
+  # It remains a proposal: no existing root/config generator selects this file.
+  for folder in [ROOT/'clusters',ROOT/'configuration/observability']:
+   for path in folder.rglob('kustomization.yaml'):self.assertNotIn(values.name,path.read_text())
