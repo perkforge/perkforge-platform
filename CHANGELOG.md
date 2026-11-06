@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.23.0](https://github.com/perkforge/perkforge-platform/compare/v0.22.2...v0.23.0) (2026-11-06)
+
+
+### Features
+
+* **logging:** prepare backend-only pilot without monitoring runtime ([#211](https://github.com/perkforge/perkforge-platform/issues/211)) ([7cafc38](https://github.com/perkforge/perkforge-platform/commit/7cafc38f472008c7170153a35881049127e800b1))
+* **observability:** carry limited pilot roots onto main ([#216](https://github.com/perkforge/perkforge-platform/issues/216)) ([94ad924](https://github.com/perkforge/perkforge-platform/commit/94ad924a36374e5d00569aa472ea0a93b81439a4))
+
+
+### Bug Fixes
+
+* **monitoring:** scope system metric Service installer access ([db2ac7b](https://github.com/perkforge/perkforge-platform/commit/db2ac7b4bae67be97a7ee0b8590b9b6a192852b3))
+
 ## [0.22.2](https://github.com/perkforge/perkforge-platform/compare/v0.22.1...v0.22.2) (2026-11-06)
 
 
