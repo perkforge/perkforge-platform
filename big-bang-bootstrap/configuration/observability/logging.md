@@ -3,6 +3,31 @@
 Implements the pinned #38 candidate after [metrics](metrics.md); the root still
 selects neither monitoring nor logging. This is not live log or auth acceptance.
 
+## Initial pilot access
+
+The initial pilot is **platform-admin-only**. Keep anonymous access, tenant
+accounts, platform-engineer/viewer access and public Loki/Alloy endpoints off.
+The optional Grafana SSO review overlay is not permission to enable its proposed
+Viewer mappings during this pilot. No tenant-safe log datasource is implemented.
+
+The gateway's authenticated username supplies the Loki tenant identity; labels
+and dashboard filters do not authorize data access. Its current machine identity
+permits both reads and writes within that tenant. A Grafana Viewer role does not
+turn that credential into a read-only backend identity or isolate separate users.
+Do not share this pilot datasource with tenant organizations/users. Separate
+datasource/backend authorization and live cross-tenant denials remain gates.
+
+Planned acceptance must exercise correct and incorrect credentials, spoofed
+`X-Scope-OrgID`, direct-backend bypass, unopted namespaces and cross-tenant queries.
+Inspect actual operator-created workloads and collector configuration before
+collecting production logs. Preserve stored logs and existing services on failure;
+do not relax authentication, collection scope or network boundaries to pass tests.
+
+The final logging/metrics root must compose the accepted Nextcloud stage before
+live selection. The current metrics pilot bases on the existing runner stage;
+selecting it while Nextcloud integration is in flight is not authorized by a
+successful offline render. No concurrent platform-root promotion is performed.
+
 ## Who does what and why
 
 The separately approved Ansible actor runs the default-off
