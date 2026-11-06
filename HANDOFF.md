@@ -841,6 +841,15 @@ MRs; the shared design is not an all-app apply. Existing API configuration still
 defaults to platform_api_apply=false. See the
 [review contract](big-bang-bootstrap/configuration/authorization/README.md).
 
+## Observability follow-on — partial draft only
+
+#35/#36 has an inactive architecture/source-pin and native values review, after
+the app/auth stack. Monitoring/Grafana locally rendered; full installer/lookup/RBAC
+and CRD compatibility audit, Alloy/Loki configuration, six dashboards, one verified
+ntfy path and #37–40 acceptance remain unfinished. No package is selected or
+activated, no credential/destination is created, and Myles provisioner is excluded.
+See the [review and explicit limits](big-bang-bootstrap/configuration/observability/README.md).
+
 ## Next decisions
 
 1. Separately approve Rancher first login and private password setup; keep direct

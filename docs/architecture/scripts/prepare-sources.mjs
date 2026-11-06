@@ -7,6 +7,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../../..')
 const output = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(here, '../public/sources')
 const files = {
+  'queued-sso.yaml': 'big-bang-bootstrap/configuration/observability/sso-review.yaml',
   'gitlab-outcome.md': 'big-bang-bootstrap/configuration/packages/gitlab/coordinated-outcome.md',
   'gitlab-postgres-ca.md': 'big-bang-bootstrap/configuration/packages/gitlab/postgres-ca-lifecycle.md',
   'dns-maintenance.md': 'infrastructure/ansible/DNS-MAINTENANCE.md',

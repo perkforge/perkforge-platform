@@ -109,7 +109,7 @@ class Documentation(unittest.TestCase):
                      'Trusted credentials → User', 'Restart Chrome',
                      'not a one-host', 'D6:A5:96:0A']:
             self.assertIn(term,design)
-        view=(ROOT/'views.c4').read_text().split('dynamic view production_tls_lifecycle {',1)[1]
+        view=(ROOT/'views.c4').read_text().split('dynamic view production_tls_lifecycle {',1)[1].split('\n  }',1)[0]
         self.assertEqual(re.findall(r"-> [A-Za-z0-9_.]+ '([1-5])\.",view),list('12345'))
         self.assertIn('Design only',view)
         self.assertIn('No Istio/Gateway API implementation',design)
@@ -134,6 +134,7 @@ class Documentation(unittest.TestCase):
 
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
         copies={
+         'queued-sso.yaml': 'big-bang-bootstrap/configuration/observability/sso-review.yaml',
          'openbao-data.yaml': 'big-bang-bootstrap/configuration/authorization/sso/tasks/openbao-data.yaml',
          'api-oidc.md': 'infrastructure/ansible/API-OIDC.md',
          'api-oidc.yml': 'infrastructure/ansible/playbooks/configure-api-oidc.yml',
@@ -218,7 +219,8 @@ class Documentation(unittest.TestCase):
          'workspace-session.sh.j2': 'pxe/transport/templates/workspace/session.sh.j2',
          'workspace-inputs.yml.j2': 'pxe/transport/templates/workspace/inputs.yml.j2',
          'workspace-manifest.yml.j2': 'pxe/transport/templates/workspace/activation-review.yml.j2',
-         'workspace-readme.md.j2': 'pxe/transport/templates/workspace/README.md.j2'}
+         'workspace-readme.md.j2': 'pxe/transport/templates/workspace/README.md.j2',
+        }
         temporary=tempfile.TemporaryDirectory(prefix='c4-source-links-')
         self.addCleanup(temporary.cleanup)
         output=Path(temporary.name)/'sources'

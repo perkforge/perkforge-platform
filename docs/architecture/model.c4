@@ -178,6 +178,29 @@ model {
         description 'Protect personal files, databases and secret recovery separately. Replication/Retain do not protect against deletion or corruption, and etcd snapshots do not contain PV contents. Independent custody and restore tests are required before relying on personal-data storage.'
       }
     }
+    observability = component 'Observability architecture — inactive partial draft' {
+      description 'PROPOSED #35/#36 after app/auth baseline. Native Big Bang pins reviewed; no root selection or live deployment. Monitoring/Grafana local child renders only; installer/RBAC, Alloy/Loki profile, six dashboards, notification integration and live acceptance remain incomplete. No Myles provisioner adoption.'
+      link https://github.com/perkforge/perkforge-platform/blob/feat/observability-review/big-bang-bootstrap/configuration/observability/README.md 'Architecture, budget and incomplete stages'
+      collectors = component 'Exporters and proposed Alloy log identity' {
+        description 'Prometheus node-exporter/kube-state-metrics distinct from RKE2 metrics-server. Alloy is a trusted host/API log reader; exact operator/CRDs/permissions and opt-in scope need review. No duplicate metrics pipeline, credential logs or high-cardinality secret/user labels.'
+      }
+      stores = component 'Prometheus and proposed Loki stores' {
+        description 'Proposed bounded Longhorn-backed non-HA stores; Prometheus 7d/8GB on 10Gi, Loki 3d/10Gi pending implementation and measurement. Replicas/WAL/indexes/compaction/reserves counted; operational retention does not replace security/audit policy. Loki tenant header alone is not authentication.'
+      }
+      grafana = component 'Grafana admin UI and Git-owned configuration' {
+        description 'One separate Grafana; bundled Monitoring Grafana off. External admin Secret ref, anonymous/OIDC/ingress off. Native provisioning candidate; six dashboards and tenant query isolation not implemented. Folders/variables are not a tenant security boundary.'
+      }
+      alerts = component 'Grafana built-in Alertmanager notification owner' {
+        description 'Preserve upstream recording rules and inventory/import useful alerts as Grafana-managed rules querying Prometheus. Built-in Grafana Alertmanager owns one ntfy path; separate Prometheus Alertmanager is disabled. Rule migration and pinned webhook compatibility remain gates.'
+      }
+      notification = component 'Authenticated ntfy destination — unresolved' {
+        description 'TLS topic-scoped publisher/subscriber credentials and compatible payload/adapter remain unselected, not generated. No parallel Prometheus notification receiver. Whole-cluster/network failure needs independent detection. No live delivery tested.'
+      }
+    }
+    queued_app_access = component 'Queued native app authorization — proposed' {
+      description 'Dedicated clients authenticate; native app roles and tenant/resource boundaries enforce authority. Draft overlays/configuration are not live grants. Edition support, reviewed apply wiring, local recovery and positive/negative tests remain explicit gates; machine APIs have separate identities.'
+      link /runbook.html#queued-sso 'Who does what and why; queued contracts'
+    }
     authorization = component 'Authorization design and gated foundation' {
       description 'OBSERVED PLATFORM-ONLY FOUNDATION: Ansible created the owned PerkForge realm and five empty groups; repeat changed zero. One pending human now has nominal platform-admin membership after a verified zero-write repeat. PerkForge realm-admin is now applied only to the owned admin leaf; Headlamp own-client/native admin mapping is now active with bounded acceptance; other application mappings and tenant grants remain proposed. Review rendering never applies. Existing pilot mappings are retained. Keycloak realm administration is distinct from Kubernetes/platform administration. Everyday operator access is intended through Keycloak platform-admin SSO. Durable local recovery credentials belong in the operator password manager, independent of cluster/Keycloak; test local emergency access with SSO unavailable. Temporary bootstrap credentials are not automatically durable recovery identities. Activation also requires admission/workload identity and custody decisions.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/README.md 'Who does what and why'
@@ -308,7 +331,7 @@ model {
           link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
         }
         alerts = component 'Alertmanager and ntfy routing' {
-          description 'Machine notification sender versus approved recipients/topic subscribers. Native rules retained; Grafana-managed forwarding/ntfy bridge off and unimplemented. No unauthenticated alert mutation/publish or invented native OIDC. PE may propose routing/rule MRs; publishing/mutation credentials remain separate.'
+          description 'Machine notification sender versus approved recipients/topic subscribers. Native rules retained; Grafana built-in routing and ntfy delivery unarmed; rule migration and payload validation pending. No unauthenticated alert mutation/publish or invented native OIDC. PE may propose routing/rule MRs; publishing/mutation credentials remain separate.'
           link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
         }
         velero = component 'Velero recovery operator — ticket only' {

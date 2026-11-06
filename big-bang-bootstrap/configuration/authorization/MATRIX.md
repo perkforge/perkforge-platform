@@ -316,3 +316,15 @@ PA remains platform values plus tenant names, never legacy broad tenant values.
 The explicit app-ID/role-ID coexistence contract must track approved activation
 and rollback while preserving realm-admin-only writes. Offline fixture results do
 not establish native token enforcement or live positive/negative acceptance.
+
+## Queued app SSO implementation status (not live)
+
+The app-specific `sso-review.yaml` contracts complement this role matrix; no
+proposed mapping is a live grant. Big Bang/Flux owns deployment references;
+Ansible owns separately reviewed client/native settings. Preserve independent
+recovery and verify positive/negative access, removal and per-app health before
+activation. Native apply wiring remains explicit where unimplemented.
+
+| Stage | Source implementation and remaining gate |
+|---|---|
+| Monitoring architecture | Dedicated Grafana human client; machine components and Velero have separate Kubernetes/API credentials, not fake browser clients. |

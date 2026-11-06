@@ -311,6 +311,26 @@ views {
     platform.rancher.runtime -> engineer '8. Verify readiness, trusted HTTPS and local-admin password reset; stop before SSO/lifecycle actions'
   }
 
+  dynamic view observability_review {
+    title 'Observability collection and notification — proposed, inactive'
+    description 'Architecture review before deployment. Installer/collector/store/query/human roles remain distinct; source exists only as disabled/paused native candidates. No live validation or tenant isolation claim.'
+    engineer -> platform.observability.collectors '1. Review source pins, scoped collector identity, no duplicates and sensitive-log exclusions'
+    platform.observability.collectors -> platform.observability.stores '2. Proposed metrics/log ingestion; enforce bounded labels, tenant auth and reviewed capacity'
+    platform.observability.stores -> platform.observability.grafana '3. Proposed Git-owned datasources/six dashboards; no tenant access via mere filters'
+    platform.observability.stores -> platform.observability.alerts '4. Preserve upstream recording rules and reviewed alert expressions; no Prometheus notification route'
+    platform.observability.grafana -> platform.observability.alerts '5. Grafana-managed evaluation to built-in Alertmanager; inventory/import rules and prevent duplicate delivery'
+    platform.observability.alerts -> platform.observability.notification '6. Future compatible authenticated TLS ntfy path, grouping/silences/firing/resolved/failure tests'
+    platform.observability.notification -> engineer '7. Verify intended client, disk/ingest impact, isolation and isolated restore; whole-cluster blind spot remains'
+  }
+
+  dynamic view queued_app_identity {
+    title 'Queued app identity — proposed, no live grants'
+    link /runbook.html#queued-sso 'App-specific contracts, native mappings and acceptance gates'
+    description 'Dedicated disabled client per human app; app API enforces tenant/resource roles. Grafana front door does not secure exposed Loki/Prometheus. Velero uses Kubernetes RBAC and separate backup credentials, no browser client. Native apply wiring, recovery and denial acceptance remain gates.'
+    engineer -> platform.keycloak.runtime '1. Review app protocol, edition, exact callback and bounded group claims; no client enabled'
+    platform.keycloak.runtime -> platform.queued_app_access '2. Proposed app consumes claims; native role/resource boundaries must enforce access'
+    platform.queued_app_access -> engineer '3. Approve one app only; verify MFA, allow/deny, independent recovery and rollback before activation'
+  }
 
   dynamic view realm_group_foundation {
     title 'PerkForge platform realm/groups — observed'
