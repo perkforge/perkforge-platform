@@ -48,3 +48,35 @@ func TestPerkforgeWorkerPlacement(t *testing.T) {
 		t.Fatal("generated StatefulSet changed beyond worker selector")
 	}
 }
+
+func TestPerkforgeRegistryPullReferences(t *testing.T) {
+	raw, err := os.ReadFile(os.Getenv("PLACEMENT_PROMETHEUS_JSON"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var p monitoringv1.Prometheus
+	if err = json.Unmarshal(raw, &p); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Spec.ImagePullSecrets) != 1 || p.Spec.ImagePullSecrets[0].Name != "private-registry" {
+		t.Fatal("rendered Prometheus lacks existing registry reference")
+	}
+	defaultTestConfig.ReloaderConfig = operator.DefaultConfig("0", "0").ReloaderConfig
+	current, err := makeStatefulSetFromPrometheus(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refs := current.Spec.Template.Spec.ImagePullSecrets
+	if len(refs) != 1 || refs[0].Name != "private-registry" {
+		t.Fatal("operator lost registry reference for Prometheus/reloader Pod")
+	}
+	p.Spec.ImagePullSecrets = nil
+	legacy, err := makeStatefulSetFromPrometheus(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current.Spec.Template.Spec.ImagePullSecrets = nil
+	if !reflect.DeepEqual(current, legacy) {
+		t.Fatal("generated StatefulSet changed beyond registry reference")
+	}
+}
