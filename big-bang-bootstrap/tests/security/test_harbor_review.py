@@ -33,3 +33,20 @@ class HarborReview(unittest.TestCase):
   role=next(x for x in self.foundation if x['kind']=='Role' and x['metadata']['name']==name)
   for group,res in [('', 'pods'),('apps','replicasets')]:self.assertTrue(any(group in r['apiGroups'] and res in r['resources'] and set(['get','list','watch']).issubset(r['verbs']) and not set(['create','patch','update','delete']).intersection(r['verbs']) for r in role['rules']))
   subjects=[q for x in self.foundation if x['kind'].endswith('RoleBinding') for q in x['subjects'] if q['name']==name];self.assertTrue(subjects);self.assertTrue(all(q['namespace']==namespace for q in subjects))
+
+ def test_external_redis_tls_and_public_ca_references_render_natively(self):
+  core=next(x['data'] for x in self.objects if x['kind']=='ConfigMap' and '_REDIS_URL_CORE' in x.get('data',{}))
+  self.assertTrue(core['_REDIS_URL_CORE'].startswith('rediss://'))
+  self.assertEqual(core['POSTGRESQL_SSLMODE'],'verify-full')
+  registry=next(yaml.safe_load(x['data']['config.yml']) for x in self.objects if x['kind']=='ConfigMap' and 'config.yml' in x.get('data',{}) and 'redis:' in x['data']['config.yml'])
+  self.assertTrue(registry['redis']['enableTLS'])
+  consumers=0
+  for obj in self.objects:
+   if obj['kind']!='Deployment':continue
+   pod=obj['spec']['template']['spec']
+   self.assertTrue(all(v.get('secret') and v['secret'].get('secretName') for v in pod.get('volumes',[]) if 'secret' in v),obj['metadata']['name'])
+   volumes={v['name'] for v in pod.get('volumes',[]) if (v.get('secret') or {}).get('secretName')=='harbor-public-ca'}
+   if volumes:
+    consumers+=1
+    self.assertTrue(any(m['name'] in volumes and m['mountPath']=='/harbor_cust_cert/custom-ca.crt' and m['subPath']=='ca.crt' for c in pod['containers'] for m in c.get('volumeMounts',[])))
+  self.assertGreaterEqual(consumers,3)
