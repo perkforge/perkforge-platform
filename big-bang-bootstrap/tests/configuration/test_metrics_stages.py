@@ -31,7 +31,7 @@ class MetricsStages(unittest.TestCase):
                 limited = {key(x): x for x in self.render(stage)}
                 self.assertEqual(original.keys(), limited.keys())
                 for identity, obj in original.items():
-                    if identity[1:] not in [('HelmRelease', 'bigbang', 'monitoring'), ('Secret', 'bigbang', 'bigbang-monitoring-values')]:
+                    if identity[1:] not in [(kind, 'bigbang', name if kind == 'HelmRelease' else 'bigbang-' + name + '-values') for kind in ['HelmRelease', 'Secret'] for name in ['monitoring', 'loki', 'alloy']]:
                         self.assertEqual(limited[identity], obj, identity)
                 outer = list(limited.values())
                 hr = next(x for x in outer if x['kind'] == 'HelmRelease' and x['metadata']['name'] == 'monitoring')
@@ -46,6 +46,13 @@ class MetricsStages(unittest.TestCase):
                         self.assertFalse(endpoint.get('tlsConfig', {}).get('insecureSkipVerify', False))
                         if endpoint.get('scheme', 'http') == 'http':
                             self.assertFalse(endpoint.get('authorization') or endpoint.get('bearerTokenSecret') or endpoint.get('bearerTokenFile'))
+                if stage == 'local-logging-limited-pilot':
+                    from fixtures.observability import logging_render
+                    for name, (_, expected) in logging_render(ROOT).items():
+                        release = next(x for x in outer if x['kind'] == 'HelmRelease' and x['metadata']['name'] == name)
+                        objects = helm(Path(os.environ['PREFLIGHT_SOURCES_DIR']) / name / 'chart', release_name(release),
+                                       release['spec']['targetNamespace'], child_values(outer, name), ('--include-crds',))
+                        self.assertEqual(objects, expected, name)
 
     def test_all_metrics_stages_preserve_nextcloud_enrollment_objects(self):
         def indexed(stage):

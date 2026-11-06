@@ -32,6 +32,10 @@ This limited scope is not complete control-plane monitoring or #37 acceptance.
 Preserved rules may show missing-control-metric alerts/NoData. Keep notification
 routing unarmed and document those gaps; do not turn missing data into success or
 silently remove useful recording rules. Full control-plane scrapes remain deferred.
+Loki dashboard ConfigMaps and Alloy ServiceMonitors injected by the umbrella are
+explicitly deferred too. They require separate monitoring integration/delegation;
+the logging runtime keeps the reviewed ingestion/query configuration. No extra
+monitoring-namespace write grant is added for the Loki installer.
 Grafana remains local platform-admin-only: anonymous, OIDC and public ingress off.
 
 ## Exact access to review before live apply

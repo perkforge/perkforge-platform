@@ -23,3 +23,15 @@ monitoring:
         serviceMonitor:
           tlsConfig:
             insecureSkipVerify: false
+# Runtime log ingestion/query stays unchanged; app/exporter scrape integration is deferred.
+loki:
+  values:
+    monitoring:
+      enabled: false
+      dashboards:
+        enabled: false
+      serviceMonitor:
+        enabled: false
+alloy:
+  values:
+    serviceMonitors: []
