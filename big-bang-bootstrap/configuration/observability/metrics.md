@@ -46,6 +46,24 @@ Those are real sensitive permissions even if exported metrics use metadata.
 They require explicit live approval; do not market them as harmless read-only UI.
 Grafana human admin, runtime sidecar and installer identities remain separate.
 
+The native monitoring chart also emits five metric Services in `kube-system`:
+CoreDNS, controller manager, etcd, kube-proxy and scheduler. The installer needs
+an explicit Service-only Role there; its monitoring-namespace Role cannot cover
+these objects. Creation cannot be name-restricted by Kubernetes, so this remains
+trusted installer access. Read/watch/mutate/delete rights are limited to the five
+exact generated names. Existing DNS/control Services, Secrets, Pods and ConfigMaps
+receive no additional permission. The namespace itself is not relabeled or owned
+by this foundation. The binding targets only `bigbang:monitoring-installer`.
+
+The offline grant audit now follows actual RoleBindings and target namespaces,
+rather than incorrectly treating every namespaced object as a monitoring object.
+Live preflight must still verify authorization. A permitted Service is not proof
+that its target is reachable: the observed RKE2 controller-manager and scheduler
+metrics bind to loopback. Their endpoint/exposure plan requires separate review;
+this Role does not change host bind addresses, firewall, TLS, or running system
+components. Do not proceed through a failed scrape check or relax controls to
+make it pass.
+
 ## Remaining activation gates
 
 ### Reconciled staged wiring

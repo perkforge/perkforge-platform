@@ -8,19 +8,30 @@ class MetricsInstaller(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
   cls.render=metrics_render(ROOT);cls.foundation=build(ROOT/'configuration/observability/metrics-prerequisites')
- def allowed(self,identity,kind,group,resource,name,verb):
-  return any(group in rule['apiGroups'] and resource in rule['resources'] and verb in rule['verbs'] and ('resourceNames' not in rule or name in rule['resourceNames']) for role in self.foundation if role['kind']==kind and role['metadata']['name']==identity for rule in role['rules'])
+ def allowed(self,identity,kind,group,resource,name,verb,namespace=None):
+  rules=[]
+  for binding in self.foundation:
+   if binding['kind'] not in ['RoleBinding','ClusterRoleBinding']:continue
+   if not any(q.get('kind')=='ServiceAccount' and q['name']==identity and q.get('namespace')=='bigbang' for q in binding['subjects']):continue
+   if kind=='ClusterRole' and binding['kind']!='ClusterRoleBinding':continue
+   if binding['kind']=='RoleBinding' and binding['metadata']['namespace']!=namespace:continue
+   ref=binding['roleRef']
+   for role in self.foundation:
+    if role['kind']!=ref['kind'] or role['metadata']['name']!=ref['name']:continue
+    if role['kind']=='Role' and role['metadata']['namespace']!=binding['metadata']['namespace']:continue
+    rules.extend(role['rules'])
+  return any(group in r['apiGroups'] and resource in r['resources'] and verb in r['verbs'] and ('resourceNames' not in r or name in r['resourceNames']) for r in rules)
  def test_all_objects_and_bindings_are_covered_without_installer_cluster_admin(self):
   mapping={'ServiceAccount':('','serviceaccounts'),'Service':('','services'),'ConfigMap':('','configmaps'),'Secret':('','secrets'),'Deployment':('apps','deployments'),'DaemonSet':('apps','daemonsets'),'PersistentVolumeClaim':('','persistentvolumeclaims'),'Job':('batch','jobs'),'Role':('rbac.authorization.k8s.io','roles'),'RoleBinding':('rbac.authorization.k8s.io','rolebindings'),'PrometheusRule':('monitoring.coreos.com','prometheusrules'),'ServiceMonitor':('monitoring.coreos.com','servicemonitors'),'PodMonitor':('monitoring.coreos.com','podmonitors'),'Prometheus':('monitoring.coreos.com','prometheuses'),'Alertmanager':('monitoring.coreos.com','alertmanagers'),'ClusterRole':('rbac.authorization.k8s.io','clusterroles'),'ClusterRoleBinding':('rbac.authorization.k8s.io','clusterrolebindings'),'MutatingWebhookConfiguration':('admissionregistration.k8s.io','mutatingwebhookconfigurations'),'ValidatingWebhookConfiguration':('admissionregistration.k8s.io','validatingwebhookconfigurations'),'CustomResourceDefinition':('apiextensions.k8s.io','customresourcedefinitions')}
   cluster={'ClusterRole','ClusterRoleBinding','MutatingWebhookConfiguration','ValidatingWebhookConfiguration','CustomResourceDefinition'}
   for name,(hr,objects) in self.render.items():
    identity=hr['spec']['serviceAccountName'];self.assertTrue(hr['spec']['suspend'])
    for obj in objects:
-    kind=obj['kind'];group,res=mapping[kind];scope='ClusterRole' if kind in cluster else 'Role'
-    for verb in ['get','list','watch','create','update','patch','delete']:self.assertTrue(self.allowed(identity,scope,group,res,obj['metadata']['name'],verb),(name,kind,verb))
-    if kind in ['Role','ClusterRole']:self.assertTrue(self.allowed(identity,scope,'rbac.authorization.k8s.io',res,obj['metadata']['name'],'escalate'))
+    kind=obj['kind'];group,res=mapping[kind];scope='ClusterRole' if kind in cluster else 'Role';namespace=obj['metadata'].get('namespace',hr['spec']['targetNamespace'])
+    for verb in ['get','list','watch','create','update','patch','delete']:self.assertTrue(self.allowed(identity,scope,group,res,obj['metadata']['name'],verb,namespace),(name,kind,verb))
+    if kind in ['Role','ClusterRole']:self.assertTrue(self.allowed(identity,scope,'rbac.authorization.k8s.io',res,obj['metadata']['name'],'escalate',namespace))
     if kind.endswith('RoleBinding'):
-     ref=obj['roleRef'];self.assertTrue(self.allowed(identity,'ClusterRole' if ref['kind']=='ClusterRole' else 'Role','rbac.authorization.k8s.io','clusterroles' if ref['kind']=='ClusterRole' else 'roles',ref['name'],'bind'))
+     ref=obj['roleRef'];self.assertTrue(self.allowed(identity,'ClusterRole' if ref['kind']=='ClusterRole' else 'Role','rbac.authorization.k8s.io','clusterroles' if ref['kind']=='ClusterRole' else 'roles',ref['name'],'bind',namespace))
    self.assertFalse(self.allowed(identity,'ClusterRole','rbac.authorization.k8s.io','clusterroles','cluster-admin','bind'))
   self.assertEqual(len(self.render['prometheus-operator-crds'][1]),10)
   self.assertTrue(all(x['metadata']['annotations']['helm.sh/resource-policy']=='keep' for x in self.render['prometheus-operator-crds'][1]))
@@ -64,3 +75,17 @@ class MetricsInstaller(unittest.TestCase):
     self.assertEqual(result.returncode,0,result.stderr)
     parsed=[o for o in yaml.load_all(result.stdout,Loader=RenderLoader) if o];self.assertEqual(len(parsed),len(objects))
     self.assertFalse(any('/clusterroles' in x or '/customresourcedefinitions' in x for x in requests),requests)
+
+ def test_system_service_grant_is_namespace_and_name_bounded(self):
+  services=[x for x in self.render['monitoring'][1] if x['kind']=='Service' and x['metadata'].get('namespace')=='kube-system']
+  self.assertEqual(len(services),5)
+  for service in services:
+   for verb in ['get','list','watch','create','update','patch','delete']:
+    self.assertTrue(self.allowed('monitoring-installer','Role','','services',service['metadata']['name'],verb,'kube-system'))
+  for name in ['kube-dns','kubernetes','rke2-coredns-rke2-coredns']:
+   for verb in ['get','update','patch','delete']:
+    self.assertFalse(self.allowed('monitoring-installer','Role','','services',name,verb,'kube-system'))
+  for resource in ['secrets','pods','configmaps']:
+   self.assertFalse(self.allowed('monitoring-installer','Role','',resource,'arbitrary','create','kube-system'))
+  self.assertFalse(self.allowed('grafana-installer','Role','','services',services[0]['metadata']['name'],'create','kube-system'))
+  self.assertFalse(self.allowed('monitoring-installer','Role','','services',services[0]['metadata']['name'],'create','unrelated'))
