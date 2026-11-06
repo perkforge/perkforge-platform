@@ -3,8 +3,9 @@
 ## Inactive alert/validation preparation
 
 [Native rule overlay and acceptance contract](big-bang-bootstrap/configuration/observability/alerts-and-validation.md)
-preserve vendor rules and bundled Alertmanager; the receiver is null and no
-notifications are sent. Default-off readiness capture is not completed #40
+preserve vendor rules while selecting Grafana's built-in Alertmanager as the
+eventual single notification owner; no route is armed or notifications sent.
+Default-off readiness capture is not completed #40
 acceptance. ntfy payload/auth decision and all physical monitoring tests remain.
 
 ## Inactive logging draft
