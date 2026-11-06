@@ -1,0 +1,22 @@
+# Published Nextcloud-only enrollment; existing Portal selectors are unchanged.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: flux-system
+resources: [../local]
+patches:
+- target: {kind: GitRepository, name: tenant-enrollments}
+  patch: |-
+    - op: replace
+      path: /spec/ref/tag
+      value: v1.2.0
+    - op: replace
+      path: /spec/suspend
+      value: false
+- target: {kind: Kustomization, name: tenant-enrollments}
+  patch: |-
+    - op: replace
+      path: /spec/path
+      value: ./clusters/local-nextcloud
+    - op: replace
+      path: /spec/suspend
+      value: false
