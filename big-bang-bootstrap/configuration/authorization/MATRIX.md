@@ -333,3 +333,4 @@ activation. Native apply wiring remains explicit where unimplemented.
 | Alertmanager / ntfy | Human access follows Grafana; machine publisher/subscriber credentials are separate. No direct admin ingress. Grafana built-in routing selected; rule import and ntfy payload/delivery remain unimplemented. |
 | Harbor | OIDC API proposal: ID-token groups and private-project roles. Filter is not login restriction; migration/local admin and membership lifecycle require review. API apply remains unimplemented. |
 | Mattermost Entry | Free Entry planning target; pinned 11.11.0 binary edition unverified. Other OIDC CR rendered, signup closed; Team Admin is tenant-local, viewers may chat. Linking/membership apply remains gated. |
+| SonarQube Community | Native SAML overlay/public signing-certificate reference rendered. SP-initiated only, no SAML single logout. Explicit project roles/default-group audit and client/native apply remain gates. |

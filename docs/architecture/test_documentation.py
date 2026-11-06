@@ -134,6 +134,7 @@ class Documentation(unittest.TestCase):
 
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
         copies={
+         'sonarqube-sso-review.yaml': 'big-bang-bootstrap/configuration/packages/sonarqube/sso-review.yaml',
          'mattermost-sso-review.yaml': 'big-bang-bootstrap/configuration/packages/mattermost/sso-review.yaml',
          'harbor-sso-review.yaml': 'big-bang-bootstrap/configuration/packages/harbor/sso-review.yaml',
          'gitlab-sso-review.yaml': 'big-bang-bootstrap/configuration/packages/gitlab/sso-review.yaml',

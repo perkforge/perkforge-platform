@@ -7,6 +7,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../../..')
 const output = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(here, '../public/sources')
 const files = {
+  'sonarqube-sso-review.yaml': 'big-bang-bootstrap/configuration/packages/sonarqube/sso-review.yaml',
   'mattermost-sso-review.yaml': 'big-bang-bootstrap/configuration/packages/mattermost/sso-review.yaml',
   'harbor-sso-review.yaml': 'big-bang-bootstrap/configuration/packages/harbor/sso-review.yaml',
   'gitlab-sso-review.yaml': 'big-bang-bootstrap/configuration/packages/gitlab/sso-review.yaml',

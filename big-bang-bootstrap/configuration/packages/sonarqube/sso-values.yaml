@@ -1,0 +1,20 @@
+# Optional Community Build SAML payload, not root-selected. No metadata-fetch hook.
+addons:
+  sonarqube:
+    enabled: false
+    flux: {suspend: true}
+    values:
+      sso: {enabled: false}
+      upstream:
+        sonarSecretProperties: sonarqube-saml-identity
+        sonarProperties:
+          sonar.forceAuthentication: true
+          sonar.core.serverBaseURL: https://sonarqube.UNCONFIGURED.invalid
+          sonar.auth.saml.enabled: true
+          sonar.auth.saml.applicationId: sonarqube
+          sonar.auth.saml.providerName: Keycloak
+          sonar.auth.saml.providerId: https://identity.UNCONFIGURED.invalid/auth/realms/perkforge
+          sonar.auth.saml.loginUrl: https://identity.UNCONFIGURED.invalid/auth/realms/perkforge/protocol/saml
+          sonar.auth.saml.user.login: login
+          sonar.auth.saml.user.name: name
+          sonar.auth.saml.group.name: groups
