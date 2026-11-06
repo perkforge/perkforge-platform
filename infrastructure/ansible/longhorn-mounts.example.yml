@@ -1,0 +1,17 @@
+---
+# Copy to ignored inventory/.longhorn-mounts.yml (0600); keep IP/MAC and SSH
+# identity references only in the existing ignored inventory/.topology.yml.
+# Existing filesystems only: no partitioning, formatting or Longhorn API changes.
+longhorn_mount_plan:
+- node: worker-1
+  path: /mnt/longhorn-t7
+  uuid: UNCONFIGURED
+  usb_serial: UNCONFIGURED
+  label: UNCONFIGURED
+  raw_size_bytes: 0
+- node: worker-2
+  path: /mnt/longhorn-t7
+  uuid: UNCONFIGURED
+  usb_serial: UNCONFIGURED
+  label: UNCONFIGURED
+  raw_size_bytes: 0

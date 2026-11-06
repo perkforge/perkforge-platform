@@ -1,7 +1,88 @@
 # Current operator handoff
 
-## Current checkpoint — 2026-11-01
-## GitLab partial app rollout — PostgreSQL CA mount correction prepared
+## Mattermost candidate is blocked
+
+[Mattermost review](big-bang-bootstrap/configuration/packages/mattermost/README.md)
+includes both required pinned charts and named installer delegation, not apply.
+Cluster-wide operator Secret/workload trust, edition entitlement, external data
+services and unrestricted vendor wait-job egress require review before selection.
+
+## Harbor candidate is blocked
+
+[Harbor review](big-bang-bootstrap/configuration/packages/harbor/README.md) adds a
+rendered disabled profile with protected Secret references, no generated values.
+External data services, TLS/network/capacity and explicit scanner scope need review.
+
+
+## Inactive alert/validation preparation
+
+[Native rule overlay and acceptance contract](big-bang-bootstrap/configuration/observability/alerts-and-validation.md)
+preserve vendor rules while selecting Grafana's built-in Alertmanager as the
+eventual single notification owner; no route is armed or notifications sent.
+Default-off readiness capture is not completed #40
+acceptance. ntfy payload/auth decision and all physical monitoring tests remain.
+
+## Inactive logging draft
+
+The [logging candidate](big-bang-bootstrap/configuration/observability/logging.md)
+adds scoped API collection and authenticated TLS Loki with 3d/10Gi retention.
+No selection, credentials, permissions or live acceptance. Operator-generated
+workloads, Alloy binary validation, query auth and network enforcement remain gates.
+
+## Current GitLab runner baseline accepted
+
+Observed 2026-11-05 15:15 UTC: owner-triggered pipeline 3, job 4 succeeded on
+worker-2 using the original protected project runner ID 1. Checkout of main
+commit 8ad6c47d completed. The script verified non-root execution, absence of the
+default Kubernetes service-account token mount and zero effective capabilities.
+Artifact upload returned 201 and an independent download verified the exact
+harmless acceptance/result.txt contents. The job Pod was cleaned up; manager is
+Ready with zero restarts and root/umbrella/runner reconciliation is healthy.
+Original credential contents/identities, four retained claims, three data Pods
+and all three nodes passed the preservation check.
+
+The source-owned init capability, writable HOME and required control-plane/master
+exclusion fixes are deployed; no live-only workload patch or broader RBAC was
+used. Published v0.18.4 is selected and the tagged source/root are Ready. The
+accepted manager Pod UID stayed unchanged with zero restarts during tag-only
+reconciliation. This is a basic
+protected runner acceptance, not proof of every negative tenant/network/image
+boundary, independent restore or non-admin GitLab denial. Those remain unverified.
+
+## Previous runner activation blocker
+
+Observed 2026-11-05: runner ID 1 receipt resume and a zero-change repeat passed.
+Approved token/public CA delivery and namespace-scoped Registry1 copies completed;
+source-generated endpoint policies were applied and the runner stage selected.
+Big Bang then stopped on the pre-owned runner Namespace template under its scoped
+reconciler. No runner manager Pod was created or runner token reset. The narrow
+post-renderer correction omits only that Namespace, retaining foundation ownership
+and existing RBAC. Review/release and separately resume the guarded activation;
+real job and egress acceptance remain pending.
+
+## Earlier GitLab state — named SSO working; runner token handoff pending
+
+Observed 2026-11-05: the v0.17.11 memory correction is active through GitOps;
+webservice has a 4G limit with its request unchanged. Root/umbrella/GitLab
+reconcilers are Ready and unsuspended. The owner reported root recovery login
+and named Keycloak SSO login after the explicit native instance-admin grant.
+Root remains separate. These supersede the historical app failures below;
+independent restore and real non-admin GitLab denial remain unverified.
+
+Released v0.18.1 passed all post-merge jobs. The approved registration created
+one private-project runner, ID 1, paused/locked/protected, tagged
+`perkforge-platform`, rejecting untagged jobs with maximum timeout 600 seconds.
+Its one-time response is preserved in the owner-only created receipt. The legacy
+format guard then stopped on the installed GitLab routable v1 token before the
+standalone token handoff. Do not create another runner or reset its token.
+The narrow source fix accepts that v1 grammar and legacy tokens in registration
+and credential assembly; tests cover receipt reuse without duplicate creation.
+After review/release, resume the existing receipt and verify a no-change repeat.
+Manager deployment, unpause, real job/egress acceptance and tenant sync remain off.
+
+The remaining sections record earlier, superseded rollout phases.
+
+## Historical GitLab partial app rollout — PostgreSQL CA mount correction prepared
 
 Observed 2026-11-05: verified published v0.17.9 contains the reviewed failure
 policy; all twelve validation jobs passed. Release-please failed afterward during

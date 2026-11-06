@@ -1,0 +1,4 @@
+prometheusOperatorCRDs:
+  enabled: true
+  flux:
+    suspend: false

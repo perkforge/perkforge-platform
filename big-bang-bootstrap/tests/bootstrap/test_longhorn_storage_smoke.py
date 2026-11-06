@@ -1,6 +1,7 @@
 """Offline checks for the scoped storage smoke; never contacts a cluster."""
 from copy import deepcopy
 import importlib.util
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -18,6 +19,38 @@ SPEC.loader.exec_module(VERIFIER)
 
 
 class LonghornStorageSmokeTests(unittest.TestCase):
+    def test_dedicated_template_and_protected_policy(self):
+        rendered = list(yaml.safe_load_all(Environment().from_string(
+            (ANSIBLE / 'fixtures/longhorn-smoke-foundation.yaml.j2').read_text()).render(
+                storage_test_namespace='pf-longhorn-smoke-example', storage_test_storage_class='longhorn-dedicated')))
+        self.assertEqual(rendered[1]['spec']['storageClassName'], 'longhorn-dedicated')
+        policy = {'revision': 'v9.9.9@sha1:' + 'a' * 40, 'storage_class': 'longhorn-dedicated',
+                  'disk_ids': {'worker-1': '11111111-2222-3333-4444-555555555555',
+                               'worker-2': 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'}}
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / 'policy.json'; p.write_text(json.dumps(policy)); p.chmod(0o600)
+            self.assertEqual(VERIFIER.read_policy(str(p)), policy)
+            p.chmod(0o644)
+            with self.assertRaises(ValueError): VERIFIER.read_policy(str(p))
+            p.chmod(0o600)
+            for field, bad in [('revision', 'UNCONFIGURED'), ('storage_class', 'longhorn-single-excess'),
+                               ('disk_ids', {'worker-1': policy['disk_ids']['worker-1']})]:
+                changed = deepcopy(policy); changed[field] = bad; p.write_text(json.dumps(changed))
+                with self.subTest(field=field), self.assertRaises(ValueError): VERIFIER.read_policy(str(p))
+
+    def test_dedicated_health_rejects_healthy_replicas_on_wrong_disks(self):
+        ids = {'worker-1': 'new-disk-one', 'worker-2': 'new-disk-two'}
+        volume = {'metadata': {'name': 'sample'}, 'spec': {'numberOfReplicas': 2},
+                  'status': {'state': 'attached', 'robustness': 'healthy', 'currentNodeID': 'worker-2'}}
+        replicas = [{'spec': {'volumeName': 'sample', 'nodeID': node, 'diskID': disk,
+                             'healthyAt': 'fixture', 'failedAt': ''},
+                     'status': {'currentState': 'running'}} for node, disk in ids.items()]
+        engines = [{'spec': {'volumeName': 'sample'}, 'status': {'currentState': 'running',
+                     'replicaModeMap': {'one': 'RW', 'two': 'RW'}}}]
+        self.assertTrue(VERIFIER.replica_health(volume, replicas, engines, 'worker-2', ids))
+        replicas[0]['spec']['diskID'] = 'existing-root-disk'
+        self.assertFalse(VERIFIER.replica_health(volume, replicas, engines, 'worker-2', ids))
+
     def test_default_and_check_mode_cannot_call_kubernetes(self):
         with tempfile.TemporaryDirectory() as directory:
             p = Path(directory)

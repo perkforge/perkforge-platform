@@ -1,0 +1,8 @@
+{
+  "revision": "UNCONFIGURED",
+  "storage_class": "longhorn-dedicated",
+  "disk_ids": {
+    "worker-1": "UNCONFIGURED",
+    "worker-2": "UNCONFIGURED"
+  }
+}

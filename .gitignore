@@ -20,6 +20,7 @@ infrastructure/ansible/vault-password.txt
 
 # Private physical inventory/topology; never publish hardware identifiers.
 /infrastructure/ansible/inventory/.topology.yml
+/infrastructure/ansible/inventory/.longhorn-mounts.yml
 # Private cluster credentials and operator output; never publish.
 /infrastructure/ansible/inventory/.rke2-state/
 /infrastructure/ansible/inventory/rke2-state.zip

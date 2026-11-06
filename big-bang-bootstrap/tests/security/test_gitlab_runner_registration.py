@@ -5,9 +5,11 @@ from urllib.error import HTTPError
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
+from fixtures.gitlab_runner_tokens import routable_runner_token
 ROOT=Path(__file__).resolve().parents[2]
 class RunnerAPI(unittest.TestCase):
  def test_paused_create_uncertain_response_repeat_activation_and_drain(self):
+  runner_token=routable_runner_token()
   with tempfile.TemporaryDirectory(prefix='gitlab-runner-fixture-') as directory:
    p=Path(directory);private=p/'private';private.mkdir(mode=0o700)
    subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN=localhost','-addext','subjectAltName=DNS:localhost','-keyout',str(p/'key'),'-out',str(p/'ca')],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
@@ -38,7 +40,7 @@ class RunnerAPI(unittest.TestCase):
      assert body['runner_type']=='project_type' and body['project_id']==31 and body['paused'] is True and body['locked'] is True and body['run_untagged'] is False
      assert body['access_level']=='ref_protected' and body['tag_list']=='perkforge-platform' and body['maximum_timeout']==600
      assert s['runner'] is None;s['creates']+=1;s['runner']={k:v for k,v in body.items() if k!='project_id'};s['runner'].update(id=7,tag_list=['perkforge-platform'],projects=[{'id':31}])
-     return self.respond(503,{}) if s['failCreate'] else self.respond(201,{'id':7,'token':'glrt-OFFLINE_AUTH_TOKEN','token_expires_at':None})
+     return self.respond(503,{}) if s['failCreate'] else self.respond(201,{'id':7,'token':runner_token,'token_expires_at':None})
     def do_PUT(self):
      assert self.headers.get('PRIVATE-TOKEN')=='OFFLINE-RUNNER-API-TOKEN' and self.path=='/api/v4/runners/7'
      body=json.loads(self.rfile.read(int(self.headers['Content-Length'])));assert set(body)=={'paused'};s['runner']['paused']=body['paused'];s['pauseWrites']+=1;return self.respond(200,s['runner'])
@@ -51,7 +53,7 @@ class RunnerAPI(unittest.TestCase):
    def package(play,variables):
     vf=p/'package-vars';vf.write_text(json.dumps(variables));vf.chmod(0o600)
     r=subprocess.run(['ansible-playbook','-i','localhost,',str(ROOT/'configuration/packages/gitlab'/play),'-e','@'+str(vf)],env=package_env,capture_output=True,text=True,timeout=60)
-    for secret in ('OFFLINE-APPLICATION-INPUT-123456','glrt-OFFLINE_AUTH_TOKEN'):self.assertNotIn(secret,r.stdout+r.stderr)
+    for secret in ('OFFLINE-APPLICATION-INPUT-123456',runner_token):self.assertNotIn(secret,r.stdout+r.stderr)
     return r
    app={'gitlab_credentials_run':True,'gitlab_credentials_profile':'application','gitlab_credentials_scope':'gitlab-application-private-assembly-v1','gitlab_credentials_output_dir':str(output),'gitlab_origin':'https://localhost:'+str(server.server_port),'gitlab_issuer':'https://identity.fixture.invalid/auth/realms/perkforge'}
    for name in ('database_password','valkey_password','client_secret'):
@@ -76,7 +78,7 @@ class RunnerAPI(unittest.TestCase):
    def run(operation='prepare',extra=None,check=False):
     vf=p/'vars';vf.write_text(json.dumps({**v,'gitlab_runner_operation':operation,'gitlab_runner_scope':'gitlab-runner-'+operation+'-v1',**(extra or {})}));vf.chmod(0o600)
     r=subprocess.run(['ansible-playbook','-i','localhost,',str(ROOT/'configuration/packages/gitlab-runner/reconcile-registration.yaml'),'-e','@'+str(vf)]+(['--check'] if check else []),env={**os.environ,'ANSIBLE_LOCAL_TEMP':str(p/'local'),'ANSIBLE_REMOTE_TEMP':str(p/'remote')},capture_output=True,text=True,timeout=90)
-    for secret in ('OFFLINE-RUNNER-API-TOKEN','glrt-OFFLINE_AUTH_TOKEN'):self.assertNotIn(secret,r.stdout+r.stderr)
+    for secret in ('OFFLINE-RUNNER-API-TOKEN',runner_token):self.assertNotIn(secret,r.stdout+r.stderr)
     return r
    def ok(*a,**kw):
     r=run(*a,**kw);self.assertEqual(r.returncode,0,r.stdout+r.stderr);return r
@@ -107,4 +109,4 @@ class RunnerAPI(unittest.TestCase):
    self.assertNotEqual(run('activate',{'gitlab_runner_manager_verified':False}).returncode,0);self.assertEqual(s['pauseWrites'],0)
    ok('activate');self.assertFalse(s['runner']['paused']);s['running']=1;self.assertNotEqual(run('pause').returncode,0);self.assertTrue(s['runner']['paused']);s['running']=0;self.assertIn('changed=0',ok('pause').stdout)
    s['runner']['locked']=False;before=s['pauseWrites'];self.assertNotEqual(run('activate').returncode,0);self.assertEqual(s['pauseWrites'],before)
-   self.assertEqual((private/'runner-token').read_text(),'glrt-OFFLINE_AUTH_TOKEN');self.assertFalse((private/'.registration-lock').exists())
+   self.assertEqual((private/'runner-token').read_text(),runner_token);self.assertFalse((private/'.registration-lock').exists())

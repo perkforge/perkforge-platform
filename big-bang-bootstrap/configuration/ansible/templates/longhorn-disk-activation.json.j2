@@ -1,0 +1,14 @@
+{% set patch = [
+ {'op': 'test', 'path': '/metadata/uid', 'value': item.snapshot.metadata.uid},
+ {'op': 'test', 'path': '/metadata/resourceVersion', 'value': item.snapshot.metadata.resourceVersion},
+ {'op': 'test', 'path': '/spec/disks', 'value': item.snapshot.spec.disks},
+ {'op': 'replace', 'path': '/spec/disks/' + item.disk_name + '/allowScheduling', 'value': true}
+] %}
+{% if item.single_replica_excess %}
+{% if item.snapshot.spec.tags is defined %}
+{% set _ = patch.append({'op': 'test', 'path': '/spec/tags', 'value': item.snapshot.spec.tags}) %}
+{% endif %}
+{% set _ = patch.append({'op': 'add', 'path': '/spec/tags', 'value': (item.snapshot.spec.tags | default([])) + ['excess-capacity']}) %}
+{% set _ = patch.append({'op': 'replace', 'path': '/spec/disks/' + item.disk_name + '/tags', 'value': ['dedicated-storage', 'excess-capacity']}) %}
+{% endif %}
+{{ patch | to_nice_json }}
