@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.5](https://github.com/perkforge/perkforge-platform/compare/v0.23.4...v0.23.5) (2026-11-06)
+
+
+### Bug Fixes
+
+* bind limited metrics workloads to existing registry secret ([#229](https://github.com/perkforge/perkforge-platform/issues/229)) ([a45e786](https://github.com/perkforge/perkforge-platform/commit/a45e786f280dc89aa5d2cc9333da4a1501632e7a))
+
 ## [0.23.4](https://github.com/perkforge/perkforge-platform/compare/v0.23.3...v0.23.4) (2026-11-06)
 
 
