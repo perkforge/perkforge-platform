@@ -10,6 +10,19 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class MetricsStages(unittest.TestCase):
+    def test_all_metrics_stages_preserve_nextcloud_enrollment_objects(self):
+        def indexed(stage):
+            return {(x['apiVersion'], x['kind'], x['metadata'].get('namespace'), x['metadata']['name']): x
+                    for x in build(ROOT / 'clusters' / stage)}
+        baseline = indexed('local-nextcloud')
+        for stage in ('local-metrics-review', 'local-metrics-crds', 'local-metrics-pilot'):
+            with self.subTest(stage=stage):
+                current = indexed(stage)
+                for key, value in baseline.items():
+                    if key[1:] == ('HelmRelease', 'bigbang', 'bigbang'):
+                        continue  # This release intentionally gains ordered monitoring inputs.
+                    self.assertEqual(current[key], value, key)
+
     def render(self, stage):
         objects = build(ROOT / 'clusters' / stage)
         parent = next(x for x in objects if x['kind'] == 'HelmRelease')

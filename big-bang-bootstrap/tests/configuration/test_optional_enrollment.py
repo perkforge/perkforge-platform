@@ -8,9 +8,27 @@ import tempfile
 import unittest
 import yaml
 from fixtures.render_helpers import build
+from fixtures.selection import release_for
 ROOT = Path(__file__).resolve().parents[2]
 
 class OptionalEnrollmentTests(unittest.TestCase):
+    def test_nextcloud_stage_preserves_packages_and_selects_only_its_enrollment_path(self):
+        baseline=build(ROOT/'clusters/local-gitlab-runner')
+        proposed=build(ROOT/'clusters/local-nextcloud')
+        existing=[x for x in proposed if x['metadata']['name']!='tenant-enrollments']
+        canonical=lambda xs:sorted(json.dumps(x,sort_keys=True) for x in xs)
+        self.assertEqual(canonical(baseline),canonical(existing))
+        enrolled=[x for x in proposed if x['metadata']['name']=='tenant-enrollments']
+        self.assertEqual({x['kind'] for x in enrolled},{'GitRepository','Kustomization'})
+        parent=next(x for x in enrolled if x['kind']=='Kustomization')
+        source=next(x for x in enrolled if x['kind']=='GitRepository')
+        evidence=json.loads((ROOT.parent/'release-evidence.json').read_text())['dependencies']['nextcloud-enrollment']
+        release_for(source,evidence)
+        self.assertEqual(parent['spec']['path'],'./clusters/local-nextcloud')
+        self.assertEqual(parent['spec']['serviceAccountName'],'tenant-enrollment-admin')
+        self.assertFalse(parent['spec']['prune'])
+        self.assertTrue(all(not x['spec']['suspend'] for x in enrolled))
+
     def test_default_excludes_enrollment_and_explicit_opt_in_preserves_packages(self):
         original = build(ROOT / 'clusters/local')
         with tempfile.TemporaryDirectory() as directory:
@@ -51,3 +69,29 @@ class OptionalEnrollmentTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('Tenant enrollment is disabled', result.stdout)
             self.assertFalse(marker.exists())
+
+    def test_selected_stage_is_checked_without_enabling_the_default_root(self):
+        for identity,accepted in [('tenant-enrollment-admin',True),('unreviewed-admin',False)]:
+            with self.subTest(identity=identity), tempfile.TemporaryDirectory() as directory:
+                root=Path(directory); repo=root/'repo'
+                shutil.copytree(ROOT,repo/'big-bang-bootstrap',ignore=shutil.ignore_patterns('tests','__pycache__'))
+                stage=repo/'big-bang-bootstrap/clusters/local-nextcloud';stage.mkdir(exist_ok=True)
+                (stage/'kustomization.yaml').write_text(yaml.safe_dump({'resources':['../local','../../enrollments/local-nextcloud']}))
+                fixture=root/'objects.yaml'
+                fixture.write_text(yaml.safe_dump_all([
+                    {'apiVersion':'source.toolkit.fluxcd.io/v1','kind':'GitRepository','metadata':{'name':'tenant-enrollments','namespace':'flux-system'},
+                     'spec':{'url':'https://github.com/perkforge/perkforge-platform-tenants.git','ref':{'tag':'v1.2.3'}}},
+                    {'apiVersion':'kustomize.toolkit.fluxcd.io/v1','kind':'Kustomization','metadata':{'name':'tenant-enrollments','namespace':'flux-system'},
+                     'spec':{'serviceAccountName':identity,'sourceRef':{'kind':'GitRepository','name':'tenant-enrollments'},'path':'./clusters/local-nextcloud','prune':False}}
+                ]))
+                tools=root/'bin';tools.mkdir();marker=root/'api-called'
+                tool=tools/'kubectl'
+                tool.write_text('#!/bin/sh\nif [ "$1" = kustomize ]; then cat "'+str(fixture)+'"; else touch "'+str(marker)+'"; exit 98; fi\n')
+                tool.chmod(0o700)
+                result=subprocess.run(['ansible-playbook','-i',str(repo/'big-bang-bootstrap/configuration/ansible/inventory.yaml'),
+                    str(repo/'big-bang-bootstrap/configuration/ansible/enrollment-prerequisites.yaml'),'-e','enrollment_foundation_apply=true',
+                    '-e','gitops_path=./big-bang-bootstrap/clusters/local-nextcloud'],capture_output=True,text=True,timeout=20,
+                    env={**os.environ,'PATH':str(tools)+':'+os.environ['PATH'],'ANSIBLE_LOCAL_TEMP':str(root/'local'),'ANSIBLE_REMOTE_TEMP':str(root/'remote')})
+                self.assertNotEqual(result.returncode,0) # Deliberately no published release input supplied.
+                self.assertEqual('Require a version and reviewed non-secret release evidence' in result.stdout,accepted,result.stdout+result.stderr)
+                self.assertFalse(marker.exists())
