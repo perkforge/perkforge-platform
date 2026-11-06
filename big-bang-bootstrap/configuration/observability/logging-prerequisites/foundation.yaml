@@ -4,21 +4,30 @@ kind: Namespace
 metadata:
   name: logging
   labels:
+    app.kubernetes.io/managed-by: Ansible
+    perkforge.io/owner: logging-foundation-v1
     pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.36
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: alloy
   labels:
+    app.kubernetes.io/managed-by: Ansible
+    perkforge.io/owner: logging-foundation-v1
     pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.36
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: logging-pilot
   labels:
+    app.kubernetes.io/managed-by: Ansible
+    perkforge.io/owner: logging-foundation-v1
     pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.36
 ---
 apiVersion: v1
 kind: ServiceAccount
