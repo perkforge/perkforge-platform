@@ -17,11 +17,46 @@
   - name: Apply separately approved prerequisites from a clean published checkout
     when: enrollment_foundation_apply | bool and not ansible_check_mode
     block:
-    - name: Refuse enrollment prerequisites while the local root excludes enrollment
+    - name: Require an explicit repository-local physical stage
+      ansible.builtin.assert:
+        that: gitops_path is match('^[.]/big-bang-bootstrap/clusters/local(-[a-z0-9-]+)?$')
+    - name: Refuse enrollment prerequisites while the selected root excludes enrollment
       ansible.builtin.assert:
         quiet: true
-        that: "'../../enrollments/local' in (lookup('file', playbook_dir + '/../../clusters/local/kustomization.yaml') | from_yaml).resources"
+        that: selected_root.resources | select('match', '^[.][.]/[.][.]/enrollments/[a-z0-9-]+$') | list | length == 1
         fail_msg: 'Tenant enrollment is disabled until core platform readiness and explicit source selection.'
+      vars:
+        selected_root: "{{ lookup('file', playbook_dir + '/../../../' + gitops_path[2:] + '/kustomization.yaml') | from_yaml }}"
+    - name: Render only the selected stage without cluster access
+      ansible.builtin.command:
+        argv: [kubectl, kustomize, '{{ playbook_dir }}/../../../{{ gitops_path[2:] }}']
+      register: enrollment_render
+      changed_when: false
+      no_log: true
+    - ansible.builtin.set_fact:
+        enrollment_objects: "{{ enrollment_render.stdout | from_yaml_all | selectattr('metadata.name', 'equalto', 'tenant-enrollments') | list }}"
+      no_log: true
+    - name: Require the scoped generic enrollment parent in the selected stage
+      ansible.builtin.assert:
+        that:
+        - enrollment_objects | length == 2
+        - enrollment_objects | map(attribute='kind') | sort | list == ['GitRepository', 'Kustomization']
+        - enrollment_objects | map(attribute='metadata.namespace') | unique | list == ['flux-system']
+        - selected_source.apiVersion == 'source.toolkit.fluxcd.io/v1'
+        - selected_parent.apiVersion == 'kustomize.toolkit.fluxcd.io/v1'
+        - selected_source.spec.url == 'https://github.com/perkforge/perkforge-platform-tenants.git'
+        - selected_source.spec.ref.keys() | list == ['tag']
+        - selected_source.spec.ref.tag is match('^v[0-9]+[.][0-9]+[.][0-9]+$')
+        - selected_parent.spec.serviceAccountName == 'tenant-enrollment-admin'
+        - selected_parent.spec.sourceRef.kind == 'GitRepository'
+        - selected_parent.spec.sourceRef.name == 'tenant-enrollments'
+        - selected_parent.spec.sourceRef.namespace is not defined or selected_parent.spec.sourceRef.namespace == 'flux-system'
+        - selected_parent.spec.path is match('^[.]/clusters/[a-z0-9-]+$')
+        - not selected_parent.spec.prune
+        - selected_parent.spec.kubeConfig is not defined
+      vars:
+        selected_source: "{{ enrollment_objects | selectattr('kind', 'equalto', 'GitRepository') | first }}"
+        selected_parent: "{{ enrollment_objects | selectattr('kind', 'equalto', 'Kustomization') | first }}"
     - name: Verify released stage
       ansible.builtin.include_tasks: verify-release.yaml
     - name: Read checkout revision
