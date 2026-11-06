@@ -35,7 +35,12 @@ execute it. Initial/upgrade rendered behavior does not prove existing DB migrati
 
 - External supported PostgreSQL, size/credentials, consistent backups and JDBC
   verify-full/current physical CA trust remain UNCONFIGURED. No bundled database
-  or fake demo service. A real trust mount is still required before selection.
+  or fake demo service. The native extra volume projects only `ca.crt` from the
+  external public `sonarqube-public-ca` ConfigMap read-only at
+  `/etc/sonarqube-db-ca`; JDBC explicitly selects that file with `sslrootcert`.
+  No CA signing key, trust-store import Job or extra authority is added. Delivery
+  of the verified public CA, real endpoint identity and positive/negative runtime
+  TLS tests remain required before selection.
 - Native privileged initSysctl and root/CHOWN initFs stay **off**, matching Big Bang.
   Required host vm.max_map_count/file/process limits and CSI fsGroup behavior must
   be verified, then separately approved Ansible host changes if needed. Do not
@@ -58,7 +63,8 @@ No obsolete direct SonarQube installer found; reusable configuration retained.
 
 [Exact package](https://repo1.dso.mil/big-bang/product/packages/sonarqube/-/tree/2026.4.1-bb.4),
 [Community GitLab integration and limits](https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/gitlab-integration/introduction),
-[native chart](https://github.com/SonarSource/helm-chart-sonarqube).
+[native chart](https://github.com/SonarSource/helm-chart-sonarqube),
+[PostgreSQL JDBC connection options](https://jdbc.postgresql.org/documentation/use/).
 
 ## Keycloak SAML — Community Build review
 

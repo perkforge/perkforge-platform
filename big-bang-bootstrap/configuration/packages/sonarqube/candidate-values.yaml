@@ -37,11 +37,18 @@ addons:
         monitoringPasscodeSecretKey: passcode
         jdbcOverwrite:
           enabled: true
-          jdbcUrl: jdbc:postgresql://UNCONFIGURED-postgresql.invalid/sonarqube?sslmode=verify-full
+          jdbcUrl: jdbc:postgresql://UNCONFIGURED-postgresql.invalid/sonarqube?sslmode=verify-full&sslrootcert=/etc/sonarqube-db-ca/ca.crt
           jdbcUsername: sonarqube
           jdbcPassword: null
           jdbcSecretName: sonarqube-database
           jdbcSecretPasswordKey: password
+        extraVolumes:
+        - name: database-public-ca
+          configMap:
+            name: sonarqube-public-ca
+            items: [{key: ca.crt, path: ca.crt}]
+        extraVolumeMounts:
+        - {name: database-public-ca, mountPath: /etc/sonarqube-db-ca, readOnly: true}
         setAdminPassword:
           passwordSecretName: sonarqube-initial-admin
         persistence:

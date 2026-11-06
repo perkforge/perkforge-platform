@@ -35,3 +35,15 @@ class SonarQubeReview(unittest.TestCase):
   role=next(x for x in self.foundation if x['kind']=='Role' and x['metadata']['name']==name)
   for group,res in [('', 'pods'),('apps','replicasets')]:self.assertTrue(any(group in r['apiGroups'] and res in r['resources'] and set(['get','list','watch']).issubset(r['verbs']) and not set(['create','patch','update','delete']).intersection(r['verbs']) for r in role['rules']))
   subjects=[q for x in self.foundation if x['kind'].endswith('RoleBinding') for q in x['subjects'] if q['name']==name];self.assertTrue(subjects);self.assertTrue(all(q['namespace']==namespace for q in subjects))
+
+ def test_jdbc_verifies_server_identity_with_explicit_public_ca_mount(self):
+  workload=next(x for x in self.objects if x['kind']=='StatefulSet')
+  pod=workload['spec']['template']['spec']
+  volume=next(x for x in pod['volumes'] if x['name']=='database-public-ca')
+  self.assertEqual(volume['configMap'],{'name':'sonarqube-public-ca','items':[{'key':'ca.crt','path':'ca.crt'}]})
+  container=next(c for c in pod['containers'] if any(v['name']=='database-public-ca' for v in c.get('volumeMounts',[])))
+  mount=next(v for v in container['volumeMounts'] if v['name']=='database-public-ca')
+  self.assertEqual(mount['mountPath'],'/etc/sonarqube-db-ca');self.assertTrue(mount['readOnly'])
+  rendered=yaml.safe_dump(self.objects)
+  self.assertIn('sslmode=verify-full&sslrootcert=/etc/sonarqube-db-ca/ca.crt',rendered)
+  self.assertNotIn('NonValidatingFactory',rendered)
