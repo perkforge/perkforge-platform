@@ -77,15 +77,27 @@ grafana:
         remediateLastFailure: false
     serviceAccountName: grafana-installer
     storageNamespace: monitoring
+    # Native HelmRelease values override valuesFrom after umbrella rendering.
+    # Keep bootstrap references out of the umbrella's Grafana notification lookup.
+    values:
+      upstream:
+        admin:
+          existingSecret: grafana-admin
+          userKey: admin-user
+          passwordKey: admin-password
   values:
     sso:
       enabled: false
     upstream:
       replicas: 1
+      # No umbrella Secret lookup or usable fallback notification credential.
+      # The child-only override above supplies the existing bootstrap reference.
       admin:
-        existingSecret: grafana-admin
+        existingSecret: ''
         userKey: admin-user
         passwordKey: admin-password
+      adminUser: ''
+      adminPassword: ''
       persistence:
         enabled: true
         storageClassName: longhorn

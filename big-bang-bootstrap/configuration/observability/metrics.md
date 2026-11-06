@@ -34,6 +34,25 @@ architecture gaps superseded here only where explicitly implemented below.
   writes. Namespace-only trusted traffic and exact operator webhook sources are
   permitted; policies do not claim to constrain host-network node exporters.
 
+## Umbrella ownership and bootstrap boundary
+
+The pinned Big Bang Grafana template otherwise looks up the existing admin Secret
+and copies it into a Flux notification credential before any post-renderer runs.
+The source keeps that reference in the child's native HelmRelease `spec.values`
+(via the package Flux overrides), which Flux merges after `valuesFrom`. The
+umbrella-facing admin reference and fallback fields are empty. No admin Secret
+read or credential copy is needed by the umbrella identity.
+
+The umbrella post-renderer omits only `monitoring`'s `grafana` Alert/Provider,
+`grafana-flux-auth` Secret and `flux-grafana-dashboards` ConfigMap. Notifications
+remain unarmed. The 37 native Grafana ConfigMaps belong to its existing scoped
+installer; the six foundation dashboards remain Ansible-owned. No dashboard API
+provisioner or cross-namespace umbrella grant is added. The synthetic-loopback
+regression runs the real pinned Helm lookup under the unchanged umbrella Role,
+including installed monitoring APIs; it reproduces the old forbidden Secret GET
+and proves the corrected path performs none. Default/current roots and existing
+app manifests remain unchanged. This is offline evidence, not live acceptance.
+
 ## Who gets authority
 
 The reviewed Ansible actor applies grants; helm-controller impersonates three

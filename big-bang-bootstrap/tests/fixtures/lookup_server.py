@@ -28,11 +28,19 @@ def clusterrole_list_allowed(role):
 
 
 @contextmanager
-def lookup_server(role, clusterrole_lookup=False, secrets=None):
+def lookup_server(role, clusterrole_lookup=False, secrets=None, helmrelease_lookup=False, monitoring_api=False):
     requests = []
     if secrets is None:
         secrets = {(role['metadata'].get('namespace', ''), 'keycloak-database-existing'): {
             'postgres-password': base64.b64encode(b'synthetic-test-password').decode()}}
+
+    groups = []
+    if clusterrole_lookup:
+        groups.append(('rbac.authorization.k8s.io', ['v1']))
+    if helmrelease_lookup:
+        groups.append(('helm.toolkit.fluxcd.io', ['v2']))
+    if monitoring_api:
+        groups.append(('monitoring.coreos.com', ['v1', 'v1alpha1']))
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -47,15 +55,35 @@ def lookup_server(role, clusterrole_lookup=False, secrets=None):
             elif path == '/api':
                 body = {'apiVersion': 'v1', 'kind': 'APIVersions', 'versions': ['v1'], 'serverAddressByClientCIDRs': []}
             elif path == '/apis':
-                body = {'apiVersion': 'v1', 'kind': 'APIGroupList', 'groups': ([{
-                    'name': 'rbac.authorization.k8s.io',
-                    'versions': [{'groupVersion': 'rbac.authorization.k8s.io/v1', 'version': 'v1'}],
-                    'preferredVersion': {'groupVersion': 'rbac.authorization.k8s.io/v1', 'version': 'v1'}
-                }] if clusterrole_lookup else [])}
+                body = {'apiVersion': 'v1', 'kind': 'APIGroupList', 'groups': [
+                    {'name': name,
+                     'versions': [{'groupVersion': name + '/' + version, 'version': version} for version in versions],
+                     'preferredVersion': {'groupVersion': name + '/' + versions[0], 'version': versions[0]}}
+                    for name, versions in groups]}
             elif path == '/api/v1':
                 body = {'apiVersion': 'v1', 'kind': 'APIResourceList', 'groupVersion': 'v1', 'resources': [
                     {'name': 'secrets', 'singularName': 'secret', 'namespaced': True,
                      'kind': 'Secret', 'verbs': ['get', 'list']}]}
+            elif helmrelease_lookup and path == '/apis/helm.toolkit.fluxcd.io/v2':
+                body = {'apiVersion': 'v1', 'kind': 'APIResourceList', 'groupVersion': 'helm.toolkit.fluxcd.io/v2',
+                        'resources': [{'name': 'helmreleases', 'kind': 'HelmRelease', 'namespaced': True,
+                                       'verbs': ['get', 'list']}]}
+            elif monitoring_api and path in ['/apis/monitoring.coreos.com/v1', '/apis/monitoring.coreos.com/v1alpha1']:
+                body = {'apiVersion': 'v1', 'kind': 'APIResourceList', 'groupVersion': path[len('/apis/'):],
+                        'resources': [{'name': name, 'kind': kind, 'namespaced': True, 'verbs': ['get', 'list']}
+                                      for name, kind in ([('servicemonitors', 'ServiceMonitor'), ('podmonitors', 'PodMonitor'),
+                                                          ('prometheuses', 'Prometheus'), ('prometheusrules', 'PrometheusRule')]
+                                                         if path.endswith('/v1') else
+                                                         [('alertmanagerconfigs', 'AlertmanagerConfig'), ('scrapeconfigs', 'ScrapeConfig')])]}
+
+            elif helmrelease_lookup and path.startswith('/apis/helm.toolkit.fluxcd.io/v2/namespaces/') and '/helmreleases/' in path:
+                namespace = path.split('/')[5]
+                allowed = role['metadata']['namespace'] == namespace and any(
+                    'helm.toolkit.fluxcd.io' in rule['apiGroups'] and 'helmreleases' in rule['resources']
+                    and 'get' in rule['verbs'] for rule in role['rules'])
+                status = 404 if allowed else 403
+                body = {'apiVersion': 'v1', 'kind': 'Status', 'status': 'Failure',
+                        'reason': 'NotFound' if allowed else 'Forbidden', 'code': status}
             elif clusterrole_lookup and path == '/apis/rbac.authorization.k8s.io/v1':
                 body = {'apiVersion': 'v1', 'kind': 'APIResourceList',
                         'groupVersion': 'rbac.authorization.k8s.io/v1', 'resources': [

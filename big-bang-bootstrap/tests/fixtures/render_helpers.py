@@ -53,7 +53,13 @@ def child_values(objects, name):
     secret = next(obj for obj in objects if obj['kind'] == 'Secret'
                   and obj['metadata']['name'] in (f'bigbang-{name}-values', f'{name}-values'))
     keys = ('values.yaml',) if name == 'openbao' else ('common', 'defaults', 'overlays')
-    return [secret['stringData'][key] for key in keys]
+    values = [secret['stringData'][key] for key in keys]
+    release = next(obj for obj in objects if obj['kind'] == 'HelmRelease'
+                   and obj['metadata']['name'] == name)
+    # Flux merges spec.values after every valuesFrom entry.
+    if release['spec'].get('values'):
+        values.append(yaml.safe_dump(release['spec']['values']))
+    return values
 
 
 def release_name(release):
