@@ -9,10 +9,13 @@ monitoring:
     install:
       remediation:
         retries: 0
+        remediateLastFailure: false
       createNamespace: false
     upgrade:
+      cleanupOnFail: false
       remediation:
         retries: 0
+        remediateLastFailure: false
     serviceAccountName: monitoring-installer
     storageNamespace: monitoring
   values:
@@ -65,10 +68,13 @@ grafana:
     install:
       remediation:
         retries: 0
+        remediateLastFailure: false
       createNamespace: false
     upgrade:
+      cleanupOnFail: false
       remediation:
         retries: 0
+        remediateLastFailure: false
     serviceAccountName: grafana-installer
     storageNamespace: monitoring
   values:
@@ -139,10 +145,13 @@ prometheusOperatorCRDs:
     install:
       remediation:
         retries: 0
+        remediateLastFailure: false
       createNamespace: false
     upgrade:
+      cleanupOnFail: false
       remediation:
         retries: 0
+        remediateLastFailure: false
     serviceAccountName: prometheus-crds-installer
     storageNamespace: monitoring
   values:
@@ -164,9 +173,12 @@ alloy:
       createNamespace: false
       remediation:
         retries: 0
+        remediateLastFailure: false
     upgrade:
+      cleanupOnFail: false
       remediation:
         retries: 0
+        remediateLastFailure: false
   values:
     upstream:
       cluster:
@@ -303,9 +315,12 @@ loki:
       createNamespace: false
       remediation:
         retries: 0
+        remediateLastFailure: false
     upgrade:
+      cleanupOnFail: false
       remediation:
         retries: 0
+        remediateLastFailure: false
   values:
     deploymentMode: SingleBinary
     minio:

@@ -49,3 +49,15 @@ class LoggingInstaller(unittest.TestCase):
    role=next(x for x in self.foundation if x['kind']=='Role' and x['metadata']['name']==name)
    for group,res in [('', 'pods'),('apps','replicasets')]:self.assertTrue(any(group in r['apiGroups'] and res in r['resources'] and set(['get','list','watch']).issubset(r['verbs']) and not set(['create','patch','update','delete']).intersection(r['verbs']) for r in role['rules']))
    subjects=[q for x in self.foundation if x['kind'].endswith('RoleBinding') for q in x['subjects'] if q['name']==name];self.assertTrue(subjects);self.assertTrue(all(q['namespace']==namespace for q in subjects))
+
+ def test_optional_exact_alloy_binary_validates_rendered_configuration(self):
+  binary=os.environ.get('ALLOY_VALIDATE_BIN')
+  if not binary:self.skipTest('Set ALLOY_VALIDATE_BIN to the checksum-verified official Alloy v1.18.0 binary; no download or live startup is performed')
+  environment={'PATH':os.environ.get('PATH','/usr/bin:/bin'),'KUBECONFIG':'/dev/null'}
+  version=subprocess.run([binary,'--version'],capture_output=True,text=True,env=environment,timeout=20)
+  self.assertEqual(version.returncode,0,version.stderr);self.assertIn('version v1.18.0 ',version.stdout);self.assertIn('revision: a435563',version.stdout)
+  config=next(x['data']['config.alloy'] for x in self.render['alloy'][1] if x['kind']=='ConfigMap' and 'config.alloy' in x.get('data',{}))
+  with tempfile.TemporaryDirectory() as d:
+   path=Path(d)/'config.alloy';path.write_text(config)
+   result=subprocess.run([binary,'validate','--stability.level=generally-available',str(path)],capture_output=True,text=True,env=environment,timeout=30)
+   self.assertEqual(result.returncode,0,result.stdout+result.stderr)
