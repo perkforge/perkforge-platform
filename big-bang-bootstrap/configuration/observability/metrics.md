@@ -53,6 +53,28 @@ including installed monitoring APIs; it reproduces the old forbidden Secret GET
 and proves the corrected path performs none. Default/current roots and existing
 app manifests remain unchanged. This is offline evidence, not live acceptance.
 
+## Existing registry credential references
+
+The Monitoring and Grafana package-local `values.global.imagePullSecrets` lists
+explicitly reference the existing immutable `monitoring/private-registry` Secret.
+Big Bang's credential helpers emit empty reference lists when registry credentials
+are deliberately absent from Git values. Those lists override package defaults;
+Helm propagates the package global into its dependencies. Secret presence alone
+therefore does not prove any workload can use it.
+
+The pinned limited roots now bind that reference on operator/state-metrics/node
+exporter Pods, the Prometheus CR, admission Jobs and the Grafana Pod. The operator
+propagates the CR reference to its generated Prometheus/reloader StatefulSet.
+No credential values, Secret creation/copy/rotation, registry substitution or new
+RBAC are involved. Existing Secret identity/ownership remains an external input.
+Exact legacy/fixed renders and the native operator generator enforce this contract.
+Actual authenticated pulls and recovery still need separately approved live checks.
+
+The broader non-limited roots also render a blackbox exporter with a separate
+pull-secret input. It is unchanged here and still has an empty effective reference;
+those roots are not accepted for activation. The limited roots explicitly defer
+that exporter and its app probes.
+
 ## Who gets authority
 
 The reviewed Ansible actor applies grants; helm-controller impersonates three

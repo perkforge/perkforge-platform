@@ -19,6 +19,11 @@ monitoring:
     serviceAccountName: monitoring-installer
     storageNamespace: monitoring
   values:
+    # Consume the existing namespace credential; Big Bang emits empty pull refs
+    # when registry credentials are deliberately kept outside Git values.
+    global:
+      imagePullSecrets:
+      - name: private-registry
     upstream:
       grafana:
         enabled: false
@@ -89,6 +94,10 @@ grafana:
           userKey: admin-user
           passwordKey: admin-password
   values:
+    # Helm globals propagate to the pinned Grafana dependency and its sidecar.
+    global:
+      imagePullSecrets:
+      - name: private-registry
     sso:
       enabled: false
     upstream:

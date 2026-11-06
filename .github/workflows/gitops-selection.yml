@@ -81,9 +81,9 @@ jobs:
         echo "bada8d81e2bd3d6f4ce9e63f59a876bc9f5b74b83dd148dc37d52d25c72fd4ef  $RUNNER_TEMP/operator.tgz" | sha256sum --check
         mkdir "$RUNNER_TEMP/operator"
         tar -xzf "$RUNNER_TEMP/operator.tgz" -C "$RUNNER_TEMP/operator" --strip-components=1
-    - name: Verify pinned PVC consumer placement including native StatefulSet generation
+    - name: Verify pinned PVC consumer placement and registry refs with native StatefulSet generation
       run: |
-        PREFLIGHT_SOURCES_DIR="$RUNNER_TEMP/placement-charts" PROMETHEUS_OPERATOR_SOURCE="$RUNNER_TEMP/operator" PYTHONPATH=big-bang-bootstrap/tests python3 -m unittest integration.test_metrics_worker_placement -v
+        PREFLIGHT_SOURCES_DIR="$RUNNER_TEMP/placement-charts" PROMETHEUS_OPERATOR_SOURCE="$RUNNER_TEMP/operator" PYTHONPATH=big-bang-bootstrap/tests python3 -m unittest integration.test_metrics_worker_placement integration.test_metrics_registry_pull_refs -v
 
   selection:
     needs: [changes]
