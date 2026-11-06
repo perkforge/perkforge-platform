@@ -202,3 +202,7 @@ rollback and per-app resources before activation. No new public endpoint is expo
 The [endpoint and approval plan](metrics-endpoint-plan.md) records the exact new
 Service delegation, existing runtime identities, transport findings and unselected
 limited-scrape alternative. No host maintenance is included or authorized by #208.
+
+The optional [lab Grafana HTTPS UI](grafana-ui/README.md) has a separate root
+and explicit DNS/TLS/network/access preparation. Existing pilot roots do not
+select it; publication or healthy Pods alone does not expose a UI.

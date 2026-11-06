@@ -22,7 +22,7 @@
         - impact_profile == 'il2'
         - platform_tls_applications | length > 0
         - platform_tls_applications | unique | length == platform_tls_applications | length
-        - platform_tls_applications | difference(['headlamp', 'keycloak', 'rancher']) | length == 0
+        - platform_tls_applications | difference(['headlamp', 'keycloak', 'rancher', 'grafana']) | length == 0
     - ansible.builtin.include_tasks: verify-release.yaml
     - ansible.builtin.command:
         argv: [git, -C, '{{ playbook_dir }}/../../..', rev-parse, HEAD]
