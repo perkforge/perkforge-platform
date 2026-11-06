@@ -100,6 +100,13 @@ else:
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('changed=0', result.stdout)
 
+    def test_limited_stage_keeps_delivery_guards_and_repeat(self):
+        result = self.run_play(True, stage='local-logging-limited-pilot')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = self.run_play(True, stage='local-logging-limited-pilot')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('changed=0', result.stdout)
+
     def test_unrelated_stage_refuses_before_api_access(self):
         result = self.run_play(True, stage='local-nextcloud')
         self.assertNotEqual(result.returncode, 0)
