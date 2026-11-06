@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.21.0](https://github.com/perkforge/perkforge-platform/compare/v0.20.0...v0.21.0) (2026-11-06)
+
+
+### Features
+
+* **observability:** prepare scoped authenticated logging ([c27072f](https://github.com/perkforge/perkforge-platform/commit/c27072fe64945f79db1f4f66b0278f3d204c0579))
+
+
+### Bug Fixes
+
+* **nextcloud:** pin published CNPG authority enrollment ([#204](https://github.com/perkforge/perkforge-platform/issues/204)) ([7adb782](https://github.com/perkforge/perkforge-platform/commit/7adb782bb13d70684cac65a9a6dbab20884de589))
+* **nextcloud:** scope shared CNPG watch to enrolled namespaces ([12fffa3](https://github.com/perkforge/perkforge-platform/commit/12fffa3e7c6acf4bb3c9f8d317548310161b6959))
+* **nextcloud:** scope shared CNPG watch to enrolled namespaces ([bf4678d](https://github.com/perkforge/perkforge-platform/commit/bf4678dd3e3c8fe7d03f56817939885bc5dcb5e1))
+
 ## [0.20.0](https://github.com/perkforge/perkforge-platform/compare/v0.19.0...v0.20.0) (2026-11-06)
 
 
