@@ -50,32 +50,61 @@ Grafana human admin, runtime sidecar and installer identities remain separate.
 
 ### Reconciled staged wiring
 
-`clusters/local-metrics-review` composes the accepted GitLab/runner stage with
+`clusters/local-metrics-review` composes the merged Nextcloud database-only stage with
 inactive observability values. `clusters/local-metrics-crds` activates only the
 CRD release after protected foundation approval and immutable release selection.
 Neither stage enables monitoring, Grafana, Loki or Alloy. The default root and
 live source are unchanged. Both preserve existing rendered app resources; the
 already-emitted disabled CRD values Secret gains only the keep annotation input.
+All three metrics roots preserve the exact Nextcloud enrollment source/parent and
+existing direct platform resources; they do not enable Nextcloud web/cron or
+change its source pin. Live Nextcloud acceptance remains independently gated.
 
-There is deliberately no metrics activation root yet. A pinned outer render
-shows that enabling `monitoring.enabled` also changes GitLab, runner, Headlamp
-and Keycloak values/checksums/dependencies. GitLab gains exporter/ServiceMonitor
-configuration and a post-renderer; runner gains metrics endpoints/ServiceMonitor;
-Keycloak gains a ServiceMonitor. Those existing installers need their exact
-rendered permissions and service impact checked before selection. Do not select
-the disabled candidate by overriding only `enabled` and `suspend`: successful
-metrics installer checks alone do not validate these existing-app changes.
+`clusters/local-metrics-pilot` adds cluster metrics and Grafana after CRD readiness.
+Its explicit overlay defers existing app exporters: the unguarded umbrella switch
+would add a GitLab exporter, change the runner Deployment/Service, and create a
+Keycloak ServiceMonitor. Current source and live installer Roles do not permit
+the runner Service or Keycloak ServiceMonitor. The pilot adds no authority to
+those installers. Existing app dependency lists are preserved, so their health
+does not acquire a new dependency on monitoring readiness.
 
-Next: verify each affected child render and current installer permissions,
-preserve recovery and existing services, then add a separately reviewed metrics
-activation stage. CRD-only readiness is not metrics deployment or acceptance.
+Pinned child renders compare all existing GitLab, runner, Headlamp and Keycloak
+objects unchanged, except GitLab's two shared-secret hook Job name suffixes. The
+upstream hashes every coalesced value: removing the umbrella's unwanted Redis
+monitor setting leaves an inert `redis:null` key that changes only those suffixes.
+The complete Job PodSpecs, commands, credential references and hook policies are
+identical. Normal Helm upgrades still execute the existing pre-upgrade hooks;
+this is not proof of zero API activity or a live credential-preservation check.
+The generated GitLab ServiceMonitor post-renderer has no matching object in this
+pilot. Existing app scrapes remain deferred; cluster metrics alone do not complete
+their dashboard acceptance. Default roots remain unchanged.
 
-No release/root selects these disabled candidates; no permissions, credentials or
-network policies were applied. Before a later selection/promotion: approve the
+The CRD/pilot stages omit only the umbrella's monitoring Namespace template;
+the approved Ansible foundation owns that Namespace. No namespace-management
+authority is added to the umbrella installer.
+
+These roots are source candidates, not live selections. No permissions,
+credentials or network policies were applied. Before promotion: approve the
 architecture and exact source, verify CRD/operator compatibility and actual lookup
 and runtime API behavior, current capacity, protected `grafana-admin` plus Registry1
 inputs, API-source CIDRs and network-policy behavior. Do not overwrite/adopt
 conflicting resources or loosen webhook/network rules on failure.
+
+`configuration/ansible/metrics-inputs.yaml` is a separate default-off delivery
+entrypoint. It reads operator-provided `admin-username`/`admin-password` files
+only after published-source, clean-checkout, cluster-UID and monitoring namespace
+checks. The directory must be owner-only 0700 and the regular files owner-only
+0600. It creates only immutable monitoring `grafana-admin` and a copy of the
+existing flux-system `private-registry`; the source credential must contain only
+Registry1. It never generates, rotates, prints or exports a credential to GitHub.
+
+All missing inputs receive server validation before the first create. An identical
+owned repeat makes no changes; any unowned or mismatched credential refuses
+adoption/rotation. A partial first delivery can resume only with the same exact
+approved files/source credential. Protected results and stdin stay redacted.
+Actual transmission to the cluster requires action-time approval of
+`metrics_inputs_apply=true`; default/check mode reads no private input or API.
+This does not deliver logging/query/TLS inputs or create an SSO grant.
 
 Initial Grafana remains local platform administration; anonymous/OIDC/ingress off.
 Current routing is Traefik, but this candidate creates no controller-specific

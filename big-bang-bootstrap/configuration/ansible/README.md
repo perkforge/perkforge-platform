@@ -56,6 +56,40 @@ access boundaries. Keep reviewed dashboard JSON/datasources in Git; no blind
 imports or unsupported metrics presented as healthy zeroes. Grafana deployment
 and dashboard/live-data acceptance remain separate future approved work.
 
+## Nextcloud-only enrollment stage
+
+The separate `clusters/local-nextcloud` stage preserves `local-gitlab-runner`
+packages and selects only the released Nextcloud enrollment path. Do not select
+the Portal enrollment root for this app. Its generic prerequisites use the explicit
+`gitops_path`, require a direct enrollment selection and validate the rendered scoped
+parent before release/cluster checks or authority changes. The default local root
+still excludes enrollment and is refused. Publish/verify the enrollment pin before
+publishing this stage; no UNCONFIGURED value is a deployment input.
+
+After approved prerequisites and protected inputs, promote the published platform
+tag and this path through the existing conditional source/root procedure. Never
+rerun bootstrap. Accept CNPG readiness, actual dedicated SSD replica IDs and verified
+database TLS before a later released web stage. Initial claim sizes remain 16Gi
+database and 32Gi files; no household import or old-volume migration is included.
+
+DNS preparation makes no network changes: verify `nextcloud.perkforge.home.arpa`
+resolves to approved Ready Traefik node ingress addresses, not a ClusterIP/Pod IP.
+The old VM hostname/hosts entry is unrelated. For initial routing/TLS verification
+when LAN DNS is pending, an owner can use explicit approved nonsecret inputs:
+
+```sh
+curl --fail --show-error --connect-timeout 10 --max-time 30 \
+  --cacert "${NEXTCLOUD_INGRESS_CA:?public ingress CA path}" \
+  --resolve "nextcloud.perkforge.home.arpa:443:${NEXTCLOUD_INGRESS_IP:?approved LAN ingress address}" \
+  https://nextcloud.perkforge.home.arpa/status.php
+```
+
+This keeps hostname/certificate verification enabled and writes no DNS/hosts file.
+It is a diagnostic, not household DNS setup or app/backup acceptance. Signing keys,
+leaf private keys and passwords stay outside source and chat; the approved enrollment
+input playbook delivers only new app credentials and the ingress leaf key. No existing
+credential discovery is implied by this procedure.
+
 ## Longhorn-only release and seed activation
 
 The first storage-only stage is complete on the physical cluster at v0.11.3.
