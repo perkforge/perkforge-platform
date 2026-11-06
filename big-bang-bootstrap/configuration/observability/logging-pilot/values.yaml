@@ -1,0 +1,48 @@
+# No tenant access, SSO, public route or credential creation in this source stage.
+alloy:
+  enabled: true
+  flux:
+    suspend: false
+loki:
+  enabled: true
+  flux:
+    suspend: false
+grafana:
+  values:
+    upstream:
+      envValueFrom:
+        LOKI_USERNAME:
+          secretKeyRef: {name: loki-query-auth, key: username}
+        LOKI_PASSWORD:
+          secretKeyRef: {name: loki-query-auth, key: password}
+        LOKI_CA_CERT:
+          configMapKeyRef: {name: loki-ca, key: ca.crt}
+      datasources:
+        datasourcesbb.yaml:
+          apiVersion: 1
+          # Replace the umbrella's automatic plaintext/editable Loki datasource.
+          datasources:
+          - name: Prometheus
+            uid: prometheus
+            type: prometheus
+            access: proxy
+            url: http://monitoring-monitoring-kube-prometheus.monitoring.svc:9090
+            editable: false
+          - name: Loki pilot
+            uid: loki-pilot
+            orgId: 1
+            type: loki
+            access: proxy
+            url: https://logging-loki-gateway.logging.svc.cluster.local
+            editable: false
+            basicAuth: true
+            basicAuthUser: $LOKI_USERNAME
+            jsonData:
+              tlsAuthWithCACert: true
+              tlsSkipVerify: false
+              timeout: 30
+              maxLines: 1000
+            secureJsonData:
+              # Single-dollar syntax avoids double expansion of passwords containing $.
+              basicAuthPassword: $LOKI_PASSWORD
+              tlsCACert: $LOKI_CA_CERT

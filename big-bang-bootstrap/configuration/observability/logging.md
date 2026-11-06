@@ -1,7 +1,28 @@
 # Opt-in logging implementation candidate — inactive
 
-Implements the pinned #38 candidate after [metrics](metrics.md); the root still
+Implements the pinned #38 candidate after [metrics](metrics.md); the default root still
 selects neither monitoring nor logging. This is not live log or auth acceptance.
+
+## Optional source stage
+
+`clusters/local-logging-pilot` composes the merged Nextcloud stage and metrics
+pilot, then enables only the prepared Alloy/Loki packages and a native Grafana
+`loki-pilot` datasource in organization 1. It is not selected live. Preservation
+tests compare the exact Nextcloud enrollment objects and all existing GitLab,
+runner, Headlamp and Keycloak child objects against the metrics pilot.
+
+The datasource replaces the umbrella's automatic editable/plaintext Loki entry
+with the authenticated HTTPS gateway, immutable configuration and verified CA/
+hostname checks. Grafana references monitoring `loki-query-auth` keys `username`
+and `password`, plus monitoring `loki-ca` key `ca.crt`, through environment-backed
+native provisioning. No secret value, client-supplied tenant header or automatic
+credential copy is added. The single-dollar password expansion avoids Grafana's
+documented double-expansion issue. See [native provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/).
+
+Deliver those protected inputs separately, along with the existing collector and
+gateway/backend TLS/auth inputs, before selection. Foundation-owned logging/alloy
+Namespaces are omitted only from the umbrella render. Failed install/upgrade
+cleanup remains disabled. No public route or human OIDC mapping is enabled.
 
 ## Initial pilot access
 
@@ -23,10 +44,11 @@ Inspect actual operator-created workloads and collector configuration before
 collecting production logs. Preserve stored logs and existing services on failure;
 do not relax authentication, collection scope or network boundaries to pass tests.
 
-The final logging/metrics root must compose the accepted Nextcloud stage before
-live selection. The current metrics pilot bases on the existing runner stage;
-selecting it while Nextcloud integration is in flight is not authorized by a
-successful offline render. No concurrent platform-root promotion is performed.
+The metrics pilot now composes the merged Nextcloud database-only stage and its
+preservation tests compare the exact enrollment objects. A later logging root
+must retain that composition. Live Nextcloud acceptance, published-source checks
+and owner-local CA unlock remain independent gates; a successful offline render
+does not select either pilot. No concurrent platform-root promotion is performed.
 
 ## Who does what and why
 
