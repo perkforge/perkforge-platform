@@ -1,0 +1,223 @@
+- name: Deliver only the separately approved platform logging pilot inputs
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars:
+    logging_inputs_apply: false
+    logging_private_dir: /UNCONFIGURED/logging
+    logging_tls_dir: /UNCONFIGURED/logging-tls
+    logging_ca_file: /UNCONFIGURED/lab-ca.crt
+    logging_expected_ca_sha256: UNCONFIGURED
+    gitops_path: ./big-bang-bootstrap/clusters/local-logging-pilot
+    logging_leaves:
+    - {folder: gateway, hostname: logging-loki-gateway.logging.svc.cluster.local}
+    - {folder: backend, hostname: logging-loki.logging.svc.cluster.local}
+  tasks:
+  - name: Default and check mode read no private inputs or cluster API
+    ansible.builtin.debug:
+      msg: 'Logging input delivery={{ logging_inputs_apply | bool }}; check={{ ansible_check_mode }}'
+  - name: Deliver approved immutable inputs with no rotation or adoption
+    when: logging_inputs_apply | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - ansible_play_hosts_all == ['local']
+        - deployment_environment == 'local'
+        - impact_profile == 'il2'
+        - gitops_path == './big-bang-bootstrap/clusters/local-logging-pilot'
+        - target_kubeconfig != '/UNCONFIGURED/kubeconfig'
+        - target_context != 'UNCONFIGURED'
+        - expected_cluster_uid != 'UNCONFIGURED'
+        - logging_private_dir is match('^/') and not logging_private_dir.startswith('/UNCONFIGURED/')
+        - logging_tls_dir is match('^/') and not logging_tls_dir.startswith('/UNCONFIGURED/')
+        - logging_ca_file is match('^/') and not logging_ca_file.startswith('/UNCONFIGURED/')
+        - logging_expected_ca_sha256 is match('^[0-9a-f]{64}$')
+    - ansible.builtin.include_tasks: verify-release.yaml
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', rev-parse, HEAD]
+      register: logging_head
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', status, --porcelain]
+      register: logging_changes
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - logging_head.stdout == config_release.resolvedCommit
+        - logging_changes.stdout | length == 0
+    - ansible.builtin.set_fact:
+        logging_k: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}']
+    - ansible.builtin.command:
+        argv: '{{ logging_k + ["get", "namespace", "kube-system", "-o", "jsonpath={.metadata.uid}"] }}'
+      register: logging_uid
+      changed_when: false
+    - ansible.builtin.assert: {that: logging_uid.stdout == expected_cluster_uid}
+    - name: Verify only the three prepared target namespaces
+      ansible.builtin.command:
+        argv: '{{ logging_k + ["get", "namespace", item.name, "-o", "json"] }}'
+      loop:
+      - {name: monitoring, psa: privileged}
+      - {name: logging, psa: restricted}
+      - {name: alloy, psa: restricted}
+      register: logging_namespaces
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (item.stdout | from_json).metadata.name == item.item.name
+        - (item.stdout | from_json).metadata.labels['app.kubernetes.io/managed-by'] == 'Ansible'
+        - (item.stdout | from_json).metadata.labels['pod-security.kubernetes.io/enforce'] == item.item.psa
+        - (item.stdout | from_json).metadata.labels['pod-security.kubernetes.io/enforce-version'] == 'v1.36'
+      loop: '{{ logging_namespaces.results }}'
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+        get_checksum: false
+        get_mime: false
+      loop:
+      - '{{ logging_private_dir }}'
+      - '{{ logging_tls_dir }}'
+      - '{{ logging_tls_dir }}/gateway'
+      - '{{ logging_tls_dir }}/backend'
+      register: logging_directories
+    - ansible.builtin.assert:
+        that:
+        - item.stat.isdir | default(false)
+        - not item.stat.islnk | default(false)
+        - item.stat.mode == '0700'
+        - item.stat.uid == lookup('pipe', 'id -u') | int
+      loop: '{{ logging_directories.results }}'
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+        get_checksum: false
+        get_mime: false
+      loop:
+      - '{{ logging_private_dir }}/username'
+      - '{{ logging_private_dir }}/password'
+      - '{{ logging_private_dir }}/htpasswd'
+      - '{{ logging_tls_dir }}/gateway/tls.crt'
+      - '{{ logging_tls_dir }}/gateway/tls.key'
+      - '{{ logging_tls_dir }}/backend/tls.crt'
+      - '{{ logging_tls_dir }}/backend/tls.key'
+      - '{{ logging_ca_file }}'
+      register: logging_files
+    - ansible.builtin.assert:
+        that:
+        - item.stat.isreg | default(false)
+        - not item.stat.islnk | default(false)
+        - item.stat.mode == '0600'
+        - item.stat.uid == lookup('pipe', 'id -u') | int
+        - item.stat.size > 0
+      loop: '{{ logging_files.results }}'
+    - ansible.builtin.set_fact:
+        logging_htpasswd: '{{ lookup("file", logging_private_dir + "/htpasswd") }}'
+    - ansible.builtin.assert:
+        that:
+        - lookup('file', logging_private_dir + '/username') is match('^[a-z0-9][a-z0-9_-]{0,31}$')
+        - lookup('file', logging_private_dir + '/password') is match('^[A-Za-z0-9]{64,256}$')
+        - logging_htpasswd.split(':') | length == 2
+        - logging_htpasswd.split(':')[0] == lookup('file', logging_private_dir + '/username')
+        - logging_htpasswd.split('$') | length == 4
+        - logging_htpasswd.split('$')[1] == '6'
+        - logging_htpasswd.split('$')[2] is match('^[./A-Za-z0-9]{1,16}$')
+        - logging_htpasswd.split('$')[3] is match('^[./A-Za-z0-9]{86}$')
+        - "lookup('file', logging_ca_file) | regex_findall('-----BEGIN [^-]+-----') == ['-----BEGIN CERTIFICATE-----']"
+        - "lookup('file', logging_ca_file) | regex_findall('-----END [^-]+-----') == ['-----END CERTIFICATE-----']"
+    - name: Validate the one SHA512-crypt gateway entry against the protected machine password
+      ansible.builtin.command:
+        argv: [openssl, passwd, '-6', '-salt', '{{ logging_htpasswd.split("$")[2] }}', '-stdin']
+        stdin: '{{ lookup("file", logging_private_dir + "/password") }}'
+      register: logging_password_check
+      changed_when: false
+    - ansible.builtin.assert:
+        that: logging_password_check.stdout | trim == logging_htpasswd.split(':')[1]
+    - ansible.builtin.command:
+        argv: [openssl, x509, '-in', '{{ logging_ca_file }}', '-noout', '-fingerprint', '-sha256']
+      register: logging_ca_fingerprint
+      changed_when: false
+    - ansible.builtin.assert:
+        that: logging_ca_fingerprint.stdout.split('=')[1] | replace(':', '') | lower == logging_expected_ca_sha256
+    - name: Verify leaf chains, server purposes and exact service hostnames
+      ansible.builtin.command:
+        argv: [openssl, verify, '-trusted', '{{ logging_ca_file }}', '-untrusted', '{{ logging_tls_dir }}/{{ item.folder }}/tls.crt', '-purpose', sslserver, '-verify_hostname', '{{ item.hostname }}', '{{ logging_tls_dir }}/{{ item.folder }}/tls.crt']
+      loop: '{{ logging_leaves }}'
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [openssl, x509, '-in', '{{ logging_tls_dir }}/{{ item.folder }}/tls.crt', '-noout', '-checkend', '2592000']
+      loop: '{{ logging_leaves }}'
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [openssl, x509, '-in', '{{ logging_tls_dir }}/{{ item.folder }}/tls.crt', '-noout', '-ext', subjectAltName]
+      loop: '{{ logging_leaves }}'
+      register: logging_sans
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - item.stdout | regex_findall('DNS:([^,\s]+)') == [item.item.hostname]
+        - "'IP Address:' not in item.stdout"
+        - "'PRIVATE KEY' not in lookup('file', logging_tls_dir + '/' + item.item.folder + '/tls.crt')"
+      loop: '{{ logging_sans.results }}'
+    - ansible.builtin.command:
+        argv: [openssl, pkey, '-in', '{{ logging_tls_dir }}/{{ item.folder }}/tls.key', '-passin', 'pass:', '-pubout']
+      loop: '{{ logging_leaves }}'
+      register: logging_public_keys
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [openssl, x509, '-in', '{{ logging_tls_dir }}/{{ item.folder }}/tls.crt', '-pubkey', '-noout']
+      loop: '{{ logging_leaves }}'
+      register: logging_certificate_keys
+      changed_when: false
+    - ansible.builtin.assert:
+        that: item.0.stdout == item.1.stdout
+      loop: '{{ logging_public_keys.results | zip(logging_certificate_keys.results) | list }}'
+    - name: Read only the existing Registry1-only Flux pull credential under redaction
+      ansible.builtin.command:
+        argv: '{{ logging_k + ["-n", "flux-system", "get", "secret", "private-registry", "-o", "json"] }}'
+      register: logging_registry
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (logging_registry.stdout | from_json).type == 'kubernetes.io/dockerconfigjson'
+        - ((logging_registry.stdout | from_json).data['.dockerconfigjson'] | b64decode | from_json).auths.keys() | list == ['registry1.dso.mil']
+        - "(((logging_registry.stdout | from_json).data['.dockerconfigjson'] | b64decode | from_json).auths['registry1.dso.mil'].auth | b64decode).split(':', 1) | length == 2"
+        - "(((logging_registry.stdout | from_json).data['.dockerconfigjson'] | b64decode | from_json).auths['registry1.dso.mil'].auth | b64decode).split(':', 1)[0] | length > 0"
+        - "(((logging_registry.stdout | from_json).data['.dockerconfigjson'] | b64decode | from_json).auths['registry1.dso.mil'].auth | b64decode).split(':', 1)[1] | length > 0"
+    - ansible.builtin.include_tasks: logging-input-manifests.yaml
+    - name: Inspect only the exact named pilot inputs under redaction
+      ansible.builtin.command:
+        argv: '{{ logging_k + ["-n", item.metadata.namespace, "get", item.kind | lower, item.metadata.name, "--ignore-not-found", "-o", "json"] }}'
+      loop: '{{ logging_desired_inputs }}'
+      register: logging_existing_inputs
+      changed_when: false
+    - name: Refuse adoption or rotation; allow only an identical immutable owned repeat
+      ansible.builtin.assert:
+        that:
+        - (item.stdout | from_json).metadata.labels['perkforge.io/owner'] | default('') == 'logging-inputs-v1'
+        - (item.stdout | from_json).immutable | default(false)
+        - (item.stdout | from_json).kind == item.item.kind
+        - item.item.kind == 'ConfigMap' or (item.stdout | from_json).type == item.item.type
+        - (item.stdout | from_json).data == item.item.data
+      when: item.stdout | trim | length > 0
+      loop: '{{ logging_existing_inputs.results }}'
+    - name: Server-validate all missing inputs before creating any
+      ansible.builtin.command:
+        argv: '{{ logging_k + ["create", "--dry-run=server", "-f", "-"] }}'
+        stdin: '{{ item.item | to_json }}'
+      when: item.stdout | trim | length == 0
+      loop: '{{ logging_existing_inputs.results }}'
+      changed_when: false
+    - name: Create only missing approved inputs through hidden stdin
+      ansible.builtin.command:
+        argv: '{{ logging_k + ["create", "-f", "-"] }}'
+        stdin: '{{ item.item | to_json }}'
+      when: item.stdout | trim | length == 0
+      loop: '{{ logging_existing_inputs.results }}'
+      changed_when: true
+    always:
+    - ansible.builtin.set_fact:
+        logging_registry: {}
+        logging_htpasswd: ''
+        logging_password_check: {}
+        logging_desired_inputs: []
+        logging_existing_inputs: {}
+      no_log: true

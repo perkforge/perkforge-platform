@@ -334,3 +334,39 @@ Platform-only live acceptance passed on 2026-11-01: owned realm plus five empty
 groups, first apply changed 6/second changed 0, no users/memberships/custom grants.
 The default remains off. Further enrollment, tenant groups and app SSO need review
 and separate approval; no release/source promotion occurred for this API operation.
+
+## Logging pilot protected inputs
+
+`logging-inputs.yaml` defaults off and reads no private files or Kubernetes API in
+that state or in check mode. It is limited to the released `local-logging-pilot`
+source, the pinned physical cluster UID, and prepared monitoring/logging/alloy
+namespaces. This is input delivery, not workload activation or acceptance.
+
+Supply owner-only (0700) `logging_private_dir` containing 0600 `username`,
+`password`, and `htpasswd` files. The machine username uses lowercase letters,
+digits, underscores or hyphens, starting with a letter or digit (at most 32
+characters). The password is 64–256 alphanumeric characters. `htpasswd` contains
+exactly that username and its SHA512-crypt entry. Both collection and query use
+this same pilot identity because the gateway derives the Loki tenant from it.
+The credential permits reads and writes; this pilot remains platform-admin-only.
+It does not establish tenant-safe Grafana authorization.
+
+Supply a 0700 `logging_tls_dir` with 0700 `gateway` and `backend` directories,
+each containing 0600 `tls.crt` and `tls.key`. The certificates must have exactly
+the corresponding service DNS identity (`logging-loki-gateway.logging.svc.cluster.local`
+and `logging-loki.logging.svc.cluster.local`), match their keys, chain to the
+0600 public `logging_ca_file` (exactly one pinned certificate, with no host-default
+trust fallback), permit server authentication, and remain valid
+for more than 30 days. Pin the public certificate's DER SHA256 fingerprint in
+`logging_expected_ca_sha256`. No CA signing key is read or delivered.
+
+After review of the exact released source and separately authorized delivery,
+set `logging_inputs_apply=true` with those paths and the existing target/release
+inventory. The playbook server-validates every missing object before creating
+any. Its nine fixed targets are TLS/auth/pull Secrets in logging and alloy,
+monitoring/loki-query-auth, and public loki-ca ConfigMaps in monitoring and alloy.
+Registry credentials are copied only from the existing Registry1-only Flux
+Secret. All targets are immutable and owned; identical repeats make no changes,
+and unowned or changed objects fail instead of being adopted or rotated. Private
+values pass through redacted stdin. Nothing here authorizes collection beyond
+the opt-in logging-pilot namespace or changes the active Flux root.

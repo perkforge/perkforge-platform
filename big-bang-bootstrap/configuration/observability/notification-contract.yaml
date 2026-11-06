@@ -6,7 +6,19 @@ notification:
   destination: ntfy-compatible-authenticated-tls
   endpoint_ref: UNCONFIGURED
   credential_ref: UNCONFIGURED
-  adapter: native-webhook-custom-payload-or-ntfy-template-pending-version-test
+  adapter: native-ntfy-named-template
+  subscriber_credential_ref: UNCONFIGURED
+  candidate:
+    server_version: 2.37.2
+    official_linux_amd64_archive_sha256: e67f53d7fbed529b83faf3993b584110921ef3567b0ac0b033c6910879a4ffd1
+    template_file: ntfy-templates/platform-grafana.yml
+    template_name: platform-grafana
+    method: POST
+    topic_ref: UNCONFIGURED
+    default_access: deny-all
+    publisher_permission: exact-topic-write-only
+    subscriber_permission: exact-topic-read-only
+    payload_policy: status-and-count-only-no-labels-annotations-values-or-urls
   rule_migration: upstream-alert-inventory-and-grafana-import-required
   prometheus_notification_route: false
   external_alertmanager: false
