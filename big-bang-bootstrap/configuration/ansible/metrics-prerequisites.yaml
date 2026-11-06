@@ -12,7 +12,7 @@
       - inventory_hostname == 'local'
       - deployment_environment == 'local'
       - ansible_play_hosts_all | length == 1
-      - gitops_path == './big-bang-bootstrap/clusters/local'
+      - gitops_path in ['./big-bang-bootstrap/clusters/local', './big-bang-bootstrap/clusters/local-metrics-review', './big-bang-bootstrap/clusters/local-metrics-crds']
   - name: Report safe default without credentials or Kubernetes access
     ansible.builtin.debug:
       msg: "local metrics/Grafana prerequisites apply={{ metrics_foundation_apply | bool }}"

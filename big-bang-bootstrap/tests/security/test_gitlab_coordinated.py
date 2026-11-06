@@ -48,9 +48,23 @@ class CoordinatedGitLab(unittest.TestCase):
   deploy=next(x for x in rendered if x['kind']=='Deployment');self.assertEqual(deploy['spec']['template']['spec']['imagePullSecrets'],[{'name':'private-registry'}]);self.assertEqual(deploy['spec']['replicas'],1);self.assertEqual(deploy['spec']['strategy']['type'],'Recreate')
   text=yaml.safe_dump(rendered);self.assertIn('gitlab-runner-auth',text);self.assertIn('gitlab-runner-public-ca',text)
   cm=next(x for x in rendered if x['kind']=='ConfigMap');config=tomllib.loads(cm['data']['config.template.toml'])
+  self.assertEqual(config['runners'][0]['environment'],['HOME=/tmp'])
   k=config['runners'][0]['kubernetes'];self.assertFalse(k['privileged']);self.assertFalse(k['automount_service_account_token']);self.assertFalse(k['bearer_token_overwrite_allowed'])
   for key in ('namespace_overwrite_allowed','service_account_overwrite_allowed','pod_annotations_overwrite_allowed','pod_labels_overwrite_allowed'):self.assertEqual(k[key],'')
   self.assertEqual(k['namespace'],'gitlab-ci-platform');self.assertEqual(k['service_account'],'gitlab-ci-job');self.assertNotIn('volumes',k)
+  # Restricted Pod admission checks init containers as well as build/helper.
+  for container in ('init_permissions','build','helper'):
+   self.assertEqual(k[container+'_container_security_context']['capabilities'],{'drop':['ALL']})
+  self.assertFalse(k['allow_privilege_escalation'])
+  self.assertTrue(k['pod_security_context']['run_as_non_root'])
+  terms=k['affinity']['node_affinity']['required_during_scheduling_ignored_during_execution']['node_selector_terms']
+  self.assertEqual(terms,[{'match_expressions':[{'key':'node-role.kubernetes.io/control-plane','operator':'DoesNotExist'},{'key':'node-role.kubernetes.io/master','operator':'DoesNotExist'}]}])
+  def eligible(labels):return all(e['key'] not in labels for e in terms[0]['match_expressions'])
+  self.assertTrue(eligible({}))  # worker without custom role/storage labels
+  self.assertFalse(eligible({'node-role.kubernetes.io/control-plane':'true'}))
+  self.assertFalse(eligible({'node-role.kubernetes.io/control-plane':''}))
+  self.assertFalse(eligible({'node-role.kubernetes.io/master':''}))
+  self.assertEqual(k['node_selector_overwrite_allowed'],'')
   self.assertNotIn('http://gitlab-webservice',text)
  def test_job_boundary_does_not_grant_manager_namespace_or_cluster_access(self):
   objects=build(ROOT/'configuration/packages/gitlab-runner/prerequisites')
@@ -299,3 +313,24 @@ class CoordinatedGitLab(unittest.TestCase):
   peer=operator['ingress'][0]['from'];self.assertEqual(len(peer),1);self.assertEqual(peer[0]['namespaceSelector']['matchLabels'],{'kubernetes.io/metadata.name':'cnpg-system'})
   values=(ROOT/'configuration/packages/cloudnative-pg/values.yaml').read_text();rendered=helm(Path(os.environ['PREFLIGHT_SOURCES_DIR'])/'cnpg','platform-cnpg','cnpg-system',[values]);labels=next(x for x in rendered if x['kind']=='Deployment')['spec']['template']['metadata']['labels'];self.assertTrue(peer[0]['podSelector']['matchLabels'].items()<=labels.items())
   _,app=package_render(ROOT,'gitlab')['gitlab'];web=policies['gitlab-web-from-traefik'];self.assertTrue(any(web['podSelector']['matchLabels'].items()<=x['spec']['template']['metadata']['labels'].items() for x in app if x['kind']=='Deployment'));self.assertEqual(web['ingress'][0]['ports'],[{'protocol':'TCP','port':8181}])
+
+
+class RunnerGitHome(unittest.TestCase):
+ def test_nonroot_git_checkout_with_writable_ephemeral_home(self):
+  import subprocess,tempfile
+  if os.geteuid()==0:self.skipTest('Permission regression requires non-root process')
+  with tempfile.TemporaryDirectory(prefix='runner-git-home-') as directory:
+   p=Path(directory);blocked=p/'unwritable';blocked.mkdir();blocked.chmod(0o500)
+   env={k:v for k,v in os.environ.items() if not k.startswith('GIT_CONFIG')}
+   env.update(HOME=str(blocked),XDG_CONFIG_HOME=str(blocked/'.config'),GIT_CONFIG_NOSYSTEM='1',LC_ALL='C')
+   def git(*args):return subprocess.run(['git',*args],env=env,capture_output=True,text=True)
+   try:
+    old=git('config','--global','init.defaultBranch','main')
+    self.assertNotEqual(old.returncode,0);self.assertIn('Permission denied',old.stderr)
+   finally:blocked.chmod(0o700)
+   home=p/'writable';home.mkdir();env['HOME']=str(home);env['XDG_CONFIG_HOME']=str(home/'.config')
+   self.assertEqual(git('config','--global','init.defaultBranch','main').returncode,0)
+   self.assertEqual(git('init',str(p/'origin')).returncode,0)
+   self.assertEqual(git('-C',str(p/'origin'),'-c','user.name=fixture','-c','user.email=fixture@example.invalid','commit','--allow-empty','-m','fixture').returncode,0)
+   self.assertEqual(git('clone',str(p/'origin'),str(p/'checkout')).returncode,0)
+   self.assertTrue((p/'checkout/.git').is_dir())

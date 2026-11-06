@@ -23,3 +23,20 @@ class CredentialAssembly(unittest.TestCase):
    before=p.read_bytes();r=run();self.assertEqual(r.returncode,0,r.stdout+r.stderr);self.assertIn('changed=0',r.stdout)
    (root/'database_password').write_text('CHANGED_OFFLINE_PASSWORD_123456789');r=run();self.assertNotEqual(r.returncode,0);self.assertEqual(p.read_bytes(),before)
    variables['gitlab_credentials_scope']='WRONG';vf.write_text(json.dumps(variables));self.assertNotEqual(run().returncode,0)
+
+ def test_legacy_and_routable_runner_tokens_and_malformed_refusal(self):
+  from fixtures.gitlab_runner_tokens import routable_runner_token
+  routed=routable_runner_token()
+  cases=[('glrt-OFFLINE_FIXTURE_CANARY',True),(routed,True),(routed.replace('.01.','.02.'),False),(routed[:-1],False),('glpat-OFFLINE_FIXTURE_CANARY',False),(routed+'.extra',False),(routed[:12]+' '+routed[12:],False),(routed[:12]+'\n'+routed[12:],False),(routed.replace('.01.','..01.'),False)]
+  with tempfile.TemporaryDirectory(prefix='gitlab-runner-shapes-') as d:
+   root=Path(d)
+   for number,(token,valid) in enumerate(cases):
+    with self.subTest(case=number):
+     out=root/str(number);out.mkdir(mode=0o700);source=root/('token-'+str(number));source.write_text(token);source.chmod(0o600)
+     variables={'gitlab_credentials_run':True,'gitlab_credentials_profile':'runner','gitlab_credentials_scope':'gitlab-runner-private-assembly-v1','gitlab_credentials_output_dir':str(out),'gitlab_runner_token_file':str(source)}
+     vf=root/'vars';vf.write_text(json.dumps(variables));vf.chmod(0o600)
+     r=subprocess.run(['ansible-playbook','-i','localhost,',str(PLAY),'-e','@'+str(vf)],env={**os.environ,'ANSIBLE_LOCAL_TEMP':str(root/'local'),'ANSIBLE_REMOTE_TEMP':str(root/'remote')},capture_output=True,text=True,timeout=45)
+     self.assertNotIn(token,r.stdout+r.stderr)
+     if valid:
+      self.assertEqual(r.returncode,0,r.stdout+r.stderr);f=out/'runner-credentials.json';self.assertEqual(f.stat().st_mode&0o777,0o600);item=json.loads(f.read_text())['items'][0];self.assertEqual(item['stringData']['runner-token'],token)
+     else:self.assertNotEqual(r.returncode,0);self.assertFalse((out/'runner-credentials.json').exists())

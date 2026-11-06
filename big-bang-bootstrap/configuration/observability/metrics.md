@@ -48,6 +48,28 @@ Grafana human admin, runtime sidecar and installer identities remain separate.
 
 ## Remaining activation gates
 
+### Reconciled staged wiring
+
+`clusters/local-metrics-review` composes the accepted GitLab/runner stage with
+inactive observability values. `clusters/local-metrics-crds` activates only the
+CRD release after protected foundation approval and immutable release selection.
+Neither stage enables monitoring, Grafana, Loki or Alloy. The default root and
+live source are unchanged. Both preserve existing rendered app resources; the
+already-emitted disabled CRD values Secret gains only the keep annotation input.
+
+There is deliberately no metrics activation root yet. A pinned outer render
+shows that enabling `monitoring.enabled` also changes GitLab, runner, Headlamp
+and Keycloak values/checksums/dependencies. GitLab gains exporter/ServiceMonitor
+configuration and a post-renderer; runner gains metrics endpoints/ServiceMonitor;
+Keycloak gains a ServiceMonitor. Those existing installers need their exact
+rendered permissions and service impact checked before selection. Do not select
+the disabled candidate by overriding only `enabled` and `suspend`: successful
+metrics installer checks alone do not validate these existing-app changes.
+
+Next: verify each affected child render and current installer permissions,
+preserve recovery and existing services, then add a separately reviewed metrics
+activation stage. CRD-only readiness is not metrics deployment or acceptance.
+
 No release/root selects these disabled candidates; no permissions, credentials or
 network policies were applied. Before a later selection/promotion: approve the
 architecture and exact source, verify CRD/operator compatibility and actual lookup
