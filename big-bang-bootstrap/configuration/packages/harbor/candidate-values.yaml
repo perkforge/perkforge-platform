@@ -67,7 +67,7 @@ addons:
           enabled: true
           resourcePolicy: keep
           persistentVolumeClaim:
-            registry: {storageClass: longhorn, size: 10Gi}
+            registry: {storageClass: longhorn-dedicated, size: 10Gi}
             jobservice:
               jobLog: {storageClass: longhorn, size: 1Gi}
         trivy: {enabled: false}

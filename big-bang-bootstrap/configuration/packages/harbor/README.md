@@ -32,7 +32,9 @@ references current physical `harbor-service-tls`; no auto self-signed cert, Ingr
 Istio or Gateway API changes. Backend/internal component transport and network
 policies still need review; ClusterIP does not itself authenticate/isolate traffic.
 
-Registry10Gi plus job logs1Gi proposes22Gi Longhorn scheduled data for two replicas,
+Registry10Gi uses the accepted `longhorn-dedicated` class (two replicas, Retain,
+expansion enabled) for future image/chart data. Job logs1Gi stay on `longhorn`.
+This inactive source choice changes no existing claim or data. Together they propose22Gi Longhorn scheduled data for two replicas,
 excluding PostgreSQL/Redis, snapshots, backups and headroom. Workload requests and
 actual push/pull/scanning load must join the whole queued-stack budget. No broad
 low-resource tuning is claimed sufficient for this three-node cluster.

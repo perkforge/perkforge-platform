@@ -12,6 +12,9 @@ class HarborReview(unittest.TestCase):
   for x in self.objects:
    if x['kind']=='Secret':self.assertFalse(x.get('data'));self.assertFalse(x.get('stringData'))
   self.assertNotIn('harborPW',yaml.safe_dump(self.objects));self.assertNotIn('changeit',yaml.safe_dump(self.objects))
+  registry=next(x for x in self.objects if x['kind']=='PersistentVolumeClaim' and x['metadata']['name']=='harbor-registry')
+  self.assertEqual(registry['spec']['storageClassName'],'longhorn-dedicated')
+  self.assertEqual(registry['spec']['resources']['requests']['storage'],'10Gi')
  def test_all_rendered_crud_with_no_cluster_or_bind_authority(self):
   rules=next(x for x in self.foundation if x['kind']=='Role')['rules'];mapping={'Secret':('','secrets'),'ConfigMap':('','configmaps'),'Service':('','services'),'PersistentVolumeClaim':('','persistentvolumeclaims'),'Deployment':('apps','deployments')}
   for x in self.objects:
