@@ -27,6 +27,9 @@ monitoring:
         enabled: false
       prometheus:
         prometheusSpec:
+          # Longhorn CSI is registered only on the labelled storage workers.
+          nodeSelector:
+            storage.perkforge.io/worker: "true"
           replicas: 1
           retention: 7d
           retentionSize: 8GB
@@ -89,6 +92,9 @@ grafana:
     sso:
       enabled: false
     upstream:
+      # Keep the persistent Grafana consumer on Longhorn-capable workers.
+      nodeSelector:
+        storage.perkforge.io/worker: "true"
       replicas: 1
       # No umbrella Secret lookup or usable fallback notification credential.
       # The child-only override above supplies the existing bootstrap reference.
