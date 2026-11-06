@@ -1,0 +1,23 @@
+# Platform-admin-only logging with limited metrics; no host endpoint changes.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-logging-pilot
+- ../../configuration/observability/limited-pilot
+patches:
+- target:
+    group: helm.toolkit.fluxcd.io
+    version: v2
+    kind: HelmRelease
+    name: bigbang
+  patch: |-
+    - op: add
+      path: /spec/valuesFrom/-
+      value:
+        kind: ConfigMap
+        name: values-metrics-limited-pilot
+        valuesKey: values.yaml
+commonAnnotations:
+  platform.perkforge.io/cluster: local
+  platform.perkforge.io/environment: local
+  platform.perkforge.io/profile: il2
