@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.4](https://github.com/perkforge/perkforge-platform/compare/v0.23.3...v0.23.4) (2026-11-06)
+
+
+### Bug Fixes
+
+* place persistent monitoring consumers on storage workers ([#227](https://github.com/perkforge/perkforge-platform/issues/227)) ([f2741c1](https://github.com/perkforge/perkforge-platform/commit/f2741c112fbda5d15b479acfb6bc0a51e613db18))
+
 ## [0.23.3](https://github.com/perkforge/perkforge-platform/compare/v0.23.2...v0.23.3) (2026-11-06)
 
 
