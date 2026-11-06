@@ -323,7 +323,7 @@ model {
           link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
         }
         nextcloud = component 'Nextcloud tenant app example' {
-          description 'Design only: own tenant instance/app client and native file/share/group scopes. TA is not shared-server super-admin. TD/TV business data follows explicit shares, not Kubernetes role names. Supported version/backend/edition must be inspected before implementation. PE: approved code/config MRs, no implicit tenant file/share access.'
+          description 'Disabled preparation: Nextcloud 35 with official user_oidc 8.13.0 artifact; offline image context, separate disabled own-client payload and unselected enrollment issuer egress/public CA. No provider install, user enrollment or SSO activation. Native admin mapping/removal and bounded provisioning remain unapproved; unique OIDC group IDs do not grant native admin. Local recovery preserved. TD/TV data follows explicit shares; PE has no implicit file/share access.'
           link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
         }
         prometheus = component 'Prometheus query boundary' {

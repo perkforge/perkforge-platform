@@ -1,0 +1,26 @@
+# Inert review input, not an occ command or active provider.
+identifier: perkforge-nextcloud
+client_id: nextcloud
+issuer: {{ nextcloud_sso_issuer }}
+discovery_uri: {{ nextcloud_sso_issuer }}/.well-known/openid-configuration
+callback: {{ nextcloud_sso_origin }}/index.php/apps/user_oidc/code
+scope: openid
+mapping_uid: sub
+unique_uid: true
+soft_auto_provision: false
+# No supported activation path until provisioning and native admin decisions are reviewed.
+provisioning_decision: UNAPPROVED
+native_admin_mapping: UNAPPROVED
+mapping_groups: nextcloud_roles
+group_whitelist_regex: '/^(?!)$/'
+group_restrict_login_to_whitelist: true
+group_provisioning: false
+check_bearer: false
+bearer_provisioning: false
+use_pkce: force
+login_validation_audience_check: true
+login_validation_azp_check: true
+login_validation_nonce_check: true
+allow_multiple_user_backends: true
+client_secret_file: /UNCONFIGURED/nextcloud-client-secret
+public_ca_file: /UNCONFIGURED/public-ca.pem

@@ -1,0 +1,46 @@
+- name: Render a disabled Nextcloud client independently of existing app clients
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    nextcloud_sso_render: false
+    nextcloud_sso_origin: https://nextcloud.example.invalid
+    nextcloud_sso_issuer: https://identity.example.invalid/auth/realms/perkforge
+    nextcloud_sso_output: /UNCONFIGURED/nextcloud-sso-review
+  tasks:
+  - name: Require exact independent HTTPS identities
+    ansible.builtin.assert:
+      that:
+      - nextcloud_sso_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+      - nextcloud_sso_issuer is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?(/auth)?/realms/perkforge$')
+      - not nextcloud_sso_issuer.startswith(nextcloud_sso_origin + '/')
+  - ansible.builtin.debug:
+      msg: 'Review preparation only; no API, credentials, grants, native activation or existing SSO app changes.'
+  - when: nextcloud_sso_render | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - nextcloud_sso_output is match('^/') and not nextcloud_sso_output.startswith('/UNCONFIGURED/')
+        - nextcloud_sso_origin is not search('\.invalid$')
+        - nextcloud_sso_issuer is not search('\.invalid/')
+    - ansible.builtin.stat:
+        path: '{{ nextcloud_sso_output }}'
+        follow: false
+      register: destination
+    - ansible.builtin.assert:
+        that: not destination.stat.exists
+        fail_msg: Preserve previous/interrupted output and choose a fresh directory.
+    - ansible.builtin.file:
+        path: '{{ nextcloud_sso_output }}'
+        state: directory
+        mode: '0700'
+    - ansible.builtin.copy:
+        content: "{{ lookup('file', 'client.json') | from_json | combine({'redirectUris':[nextcloud_sso_origin + '/index.php/apps/user_oidc/code']}) | to_nice_json }}"
+        dest: '{{ nextcloud_sso_output }}/client.json'
+        mode: '0600'
+        force: false
+    - ansible.builtin.template:
+        src: provider.yaml.j2
+        dest: '{{ nextcloud_sso_output }}/provider.yaml'
+        mode: '0600'
+        force: false
