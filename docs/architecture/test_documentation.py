@@ -134,6 +134,7 @@ class Documentation(unittest.TestCase):
 
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
         copies={
+         'logging-sso-review.yaml': 'big-bang-bootstrap/configuration/observability/logging-sso-review.yaml',
          'grafana-sso-values.yaml': 'big-bang-bootstrap/configuration/observability/grafana-sso-values.yaml',
          'queued-sso.yaml': 'big-bang-bootstrap/configuration/observability/sso-review.yaml',
          'openbao-data.yaml': 'big-bang-bootstrap/configuration/authorization/sso/tasks/openbao-data.yaml',

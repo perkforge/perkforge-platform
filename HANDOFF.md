@@ -1,5 +1,12 @@
 # Current operator handoff
 
+## Inactive logging draft
+
+The [logging candidate](big-bang-bootstrap/configuration/observability/logging.md)
+adds scoped API collection and authenticated TLS Loki with 3d/10Gi retention.
+No selection, credentials, permissions or live acceptance. Operator-generated
+workloads, Alloy binary validation, query auth and network enforcement remain gates.
+
 ## Current GitLab runner baseline accepted
 
 Observed 2026-11-05 15:15 UTC: owner-triggered pipeline 3, job 4 succeeded on

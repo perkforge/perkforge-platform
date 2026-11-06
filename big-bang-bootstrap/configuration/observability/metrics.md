@@ -90,6 +90,22 @@ and runtime API behavior, current capacity, protected `grafana-admin` plus Regis
 inputs, API-source CIDRs and network-policy behavior. Do not overwrite/adopt
 conflicting resources or loosen webhook/network rules on failure.
 
+`configuration/ansible/metrics-inputs.yaml` is a separate default-off delivery
+entrypoint. It reads operator-provided `admin-username`/`admin-password` files
+only after published-source, clean-checkout, cluster-UID and monitoring namespace
+checks. The directory must be owner-only 0700 and the regular files owner-only
+0600. It creates only immutable monitoring `grafana-admin` and a copy of the
+existing flux-system `private-registry`; the source credential must contain only
+Registry1. It never generates, rotates, prints or exports a credential to GitHub.
+
+All missing inputs receive server validation before the first create. An identical
+owned repeat makes no changes; any unowned or mismatched credential refuses
+adoption/rotation. A partial first delivery can resume only with the same exact
+approved files/source credential. Protected results and stdin stay redacted.
+Actual transmission to the cluster requires action-time approval of
+`metrics_inputs_apply=true`; default/check mode reads no private input or API.
+This does not deliver logging/query/TLS inputs or create an SSO grant.
+
 Initial Grafana remains local platform administration; anonymous/OIDC/ingress off.
 Current routing is Traefik, but this candidate creates no controller-specific
 route. Istio/Gateway API is a future reviewed direction, not a network migration

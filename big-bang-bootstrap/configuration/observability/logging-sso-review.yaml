@@ -1,0 +1,35 @@
+# Not a Helm overlay or an independent OIDC client.
+enabled: false
+review_only: true
+live_apply_implemented: false
+protocol: machine-only
+application: loki-alloy
+human_login: Grafana dedicated OIDC; no direct anonymous/public backend
+machine_identity:
+  collector: reviewed Alloy Kubernetes service account
+  write_credential_ref: existing protected Loki gateway credential
+  query_tenant_header: operator-controlled backend scope, never trust caller-supplied
+    tenant headers
+transport:
+  verify_tls: true
+  skip_certificate_verification: false
+  status: proposed; internal TLS must be verified separately
+recovery:
+  independent_local_access: true
+  custody: independent Kubernetes/operator recovery, protected machine credential
+    custody
+activation_gates:
+- Grafana SSO and org/datasource boundaries
+- collector namespace/label opt-in is not tenant RBAC isolation
+- backend query/write tenant enforcement
+- no direct public ingress
+acceptance:
+  positive:
+  - authorized collector writes; approved Grafana datasource queries
+  negative:
+  - wrong machine credential denied
+  - spoofed tenant header and cross-tenant queries denied
+  - unopted namespaces not collected
+  rollback:
+  - remove only owned datasource/collector grant after evidence
+  - preserve stored logs and other tenant access

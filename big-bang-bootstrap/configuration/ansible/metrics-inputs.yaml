@@ -1,0 +1,158 @@
+- name: Deliver only approved metrics bootstrap and image-pull inputs
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars:
+    metrics_inputs_apply: false
+    metrics_private_dir: /UNCONFIGURED/metrics
+    gitops_path: ./big-bang-bootstrap/clusters/local-metrics-pilot
+  tasks:
+  - name: Default and check mode read no private files or cluster APIs
+    ansible.builtin.debug:
+      msg: 'Metrics input delivery={{ metrics_inputs_apply | bool }}; check={{ ansible_check_mode }}'
+  - name: Deliver separately approved protected inputs without rotation
+    when: metrics_inputs_apply | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - ansible_play_hosts_all == ['local']
+        - deployment_environment == 'local'
+        - impact_profile == 'il2'
+        - gitops_path in ['./big-bang-bootstrap/clusters/local-metrics-crds', './big-bang-bootstrap/clusters/local-metrics-pilot', './big-bang-bootstrap/clusters/local-logging-pilot']
+        - target_kubeconfig != '/UNCONFIGURED/kubeconfig'
+        - target_context != 'UNCONFIGURED'
+        - expected_cluster_uid != 'UNCONFIGURED'
+        - metrics_private_dir is match('^/')
+        - metrics_private_dir != '/UNCONFIGURED/metrics'
+    - ansible.builtin.include_tasks: verify-release.yaml
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', rev-parse, HEAD]
+      register: inputs_head
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', status, --porcelain]
+      register: inputs_changes
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - inputs_head.stdout == config_release.resolvedCommit
+        - inputs_changes.stdout | length == 0
+    - ansible.builtin.set_fact:
+        metrics_k: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}']
+    - ansible.builtin.command:
+        argv: '{{ metrics_k + ["get", "namespace", "kube-system", "-o", "jsonpath={.metadata.uid}"] }}'
+      register: inputs_uid
+      changed_when: false
+    - ansible.builtin.assert:
+        that: inputs_uid.stdout == expected_cluster_uid
+    - ansible.builtin.command:
+        argv: '{{ metrics_k + ["get", "namespace", "monitoring", "-o", "json"] }}'
+      register: inputs_namespace
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (inputs_namespace.stdout | from_json).metadata.labels['app.kubernetes.io/managed-by'] == 'Ansible'
+        - (inputs_namespace.stdout | from_json).metadata.labels['pod-security.kubernetes.io/enforce'] == 'privileged'
+        - (inputs_namespace.stdout | from_json).metadata.labels['pod-security.kubernetes.io/enforce-version'] == 'v1.36'
+    - ansible.builtin.stat:
+        path: '{{ metrics_private_dir }}'
+        follow: false
+        get_checksum: false
+        get_mime: false
+      register: inputs_directory
+    - ansible.builtin.assert:
+        that:
+        - inputs_directory.stat.isdir | default(false)
+        - not inputs_directory.stat.islnk | default(false)
+        - inputs_directory.stat.mode == '0700'
+        - inputs_directory.stat.uid == lookup('pipe', 'id -u') | int
+    - ansible.builtin.stat:
+        path: '{{ metrics_private_dir }}/{{ item }}'
+        follow: false
+        get_checksum: false
+        get_mime: false
+      loop: [admin-username, admin-password]
+      register: inputs_files
+    - ansible.builtin.assert:
+        that:
+        - item.stat.isreg | default(false)
+        - not item.stat.islnk | default(false)
+        - item.stat.mode == '0600'
+        - item.stat.uid == lookup('pipe', 'id -u') | int
+        - item.stat.size > 0
+      loop: '{{ inputs_files.results }}'
+    - ansible.builtin.assert:
+        that:
+        - lookup('file', metrics_private_dir + '/admin-username') is match('^[A-Za-z0-9._-]{1,64}$')
+        - lookup('file', metrics_private_dir + '/admin-password') is match('^[^\r\n]{24,256}$')
+    - name: Read only the existing Flux pull credential under redaction
+      ansible.builtin.command:
+        argv: '{{ metrics_k + ["-n", "flux-system", "get", "secret", "private-registry", "-o", "json"] }}'
+      register: inputs_registry
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (inputs_registry.stdout | from_json).type == 'kubernetes.io/dockerconfigjson'
+        - "'registry1.dso.mil' in ((inputs_registry.stdout | from_json).data['.dockerconfigjson'] | b64decode | from_json).auths"
+        - ((inputs_registry.stdout | from_json).data['.dockerconfigjson'] | b64decode | from_json).auths.keys() | list == ['registry1.dso.mil']
+        - "(((inputs_registry.stdout | from_json).data['.dockerconfigjson'] | b64decode | from_json).auths['registry1.dso.mil'].auth | b64decode).split(':', 1) | length == 2"
+        - "(((inputs_registry.stdout | from_json).data['.dockerconfigjson'] | b64decode | from_json).auths['registry1.dso.mil'].auth | b64decode).split(':', 1)[0] | length > 0"
+        - "(((inputs_registry.stdout | from_json).data['.dockerconfigjson'] | b64decode | from_json).auths['registry1.dso.mil'].auth | b64decode).split(':', 1)[1] | length > 0"
+    - ansible.builtin.set_fact:
+        metrics_desired_inputs:
+        - apiVersion: v1
+          kind: Secret
+          metadata:
+            name: grafana-admin
+            namespace: monitoring
+            labels: {perkforge.io/owner: metrics-inputs-v1}
+          immutable: true
+          type: Opaque
+          data:
+            admin-user: '{{ lookup("file", metrics_private_dir + "/admin-username") | b64encode }}'
+            admin-password: '{{ lookup("file", metrics_private_dir + "/admin-password") | b64encode }}'
+        - apiVersion: v1
+          kind: Secret
+          metadata:
+            name: private-registry
+            namespace: monitoring
+            labels: {perkforge.io/owner: metrics-inputs-v1}
+          immutable: true
+          type: kubernetes.io/dockerconfigjson
+          data:
+            .dockerconfigjson: '{{ (inputs_registry.stdout | from_json).data[".dockerconfigjson"] }}'
+    - name: Inspect only the two named target inputs under redaction
+      ansible.builtin.command:
+        argv: '{{ metrics_k + ["-n", "monitoring", "get", "secret", item.metadata.name, "--ignore-not-found", "-o", "json"] }}'
+      loop: '{{ metrics_desired_inputs }}'
+      register: metrics_existing_inputs
+      changed_when: false
+    - name: Refuse adoption or rotation; allow only an identical owned repeat
+      ansible.builtin.assert:
+        that:
+        - (item.stdout | from_json).metadata.labels['perkforge.io/owner'] | default('') == 'metrics-inputs-v1'
+        - (item.stdout | from_json).immutable | default(false)
+        - (item.stdout | from_json).type == item.item.type
+        - (item.stdout | from_json).data == item.item.data
+      when: item.stdout | trim | length > 0
+      loop: '{{ metrics_existing_inputs.results }}'
+    - name: Server-validate all missing inputs before creating any
+      ansible.builtin.command:
+        argv: '{{ metrics_k + ["create", "--dry-run=server", "-f", "-"] }}'
+        stdin: '{{ item.item | to_json }}'
+      when: item.stdout | trim | length == 0
+      loop: '{{ metrics_existing_inputs.results }}'
+      changed_when: false
+    - name: Create only missing approved inputs through hidden stdin
+      ansible.builtin.command:
+        argv: '{{ metrics_k + ["create", "-f", "-"] }}'
+        stdin: '{{ item.item | to_json }}'
+      when: item.stdout | trim | length == 0
+      loop: '{{ metrics_existing_inputs.results }}'
+      changed_when: true
+    always:
+    - ansible.builtin.set_fact:
+        inputs_registry: {}
+        metrics_desired_inputs: []
+        metrics_existing_inputs: {}
+      no_log: true
