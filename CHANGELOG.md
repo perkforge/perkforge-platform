@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.3](https://github.com/perkforge/perkforge-platform/compare/v0.23.2...v0.23.3) (2026-11-06)
+
+
+### Bug Fixes
+
+* **metrics:** preserve Grafana bootstrap and dashboard ownership ([#225](https://github.com/perkforge/perkforge-platform/issues/225)) ([0a95f84](https://github.com/perkforge/perkforge-platform/commit/0a95f848cf7f25275ea514400374a23f70d102b8))
+
 ## [0.23.2](https://github.com/perkforge/perkforge-platform/compare/v0.23.1...v0.23.2) (2026-11-06)
 
 
