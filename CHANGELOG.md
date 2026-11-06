@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.2](https://github.com/perkforge/perkforge-platform/compare/v0.22.1...v0.22.2) (2026-11-06)
+
+
+### Bug Fixes
+
+* **nextcloud:** select guarded cron activation enrollment ([84ee100](https://github.com/perkforge/perkforge-platform/commit/84ee10093a1864ff34ac9d97878ca24317a45374))
+* **nextcloud:** select guarded cron activation enrollment ([d36ab3d](https://github.com/perkforge/perkforge-platform/commit/d36ab3dccdf6b4042a19601db4df82cf2930c58a))
+
 ## [0.22.1](https://github.com/perkforge/perkforge-platform/compare/v0.22.0...v0.22.1) (2026-11-06)
 
 
