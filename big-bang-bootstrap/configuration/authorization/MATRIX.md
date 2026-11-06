@@ -328,3 +328,4 @@ activation. Native apply wiring remains explicit where unimplemented.
 | Stage | Source implementation and remaining gate |
 |---|---|
 | Monitoring architecture | Dedicated Grafana human client; machine components and Velero have separate Kubernetes/API credentials, not fake browser clients. |
+| Grafana | Optional native OIDC overlay rendered; PA explicit server admin, PE/PV Viewer initially. Strict unmatched/tenant denial; native client/apply and org/datasource isolation remain gates. |

@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: monitoring-trusted-namespace, namespace: monitoring}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: monitoring}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: operator-api-webhook, namespace: monitoring}
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/component: prometheus-operator}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+{% for cidr in metrics_api_server_cidrs %}
+    - ipBlock: {cidr: '{{ cidr }}'}
+{% endfor %}
+    ports: [{protocol: TCP, port: 10250}]

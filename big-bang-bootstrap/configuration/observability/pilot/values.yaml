@@ -1,0 +1,90 @@
+# Cluster metrics pilot: existing app exporters remain in their accepted state.
+# App scrape integration is a later explicit change, not an installer RBAC expansion.
+monitoring:
+  enabled: true
+  flux:
+    suspend: false
+grafana:
+  enabled: true
+  flux:
+    suspend: false
+addons:
+  gitlab:
+    dependsOnOverride: []
+    values:
+      networkPolicies:
+        egress:
+          from:
+            gitlab-exporter: null
+        ingress:
+          to:
+            gitaly:9236:
+              from:
+                k8s:
+                  monitoring-monitoring-kube-prometheus@monitoring/prometheus: false
+            gitlab-exporter:9168:
+              from:
+                k8s:
+                  monitoring-monitoring-kube-prometheus@monitoring/prometheus: false
+            gitlab-runner:9252:
+              from:
+                k8s:
+                  monitoring-monitoring-kube-prometheus@monitoring/prometheus: false
+            registry:5001:
+              from:
+                k8s:
+                  monitoring-monitoring-kube-prometheus@monitoring/prometheus: false
+            webservice:[8083,8084,9229]:
+              from:
+                k8s:
+                  monitoring-monitoring-kube-prometheus@monitoring/prometheus: false
+      upstream:
+        gitlab:
+          gitlab-exporter:
+            enabled: false
+        redis: null
+  gitlabRunner:
+    dependsOnOverride:
+    - name: gitlab
+      namespace: bigbang
+    values:
+      networkPolicies:
+        ingress:
+          to:
+            gitlab-runner:9252:
+              from:
+                k8s:
+                  monitoring-monitoring-kube-prometheus@monitoring/prometheus: false
+      upstream:
+        metrics:
+          enabled: false
+          serviceMonitor:
+            enabled: false
+        service:
+          enabled: false
+  headlamp:
+    dependsOnOverride: []
+    values:
+      networkPolicies:
+        ingress:
+          to:
+            headlamp:4466:
+              from:
+                k8s:
+                  monitoring-monitoring-prometheus-blackbox-exporter@monitoring/prometheus-blackbox-exporter: false
+  keycloak:
+    dependsOn: []
+    dependsOnOverride:
+    - name: longhorn
+      namespace: bigbang
+    values:
+      networkPolicies:
+        ingress:
+          to:
+            keycloak:9000:
+              from:
+                k8s:
+                  monitoring-monitoring-kube-prometheus@monitoring/prometheus: false
+      upstream:
+        serviceMonitor:
+          enabled: false
