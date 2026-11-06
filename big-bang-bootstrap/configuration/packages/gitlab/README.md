@@ -26,6 +26,16 @@ Pod QoS from Guaranteed to Burstable. Later release promotion replaces the Toolb
 Pod under its Recreate strategy, briefly interrupting Toolbox access. The smaller
 reservation is not evidence of demanding backup/recovery performance.
 
+The pinned GitLab chart treats discovery of `monitoring.coreos.com/v1` as enabling
+monitoring even when `global.monitoring.enabled` is false. The source-owned child
+post-renderer removes only `gitlab-gitaly`, `gitlab-webservice` and
+`gitlab-webservice-workhorse` ServiceMonitors in `gitlab` while app scrape
+integration is deferred. Exporters, Pod annotations and installer permissions stay
+unchanged. Offline regression renders include the installed monitoring APIs and
+exercise the actual umbrella and child post-renderers; a default Helm template
+without those APIs does not reproduce this path. Enabling app scrapes later needs
+a separate source/access review, including removal of these exact deletions.
+
 ## Authored configuration entrypoints
 
 Ansible owns all configuration management. Python under verification/filter
