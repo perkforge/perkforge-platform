@@ -85,3 +85,41 @@ class GitLabNamespaceOwnership(unittest.TestCase):
         self.assertEqual(child['spec']['targetNamespace'], 'gitlab')
         self.assertFalse(any(x['kind'] == 'Secret' and x['metadata']['name'] == 'private-registry'
                              for x in self.current))
+
+
+class RunnerNamespaceOwnership(unittest.TestCase):
+    def test_runner_stage_removes_only_preowned_namespace(self):
+        root = build(ROOT/'clusters/local-gitlab-runner')
+        parent = next(x for x in root if x['kind'] == 'HelmRelease'
+                      and x['metadata']['name'] == 'bigbang')
+        raw = helm(Path(os.environ['PREFLIGHT_SOURCES_DIR'])/'bigbang/chart',
+                   'bigbang', 'bigbang', ordered_values(root, parent))
+        renderer = parent['spec']['postRenderers'][0]['kustomize']
+        old_renderer = copy.deepcopy(renderer)
+        target = {'kind': 'Namespace', 'name': 'gitlab-runner'}
+        old_renderer['patches'] = [p for p in old_renderer['patches']
+                                   if p['target'] != target]
+        index = GitLabNamespaceOwnership.indexed
+        render = GitLabNamespaceOwnership.render
+        old = index(render(raw, old_renderer))
+        self.assertIn(('Namespace', None, 'gitlab-runner'), old)
+        old.pop(('Namespace', None, 'gitlab-runner'))
+        current = render(raw, renderer)
+        self.assertEqual(index(current), old)
+        self.assertFalse(any(x['kind'] == 'Namespace' for x in current))
+        child = next(x for x in current if x['kind'] == 'HelmRelease'
+                     and x['metadata']['name'] == 'gitlab-runner')
+        self.assertEqual(child['spec']['targetNamespace'], 'gitlab-runner')
+        self.assertFalse(child['spec']['install']['createNamespace'])
+        foundation = build(ROOT/'configuration/packages/gitlab-runner/prerequisites')
+        namespace = next(x for x in foundation if x['kind'] == 'Namespace'
+                         and x['metadata']['name'] == 'gitlab-runner')
+        self.assertEqual(namespace['metadata']['labels']['perkforge.io/owner'],
+                         'gitlab-runner-foundation-v1')
+        self.assertTrue(all(x['metadata'].get('namespace') == 'bigbang' for x in current))
+        sentinel = {'apiVersion': 'v1', 'kind': 'Namespace',
+                    'metadata': {'name': 'unrelated-fixture', 'labels': {'owner': 'foreign'}}}
+        self.assertEqual(index(render(raw + [sentinel], renderer))[
+            'Namespace', None, 'unrelated-fixture'], sentinel)
+        deletion = {'patches': [p for p in renderer['patches'] if p['target'] == target]}
+        self.assertEqual(index(render(current, deletion)), old)

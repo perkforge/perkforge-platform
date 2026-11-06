@@ -1,0 +1,66 @@
+---
+# Operator-owned cluster-scoped prerequisites; app-root RBAC is unchanged.
+- name: Create only separately reviewed new Longhorn tier classes
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars:
+    longhorn_tiers_apply: false
+    longhorn_tiers_reviewed: false
+    longhorn_tiers_include_single_excess: false
+    longhorn_single_excess_consumers_reviewed: false
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Tier prerequisites apply={{ longhorn_tiers_apply | bool }}; default/check modes make no API calls.'
+  - name: Explicit operator activation only from reviewed published source
+    when: longhorn_tiers_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - inventory_hostname == 'local'
+        - deployment_environment == 'local'
+        - ansible_play_hosts_all | length == 1
+        - longhorn_tiers_reviewed | bool
+        - not (longhorn_tiers_include_single_excess | bool) or (longhorn_single_excess_consumers_reviewed | bool)
+    - ansible.builtin.include_tasks: verify-release.yaml
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', rev-parse, HEAD]
+      register: tier_checkout
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', status, --porcelain]
+      register: tier_changes
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - tier_checkout.stdout == config_release.resolvedCommit
+        - tier_changes.stdout | length == 0
+        - target_kubeconfig != '/UNCONFIGURED/kubeconfig'
+        - target_context != 'UNCONFIGURED'
+        - expected_cluster_uid != 'UNCONFIGURED'
+    - ansible.builtin.set_fact:
+        tier_k: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}']
+        tier_files: "{{ ['storageclass.yaml'] + (['storageclass-single-excess.yaml'] if longhorn_tiers_include_single_excess | bool else []) }}"
+        tier_names: "{{ ['longhorn-dedicated'] + (['longhorn-single-excess'] if longhorn_tiers_include_single_excess | bool else []) }}"
+    - ansible.builtin.command:
+        argv: '{{ tier_k + ["get", "namespace", "kube-system", "-o", "jsonpath={.metadata.uid}"] }}'
+      register: tier_uid
+      changed_when: false
+    - ansible.builtin.assert:
+        that: tier_uid.stdout == expected_cluster_uid
+    - name: Refuse adoption or mutation of existing StorageClasses
+      ansible.builtin.command:
+        argv: '{{ tier_k + ["get", "storageclass"] + tier_names + ["--ignore-not-found", "-o", "name"] }}'
+      register: existing_tiers
+      changed_when: false
+    - ansible.builtin.assert:
+        that: existing_tiers.stdout | trim == ''
+        fail_msg: 'A requested class already exists; inspect ownership instead of adopting or overwriting it.'
+    - name: Server-validate every requested class before creating any
+      ansible.builtin.command:
+        argv: '{{ tier_k + ["create", "--dry-run=server", "-f", playbook_dir + "/../packages/longhorn/dedicated/" + item] }}'
+      loop: '{{ tier_files }}'
+      changed_when: false
+    - name: Create only new explicitly selected tier classes
+      ansible.builtin.command:
+        argv: '{{ tier_k + ["create", "-f", playbook_dir + "/../packages/longhorn/dedicated/" + item] }}'
+      loop: '{{ tier_files }}'

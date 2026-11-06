@@ -100,6 +100,17 @@ spec:
           kind: Namespace
 
           metadata: {name: gitlab}'
+      # Runner foundation owns this namespace before chart activation.
+      - target:
+          kind: Namespace
+          name: gitlab-runner
+        patch: '$patch: delete
+
+          apiVersion: v1
+
+          kind: Namespace
+
+          metadata: {name: gitlab-runner}'
       - target:
           group: helm.toolkit.fluxcd.io
           version: v2

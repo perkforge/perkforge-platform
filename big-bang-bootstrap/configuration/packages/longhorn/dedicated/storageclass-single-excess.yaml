@@ -1,0 +1,21 @@
+# Candidate only. One copy; explicitly opt in only for disposable/recoverable data.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn-single-excess
+  annotations:
+    storageclass.kubernetes.io/is-default-class: 'false'
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  numberOfReplicas: '1'
+  dataEngine: v1
+  dataLocality: disabled
+  replicaAutoBalance: disabled
+  replicaSoftAntiAffinity: disabled
+  replicaDiskSoftAntiAffinity: disabled
+  diskSelector: dedicated-storage,excess-capacity
+  nodeSelector: excess-capacity
+  fsType: ext4
