@@ -64,6 +64,20 @@ jobs:
       with:
         fetch-depth: 0
     - run: python3 -m pip install PyYAML==6.0.3
+    - name: Verify published Nextcloud-only enrollment pin
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        python3 - <<'PYTHON'
+        import json, subprocess, sys, yaml
+        sys.path.insert(0, 'big-bang-bootstrap/tests')
+        from fixtures.selection import release_for
+        rendered = subprocess.check_output(['kubectl', 'kustomize', 'big-bang-bootstrap/enrollments/local-nextcloud'], text=True)
+        source = next(o for o in yaml.safe_load_all(rendered) if o and o['kind'] == 'GitRepository')
+        evidence = json.load(open('release-evidence.json'))['dependencies']['nextcloud-enrollment']
+        release_for(source, evidence)
+        subprocess.run(['bash', 'scripts/verify-release-ref.sh', evidence['repository'], evidence['tag'], evidence['resolvedCommit']], check=True)
+        PYTHON
     # Public test fixture resolution, not bootstrap tenant discovery.
     - name: Read reviewed enrollment release selection
       id: enrollment

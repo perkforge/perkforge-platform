@@ -1,7 +1,54 @@
 # Opt-in logging implementation candidate — inactive
 
-Implements the pinned #38 candidate after [metrics](metrics.md); the root still
+Implements the pinned #38 candidate after [metrics](metrics.md); the default root still
 selects neither monitoring nor logging. This is not live log or auth acceptance.
+
+## Optional source stage
+
+`clusters/local-logging-pilot` composes the merged Nextcloud stage and metrics
+pilot, then enables only the prepared Alloy/Loki packages and a native Grafana
+`loki-pilot` datasource in organization 1. It is not selected live. Preservation
+tests compare the exact Nextcloud enrollment objects and all existing GitLab,
+runner, Headlamp and Keycloak child objects against the metrics pilot.
+
+The datasource replaces the umbrella's automatic editable/plaintext Loki entry
+with the authenticated HTTPS gateway, immutable configuration and verified CA/
+hostname checks. Grafana references monitoring `loki-query-auth` keys `username`
+and `password`, plus monitoring `loki-ca` key `ca.crt`, through environment-backed
+native provisioning. No secret value, client-supplied tenant header or automatic
+credential copy is added. The single-dollar password expansion avoids Grafana's
+documented double-expansion issue. See [native provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/).
+
+Deliver those protected inputs separately, along with the existing collector and
+gateway/backend TLS/auth inputs, before selection. Foundation-owned logging/alloy
+Namespaces are omitted only from the umbrella render. Failed install/upgrade
+cleanup remains disabled. No public route or human OIDC mapping is enabled.
+
+## Initial pilot access
+
+The initial pilot is **platform-admin-only**. Keep anonymous access, tenant
+accounts, platform-engineer/viewer access and public Loki/Alloy endpoints off.
+The optional Grafana SSO review overlay is not permission to enable its proposed
+Viewer mappings during this pilot. No tenant-safe log datasource is implemented.
+
+The gateway's authenticated username supplies the Loki tenant identity; labels
+and dashboard filters do not authorize data access. Its current machine identity
+permits both reads and writes within that tenant. A Grafana Viewer role does not
+turn that credential into a read-only backend identity or isolate separate users.
+Do not share this pilot datasource with tenant organizations/users. Separate
+datasource/backend authorization and live cross-tenant denials remain gates.
+
+Planned acceptance must exercise correct and incorrect credentials, spoofed
+`X-Scope-OrgID`, direct-backend bypass, unopted namespaces and cross-tenant queries.
+Inspect actual operator-created workloads and collector configuration before
+collecting production logs. Preserve stored logs and existing services on failure;
+do not relax authentication, collection scope or network boundaries to pass tests.
+
+The metrics pilot now composes the merged Nextcloud database-only stage and its
+preservation tests compare the exact enrollment objects. A later logging root
+must retain that composition. Live Nextcloud acceptance, published-source checks
+and owner-local CA unlock remain independent gates; a successful offline render
+does not select either pilot. No concurrent platform-root promotion is performed.
 
 ## Who does what and why
 
@@ -70,7 +117,25 @@ Source lookup review found Alloy's legacy upgrade migration lookup and Loki's
 StatefulSet recreation lookup; both supported automatic migration/recreation
 switches are explicitly off. This is not a proof of every future upgrade branch.
 
-No Alloy/Loki binary validation, controller execution, network/auth allow/deny,
+The official Alloy v1.18.0 CLI (revision `a435563`) accepted the exact rendered
+7,011-byte collector configuration with `validate` at generally-available stability.
+The official `alloy-linux-amd64.zip` archive was checked against GitHub's release
+asset digest `92f4c950aec4ec16a7fdbf6f805be4334d4d5fbbe458eecf514319c1c491bef4`.
+This checks syntax/components/required properties; it starts no collector and
+does not verify the separately packaged Iron Bank runtime image. It uses no
+Kubernetes credential or live API. Reproduce the optional check with:
+
+```sh
+ALLOY_VALIDATE_BIN=/absolute/path/to/verified/alloy-linux-amd64 \
+PYTHONPATH=big-bang-bootstrap/tests PREFLIGHT_SOURCES_DIR=/path/to/pinned-fixtures \
+KUBECONFIG=/dev/null python3 -m unittest \
+  security.test_logging_installer.LoggingInstaller.test_optional_exact_alloy_binary_validates_rendered_configuration -v
+```
+
+See the [official release](https://github.com/grafana/alloy/releases/tag/v1.18.0)
+and [validator scope](https://grafana.com/docs/alloy/latest/reference/cli/validate/).
+
+No Loki binary validation, controller execution, network/auth allow/deny,
 actual log ingestion/query/redaction/cardinality, disk retention/load, admin login,
 upgrade/redeploy or independent restore has run. Preserve the Alloy CRD and data;
 chart uninstall includes finalizer/removal hooks and needs separate approval.
