@@ -1,0 +1,72 @@
+# Included only inside logging-inputs.yaml's approved, validated, redacted block.
+- ansible.builtin.set_fact:
+    logging_desired_inputs:
+    - apiVersion: v1
+      kind: Secret
+      metadata: {name: loki-backend-tls, namespace: logging, labels: {perkforge.io/owner: logging-inputs-v1}}
+      immutable: true
+      type: kubernetes.io/tls
+      data:
+        tls.crt: '{{ lookup("file", logging_tls_dir + "/backend/tls.crt") | b64encode }}'
+        tls.key: '{{ lookup("file", logging_tls_dir + "/backend/tls.key") | b64encode }}'
+    - apiVersion: v1
+      kind: Secret
+      metadata: {name: loki-gateway-tls, namespace: logging, labels: {perkforge.io/owner: logging-inputs-v1}}
+      immutable: true
+      type: kubernetes.io/tls
+      data:
+        tls.crt: '{{ lookup("file", logging_tls_dir + "/gateway/tls.crt") | b64encode }}'
+        tls.key: '{{ lookup("file", logging_tls_dir + "/gateway/tls.key") | b64encode }}'
+        ca.crt: '{{ lookup("file", logging_ca_file) | b64encode }}'
+    - apiVersion: v1
+      kind: Secret
+      metadata: {name: loki-gateway-auth, namespace: logging, labels: {perkforge.io/owner: logging-inputs-v1}}
+      immutable: true
+      type: Opaque
+      data:
+        .htpasswd: '{{ (lookup("file", logging_private_dir + "/htpasswd") ~ "\n") | b64encode }}'
+    - apiVersion: v1
+      kind: Secret
+      metadata: {name: loki-client-auth, namespace: alloy, labels: {perkforge.io/owner: logging-inputs-v1}}
+      immutable: true
+      type: Opaque
+      data:
+        username: '{{ lookup("file", logging_private_dir + "/username") | b64encode }}'
+        password: '{{ lookup("file", logging_private_dir + "/password") | b64encode }}'
+        tenantId: '{{ lookup("file", logging_private_dir + "/username") | b64encode }}'
+        cert: ''
+        key: ''
+    - apiVersion: v1
+      kind: Secret
+      metadata: {name: loki-query-auth, namespace: monitoring, labels: {perkforge.io/owner: logging-inputs-v1}}
+      immutable: true
+      type: Opaque
+      data:
+        username: '{{ lookup("file", logging_private_dir + "/username") | b64encode }}'
+        password: '{{ lookup("file", logging_private_dir + "/password") | b64encode }}'
+    - apiVersion: v1
+      kind: Secret
+      metadata: {name: private-registry, namespace: logging, labels: {perkforge.io/owner: logging-inputs-v1}}
+      immutable: true
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: '{{ (logging_registry.stdout | from_json).data[".dockerconfigjson"] }}'
+    - apiVersion: v1
+      kind: Secret
+      metadata: {name: private-registry, namespace: alloy, labels: {perkforge.io/owner: logging-inputs-v1}}
+      immutable: true
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: '{{ (logging_registry.stdout | from_json).data[".dockerconfigjson"] }}'
+    - apiVersion: v1
+      kind: ConfigMap
+      metadata: {name: loki-ca, namespace: monitoring, labels: {perkforge.io/owner: logging-inputs-v1}}
+      immutable: true
+      data:
+        ca.crt: '{{ lookup("file", logging_ca_file) }}'
+    - apiVersion: v1
+      kind: ConfigMap
+      metadata: {name: loki-ca, namespace: alloy, labels: {perkforge.io/owner: logging-inputs-v1}}
+      immutable: true
+      data:
+        ca.crt: '{{ lookup("file", logging_ca_file) }}'
