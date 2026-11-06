@@ -1,0 +1,20 @@
+# Offline review inputs only; no cluster root loads this file.
+# Decimal advertised bytes are planning estimates, not measured filesystem sizes.
+# Reserve baseline: 30% of measured formatted filesystem capacity, rounded up
+# to whole bytes. The separate shared 25% minimum-free scheduling threshold stays.
+# Values below only illustrate arithmetic on advertised capacity (150 / 300 GB).
+# Copy privately and replace capacities with measured bytes and snapshots with fresh
+# full nodes.longhorn.io objects. Never invent host UUIDs or Longhorn disk UUIDs.
+longhorn_disk_plan:
+- node: worker-1
+  disk_name: dedicated-t7
+  path: /mnt/longhorn-t7
+  capacity_bytes: 500000000000
+  reserve_bytes: 150000000000
+  snapshot: {} # fresh nodes.longhorn.io worker-1 JSON/YAML, not Kubernetes Node
+- node: worker-2
+  disk_name: dedicated-t7
+  path: /mnt/longhorn-t7
+  capacity_bytes: 1000000000000
+  reserve_bytes: 300000000000
+  snapshot: {}

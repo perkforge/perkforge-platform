@@ -1,0 +1,83 @@
+---
+# Offline only: no kubeconfig or live executor. Never change existing replicas.
+- name: Render guarded activation of already registered unused dedicated disks
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    longhorn_activation_reviewed: false
+  tasks:
+  - name: Require complete explicitly reviewed activation inputs
+    ansible.builtin.assert:
+      that:
+      - longhorn_activation_reviewed | bool
+      - longhorn_activation_plan is defined
+      - longhorn_activation_plan is sequence and longhorn_activation_plan is not string
+      - longhorn_activation_plan | length == 2
+      - longhorn_activation_plan | map(attribute='node') | unique | length == 2
+      - longhorn_activation_plan | selectattr('single_replica_excess', 'equalto', true) | list | length == 1
+      - longhorn_activation_plan | map(attribute='capacity_bytes') | unique | length == 2
+      - longhorn_activation_output is defined and longhorn_activation_output is match('^/')
+  - ansible.builtin.stat:
+      path: '{{ longhorn_activation_output }}'
+      follow: false
+    register: activation_output
+  - ansible.builtin.assert:
+      that:
+      - activation_output.stat.isdir | default(false)
+      - not activation_output.stat.islnk | default(false)
+      - activation_output.stat.mode == '0700'
+      - activation_output.stat.uid == lookup('pipe', 'id -u') | int
+  - name: Validate measured capacities, existing identity and unused Ready disks
+    ansible.builtin.assert:
+      quiet: true
+      that:
+      - item.node is match('^[a-z0-9][a-z0-9-]*$')
+      - item.disk_name is match('^[a-z0-9][a-z0-9-]*$')
+      - item.path is match('^/mnt/[A-Za-z0-9_-]+$')
+      - item.capacity_bytes is integer and item.capacity_bytes > 0
+      - item.reserve_bytes is integer and item.reserve_bytes == ((item.capacity_bytes * 30 + 99) // 100)
+      - item.reserve_bytes > 0 and item.capacity_bytes > item.reserve_bytes
+      - item.disk_uuid is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      - item.single_replica_excess is boolean
+      - not item.single_replica_excess or item.capacity_bytes == (longhorn_activation_plan | map(attribute='capacity_bytes') | max)
+      - item.snapshot.apiVersion == 'longhorn.io/v1beta2'
+      - item.snapshot.kind == 'Node'
+      - item.snapshot.metadata.namespace == 'longhorn-system'
+      - item.snapshot.metadata.name == item.node
+      - item.snapshot.metadata.uid | length > 0
+      - item.snapshot.metadata.resourceVersion | string | length > 0
+      - item.snapshot.spec.allowScheduling
+      - item.snapshot.spec.disks[item.disk_name].path == item.path
+      - item.snapshot.spec.disks[item.disk_name].diskType == 'filesystem'
+      - not item.snapshot.spec.disks[item.disk_name].allowScheduling
+      - not item.snapshot.spec.disks[item.disk_name].evictionRequested
+      - item.snapshot.spec.disks[item.disk_name].storageReserved == item.reserve_bytes
+      - item.snapshot.spec.disks[item.disk_name].tags == ['dedicated-storage']
+      - item.snapshot.spec.tags | default([]) is sequence
+      - "'excess-capacity' not in (item.snapshot.spec.tags | default([]))"
+      - item.snapshot.status.diskStatus[item.disk_name].diskUUID == item.disk_uuid
+      - item.snapshot.status.diskStatus[item.disk_name].storageMaximum == item.capacity_bytes
+      - item.snapshot.status.diskStatus[item.disk_name].storageScheduled == 0
+      - item.snapshot.status.diskStatus[item.disk_name].scheduledReplica | default({}) | length == 0
+      - item.snapshot.status.diskStatus[item.disk_name].conditions | selectattr('type', 'equalto', 'Ready') | selectattr('status', 'equalto', 'True') | list | length == 1
+    loop: '{{ longhorn_activation_plan }}'
+    no_log: true
+  - name: Refuse overwriting review artifacts
+    ansible.builtin.stat:
+      path: '{{ longhorn_activation_output }}/{{ item.node }}.json'
+      follow: false
+    loop: '{{ longhorn_activation_plan }}'
+    register: activation_prior
+    no_log: true
+  - ansible.builtin.assert:
+      that: not item.stat.exists
+    loop: '{{ activation_prior.results }}'
+    no_log: true
+  - name: Render additive placement tags and scheduling gate only
+    ansible.builtin.template:
+      src: templates/longhorn-disk-activation.json.j2
+      dest: '{{ longhorn_activation_output }}/{{ item.node }}.json'
+      mode: '0600'
+    loop: '{{ longhorn_activation_plan }}'
+    no_log: true

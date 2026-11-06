@@ -1,0 +1,70 @@
+---
+- name: Prove an unused dedicated mount guard and remount one worker at a time
+  hosts: rke2_agents
+  serial: 1
+  any_errors_fatal: true
+  gather_facts: false
+  become: true
+  vars:
+    ssd_acceptance_apply: false
+    ssd_acceptance_reviewed: false
+    ssd_acceptance_unregistered: false
+    ssd_spec: "{{ longhorn_mount_plan | selectattr('node', 'equalto', inventory_hostname) | first }}"
+    ssd_verify_command: >-
+      ../files/verify-longhorn-mount.py
+      --uuid {{ ssd_spec.uuid | quote }} --serial {{ ssd_spec.usb_serial | quote }}
+      --label {{ ssd_spec.label | quote }} --bytes {{ ssd_spec.raw_size_bytes }}
+      --path {{ ssd_spec.path | quote }}
+  tasks:
+  - name: Run only explicitly reviewed unused-SSD acceptance, never check mode
+    when: ssd_acceptance_apply | bool and not ansible_check_mode
+    block:
+    - name: Require explicit unused-disk review before any worker connection
+      ansible.builtin.assert:
+        that:
+        - ssd_acceptance_reviewed | bool
+        - ssd_acceptance_unregistered | bool
+        - inventory_hostname not in groups.get('rke2_servers', [])
+        - longhorn_mount_plan | selectattr('node', 'equalto', inventory_hostname) | list | length == 1
+        - ssd_spec.path is match('^/mnt/[A-Za-z0-9_-]+$')
+    - ansible.builtin.command:
+        argv: [hostname]
+      register: ssd_hostname
+      changed_when: false
+    - ansible.builtin.assert:
+        that: ssd_hostname.stdout | trim == inventory_hostname
+    - name: Verify the exact mounted SSD and protected evidence before unmounting
+      ansible.builtin.script:
+        cmd: '{{ ssd_verify_command }} --require-mounted'
+      changed_when: false
+    - name: Confirm no Longhorn or other data exists on this unused filesystem
+      ansible.builtin.find:
+        paths: '{{ ssd_spec.path }}'
+        recurse: false
+        hidden: true
+        file_type: any
+      register: ssd_existing
+      no_log: true
+    - ansible.builtin.assert:
+        that:
+        - ssd_existing.matched == 0
+        - ssd_existing.skipped_paths | length == 0
+        fail_msg: 'The SSD is occupied; acceptance must not unmount it.'
+    - name: Normally unmount only the verified unused SSD; busy mounts must fail
+      ansible.builtin.command:
+        argv: [umount, '{{ ssd_spec.path }}']
+    - name: Verify the uncovered recorded inode and prove root writes are refused
+      ansible.builtin.script:
+        cmd: '{{ ssd_verify_command }} --prove-guard'
+      changed_when: false
+    - name: Remount the exact verified fstab entry
+      ansible.builtin.command:
+        argv: [mount, '{{ ssd_spec.path }}']
+    - name: Reverify mounted identity and measured capacity after the guard test
+      ansible.builtin.script:
+        cmd: '{{ ssd_verify_command }} --require-mounted'
+      register: ssd_after
+      changed_when: false
+    - name: Report acceptance and current filesystem capacity
+      ansible.builtin.debug:
+        msg: '{{ ssd_after.stdout | from_json }}'

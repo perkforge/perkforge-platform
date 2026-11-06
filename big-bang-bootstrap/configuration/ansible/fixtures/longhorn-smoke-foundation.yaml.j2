@@ -13,7 +13,7 @@ metadata:
   namespace: {{ storage_test_namespace }}
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: longhorn
+  storageClassName: {{ storage_test_storage_class | default('longhorn') }}
   resources:
     requests:
       storage: 1Gi

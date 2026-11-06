@@ -1,5 +1,14 @@
 # One coordinated GitLab, Keycloak and runner outcome
 
+Current observed state (2026-11-05) supersedes the dated rollout notes below:
+the owner has used root recovery and named SSO after the native admin grant;
+the released 4G webservice correction is active with reconcilers unsuspended.
+Runner 1 is registered paused/locked/protected for the private acceptance project.
+Its token is preserved in the created receipt; a routable-v1 format guard fix
+is prepared, with no re-registration/reset or manager deployment. Resume that
+receipt only after review/release. Real runner jobs/denials, non-admin GitLab
+login denial and independent restore are not yet accepted.
+
 This feature reconciles only GitLab scope from old #114 against current
 main, preserving the existing application acceptance evidence. No observability
 predecessor is a runtime dependency and no old PR base is retargeted. All normal
@@ -436,7 +445,11 @@ runner maximum (the installed GitLab minimum). The acceptance job retains its
 separate five-minute timeout; raising the runner cap does not lengthen that job.
 No receipt plus an existing matching runner refuses adoption. Write creation
 intent before POST, store one-time glrt token privately, and never retry uncertain
-creation blindly or reset/rotate it. Activation needs separately verified manager
+creation blindly or reset/rotate it. Token custody accepts legacy `glrt-` values
+and the pinned GitLab 19.4.2 routable v1 format, retaining receipt/project identity
+checks. A saved created receipt is resumed, never registered again merely because
+format validation stopped after creation. This is format validation, not a token
+authentication or CRC-signature claim. Activation needs separately verified manager
 readiness. Pause does not cancel jobs or revoke credentials; active jobs prevent
 a false drained result. Rollback must separately verify job/pod cleanup.
 
