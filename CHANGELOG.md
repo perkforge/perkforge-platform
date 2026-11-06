@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.2](https://github.com/perkforge/perkforge-platform/compare/v0.23.1...v0.23.2) (2026-11-06)
+
+
+### Bug Fixes
+
+* **gitlab:** suppress unselected discovered ServiceMonitors ([#223](https://github.com/perkforge/perkforge-platform/issues/223)) ([72dd82e](https://github.com/perkforge/perkforge-platform/commit/72dd82eace48797f7642c89be623bcdd77908eb4))
+
 ## [0.23.1](https://github.com/perkforge/perkforge-platform/compare/v0.23.0...v0.23.1) (2026-11-06)
 
 
