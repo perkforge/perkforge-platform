@@ -76,8 +76,10 @@ else:
         self.inventory = self.folder / 'inventory.yaml'
         self.inventory.write_text('all:\n  children:\n    bootstrap_clusters:\n      hosts:\n        local:\n          ansible_connection: local\n      vars:\n        deployment_environment: local\n        impact_profile: il2\n        target_kubeconfig: /synthetic/kubeconfig\n        target_context: synthetic\n        expected_cluster_uid: expected-uid\n')
 
-    def run_play(self, apply=False, check=False):
+    def run_play(self, apply=False, check=False, stage=None):
         variables = {'logging_inputs_apply': apply, 'logging_private_dir': str(self.private), 'logging_tls_dir': str(self.tls), 'logging_ca_file': str(self.ca), 'logging_expected_ca_sha256': self.fingerprint}
+        if stage is not None:
+            variables['gitops_path'] = './big-bang-bootstrap/clusters/' + stage
         env = {**os.environ, 'PATH': str(self.bin) + ':' + os.environ['PATH'], 'KUBECONFIG': '/dev/null',
                'METRICS_FAKE_STATE': str(self.state), 'SSL_CERT_DIR': str(self.folder / 'ambient-trust'), 'ANSIBLE_LOCAL_TEMP': str(self.folder / 'ansible-temp'),
                'ANSIBLE_REMOTE_TEMP': str(self.folder / 'ansible-remote')}
@@ -90,6 +92,18 @@ else:
 
     def mutations(self):
         return [x for x in json.loads(self.state.read_text())['calls'] if x[0] in ('create', 'dry-run')]
+
+    def test_backend_stage_preserves_delivery_and_repeat(self):
+        result = self.run_play(True, stage='local-logging-backend')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = self.run_play(True, stage='local-logging-backend')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('changed=0', result.stdout)
+
+    def test_unrelated_stage_refuses_before_api_access(self):
+        result = self.run_play(True, stage='local-nextcloud')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(json.loads(self.state.read_text())['calls'], [])
 
     def test_default_and_check_modes_read_no_inputs_or_api(self):
         shutil.rmtree(self.private)

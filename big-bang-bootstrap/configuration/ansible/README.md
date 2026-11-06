@@ -338,7 +338,7 @@ and separate approval; no release/source promotion occurred for this API operati
 ## Logging pilot protected inputs
 
 `logging-inputs.yaml` defaults off and reads no private files or Kubernetes API in
-that state or in check mode. It is limited to the released `local-logging-pilot`
+that state or in check mode. It is limited to the released `local-logging-pilot` or `local-logging-backend`
 source, the pinned physical cluster UID, and prepared monitoring/logging/alloy
 namespaces. This is input delivery, not workload activation or acceptance.
 
