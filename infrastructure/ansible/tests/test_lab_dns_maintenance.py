@@ -142,6 +142,38 @@ class DNSMaintenance(unittest.TestCase):
         self.assertEqual(self.restarts(), 2)
         self.assertFalse((self.backup/'maintenance.lock').exists())
 
+    def grafana_base(self):
+        self.original += ''.join('host-record='+name+'.perkforge.home.arpa,10.0.0.2\n'
+                                 for name in ('gitlab','gitlab-objects','nextcloud'))
+        self.config.write_text(self.original)
+        self.digest = hashlib.sha256(self.original.encode()).hexdigest()
+
+    def test_grafana_preserves_seven_records_and_is_idempotent(self):
+        self.grafana_base()
+        first = self.run_fixture(scope='grafana-dns-record-v1')
+        self.assertEqual(first.returncode, 0, first.stdout+first.stderr)
+        final = self.config.read_text()
+        self.assertTrue(final.startswith(self.original))
+        self.assertEqual(final.count('host-record=grafana.perkforge.home.arpa,10.0.0.2'), 1)
+        self.assertEqual((self.backup/(self.digest+'.conf')).read_text(), self.original)
+        repeat = self.run_fixture(scope='grafana-dns-record-v1')
+        self.assertEqual(repeat.returncode, 0, repeat.stdout+repeat.stderr)
+        self.assertIn('changed=0', repeat.stdout)
+        self.assertEqual(self.restarts(), 1)
+
+    def test_grafana_restart_failure_restores_seven_records(self):
+        self.grafana_base()
+        result = self.run_fixture('restart', scope='grafana-dns-record-v1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.config.read_text(), self.original)
+        self.assertEqual(self.restarts(), 2)
+
+    def test_grafana_missing_prior_records_refuses_without_write(self):
+        result = self.run_fixture(scope='grafana-dns-record-v1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.config.read_text(), self.original)
+        self.assertFalse(self.backup.exists())
+
     def test_nextcloud_requires_existing_gitlab_records(self):
         r = self.run_fixture(scope='nextcloud-dns-record-v1')
         self.assertNotEqual(r.returncode, 0)

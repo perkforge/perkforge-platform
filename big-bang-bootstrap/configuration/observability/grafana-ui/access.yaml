@@ -1,0 +1,24 @@
+# Owner-admin prerequisite, never included in the root receiving this authority.
+# Kubernetes cannot limit create by resourceNames: disclosure and approval required.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: grafana-ui-writer, namespace: monitoring}
+rules:
+- apiGroups: [networking.k8s.io]
+  resources: [ingresses, networkpolicies]
+  verbs: [create]
+- apiGroups: [networking.k8s.io]
+  resources: [ingresses]
+  resourceNames: [grafana-lab]
+  verbs: [get, patch, update]
+- apiGroups: [networking.k8s.io]
+  resources: [networkpolicies]
+  resourceNames: [grafana-from-traefik]
+  verbs: [get, patch, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: grafana-ui-writer, namespace: monitoring}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: grafana-ui-writer}
+subjects:
+- {kind: ServiceAccount, name: platform-reconciler, namespace: flux-system}

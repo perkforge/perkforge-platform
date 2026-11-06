@@ -1,0 +1,24 @@
+# Lab-only activation requires verified DNS, dedicated TLS and external exposure checks.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana-lab
+  namespace: monitoring
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: 'true'
+spec:
+  ingressClassName: traefik
+  tls:
+  - hosts: [grafana.perkforge.home.arpa]
+    secretName: grafana-local-tls
+  rules:
+  - host: grafana.perkforge.home.arpa
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: monitoring-grafana
+            port: {number: 80}
