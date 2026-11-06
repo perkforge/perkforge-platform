@@ -355,7 +355,8 @@ Supply a 0700 `logging_tls_dir` with 0700 `gateway` and `backend` directories,
 each containing 0600 `tls.crt` and `tls.key`. The certificates must have exactly
 the corresponding service DNS identity (`logging-loki-gateway.logging.svc.cluster.local`
 and `logging-loki.logging.svc.cluster.local`), match their keys, chain to the
-0600 public `logging_ca_file`, permit server authentication, and remain valid
+0600 public `logging_ca_file` (exactly one pinned certificate, with no host-default
+trust fallback), permit server authentication, and remain valid
 for more than 30 days. Pin the public certificate's DER SHA256 fingerprint in
 `logging_expected_ca_sha256`. No CA signing key is read or delivered.
 

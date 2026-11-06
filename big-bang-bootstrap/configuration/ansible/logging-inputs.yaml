@@ -121,7 +121,8 @@
         - logging_htpasswd.split('$')[1] == '6'
         - logging_htpasswd.split('$')[2] is match('^[./A-Za-z0-9]{1,16}$')
         - logging_htpasswd.split('$')[3] is match('^[./A-Za-z0-9]{86}$')
-        - "'PRIVATE KEY' not in lookup('file', logging_ca_file)"
+        - "lookup('file', logging_ca_file) | regex_findall('-----BEGIN [^-]+-----') == ['-----BEGIN CERTIFICATE-----']"
+        - "lookup('file', logging_ca_file) | regex_findall('-----END [^-]+-----') == ['-----END CERTIFICATE-----']"
     - name: Validate the one SHA512-crypt gateway entry against the protected machine password
       ansible.builtin.command:
         argv: [openssl, passwd, '-6', '-salt', '{{ logging_htpasswd.split("$")[2] }}', '-stdin']
@@ -138,7 +139,7 @@
         that: logging_ca_fingerprint.stdout.split('=')[1] | replace(':', '') | lower == logging_expected_ca_sha256
     - name: Verify leaf chains, server purposes and exact service hostnames
       ansible.builtin.command:
-        argv: [openssl, verify, '-CAfile', '{{ logging_ca_file }}', '-untrusted', '{{ logging_tls_dir }}/{{ item.folder }}/tls.crt', '-purpose', sslserver, '-verify_hostname', '{{ item.hostname }}', '{{ logging_tls_dir }}/{{ item.folder }}/tls.crt']
+        argv: [openssl, verify, '-trusted', '{{ logging_ca_file }}', '-untrusted', '{{ logging_tls_dir }}/{{ item.folder }}/tls.crt', '-purpose', sslserver, '-verify_hostname', '{{ item.hostname }}', '{{ logging_tls_dir }}/{{ item.folder }}/tls.crt']
       loop: '{{ logging_leaves }}'
       changed_when: false
     - ansible.builtin.command:

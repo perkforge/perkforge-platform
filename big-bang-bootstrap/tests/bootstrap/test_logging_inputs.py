@@ -79,7 +79,7 @@ else:
     def run_play(self, apply=False, check=False):
         variables = {'logging_inputs_apply': apply, 'logging_private_dir': str(self.private), 'logging_tls_dir': str(self.tls), 'logging_ca_file': str(self.ca), 'logging_expected_ca_sha256': self.fingerprint}
         env = {**os.environ, 'PATH': str(self.bin) + ':' + os.environ['PATH'], 'KUBECONFIG': '/dev/null',
-               'METRICS_FAKE_STATE': str(self.state), 'ANSIBLE_LOCAL_TEMP': str(self.folder / 'ansible-temp'),
+               'METRICS_FAKE_STATE': str(self.state), 'SSL_CERT_DIR': str(self.folder / 'ambient-trust'), 'ANSIBLE_LOCAL_TEMP': str(self.folder / 'ansible-temp'),
                'ANSIBLE_REMOTE_TEMP': str(self.folder / 'ansible-remote')}
         result = subprocess.run(['ansible-playbook', '-i', str(self.inventory), str(self.play), '-e', json.dumps(variables)] + (['--check'] if check else []), capture_output=True, text=True, env=env, timeout=120)
         self.assertNotIn(PASSWORD, result.stdout + result.stderr)
@@ -161,5 +161,26 @@ else:
 
     def test_mismatched_private_key_refuses_before_api_delivery(self):
         shutil.copyfile(self.tls / 'gateway/tls.key', self.tls / 'backend/tls.key')
+        self.assertNotEqual(self.run_play(True).returncode, 0)
+        self.assertEqual(self.mutations(), [])
+
+    def test_ambient_host_trust_cannot_override_the_pinned_ca(self):
+        # Put the actual issuer in host-default trust, but pin a different CA.
+        trust = self.folder / 'ambient-trust'; trust.mkdir()
+        shutil.copyfile(self.ca, trust / 'issuer.pem')
+        subprocess.run(['openssl', 'rehash', str(trust)], check=True, capture_output=True)
+        other = self.folder / 'other-ca.crt'
+        subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', str(self.folder / 'other-ca.key'), '-out', str(other), '-days', '60', '-subj', '/CN=Different-synthetic-CA'], check=True, capture_output=True)
+        other.chmod(0o600); self.ca = other
+        self.fingerprint = subprocess.run(['openssl', 'x509', '-in', str(other), '-noout', '-fingerprint', '-sha256'], check=True, text=True, capture_output=True).stdout.strip().split('=')[1].replace(':', '').lower()
+        self.assertNotEqual(self.run_play(True).returncode, 0)
+        self.assertEqual(self.mutations(), [])
+
+    def test_appended_unpinned_ca_is_not_accepted_as_a_bundle(self):
+        issuer = self.ca.read_text()
+        other = self.folder / 'bundle.crt'
+        subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', str(self.folder / 'bundle-ca.key'), '-out', str(other), '-days', '60', '-subj', '/CN=Pinned-but-unrelated-synthetic-CA'], check=True, capture_output=True)
+        self.fingerprint = subprocess.run(['openssl', 'x509', '-in', str(other), '-noout', '-fingerprint', '-sha256'], check=True, text=True, capture_output=True).stdout.strip().split('=')[1].replace(':', '').lower()
+        other.write_text(other.read_text() + issuer); other.chmod(0o600); self.ca = other
         self.assertNotEqual(self.run_play(True).returncode, 0)
         self.assertEqual(self.mutations(), [])
