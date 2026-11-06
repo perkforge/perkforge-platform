@@ -23,6 +23,8 @@ addons:
         initdbPassword: null
       redis-bb: {enabled: false}
       upstream:
+        caBundleSecretName: harbor-public-ca
+        caSecretName: harbor-public-ca
         externalURL: https://harbor.UNCONFIGURED.invalid
         expose:
           type: clusterIP
@@ -59,11 +61,13 @@ addons:
             addr: UNCONFIGURED-redis.invalid:6379
             existingSecret: harbor-redis
             password: null
+            tlsOptions:
+              enable: true
         persistence:
           enabled: true
           resourcePolicy: keep
           persistentVolumeClaim:
-            registry: {storageClass: longhorn, size: 10Gi}
+            registry: {storageClass: longhorn-dedicated, size: 10Gi}
             jobservice:
               jobLog: {storageClass: longhorn, size: 1Gi}
         trivy: {enabled: false}

@@ -17,13 +17,24 @@ Do not overwrite existing stores or assume password replacement resets admin.
 
 External PostgreSQL and Redis are deliberately UNCONFIGURED. Bundled dependencies
 are off rather than deploying their vendor example passwords. PostgreSQL verify-full
-is requested, but actual server CA/client trust mounts, Redis TLS, service endpoints
-and supported versions need completion before selection. ClusterIP service TLS
+is requested. Native `upstream.redis.external.tlsOptions.enable=true` renders
+`rediss` URLs and registry `enableTLS`; `upstream.caBundleSecretName` references
+`harbor-public-ca` key `ca.crt` at the native custom-CA mount in its consumers.
+This is a public CA bundle only, never a signing key.
+The same public-CA Secret is explicitly selected by `caSecretName` for core's
+CA-download volume; leaving it empty with externally supplied service TLS makes
+the pinned chart render an invalid empty Secret volume.
+Actual container trust-store
+loading, verified database/Redis server identities, service endpoints and supported
+versions still need completion and live positive/negative TLS checks before selection.
+ClusterIP service TLS
 references current physical `harbor-service-tls`; no auto self-signed cert, Ingress,
 Istio or Gateway API changes. Backend/internal component transport and network
 policies still need review; ClusterIP does not itself authenticate/isolate traffic.
 
-Registry10Gi plus job logs1Gi proposes22Gi Longhorn scheduled data for two replicas,
+Registry10Gi uses the accepted `longhorn-dedicated` class (two replicas, Retain,
+expansion enabled) for future image/chart data. Job logs1Gi stay on `longhorn`.
+This inactive source choice changes no existing claim or data. Together they propose22Gi Longhorn scheduled data for two replicas,
 excluding PostgreSQL/Redis, snapshots, backups and headroom. Workload requests and
 actual push/pull/scanning load must join the whole queued-stack budget. No broad
 low-resource tuning is claimed sufficient for this three-node cluster.

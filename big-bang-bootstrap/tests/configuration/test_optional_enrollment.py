@@ -1,5 +1,6 @@
 """The authoritative local root excludes enrollment until explicit opt-in."""
 import json
+import copy
 import os
 import subprocess
 from pathlib import Path
@@ -12,11 +13,25 @@ from fixtures.selection import release_for
 ROOT = Path(__file__).resolve().parents[2]
 
 class OptionalEnrollmentTests(unittest.TestCase):
-    def test_nextcloud_stage_preserves_packages_and_selects_only_its_enrollment_path(self):
+    def test_nextcloud_stage_preserves_packages_except_explicit_operator_watch(self):
         baseline=build(ROOT/'clusters/local-gitlab-runner')
         proposed=build(ROOT/'clusters/local-nextcloud')
         existing=[x for x in proposed if x['metadata']['name']!='tenant-enrollments']
-        canonical=lambda xs:sorted(json.dumps(x,sort_keys=True) for x in xs)
+        baseline=copy.deepcopy(baseline)
+        expected=next(x for x in baseline if x['kind']=='HelmRelease' and x['metadata']['name']=='platform-cnpg')
+        watch='gitlab,tenant-home-nextcloud'
+        expected['spec']['values']={'config':{'data':{'WATCH_NAMESPACE':watch}}}
+        patch=expected['spec']['postRenderers'][0]['kustomize']['patches'][0]
+        parsed=yaml.safe_load(patch['patch'])
+        parsed['spec']['template']['spec']['containers'][0]['env'][0]['value']=watch
+        patch['patch']=yaml.safe_dump(parsed)
+        def canonical(xs):
+            xs=copy.deepcopy(xs)
+            for x in xs:
+                for renderer in x.get('spec',{}).get('postRenderers',[]):
+                    for patch in renderer.get('kustomize',{}).get('patches',[]):
+                        patch['patch']=yaml.safe_load(patch['patch'])
+            return sorted(json.dumps(x,sort_keys=True) for x in xs)
         self.assertEqual(canonical(baseline),canonical(existing))
         enrolled=[x for x in proposed if x['metadata']['name']=='tenant-enrollments']
         self.assertEqual({x['kind'] for x in enrolled},{'GitRepository','Kustomization'})
