@@ -72,8 +72,8 @@ class DNSMaintenance(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_fixture(self, mode='', digest=None):
-        variables = {'lab_dns_config': str(self.config), 'lab_dns_unit': str(self.unit),
+    def run_fixture(self, mode='', digest=None, scope='gitlab-dns-records-v1'):
+        variables = {'lab_dns_maintenance_scope': scope, 'lab_dns_config': str(self.config), 'lab_dns_unit': str(self.unit),
                      'lab_dns_backup': str(self.backup),
                      'lab_dns_owner': pwd.getpwuid(os.getuid()).pw_name,
                      'lab_dns_binary': str(self.bin / 'dnsmasq'),
@@ -113,6 +113,41 @@ class DNSMaintenance(unittest.TestCase):
         self.assertEqual(self.restarts(), 1)
         self.assertEqual(self.config.read_text(), final)
         self.assertFalse((self.backup/'maintenance.lock').exists())
+
+    def test_nextcloud_preserves_six_existing_records_and_is_idempotent(self):
+        self.original += ''.join('host-record='+name+'.perkforge.home.arpa,10.0.0.2\n'
+                                 for name in ('gitlab','gitlab-objects'))
+        self.config.write_text(self.original)
+        self.digest = hashlib.sha256(self.original.encode()).hexdigest()
+        first = self.run_fixture(scope='nextcloud-dns-record-v1')
+        self.assertEqual(first.returncode, 0, first.stdout+first.stderr)
+        final = self.config.read_text()
+        self.assertTrue(final.startswith(self.original))
+        self.assertEqual(final.count('host-record=nextcloud.perkforge.home.arpa,10.0.0.2'), 1)
+        self.assertEqual((self.backup/(self.digest+'.conf')).read_text(), self.original)
+        repeat = self.run_fixture(scope='nextcloud-dns-record-v1')
+        self.assertEqual(repeat.returncode, 0, repeat.stdout+repeat.stderr)
+        self.assertIn('changed=0', repeat.stdout)
+        self.assertEqual(self.restarts(), 1)
+
+    def test_nextcloud_restart_failure_restores_all_six_records(self):
+        self.original += ''.join('host-record='+name+'.perkforge.home.arpa,10.0.0.2\n'
+                                 for name in ('gitlab','gitlab-objects'))
+        self.config.write_text(self.original)
+        self.digest = hashlib.sha256(self.original.encode()).hexdigest()
+        r = self.run_fixture('restart', scope='nextcloud-dns-record-v1')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('original configuration restored', r.stdout)
+        self.assertEqual(self.config.read_text(), self.original)
+        self.assertEqual(self.restarts(), 2)
+        self.assertFalse((self.backup/'maintenance.lock').exists())
+
+    def test_nextcloud_requires_existing_gitlab_records(self):
+        r = self.run_fixture(scope='nextcloud-dns-record-v1')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(self.config.read_text(), self.original)
+        self.assertFalse(self.backup.exists())
+        self.assertEqual(self.restarts(), 0)
 
     def test_drift_and_foreign_unit_refused_before_backup_or_write(self):
         self.config.write_text(self.original+'# unreviewed change\n')
