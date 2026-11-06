@@ -32,6 +32,17 @@ references current physical `harbor-service-tls`; no auto self-signed cert, Ingr
 Istio or Gateway API changes. Backend/internal component transport and network
 policies still need review; ClusterIP does not itself authenticate/isolate traffic.
 
+Core explicitly sets `PGSSLROOTCERT=/harbor_cust_cert/custom-ca.crt` so the
+PostgreSQL driver selects the already mounted public CA, including its schema
+migrator. A custom-CA mount/system trust update alone does not establish this
+database-driver configuration. This follows the pinned [Harbor connection and
+migration source](https://github.com/goharbor/harbor/blob/v2.15.2/src/common/dao/pgsql.go)
+and its [pgx v5.10.0 environment/TLS parser](https://github.com/jackc/pgx/blob/v5.10.0/pgconn/config.go).
+Exact image/runtime positive and wrong-CA/hostname tests remain required.
+The single-core pilot bounds its database pool at 50 open/10 idle connections,
+instead of the native 900/100 defaults; this is a ceiling, not a reservation or
+proof of adequate PostgreSQL capacity. Exporter/scanner remain off.
+
 Registry10Gi uses the accepted `longhorn-dedicated` class (two replicas, Retain,
 expansion enabled) for future image/chart data. Job logs1Gi stay on `longhorn`.
 This inactive source choice changes no existing claim or data. Together they propose22Gi Longhorn scheduled data for two replicas,
@@ -56,6 +67,36 @@ Before activation: choose data services/capacity, protected input custody, exact
 PKI and network boundaries, approve scoped grants/release selection, then verify
 trusted admin login, authenticated push/pull and denial, retained data and isolated
 restore. User owns any eventual temporary credential-cache migration.
+
+## Shortest isolated data-service path — approval still required
+
+Use dedicated Harbor PostgreSQL and a dedicated TLS/authenticated Valkey instance;
+do not add users/databases to the accepted GitLab/Nextcloud clusters or share their
+credentials/cache. Harbor 2.15.2 [adopted Valkey](https://github.com/goharbor/harbor-helm/releases/tag/v1.19.2),
+so the pinned existing Valkey chart is a candidate for reuse as a separate release,
+not evidence that external TLS/authentication has passed. Keep the single-writer
+Recreate/RWO design and distinct Redis indexes (core 0, jobs 1, registry 2);
+password-only auth uses `REDIS_PASSWORD` from the dedicated `harbor-redis` Secret.
+No Sentinel/cluster or new operator is needed for this pilot.
+
+Reusing the shared CNPG operator requires an additive Harbor watch/namespace Role
+review that preserves both current watches (`gitlab`, `tenant-home-nextcloud`).
+Do not replace the current watch configuration or rerun provider installation.
+The operator gains management of Harbor database workloads and Secrets; this is
+an action-time access decision. A new namespaced data installer, immutable inputs,
+database/cache certificates and public CA delivery also need reviewed source.
+Database/cache PVC sizes and resource requests remain undecided: count two
+Longhorn replicas plus existing registry/job-log 22Gi, snapshots and headroom
+before selecting them. Small single instances accept downtime and do not provide
+independent backup/restore by themselves.
+
+Publish/apply the approved foundation and empty data-only stage before enabling
+Harbor: verify TLS identities, wrong CA/hostname/password/plaintext denials,
+cross-namespace denial, persistence and unchanged existing claims/services.
+Then approve the scanner-deferred scope, deliver the Harbor-only protected inputs,
+and select an empty platform-admin-only app pilot. Admin access, authenticated
+push/pull/denial and isolated restore remain acceptance gates. No data stage,
+credential, namespace grant, certificate or workload is created by this proposal.
 
 [Exact package](https://repo1.dso.mil/big-bang/product/packages/harbor/-/tree/1.19.2-bb.3),
 [Harbor chart](https://github.com/goharbor/harbor-helm/tree/v1.19.2),

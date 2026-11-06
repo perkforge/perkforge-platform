@@ -38,6 +38,9 @@ addons:
           existingSecret: harbor-core-auth
           secretName: harbor-token-signing
           existingXsrfSecret: harbor-xsrf
+          extraEnvVars:
+          - name: PGSSLROOTCERT
+            value: /harbor_cust_cert/custom-ca.crt
         jobservice:
           existingSecret: harbor-jobservice-auth
           existingSecretKey: JOBSERVICE_SECRET
@@ -47,6 +50,9 @@ addons:
           credentials: {existingSecret: harbor-registry-credentials, password: null}
         database:
           type: external
+          # Bound the native 900-connection pool for the single-core home-lab pilot.
+          maxOpenConns: 50
+          maxIdleConns: 10
           internal: {password: null}
           external:
             host: UNCONFIGURED-postgresql.invalid
