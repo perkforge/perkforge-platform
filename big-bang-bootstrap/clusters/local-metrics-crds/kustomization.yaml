@@ -18,6 +18,17 @@ patches:
     name: bigbang
   patch: |-
     - op: add
+      path: /spec/postRenderers/0/kustomize/patches/-
+      value:
+        target:
+          kind: Namespace
+          name: monitoring
+        patch: |-
+          $patch: delete
+          apiVersion: v1
+          kind: Namespace
+          metadata: {name: monitoring}
+    - op: add
       path: /spec/valuesFrom/-
       value:
         kind: ConfigMap

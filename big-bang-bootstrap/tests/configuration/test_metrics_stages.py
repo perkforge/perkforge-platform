@@ -2,8 +2,9 @@
 import os
 from pathlib import Path
 import unittest
+import re
 
-from fixtures.render_helpers import build, helm, ordered_values
+from fixtures.render_helpers import build, helm, ordered_values, child_values, release_name
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -40,8 +41,41 @@ class MetricsStages(unittest.TestCase):
                 self.assertTrue(all(not x['spec']['suspend'] for x in releases))
 
     def test_default_root_remains_unmodified_and_logs_stay_off(self):
-        for stage in ('local', 'local-metrics-review', 'local-metrics-crds'):
+        for stage in ('local', 'local-metrics-review', 'local-metrics-crds', 'local-metrics-pilot'):
             releases = {x['metadata']['name'] for x in self.render(stage) if x['kind'] == 'HelmRelease'}
             self.assertFalse({'loki', 'alloy'} & releases)
             if stage == 'local':
                 self.assertFalse({'monitoring', 'grafana', 'prometheus-operator-crds'} & releases)
+
+    def test_pilot_preserves_existing_child_workloads_without_new_installer_authority(self):
+        before, after = self.render('local-gitlab-runner'), self.render('local-metrics-pilot')
+        sources = Path(os.environ['PREFLIGHT_SOURCES_DIR'])
+        for name in ('gitlab', 'gitlab-runner', 'headlamp', 'keycloak'):
+            with self.subTest(package=name):
+                children = []
+                releases = []
+                for outer in (before, after):
+                    hr = next(x for x in outer if x['kind'] == 'HelmRelease' and x['metadata']['name'] == name)
+                    releases.append(hr)
+                    objects = helm(sources / name / 'chart', release_name(hr), hr['spec']['targetNamespace'], child_values(outer, name))
+                    for obj in objects:
+                        # Upstream hashes all coalesced values, including an inert redis:null.
+                        # Permit only the two shared-secret hook names to differ; compare their
+                        # complete PodSpecs, commands, references and hook policies unchanged.
+                        if name == 'gitlab' and obj['kind'] == 'Job':
+                            obj['metadata']['name'] = re.sub(r'^(gitlab-shared-secrets-)[0-9a-f]{7}(?=-selfsign$|$)', r'\1HASH', obj['metadata']['name'])
+                    children.append(objects)
+                self.assertEqual(children[0], children[1])
+                self.assertEqual(releases[0]['spec'].get('dependsOn'), releases[1]['spec'].get('dependsOn'))
+                self.assertEqual(releases[0]['spec']['serviceAccountName'], releases[1]['spec']['serviceAccountName'])
+        selected = {x['metadata']['name']: x for x in after if x['kind'] == 'HelmRelease'}
+        for name in ('monitoring', 'grafana', 'prometheus-operator-crds'):
+            self.assertFalse(selected[name]['spec']['suspend'])
+            spec = selected[name]['spec']
+            for operation in ('install', 'upgrade'):
+                self.assertEqual(spec[operation]['remediation']['retries'], 0)
+                self.assertFalse(spec[operation]['remediation']['remediateLastFailure'])
+            self.assertFalse(spec['upgrade']['cleanupOnFail'])
+        parent = next(x for x in build(ROOT / 'clusters/local-metrics-pilot') if x['kind'] == 'HelmRelease' and x['metadata']['name'] == 'bigbang')
+        patches = parent['spec']['postRenderers'][0]['kustomize']['patches']
+        self.assertTrue(any(x['target'] == {'kind': 'Namespace', 'name': 'monitoring'} and '$patch: delete' in x['patch'] for x in patches))
