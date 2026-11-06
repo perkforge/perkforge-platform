@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.20.0](https://github.com/perkforge/perkforge-platform/compare/v0.19.0...v0.20.0) (2026-11-06)
+
+
+### Features
+
+* **dns:** add guarded Nextcloud record maintenance ([#201](https://github.com/perkforge/perkforge-platform/issues/201)) ([1986213](https://github.com/perkforge/perkforge-platform/commit/1986213461bb25eb29724cc1f9d2b534023dfaf6))
+* **monitoring:** implement inactive metrics and Grafana foundations ([#111](https://github.com/perkforge/perkforge-platform/issues/111)) ([e17b5e7](https://github.com/perkforge/perkforge-platform/commit/e17b5e75d7cc040dc58ec9e02556708cbc9e1977))
+* **nextcloud:** add release-pinned platform data-stage selection ([#200](https://github.com/perkforge/perkforge-platform/issues/200)) ([be40d77](https://github.com/perkforge/perkforge-platform/commit/be40d77e69252ecdeee9004c8c0ed7b49d37fe80))
+* **observability:** review architecture and bounded inactive values ([#108](https://github.com/perkforge/perkforge-platform/issues/108)) ([fc2ad86](https://github.com/perkforge/perkforge-platform/commit/fc2ad8616fc2f1e7d415b1249dc463e8715f7315))
+
+
+### Bug Fixes
+
+* **release:** record the actual published release commit ([#197](https://github.com/perkforge/perkforge-platform/issues/197)) ([c47a7f9](https://github.com/perkforge/perkforge-platform/commit/c47a7f949a27dd561a72da19d2eea1aaf0e2ff89))
+
 ## [0.19.0](https://github.com/perkforge/perkforge-platform/compare/v0.18.4...v0.19.0) (2026-11-05)
 
 
