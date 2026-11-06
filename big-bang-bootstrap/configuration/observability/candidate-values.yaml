@@ -10,10 +10,13 @@ monitoring:
     install:
       remediation:
         retries: 0
+        remediateLastFailure: false
       createNamespace: false
     upgrade:
+      cleanupOnFail: false
       remediation:
         retries: 0
+        remediateLastFailure: false
     serviceAccountName: monitoring-installer
     storageNamespace: monitoring
   values:
@@ -66,10 +69,13 @@ grafana:
     install:
       remediation:
         retries: 0
+        remediateLastFailure: false
       createNamespace: false
     upgrade:
+      cleanupOnFail: false
       remediation:
         retries: 0
+        remediateLastFailure: false
     serviceAccountName: grafana-installer
     storageNamespace: monitoring
   values:
@@ -140,10 +146,13 @@ prometheusOperatorCRDs:
     install:
       remediation:
         retries: 0
+        remediateLastFailure: false
       createNamespace: false
     upgrade:
+      cleanupOnFail: false
       remediation:
         retries: 0
+        remediateLastFailure: false
     serviceAccountName: prometheus-crds-installer
     storageNamespace: monitoring
   values:

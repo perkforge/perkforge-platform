@@ -71,6 +71,11 @@ class MetricsStages(unittest.TestCase):
         selected = {x['metadata']['name']: x for x in after if x['kind'] == 'HelmRelease'}
         for name in ('monitoring', 'grafana', 'prometheus-operator-crds'):
             self.assertFalse(selected[name]['spec']['suspend'])
+            spec = selected[name]['spec']
+            for operation in ('install', 'upgrade'):
+                self.assertEqual(spec[operation]['remediation']['retries'], 0)
+                self.assertFalse(spec[operation]['remediation']['remediateLastFailure'])
+            self.assertFalse(spec['upgrade']['cleanupOnFail'])
         parent = next(x for x in build(ROOT / 'clusters/local-metrics-pilot') if x['kind'] == 'HelmRelease' and x['metadata']['name'] == 'bigbang')
         patches = parent['spec']['postRenderers'][0]['kustomize']['patches']
         self.assertTrue(any(x['target'] == {'kind': 'Namespace', 'name': 'monitoring'} and '$patch: delete' in x['patch'] for x in patches))
