@@ -13,7 +13,10 @@ External data services, TLS/network/capacity and explicit scanner scope need rev
 preserve vendor rules while selecting Grafana's built-in Alertmanager as the
 eventual single notification owner; no route is armed or notifications sent.
 Default-off readiness capture is not completed #40
-acceptance. ntfy payload/auth decision and all physical monitoring tests remain.
+acceptance. Native ntfy v2.37.2 component tests verify a minimal status/count
+formatter, TLS denials and separate exact-topic publisher/subscriber permissions.
+No ntfy server or Grafana contact point is deployed; endpoint, protected identities,
+Grafana integration and physical notification acceptance remain gates.
 
 ## Inactive logging draft
 
