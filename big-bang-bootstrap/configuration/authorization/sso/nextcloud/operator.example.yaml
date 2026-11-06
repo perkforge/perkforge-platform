@@ -10,6 +10,8 @@ nextcloud_sso_issuer: https://identity.example.invalid/auth/realms/perkforge
 nextcloud_operator_token_file: /UNCONFIGURED/operator-token
 nextcloud_client_secret_file: /UNCONFIGURED/client-secret
 nextcloud_ca_file: /UNCONFIGURED/public-ca.pem
+# Confirmed target: Corey existing verified sub -> owner; do not resolve by username/email.
+# Jett household enrollment is deferred. Keep this empty until separate action-time approval.
 nextcloud_subjects: []
 nextcloud_native_revoked_subjects: []
 

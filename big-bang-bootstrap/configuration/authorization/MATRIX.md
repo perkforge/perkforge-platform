@@ -340,3 +340,17 @@ review. Source adapters now bound JIT creation to reviewed direct own-client
 roles, and native admin grant/removal verifies exact provider/subject/backend.
 Removal disables that account and revokes its Nextcloud tokens before own-client
 role revocation. Unique OIDC groups do not map directly to native admin.
+
+### Confirmed Nextcloud access target
+
+| Person/identity | Intended authority | Activation boundary |
+|---|---|---|
+| Corey, existing Keycloak identity | Retain platform-admin; grant this tenant's own-client `owner` role and explicitly verified native Nextcloud admin | Resolve the existing immutable subject UUID; separately approve and test the direct grant and native mapping |
+| Existing local Nextcloud admin | Retain native admin for recovery | Keep credentials/account unchanged and verify independent local login before and after every identity stage |
+| Jett, future ordinary Nextcloud user | Own-client `household`, ordinary non-admin Nextcloud access | Deferred: do not create, enroll or grant access now; require a later approved exact subject and negative admin tests |
+
+These are confirmed design targets, not executed grants. Platform-admin is not
+assumed to imply native Nextcloud admin, and no username/email linking or broad
+group mapper is introduced. Tenant-admin here means administration of the dedicated
+Nextcloud instance, not new Kubernetes authority or access to other tenants.
+Fixture role tests do not establish that either person's live identity mapping works.

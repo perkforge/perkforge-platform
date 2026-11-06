@@ -125,3 +125,21 @@ Use `operator.example.yaml` only as an external input template; every run flag
 and approval remains off/unapproved. Native routing can select only one exact
 indexed or pretty callback path, and the app verifies its generated callback
 against that selection before activation. Never register both as a convenience.
+
+## Confirmed people and retained recovery
+
+Corey's existing Keycloak identity is the intended owner: preserve his existing
+platform-admin authority and separately grant the dedicated Nextcloud client owner
+role plus verified native Nextcloud admin. Resolve the existing immutable subject;
+do not create a duplicate identity or link by username/email. Platform-admin group
+membership alone is not evidence of native admin. Before relying on SSO, test the
+actual browser account, native administration, removal/resumption and unchanged
+platform access, with independent local recovery login before and after.
+
+Jett is intended to become an ordinary household user, with no native admin or
+platform authority from Nextcloud. Creation/enrollment/grants are deferred, so the
+operator example keeps `nextcloud_subjects: []`. No account or credential is to be
+created as part of recording this target. A later separately approved test must
+prove ordinary access and denied admin operations. The current local admin stays
+unchanged as recovery. Existing offline owner/household tests are synthetic and
+are not live evidence for Corey or Jett.
