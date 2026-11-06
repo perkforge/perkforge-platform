@@ -1,0 +1,21 @@
+# Private copy required. No cluster root reads this file; values fail closed.
+# Capture fresh full nodes.longhorn.io snapshots after registered disks are Ready.
+# disk_uuid is the Longhorn-generated ID, not the host filesystem UUID.
+# Exactly one designated node/disk receives the excess-capacity tag.
+longhorn_activation_plan:
+- node: worker-1
+  disk_name: dedicated-t7
+  path: /mnt/longhorn-t7
+  capacity_bytes: 0
+  reserve_bytes: 0
+  disk_uuid: UNCONFIGURED
+  single_replica_excess: false
+  snapshot: {}
+- node: worker-2
+  disk_name: dedicated-t7
+  path: /mnt/longhorn-t7
+  capacity_bytes: 0
+  reserve_bytes: 0
+  disk_uuid: UNCONFIGURED
+  single_replica_excess: true
+  snapshot: {}

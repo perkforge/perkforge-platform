@@ -1,0 +1,29 @@
+# Select only after released-source and privileged-foundation approval.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-metrics-review
+configMapGenerator:
+- name: values-metrics-crds-activation
+  namespace: bigbang
+  files:
+  - values.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+patches:
+- target:
+    group: helm.toolkit.fluxcd.io
+    version: v2
+    kind: HelmRelease
+    name: bigbang
+  patch: |-
+    - op: add
+      path: /spec/valuesFrom/-
+      value:
+        kind: ConfigMap
+        name: values-metrics-crds-activation
+        valuesKey: values.yaml
+commonAnnotations:
+  platform.perkforge.io/cluster: local
+  platform.perkforge.io/environment: local
+  platform.perkforge.io/profile: il2

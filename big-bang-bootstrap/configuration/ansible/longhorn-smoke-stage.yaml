@@ -68,6 +68,7 @@
 - ansible.builtin.assert:
     that:
     - (bound_claim.stdout | from_json).status.phase == 'Bound'
+    - (bound_claim.stdout | from_json).spec.storageClassName == storage_test_storage_class
     - storage_stage.name == 'initial' or (bound_claim.stdout | from_json).metadata.uid == storage_claim_uid
 - ansible.builtin.set_fact:
     storage_claim_uid: '{{ (bound_claim.stdout | from_json).metadata.uid }}'

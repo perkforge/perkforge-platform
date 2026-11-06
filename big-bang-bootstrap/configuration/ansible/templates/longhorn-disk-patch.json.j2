@@ -1,0 +1,9 @@
+{{ [
+  {'op': 'test', 'path': '/metadata/uid', 'value': item.snapshot.metadata.uid},
+  {'op': 'test', 'path': '/metadata/resourceVersion', 'value': item.snapshot.metadata.resourceVersion},
+  {'op': 'test', 'path': '/spec/disks', 'value': item.snapshot.spec.disks},
+  {'op': 'add', 'path': '/spec/disks/' + item.disk_name,
+   'value': {'path': item.path, 'diskType': 'filesystem', 'allowScheduling': false,
+             'evictionRequested': false, 'storageReserved': item.reserve_bytes,
+             'tags': ['dedicated-storage']}}
+] | to_nice_json }}
