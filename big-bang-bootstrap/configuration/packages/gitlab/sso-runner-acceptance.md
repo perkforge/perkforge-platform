@@ -12,7 +12,7 @@ outside OIDC and retain its recovery password in the owner-run encrypted USB
 workflow. Export selection includes the existing root recovery password; only an
 owner-local encrypted export and byte comparison prove archive coverage. Never
 print passwords, archive passphrases, PATs or runner tokens in review evidence.
-The webservice memory correction must be released, promoted and stable first.
+The webservice memory correction was promoted and owner root/named SSO logins were reported. Independent restore and real non-admin GitLab denial remain unverified.
 
 ## Named SSO — owner-approved live batch
 
@@ -92,3 +92,14 @@ a privately supplied authorized API credential, approved pull-credential copies
 and endpoint egress. Named account approval/native authority and fresh browser
 MFA are owner actions. Merge does not supply or approve those inputs. Keep all
 tokens and credentials outside Git, and verify actual function after deployment.
+
+## Current runner execution evidence
+
+Owner-triggered pipeline 3/job 4 passed on worker-2 at 2026-11-05 15:15 UTC using
+existing runner ID 1 and protected main commit 8ad6c47d. Checkout, non-root/no-Pod-
+API-token/zero-effective-capability assertions and artifact upload passed. The
+artifact was independently downloaded and its exact expected bytes verified.
+The source-owned init, HOME and placement fixes are active; no permission or
+credential expansion was required. See the [runner guide](../gitlab-runner/README.md).
+This establishes the basic protected-runner outcome, not the separate negative
+runner/CNI cases, independent restore or real non-admin GitLab denial.

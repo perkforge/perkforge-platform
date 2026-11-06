@@ -1,0 +1,121 @@
+---
+- name: Verify worker identity before any change
+  ansible.builtin.command:
+    argv: [hostname]
+  register: longhorn_mount_hostname
+  changed_when: false
+- ansible.builtin.assert:
+    that: longhorn_mount_hostname.stdout | trim == inventory_hostname
+- ansible.builtin.setup:
+    gather_subset: [min]
+- ansible.builtin.assert:
+    that:
+    - ansible_facts.distribution == 'RedHat'
+    - ansible_facts.distribution_version == '10.2'
+    - ansible_facts.architecture == 'x86_64'
+    - ansible_facts.selinux.mode == 'enforcing'
+    - longhorn_mount_options == 'rw,noatime,nosuid,nodev,nofail,x-systemd.device-timeout=15s,x-systemd.device-bound'
+- name: Read-only disk, mount, fstab and guard preflight
+  ansible.builtin.script:
+    cmd: >-
+      ../files/verify-longhorn-mount.py
+      --uuid {{ longhorn_mount_spec.uuid | quote }}
+      --serial {{ longhorn_mount_spec.usb_serial | quote }}
+      --label {{ longhorn_mount_spec.label | quote }}
+      --bytes {{ longhorn_mount_spec.raw_size_bytes }}
+      --path {{ longhorn_mount_spec.path | quote }}
+  register: longhorn_mount_before
+  changed_when: false
+- ansible.builtin.set_fact:
+    longhorn_mount_state: '{{ longhorn_mount_before.stdout | from_json }}'
+- name: Inspect existing configuration parents without following symlinks
+  ansible.builtin.stat:
+    path: '{{ item }}'
+    follow: false
+  loop: [/etc/perkforge, /etc/perkforge/longhorn-mounts]
+  register: longhorn_mount_parents
+- ansible.builtin.assert:
+    that:
+    - not item.stat.exists or (item.stat.isdir | default(false) and not (item.stat.islnk | default(false)) and item.stat.uid == 0)
+  loop: '{{ longhorn_mount_parents.results }}'
+- name: Create only an absent empty underlying mount directory
+  ansible.builtin.file:
+    path: '{{ longhorn_mount_spec.path }}'
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  when: not longhorn_mount_state.mounted and not longhorn_mount_state.guard.exists
+- name: Protect the unmounted empty root-filesystem directory
+  ansible.builtin.file:
+    path: '{{ longhorn_mount_spec.path }}'
+    attributes: +i
+  when: not longhorn_mount_state.mounted and not longhorn_mount_state.guard.immutable
+- name: Prove root writes to the immutable underlying directory are denied
+  ansible.builtin.script:
+    cmd: >-
+      ../files/verify-longhorn-mount.py
+      --uuid {{ longhorn_mount_spec.uuid | quote }}
+      --serial {{ longhorn_mount_spec.usb_serial | quote }}
+      --label {{ longhorn_mount_spec.label | quote }}
+      --bytes {{ longhorn_mount_spec.raw_size_bytes }}
+      --path {{ longhorn_mount_spec.path | quote }} --prove-guard
+  register: longhorn_mount_proof
+  changed_when: false
+  when: not longhorn_mount_state.mounted
+- name: Retain the verified underlying inode identity, never an SSD inode
+  ansible.builtin.set_fact:
+    longhorn_mount_guard: '{{ (longhorn_mount_proof.stdout | from_json).guard }}'
+  when: not longhorn_mount_state.mounted
+- name: Create protected host configuration directory
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  loop: [/etc/perkforge, /etc/perkforge/longhorn-mounts]
+- name: Record verified root-directory guard ownership without replacing prior markers
+  ansible.builtin.copy:
+    dest: '/etc/perkforge/longhorn-mounts/{{ longhorn_mount_spec.path | basename }}.json'
+    content: '{{ guard_marker | to_nice_json }}'
+    owner: root
+    group: root
+    mode: '0600'
+    force: false
+  vars:
+    guard_marker:
+      version: 2
+      uuid: '{{ longhorn_mount_spec.uuid }}'
+      serial: '{{ longhorn_mount_spec.usb_serial }}'
+      label: '{{ longhorn_mount_spec.label }}'
+      bytes: '{{ longhorn_mount_spec.raw_size_bytes }}'
+      path: '{{ longhorn_mount_spec.path }}'
+      root_filesystem_uuid: '{{ longhorn_mount_guard.root_filesystem_uuid }}'
+      root_inode: '{{ longhorn_mount_guard.inode }}'
+      immutable_verified: true
+  when: not longhorn_mount_state.mounted
+- name: Persist only the reviewed UUID entry, preserving all other fstab entries
+  ansible.builtin.blockinfile:
+    path: /etc/fstab
+    marker: '# {mark} PerkForge Longhorn {{ longhorn_mount_spec.path }}'
+    block: 'UUID={{ longhorn_mount_spec.uuid }} {{ longhorn_mount_spec.path }} xfs {{ longhorn_mount_options }} 0 0'
+  register: longhorn_mount_fstab
+- name: Reload mount unit definitions only when fstab changed; restart no services
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: longhorn_mount_fstab.changed
+- name: Mount only the reviewed path, never mount all filesystems
+  ansible.builtin.command:
+    argv: [mount, '{{ longhorn_mount_spec.path }}']
+  when: not longhorn_mount_state.mounted
+- name: Verify the exact mounted device and report measured filesystem capacity
+  ansible.builtin.script:
+    cmd: >-
+      ../files/verify-longhorn-mount.py
+      --uuid {{ longhorn_mount_spec.uuid | quote }}
+      --serial {{ longhorn_mount_spec.usb_serial | quote }}
+      --label {{ longhorn_mount_spec.label | quote }}
+      --bytes {{ longhorn_mount_spec.raw_size_bytes }}
+      --path {{ longhorn_mount_spec.path | quote }} --require-mounted
+  changed_when: false

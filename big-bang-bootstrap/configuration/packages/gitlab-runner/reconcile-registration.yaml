@@ -100,7 +100,7 @@
           - gitlab_runner_receipt.contract == gitlab_runner_contract
           - gitlab_runner_receipt.phase == 'created'
           - gitlab_runner_receipt.id | type_debug == 'int' and gitlab_runner_receipt.id > 0
-          - gitlab_runner_receipt.token is match('^glrt-[A-Za-z0-9_-]+$')
+          - gitlab_runner_receipt.token is match('^glrt-[A-Za-z0-9_-]+(?:[.]01[.][0-9a-z]{9})?\\Z')
           fail_msg: 'Uncertain prior runner creation or mismatched private receipt. Stop for verified owner recovery; never create a duplicate or reset a token automatically.'
     - ansible.builtin.uri:
         url: '{{ gitlab_runner_origin }}/api/v4/{{ item }}'
@@ -175,7 +175,7 @@
           cacheable: false
     - ansible.builtin.assert:
         that:
-        - gitlab_runner_receipt.token is match('^glrt-[A-Za-z0-9_-]+$')
+        - gitlab_runner_receipt.token is match('^glrt-[A-Za-z0-9_-]+(?:[.]01[.][0-9a-z]{9})?\\Z')
         - gitlab_runner_matches | length == 0 or gitlab_runner_matches[0].id == gitlab_runner_receipt.id
     - ansible.builtin.stat:
         path: '{{ gitlab_runner_private_directory }}/runner-token'

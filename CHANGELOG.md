@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.19.0](https://github.com/perkforge/perkforge-platform/compare/v0.18.4...v0.19.0) (2026-11-05)
+
+
+### Features
+
+* **infrastructure:** persist guarded UUID mounts for worker storage ([#194](https://github.com/perkforge/perkforge-platform/issues/194)) ([4bc1133](https://github.com/perkforge/perkforge-platform/commit/4bc1133a43cb814f37bf8ca06106c194e43303ce))
+* **longhorn:** add dedicated and single-excess storage tiers ([#184](https://github.com/perkforge/perkforge-platform/issues/184)) ([0b8dfd4](https://github.com/perkforge/perkforge-platform/commit/0b8dfd44930afc32dbbd9bbfcc0f747aa4c24c35))
+
+## [0.18.4](https://github.com/perkforge/perkforge-platform/compare/v0.18.3...v0.18.4) (2026-11-05)
+
+
+### Bug Fixes
+
+* **runner:** writable Git home and worker-only jobs ([#190](https://github.com/perkforge/perkforge-platform/issues/190)) ([b6aa1f6](https://github.com/perkforge/perkforge-platform/commit/b6aa1f6b089a14426a3a54121c6186ee7e3c5437))
+
+## [0.18.3](https://github.com/perkforge/perkforge-platform/compare/v0.18.2...v0.18.3) (2026-11-05)
+
+
+### Bug Fixes
+
+* **runner:** complete restricted init context and audit handoff ([#189](https://github.com/perkforge/perkforge-platform/issues/189)) ([98866cf](https://github.com/perkforge/perkforge-platform/commit/98866cf561e4b923991de121a12d45d17cfcf492))
+* **runner:** preserve foundation namespace ownership ([#187](https://github.com/perkforge/perkforge-platform/issues/187)) ([ee7ebc9](https://github.com/perkforge/perkforge-platform/commit/ee7ebc9c57ce02ea741baf25c5f4d91eacc12635))
+
+## [0.18.2](https://github.com/perkforge/perkforge-platform/compare/v0.18.1...v0.18.2) (2026-11-05)
+
+
+### Bug Fixes
+
+* **gitlab-runner:** accept routable v1 authentication tokens ([#185](https://github.com/perkforge/perkforge-platform/issues/185)) ([8e0b698](https://github.com/perkforge/perkforge-platform/commit/8e0b698cacecb576c5d19e5c2a67027946531968))
+
 ## [0.18.1](https://github.com/perkforge/perkforge-platform/compare/v0.18.0...v0.18.1) (2026-11-05)
 
 
