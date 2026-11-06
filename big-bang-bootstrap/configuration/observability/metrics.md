@@ -50,12 +50,15 @@ Grafana human admin, runtime sidecar and installer identities remain separate.
 
 ### Reconciled staged wiring
 
-`clusters/local-metrics-review` composes the accepted GitLab/runner stage with
+`clusters/local-metrics-review` composes the merged Nextcloud database-only stage with
 inactive observability values. `clusters/local-metrics-crds` activates only the
 CRD release after protected foundation approval and immutable release selection.
 Neither stage enables monitoring, Grafana, Loki or Alloy. The default root and
 live source are unchanged. Both preserve existing rendered app resources; the
 already-emitted disabled CRD values Secret gains only the keep annotation input.
+All three metrics roots preserve the exact Nextcloud enrollment source/parent and
+existing direct platform resources; they do not enable Nextcloud web/cron or
+change its source pin. Live Nextcloud acceptance remains independently gated.
 
 `clusters/local-metrics-pilot` adds cluster metrics and Grafana after CRD readiness.
 Its explicit overlay defers existing app exporters: the unguarded umbrella switch
