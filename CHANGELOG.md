@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.1](https://github.com/perkforge/perkforge-platform/compare/v0.23.0...v0.23.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* **gitlab:** reduce home-lab toolbox CPU reservation ([#220](https://github.com/perkforge/perkforge-platform/issues/220)) ([b75acc9](https://github.com/perkforge/perkforge-platform/commit/b75acc960d91a89b21cd842304ef8bb963f4efbe))
+
 ## [0.23.0](https://github.com/perkforge/perkforge-platform/compare/v0.22.2...v0.23.0) (2026-11-06)
 
 
