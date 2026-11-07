@@ -1,0 +1,25 @@
+- ansible.builtin.uri:
+    url: '{{ gf_api }}/users/{{ gf_subject.sub }}'
+    headers: '{{ gf_headers }}'
+  register: gf_user
+- ansible.builtin.assert:
+    that:
+    - gf_user.json.id == gf_subject.sub
+    - gf_subject.role == 'absent' or gf_user.json.enabled
+- ansible.builtin.uri:
+    url: '{{ gf_api }}/users/{{ gf_subject.sub }}/role-mappings/clients/{{ gf_id }}{{ item }}'
+    headers: '{{ gf_headers }}'
+  loop: ['', /composite]
+  register: gf_user_roles
+- name: Refuse inherited or foreign own-client grants before any membership write
+  ansible.builtin.assert:
+    that:
+    - gf_user_roles.results[0].json | map(attribute='id') | sort == gf_user_roles.results[1].json | map(attribute='id') | sort
+    - gf_user_roles.results[0].json | map(attribute='id') | difference(gf_roles.json | map(attribute='id') | list) | length == 0
+    - gf_user_roles.results[0].json | length <= 1
+    - gf_subject.role != 'absent' or gf_user_roles.results[0].json | length == 0 or gf_subject.sub in grafana_native_revoked_subjects
+- ansible.builtin.set_fact:
+    gf_member_plans: >-
+      {{ gf_member_plans + [{'sub':gf_subject.sub, 'desired':(gf_roles.json if gf_subject.role == 'admin' else []),
+      'current':gf_user_roles.results[0].json,
+      'needs_change':((gf_user_roles.results[0].json | length > 0) != (gf_subject.role == 'admin'))}] }}

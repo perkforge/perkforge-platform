@@ -14,6 +14,11 @@ The former Headlamp/identity mixed modules were split case-by-case. Shared rende
 
 ## Offline commands
 
+Grafana SSO claim evaluation requires `jmespath==1.0.1` in the test Python
+environment (`python3 -m pip install jmespath==1.0.1`). It is imported when the
+claim test executes, so discovery-only audits need no extra dependency; an actual
+run without it fails rather than skipping the authorization checks.
+
 Use the pinned source downloader `tests/fixtures/fetch_sources.py <temporary-directory>` only to obtain checksummed public fixtures. Full render tests require PREFLIGHT_SOURCES_DIR plus actual released ENROLLMENT_CHECKOUT/TENANT_APP_CHECKOUT; the portal boundary tests use corresponding PORTAL_ENROLLMENT_CHECKOUT/PORTAL_APP_CHECKOUT. CI resolves/verifies those refs before checkout.
 
 ```sh

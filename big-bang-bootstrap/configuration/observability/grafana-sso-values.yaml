@@ -17,12 +17,14 @@ grafana:
           root_url: https://grafana.UNCONFIGURED.invalid
         auth:
           disable_login_form: false
+          oauth_allow_insecure_email_lookup: false
         auth.basic:
           enabled: true
         auth.anonymous:
           enabled: false
         auth.generic_oauth:
           enabled: true
+          auto_login: false
           name: Keycloak
           client_id: grafana
           client_secret: $__env{GRAFANA_OIDC_CLIENT_SECRET}
@@ -37,4 +39,4 @@ grafana:
           allow_assign_grafana_admin: true
           role_attribute_strict: true
           skip_org_role_sync: false
-          role_attribute_path: "contains(groups[*], '/platform/admins') && 'GrafanaAdmin' || contains(groups[*], '/platform/viewers') && 'Viewer' || contains(groups[*], '/platform/engineers') && 'Viewer'"
+          role_attribute_path: "contains(groups[*], '/platform/admins') && 'GrafanaAdmin'"
