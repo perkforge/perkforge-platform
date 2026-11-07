@@ -151,18 +151,63 @@ class HarborActivation(unittest.TestCase):
             self.assertEqual(transport['spec'], {'serverName': 'harbor-' + component, 'insecureSkipVerify': False, 'rootCAs': [{'secret': 'harbor-internal-ca'}]})
             self.assertEqual(service['spec']['ports'][0]['targetPort'], 8443)
 
-    def test_registry_tls_patch_repairs_the_actual_inherited_port_mismatch(self):
+    def test_final_patches_change_only_registry_port_and_two_trust_files(self):
         inherited = postrender(self.raw, self.release['spec']['postRenderers'][:-1])
         old = named(inherited, 'Service', 'harbor-registry')
         fixed = named(self.final, 'Service', 'harbor-registry')
         self.assertEqual(old['spec']['ports'][0]['port'], 5000)
         self.assertEqual(fixed['spec']['ports'][0], {'name': 'https-registry', 'port': 5443, 'targetPort': 5443})
         expected = copy.deepcopy(inherited)
+        actual = copy.deepcopy(self.final)
         named(expected, 'Service', 'harbor-registry')['spec']['ports'][0] = fixed['spec']['ports'][0]
-        self.assertEqual(indexed(expected), indexed(self.final))
+        for component in ('core', 'jobservice'):
+            old_pod = named(expected, 'Deployment', 'harbor-' + component)['spec']['template']['spec']
+            new_pod = named(actual, 'Deployment', 'harbor-' + component)['spec']['template']['spec']
+            self.assertNotIn('initContainers', old_pod)
+            old_pod['initContainers'] = copy.deepcopy(new_pod['initContainers'])
+            old_pod['volumes'].append({'name': 'trust-bundle', 'emptyDir': {'sizeLimit': '4Mi'}})
+            old_pod['containers'][0]['volumeMounts'].append({
+                'name': 'trust-bundle', 'mountPath': '/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem',
+                'subPath': 'ca-bundle.crt'})
+            # Strategic merge may prepend new named entries. Compare their
+            # content, while preserving equality of every pre-existing field.
+            for pod in (old_pod, new_pod):
+                pod['volumes'] = sorted(pod['volumes'], key=lambda v: v['name'])
+                pod['containers'][0]['volumeMounts'] = sorted(pod['containers'][0]['volumeMounts'], key=lambda v: v['name'])
+        self.assertEqual(indexed(expected), indexed(actual))
         core = named(self.final, 'ConfigMap', 'harbor-core')['data']
         self.assertEqual(core['REGISTRY_URL'], 'https://harbor-registry:5443')
         self.assertEqual(core['REGISTRY_CONTROLLER_URL'], 'https://harbor-registry:8443')
+
+    def test_trust_initializers_keep_native_identity_images_and_security(self):
+        digests = {'core': '9cc273deb8c896ab850f7a4a0306fd6d7f036ad5bd02328f998727adc6d6ad2d',
+                   'jobservice': '8886fed2f71a3787a9d435cbe964aa82b6d576d8f16a62055545c33fbc54e06e'}
+        for component in ('core', 'jobservice'):
+            pod = named(self.final, 'Deployment', 'harbor-' + component)['spec']['template']['spec']
+            self.assertEqual(pod['securityContext'], {'runAsUser': 10000, 'fsGroup': 10000})
+            self.assertEqual(len(pod['initContainers']), 1)
+            init, main = pod['initContainers'][0], pod['containers'][0]
+            self.assertEqual(init['name'], 'prepare-trust-bundle')
+            self.assertEqual(init['image'], main['image'])
+            self.assertEqual(init['imagePullPolicy'], main['imagePullPolicy'])
+            self.assertEqual(init['image'], 'registry1.dso.mil/ironbank/opensource/goharbor/harbor-' + component + ':v2.15.2@sha256:' + digests[component])
+            self.assertEqual(init['command'], ['/bin/sh', '-ec'])
+            self.assertEqual(init['securityContext'], {
+                'runAsUser': 10000, 'runAsGroup': 1000, 'runAsNonRoot': True,
+                'allowPrivilegeEscalation': False, 'readOnlyRootFilesystem': True,
+                'capabilities': {'drop': ['ALL']}, 'seccompProfile': {'type': 'RuntimeDefault'}})
+            self.assertEqual(init['volumeMounts'], [{'name': 'trust-bundle', 'mountPath': '/harbor-trust'}])
+            self.assertEqual(init['resources'], {'requests': {'cpu': '20m', 'memory': '32Mi'},
+                                                 'limits': {'cpu': '100m', 'memory': '64Mi'}})
+            self.assertEqual(main['resources']['requests'], {'cpu': '100m', 'memory': '256Mi'})
+            self.assertNotIn('command', main)
+            self.assertNotIn('args', main)
+            self.assertTrue(main['securityContext']['runAsNonRoot'])
+            self.assertFalse(main['securityContext']['allowPrivilegeEscalation'])
+            self.assertEqual(main['securityContext']['capabilities'], {'drop': ['ALL']})
+            self.assertEqual(main['securityContext']['seccompProfile'], {'type': 'RuntimeDefault'})
+            self.assertNotIn('env', init)
+            self.assertNotIn('envFrom', init)
 
     def test_all_pods_use_registry_secret_no_tokens_and_tls_secret_references(self):
         consumers = []
@@ -182,6 +227,82 @@ class HarborActivation(unittest.TestCase):
             obj = named(self.final, 'Deployment', name)
             self.assertEqual(obj['spec']['strategy']['type'], 'Recreate')
             self.assertEqual(obj['spec']['template']['spec']['nodeSelector'], {'storage.perkforge.io/worker': 'true'})
+
+    def test_all_six_roles_and_their_init_containers_require_workers(self):
+        selector = {'storage.perkforge.io/worker': 'true'}
+        excluded = ('node-role.kubernetes.io/control-plane', 'node-role.kubernetes.io/master')
+        required_affinity = {'nodeAffinity': {'requiredDuringSchedulingIgnoredDuringExecution': {
+            'nodeSelectorTerms': [{'matchExpressions': [
+                {'key': role, 'operator': 'DoesNotExist'} for role in excluded]}]}}}
+        roles = set()
+        for obj in self.final:
+            if obj['kind'] not in ('Deployment', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'Pod'):
+                continue
+            # No unplaced hooks or generated cert jobs may appear unnoticed.
+            self.assertEqual(obj['kind'], 'Deployment', obj['metadata']['name'])
+            pod = obj['spec']['template']['spec']
+            roles.add(obj['metadata']['name'])
+            self.assertEqual(pod['nodeSelector'], selector)
+            self.assertEqual(pod['affinity'], required_affinity)
+            self.assertEqual(pod.get('tolerations', []), [])
+            self.assertNotIn('nodeName', pod)
+            self.assertTrue(pod['containers'])
+            # Scheduling is Pod-wide, including both trust initializers.
+            for init in pod.get('initContainers', []):
+                self.assertEqual(init['name'], 'prepare-trust-bundle')
+        self.assertEqual(roles, {'harbor-core', 'harbor-portal', 'harbor-registry', 'harbor-jobservice'})
+
+        cache_release = named(self.app, 'HelmRelease', 'harbor-valkey')
+        self.assertFalse(cache_release['spec']['test']['enable'])
+        cache = helm(self.sources / 'valkey', 'harbor-valkey', 'harbor',
+                     ordered_values(self.app, cache_release))
+        cache = postrender(cache, cache_release['spec']['postRenderers'])
+        for obj in cache:
+            if obj['kind'] not in ('Deployment', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'Pod'):
+                continue
+            if obj['metadata'].get('annotations', {}).get('helm.sh/hook') == 'test':
+                # The chart declares this manual hook, but Flux tests are disabled.
+                self.assertEqual(obj['metadata']['name'], 'harbor-valkey-test-auth-existing')
+                continue
+            self.assertEqual(obj['kind'], 'Deployment')
+            roles.add(obj['metadata']['name'])
+            pod = obj['spec']['template']['spec']
+            self.assertEqual(pod['nodeSelector'], selector)
+            self.assertEqual(pod.get('tolerations', []), [])
+            self.assertNotIn('nodeName', pod)
+            self.assertTrue(pod['initContainers'])
+        pg = named(self.app, 'Cluster', 'harbor-postgres')
+        roles.add(pg['metadata']['name'])
+        self.assertEqual(pg['spec']['affinity'], {'nodeSelector': selector})
+        self.assertEqual(pg['spec'], named(self.data, 'Cluster', 'harbor-postgres')['spec'])
+        self.assertEqual(cache_release, named(self.data, 'HelmRelease', 'harbor-valkey'))
+        self.assertEqual(roles, {'harbor-core', 'harbor-portal', 'harbor-registry', 'harbor-jobservice',
+                                'harbor-valkey', 'harbor-postgres'})
+        for labels, eligible in [({'storage.perkforge.io/worker': 'true'}, True),
+                                 ({}, False), ({excluded[0]: ''}, False),
+                                 ({'storage.perkforge.io/worker': 'true', excluded[0]: ''}, False),
+                                 ({'storage.perkforge.io/worker': 'true', excluded[1]: ''}, False)]:
+            self.assertEqual(all(labels.get(k) == v for k, v in selector.items())
+                             and all(role not in labels for role in excluded), eligible)
+
+    def test_worker_requests_and_init_peaks_keep_existing_capacity_budget(self):
+        app_cpu = app_memory = 0
+        for obj in self.final:
+            if obj['kind'] != 'Deployment':
+                continue
+            pod = obj['spec']['template']['spec']
+            cpu = sum(int(c['resources']['requests']['cpu'].removesuffix('m')) for c in pod['containers'])
+            memory = sum(int(c['resources']['requests']['memory'].removesuffix('Mi')) for c in pod['containers'])
+            for init in pod.get('initContainers', []):
+                self.assertLessEqual(int(init['resources']['requests']['cpu'].removesuffix('m')), cpu)
+                self.assertLessEqual(int(init['resources']['requests']['memory'].removesuffix('Mi')), memory)
+            app_cpu += cpu
+            app_memory += memory
+        self.assertEqual((app_cpu, app_memory), (500, 1280))
+        pg = named(self.app, 'Cluster', 'harbor-postgres')['spec']['resources']['requests']
+        cache = yaml.safe_load(named(self.app, 'ConfigMap', 'values-harbor-valkey')['data']['values.yaml'])['resources']['requests']
+        self.assertEqual(app_cpu + int(pg['cpu'].removesuffix('m')) + int(cache['cpu'].removesuffix('m')), 850)
+        self.assertEqual(app_memory + int(pg['memory'].removesuffix('Mi')) + int(cache['memory'].removesuffix('Mi')), 2048)
 
     def test_installer_authorizes_exact_native_crud_without_new_global_authority(self):
         foundation = build(ROOT / 'configuration/packages/harbor/prerequisites')

@@ -22,7 +22,7 @@ def obj(kind, name, namespace='harbor', spec=None):
 
 
 def deployment(name, namespace='harbor'):
-    result = obj('Deployment', name, namespace, {'replicas': 1})
+    result = obj('Deployment', name, namespace, {'replicas': 1, 'template': {'spec': {'nodeSelector': {audit.WORKER_LABEL: 'true'}}}})
     result['status'].update(replicas=1, readyReplicas=1, updatedReplicas=1, availableReplicas=1)
     return result
 
@@ -54,18 +54,21 @@ class HarborStage(unittest.TestCase):
         self.state.update(source=obj('GitRepository', 'cluster-config', 'flux-system', {'url': 'https://github.com/perkforge/perkforge-platform.git', 'ref': {'tag': 'v0.99.0'}}),
                           root=obj('Kustomization', 'cluster-root', 'flux-system', {'path': './big-bang-bootstrap/clusters/local-harbor-data', 'sourceRef': {'kind': 'GitRepository', 'name': 'cluster-config'}, 'serviceAccountName': 'platform-reconciler', 'prune': False}),
                           namespace=obj('Namespace', 'harbor', '', {}), deployments=[deployment('harbor-valkey')], pods=[])
+        self.state['nodes'] = [obj('Node', 'worker-1', ''), obj('Node', 'control-1', '')]
+        self.state['nodes'][0]['metadata']['labels'] = {audit.WORKER_LABEL: 'true'}
+        self.state['nodes'][1]['metadata']['labels'] = {'node-role.kubernetes.io/control-plane': ''}
         self.state['source']['status']['artifact'] = {'revision': 'v0.99.0@sha1:' + SHA}
         self.state['root']['status']['lastAppliedRevision'] = 'v0.99.0@sha1:' + SHA
         self.state['namespace']['metadata']['labels'] = {'perkforge.io/owner': 'harbor-foundation-v1'}
         self.state['namespace']['status'] = {'phase': 'Active'}
         self.state['releases'].append(obj('HelmRelease', 'harbor-valkey', 'bigbang'))
-        database = obj('Cluster', 'harbor-postgres', spec={'instances': 1})
+        database = obj('Cluster', 'harbor-postgres', spec={'instances': 1, 'affinity': {'nodeSelector': {audit.WORKER_LABEL: 'true'}}})
         database['status']['readyInstances'] = 1
         self.state['databases'].append(database)
         for name in ('postgres', 'valkey'):
             claim = obj('PersistentVolumeClaim', name); claim['status'] = {'phase': 'Bound'}
             self.state['claims'].append(claim)
-            pod = obj('Pod', name); pod['status']['phase'] = 'Running'; self.state['pods'].append(pod)
+            pod = obj('Pod', name, spec={'nodeName': 'worker-1', 'nodeSelector': {audit.WORKER_LABEL: 'true'}}); pod['status']['phase'] = 'Running'; self.state['pods'].append(pod)
 
     def verify(self, mode='data'):
         return audit.verify(self.state, self.before, mode, SHA, 'v0.99.0', 'harbor-uid', getattr(self, 'checkpoint', None))
@@ -134,7 +137,7 @@ class HarborStage(unittest.TestCase):
         self.state['releases'].append(obj('HelmRelease', 'harbor', 'bigbang'))
         for name in ('core', 'jobservice', 'registry', 'portal'):
             self.state['deployments'].append(deployment('harbor-' + name))
-            pod = obj('Pod', name); pod['status']['phase'] = 'Running'; self.state['pods'].append(pod)
+            pod = obj('Pod', name, spec={'nodeName': 'worker-1', 'nodeSelector': {audit.WORKER_LABEL: 'true'}}); pod['status']['phase'] = 'Running'; self.state['pods'].append(pod)
         for name in ('registry', 'joblogs'):
             claim = obj('PersistentVolumeClaim', name); claim['status'] = {'phase': 'Bound'}; self.state['claims'].append(claim)
         self.state.update(services=[], transports=[], transport_crd={'spec': {'versions': [{'name': 'v1alpha1', 'served': True, 'schema': {'openAPIV3Schema': {'properties': {'spec': {'properties': {
@@ -211,9 +214,9 @@ class HarborStage(unittest.TestCase):
                 elif args[:3] == ['get', 'namespace', 'kube-system']: value = 'cluster-uid'
                 else:
                     self.assertEqual(args[0], 'get')
-                    kinds = {'helmreleases.helm.toolkit.fluxcd.io': 'releases', 'persistentvolumeclaims': 'claims', 'clusters.postgresql.cnpg.io': 'databases', 'deployments': 'deployments', 'pods': 'pods'}
+                    kinds = {'helmreleases.helm.toolkit.fluxcd.io': 'releases', 'persistentvolumeclaims': 'claims', 'clusters.postgresql.cnpg.io': 'databases', 'deployments': 'deployments', 'pods': 'pods', 'services': 'services', 'serverstransports.traefik.io': 'transports', 'nodes': 'nodes'}
                     if args[1] in kinds: value = {'items': state[kinds[args[1]]]}
-                    else: value = state[{'deployment': 'operator', 'gitrepository': 'source', 'kustomization': 'root', 'namespace': 'namespace'}[args[1]]]
+                    else: value = state[{'deployment': 'operator', 'gitrepository': 'source', 'kustomization': 'root', 'namespace': 'namespace', 'crd': 'transport_crd', 'ingress': 'ingress'}[args[1]]]
                     value = json.dumps(value)
                 return mock.Mock(returncode=0, stdout=value)
             params = ['--verify', '--kubeconfig', str(config), '--context', 'synthetic', '--expected-api', 'https://synthetic.invalid:6443', '--expected-cluster-uid', 'cluster-uid', '--baseline', str(evidence)]
@@ -225,6 +228,18 @@ class HarborStage(unittest.TestCase):
                 self.assertEqual(len(calls), count)
                 state = self.state
                 self.assertEqual(audit.main(params + ['--mode', 'data', '--data-checkpoint', str(parent / 'data.json'), '--expected-namespace-uid', 'harbor-uid', '--release', 'v0.99.0', '--commit', SHA]), 0)
+                checkpoint_path = parent / 'data.json'
+                checkpoint_bytes = checkpoint_path.read_bytes()
+                self.app()
+                self.state['source']['spec']['ref'] = {'tag': 'v0.100.0'}
+                self.state['source']['status']['artifact']['revision'] = 'v0.100.0@sha1:' + 'b' * 40
+                self.state['root']['status']['lastAppliedRevision'] = 'v0.100.0@sha1:' + 'b' * 40
+                app_params = params + ['--mode', 'app', '--data-checkpoint', str(checkpoint_path),
+                                       '--expected-namespace-uid', 'harbor-uid', '--release', 'v0.100.0', '--commit', 'b' * 40]
+                with self.assertRaises(audit.Refusal):
+                    audit.main(app_params)
+                self.assertEqual(audit.main(app_params + ['--data-release', 'v0.99.0', '--data-commit', SHA]), 0)
+                self.assertEqual(checkpoint_path.read_bytes(), checkpoint_bytes)
                 self.assertTrue(all(args[0] in ('get', 'config') for args in calls))
                 self.assertFalse(any('secret' in ' '.join(args).lower() for args in calls))
 
@@ -287,3 +302,99 @@ class HarborStage(unittest.TestCase):
         old['spec']['template']['metadata']['annotations']['checksum/config'] = audit.OPERATOR_CONFIG_CHECKSUMS['gitlab,tenant-home-nextcloud,harbor']
         with self.assertRaises(audit.Refusal):
             audit.operator_identity(old)
+
+    def test_prior_data_release_requires_explicit_pair_and_preserves_identity_checks(self):
+        self.app()
+        checkpoint_before = copy.deepcopy(self.checkpoint)
+        revision = 'v0.100.0@sha1:' + 'b' * 40
+        self.state['source']['spec']['ref'] = {'tag': 'v0.100.0'}
+        self.state['source']['status']['artifact']['revision'] = revision
+        self.state['root']['status']['lastAppliedRevision'] = revision
+        def verify(**kwargs):
+            return audit.verify(self.state, self.before, 'app', 'b' * 40, 'v0.100.0', 'harbor-uid', self.checkpoint, **kwargs)
+        with self.assertRaises(audit.Refusal):
+            verify()
+        for kwargs in ({'data_release': 'v0.99.0'}, {'data_commit': SHA},
+                       {'data_release': 'v0.98.0', 'data_commit': SHA},
+                       {'data_release': 'v0.99.0', 'data_commit': 'c' * 40},
+                       {'data_release': 'main', 'data_commit': SHA},
+                       {'data_release': 'v0.99.0', 'data_commit': 'short'}):
+            with self.assertRaises(audit.Refusal):
+                verify(**kwargs)
+        approved = {'data_release': 'v0.99.0', 'data_commit': SHA}
+        self.assertEqual(verify(**approved)['release'], 'v0.100.0')
+        original = copy.deepcopy(self.state)
+        for change in [lambda s:s['databases'][-1]['metadata'].update(uid='replacement'),
+                       lambda s:s['claims'][1]['spec'].update(volumeName='replacement'),
+                       lambda s:s['releases'][-2]['metadata'].update(uid='replacement'),
+                       lambda s:s['namespace']['metadata'].update(uid='replacement'),
+                       lambda s:s['source']['status']['artifact'].update(revision='v0.99.0@sha1:' + SHA),
+                       lambda s:s['root']['status'].update(lastAppliedRevision='v0.99.0@sha1:' + SHA)]:
+            self.state = copy.deepcopy(original); change(self.state)
+            with self.assertRaises(audit.Refusal):
+                verify(**approved)
+        self.state = original
+        for key in ('baseline_sha256', 'cluster_uid', 'namespace_uid'):
+            old = self.checkpoint[key]; self.checkpoint[key] = 'wrong'
+            with self.assertRaises(audit.Refusal):
+                verify(**approved)
+            self.checkpoint[key] = old
+        self.assertEqual(self.checkpoint, checkpoint_before)
+
+    def test_prior_data_release_cli_refuses_partial_or_non_app_binding_before_contact(self):
+        for mode, flags in [('app', ['--data-release', 'v0.99.0']),
+                            ('app', ['--data-commit', SHA]),
+                            ('data', ['--data-release', 'v0.99.0', '--data-commit', SHA]),
+                            ('snapshot', ['--data-release', 'v0.99.0', '--data-commit', SHA]),
+                            ('app', ['--data-release', 'main', '--data-commit', SHA])]:
+            with mock.patch.object(audit.subprocess, 'run') as run, mock.patch.object(Path, 'read_text') as read:
+                with self.assertRaises(audit.Refusal):
+                    audit.main(['--verify', '--mode', mode, *flags])
+                run.assert_not_called(); read.assert_not_called()
+
+    def test_worker_placement_rejects_control_plane_missing_nodes_and_selectors(self):
+        self.app(); original = copy.deepcopy(self.state)
+        mutations = [
+            lambda s:s['nodes'][1]['metadata']['labels'].update({audit.WORKER_LABEL: 'true'}),
+            lambda s:s['nodes'][0]['metadata']['labels'].update({'node-role.kubernetes.io/master': ''}),
+            lambda s:s['nodes'][0]['metadata']['labels'].update({'node-role.kubernetes.io/control-plane': 'false'}),
+            lambda s:s['nodes'][0]['metadata']['labels'].pop(audit.WORKER_LABEL),
+            lambda s:s['nodes'].pop(0),
+            lambda s:s['nodes'][0]['status']['conditions'][0].update(status='False'),
+            lambda s:s['pods'][0]['spec'].update(nodeName='control-1'),
+            lambda s:s['pods'][0]['spec'].update(nodeName='absent'),
+            lambda s:s['pods'][0]['spec'].pop('nodeName'),
+            lambda s:s['pods'][0]['spec'].pop('nodeSelector'),
+            lambda s:s['deployments'][0]['spec']['template']['spec'].pop('nodeSelector'),
+            lambda s:s['deployments'][-1]['spec']['template']['spec'].update(nodeSelector={audit.WORKER_LABEL: 'false'}),
+            lambda s:s['deployments'][-1]['spec']['template']['spec'].update(nodeName='control-1'),
+            lambda s:s['databases'][-1]['spec']['affinity'].pop('nodeSelector'),
+        ]
+        for mutation in mutations:
+            self.state = copy.deepcopy(original); mutation(self.state)
+            with self.assertRaises(audit.Refusal):
+                self.verify('app')
+
+    def test_bootstrap_and_init_pods_inherit_worker_selector(self):
+        bootstrap = obj('Pod', 'harbor-postgres-initdb', spec={
+            'nodeName': 'worker-1', 'nodeSelector': {audit.WORKER_LABEL: 'true'},
+            'initContainers': [{'name': 'bootstrap-controller', 'image': 'synthetic'}]})
+        bootstrap['status']['phase'] = 'Succeeded'
+        self.state['pods'].append(bootstrap)
+        self.verify()
+        bootstrap['spec']['nodeName'] = 'control-1'
+        with self.assertRaises(audit.Refusal):
+            self.verify()
+        bootstrap['spec']['nodeName'] = 'removed-historical-worker'
+        self.verify()
+        bootstrap['spec']['nodeName'] = 'worker-1'
+        bootstrap['spec'].pop('nodeSelector')
+        with self.assertRaises(audit.Refusal):
+            self.verify()
+        bootstrap['spec']['nodeSelector'] = {audit.WORKER_LABEL: 'true'}
+        bootstrap['status']['phase'] = 'Running'
+        bootstrap['spec']['nodeName'] = 'control-1'
+        with self.assertRaises(audit.Refusal):
+            audit.verify_worker_placement(self.state, self.state['databases'][-1])
+        bootstrap['spec']['nodeName'] = 'worker-1'
+        audit.verify_worker_placement(self.state, self.state['databases'][-1])

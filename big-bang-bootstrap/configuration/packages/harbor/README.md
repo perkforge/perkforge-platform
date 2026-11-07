@@ -15,6 +15,16 @@ workflows disabled while maintaining and running local checks.
   `harbor` after `gitlab,tenant-home-nextcloud`; do not replace a newer watch list.
 - Five app containers request 500m CPU / 1280Mi. Data requests 350m / 768Mi.
   Total: **850m / 2048Mi**, plus runtime/init peaks and future workload growth.
+- All Harbor application and data Pods require `storage.perkforge.io/worker=true`;
+  init containers share their Pod's placement. Core/portal add 200m CPU / 512Mi
+  to worker requests when moving off the control plane. Before acceptance, check
+  the label exists only on workers and every Harbor Pod is on one of those nodes.
+  The four application Deployments also require absence of both control-plane
+  and master role labels, with no control-plane tolerations. Existing database/cache
+  selectors and accepted data specs remain unchanged; their worker-only guarantee
+  depends on correct node labels. The acceptance audit rejects worker-labelled
+  control-plane nodes and misplaced Pods. It cannot prevent an administrator from
+  later changing labels or scheduling policies.
 - Registry 10Gi, job logs 1Gi, PostgreSQL 8Gi, Valkey 2Gi. Two-replica Longhorn
   scheduling adds **42Gi**: 40Gi dedicated disks, 2Gi root disks. Snapshot, backup,
   restore and growth headroom are additional. This is not a capacity acceptance.
@@ -29,6 +39,14 @@ workflows disabled while maintaining and running local checks.
   ServersTransport objects with exact server names and `harbor-internal-ca`.
 - All internal components use dedicated TLS Secrets. A final narrow post-renderer
   corrects Big Bang's inherited registry Service port 5000 to TLS port 5443.
+- Iron Bank core/jobservice startup appends internal/custom CAs to the UBI trust
+  bundle. Each uses its own same-digest, non-root init to copy existing image roots
+  into a 4Mi `emptyDir`; only `/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem`
+  is overlaid for the unchanged entrypoint. The init refuses a missing, empty or
+  differently resolved bundle. UID 10000, existing application requests and all
+  security restrictions remain unchanged; the init requests 20m/32Mi, below the
+  application's requests. Secret inputs stay read-only. No root init, capability,
+  broad filesystem permission change or TLS-verification bypass is used.
 - PostgreSQL uses `verify-full`, explicit core
   `PGSSLROOTCERT=/harbor_cust_cert/custom-ca.crt`, and a 50-open/10-idle pool.
   Valkey requires TLS plus a dedicated password, with indexes 0/1/2.
@@ -52,6 +70,11 @@ Do not replay cluster bootstrap or manually override a child against Git values.
    tag/commit. Recheck all nodes/releases, per-worker requested capacity, Longhorn
    replicas/free space and current watches. Capture pre-Harbor preservation
    evidence with `scripts/harbor-stage-audit.py --verify --mode snapshot`.
+   The [record-only DNS procedure](../../../../infrastructure/ansible/DNS-MAINTENANCE.md)
+   adds only `harbor.perkforge.home.arpa` with `harbor-dns-record-v1`, preserving
+   all eight prior names. Its source belongs in this review, but the DNS write and
+   one service restart require separate network-change approval and the operator's
+   hidden sudo prompt. Keep it default-off until the release/base hash is reviewed.
 2. **Foundation and protected inputs.** Obtain the action-time approvals below.
    Run default-off `configuration/ansible/harbor-prerequisites.yaml` against the
    exact API/context/cluster/operator identities. It checks every target first,
@@ -155,6 +178,8 @@ any corresponding operation. Approval flags in source are guards, not permission
   CA signing keys stay local. No password/token appears in chat, argv or Git.
 - The two conditional GitOps selections and their new workloads, HTTPS route and
   namespace-only policies/transport grants. Scanner is off and egress unrestricted.
+- Harbor-only DNS maintenance and one DNS-service restart, separately approved
+  against the reviewed existing configuration checksum; no client resolver changes.
 - Exact empty default `library` project public-to-private change before data use.
 - Dedicated confidential Keycloak client/secret, the admin-group role grant for
   **current and future** `/platform/admins` members, native Harbor OIDC settings
@@ -171,6 +196,15 @@ only a successful real token exchange establishes that acceptance.
 
 - `test_harbor_review.py`, `test_harbor_data.py`, `test_harbor_activation.py` render
   pinned charts, apply every Flux post-renderer and compare existing resources.
+- `test_harbor_image_startup.py` checks immutable Iron Bank 2.15.2 source hashes
+  and runs its unchanged startup scripts as UID 10000/GID 1000 in rootless,
+  network-isolated bubblewrap with synthetic certificates and sentinel binaries.
+  It reproduces the unwritable-bundle failure, proves preserved/added roots and
+  rejects wrong trust paths. A missing bubblewrap is reported as skipped, not a
+  pass. This is not an image or Harbor-binary integration test. Before promotion,
+  verify the selected image digests' actual trust-file layout and permissions;
+  matching source version alone does not prove those image contents. The init
+  guard remains fail-closed if an image layout differs.
 - `test_harbor_foundation.py` runs real Ansible against isolated CLI fixtures,
   including wrong target/ownership, zero-change repeat and partial/uncertain writes.
 - Native/client SSO tests run real Ansible against disposable HTTPS services.
@@ -187,6 +221,11 @@ and `--commit`, plus `--data-checkpoint`. Data mode writes a new protected
 checkpoint only after its checks pass, or verifies an identical existing one.
 App mode requires that checkpoint and preserves the database, Valkey release and
 two data PVC identities/specs; it cannot capture its own replacement checkpoint.
+When an app-only correction uses a newer reviewed release, explicitly supply both
+`--data-release` and `--data-commit` for the original accepted data checkpoint.
+The current `--release`/`--commit` must still match the live source/root exactly.
+Without the paired data options, the audit requires the same release for both
+stages. Never edit or recapture the original checkpoint to make a correction pass.
 Snapshot creates a new evidence file and never overwrites it.
 Without `--verify`, it reads no files and contacts no APIs.
 

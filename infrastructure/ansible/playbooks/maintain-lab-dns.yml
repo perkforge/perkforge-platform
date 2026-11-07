@@ -10,12 +10,12 @@
     lab_dns_maintenance_release_evidence: /UNCONFIGURED/platform-release.json
   tasks:
   - ansible.builtin.debug:
-      msg: 'Default/check mode makes no connections. Explicit scope adds only its fixed GitLab, Nextcloud or Grafana A records to the existing owned service; no install, credentials, unit, listener, upstream or firewall changes.'
+      msg: 'Default/check mode makes no connections. Explicit scope adds only its fixed GitLab, Nextcloud, Grafana or Harbor A records to the existing owned service; no install, credentials, unit, listener, upstream or firewall changes.'
   - when: lab_dns_maintenance_apply | bool and not ansible_check_mode
     block:
     - ansible.builtin.assert:
         that:
-        - lab_dns_maintenance_scope in ['gitlab-dns-records-v1', 'nextcloud-dns-record-v1', 'grafana-dns-record-v1']
+        - lab_dns_maintenance_scope in ['gitlab-dns-records-v1', 'nextcloud-dns-record-v1', 'grafana-dns-record-v1', 'harbor-dns-record-v1']
         - lab_dns_maintenance_expected_sha256 is match('^[a-f0-9]{64}$')
         - lab_dns_maintenance_release_evidence is match('^/')
         - "'UNCONFIGURED' not in lab_dns_maintenance_release_evidence"
@@ -68,7 +68,7 @@
     block:
     - ansible.builtin.assert:
         that:
-        - lab_dns_maintenance_scope in ['gitlab-dns-records-v1', 'nextcloud-dns-record-v1', 'grafana-dns-record-v1']
+        - lab_dns_maintenance_scope in ['gitlab-dns-records-v1', 'nextcloud-dns-record-v1', 'grafana-dns-record-v1', 'harbor-dns-record-v1']
         - lab_dns_config == '/etc/dnsmasq.d/perkforge-lab.conf'
         - lab_dns_unit == '/etc/systemd/system/perkforge-lab-dns.service'
         - lab_dns_backup == '/var/backups/perkforge-lab-dns'

@@ -1,0 +1,30 @@
+{
+  "core": {
+    "image": "registry1.dso.mil/ironbank/opensource/goharbor/harbor-core:v2.15.2",
+    "commit": "163854c78e1f0c206cd096caeab1516bc1a5dbc7",
+    "files": {
+      "install_cert.sh": {
+        "url": "https://repo1.dso.mil/dsop/opensource/goharbor/harbor-core/-/raw/163854c78e1f0c206cd096caeab1516bc1a5dbc7/scripts/install_cert.sh",
+        "sha256": "0810c335f8322964a052a157fd02e52cea779346adddddec2f4d3d0d0a4c9efd"
+      },
+      "core-entrypoint.sh": {
+        "url": "https://repo1.dso.mil/dsop/opensource/goharbor/harbor-core/-/raw/163854c78e1f0c206cd096caeab1516bc1a5dbc7/scripts/entrypoint.sh",
+        "sha256": "422b2000241e0d75cacb6fad0edb8655fa2cd47c958181c5e0099e0986bab058"
+      }
+    }
+  },
+  "jobservice": {
+    "image": "registry1.dso.mil/ironbank/opensource/goharbor/harbor-jobservice:v2.15.2",
+    "commit": "6bd752347f1355bf9c9bbc5c1195443fd955dcfc",
+    "files": {
+      "install_cert.sh": {
+        "url": "https://repo1.dso.mil/dsop/opensource/goharbor/harbor-jobservice/-/raw/6bd752347f1355bf9c9bbc5c1195443fd955dcfc/scripts/install_cert.sh",
+        "sha256": "0810c335f8322964a052a157fd02e52cea779346adddddec2f4d3d0d0a4c9efd"
+      },
+      "jobservice-entrypoint.sh": {
+        "url": "https://repo1.dso.mil/dsop/opensource/goharbor/harbor-jobservice/-/raw/6bd752347f1355bf9c9bbc5c1195443fd955dcfc/scripts/entrypoint.sh",
+        "sha256": "8ab316ffae3c910a7515d373253417ba092d77733f077d7fe3d3855ebbd07605"
+      }
+    }
+  }
+}
