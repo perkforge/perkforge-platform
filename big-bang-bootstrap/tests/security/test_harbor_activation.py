@@ -130,6 +130,58 @@ class HarborActivation(unittest.TestCase):
         self.assertFalse(any(o['kind'] in ('ServiceMonitor', 'ClusterRole', 'Role', 'ClusterRoleBinding', 'RoleBinding') for o in self.final))
         self.assertFalse(any(o.get('data') or o.get('stringData') for o in self.final if o['kind'] == 'Secret'))
 
+    def test_native_2152_jobservice_gets_database_config_from_core_with_bounded_pools(self):
+        # Immutable native call graph and pgx version are linked in the package
+        # README. Jobservice is a DB client, not merely a core/Valkey client.
+        chart = yaml.safe_load((self.sources / 'harbor/chart/Chart.yaml').read_text())
+        self.assertEqual(chart['appVersion'], '2.15.2', 'Re-audit native dependencies on a version change')
+        config = named(self.final, 'ConfigMap', 'harbor-core')['data']
+        self.assertEqual(config['POSTGRESQL_SSLMODE'], 'verify-full')
+        self.assertEqual((config['POSTGRESQL_MAX_OPEN_CONNS'], config['POSTGRESQL_MAX_IDLE_CONNS']), ('20', '5'))
+        replicas = 0
+        for component in ('core', 'jobservice'):
+            deployment = named(self.final, 'Deployment', 'harbor-' + component)
+            replicas += deployment['spec']['replicas']
+            pod = deployment['spec']['template']['spec']
+            container = next(c for c in pod['containers'] if c['name'] == component)
+            self.assertEqual([e for e in container['env'] if e['name'] == 'PGSSLROOTCERT'],
+                             [{'name': 'PGSSLROOTCERT', 'value': '/harbor_cust_cert/custom-ca.crt'}])
+            mount = next(m for m in container['volumeMounts'] if m['mountPath'] == '/harbor_cust_cert/custom-ca.crt')
+            self.assertEqual(mount['subPath'], 'ca.crt')
+            self.assertEqual(next(v for v in pod['volumes'] if v['name'] == mount['name'])['secret']['secretName'], 'harbor-public-ca')
+        self.assertEqual(replicas, 2)
+        maximum = int(named(self.app, 'Cluster', 'harbor-postgres')['spec']['postgresql']['parameters']['max_connections'])
+        self.assertLessEqual(replicas * int(config['POSTGRESQL_MAX_OPEN_CONNS']), maximum - 20)
+        job = named(self.final, 'Deployment', 'harbor-jobservice')['spec']['template']['spec']
+        env = job['containers'][0]['env']
+        self.assertIn({'name': 'JOBSERVICE_SECRET', 'valueFrom': {'secretKeyRef': {'name': 'harbor-jobservice-auth', 'key': 'JOBSERVICE_SECRET'}}}, env)
+        self.assertFalse(any(e['name'].startswith('POSTGRESQL_') for e in env))
+        self.assertFalse(any(v.get('secret', {}).get('secretName') == 'harbor-database' for v in job['volumes']))
+        self.assertEqual(named(self.final, 'ConfigMap', 'harbor-jobservice-env')['data']['CORE_URL'], 'https://harbor-core:443')
+        self.assertIn({'port': 443, 'targetPort': 8443},
+                      [{k: p[k] for k in ('port', 'targetPort')} for p in named(self.final, 'Service', 'harbor-core')['spec']['ports']])
+
+    def test_database_client_correction_preserves_all_other_effective_app_fields(self):
+        prior = copy.deepcopy(self.app)
+        candidate = named(prior, 'ConfigMap', 'values-harbor-candidate')['data']
+        values = yaml.safe_load(candidate['values.yaml'])
+        upstream = values['addons']['harbor']['values']['upstream']
+        del upstream['jobservice']['extraEnvVars']
+        upstream['database'].update(maxOpenConns=50, maxIdleConns=10)
+        candidate['values.yaml'] = yaml.safe_dump(values)
+        outer = helm(self.sources / 'bigbang/chart', 'bigbang', 'bigbang', ordered_values(prior, self.parent))
+        outer = postrender(outer, self.parent['spec']['postRenderers'])
+        release = named(outer, 'HelmRelease', 'harbor')
+        raw = helm(self.sources / 'harbor/chart', release_name(release), 'harbor', child_values(outer, 'harbor'))
+        before = postrender(raw, release['spec']['postRenderers'])
+        core = named(before, 'ConfigMap', 'harbor-core')['data']
+        core.update(POSTGRESQL_MAX_OPEN_CONNS='20', POSTGRESQL_MAX_IDLE_CONNS='5')
+        core_template = named(before, 'Deployment', 'harbor-core')['spec']['template']
+        core_template['metadata']['annotations']['checksum/configmap'] = named(self.final, 'Deployment', 'harbor-core')['spec']['template']['metadata']['annotations']['checksum/configmap']
+        job = named(before, 'Deployment', 'harbor-jobservice')['spec']['template']['spec']['containers'][0]
+        job['env'].append({'name': 'PGSSLROOTCERT', 'value': '/harbor_cust_cert/custom-ca.crt'})
+        self.assertEqual(indexed(before), indexed(self.final))
+
     def test_https_routes_verify_each_backend_name_and_ca(self):
         ingress = named(self.final, 'Ingress', 'harbor-ingress')
         self.assertEqual(ingress['spec']['ingressClassName'], 'traefik')

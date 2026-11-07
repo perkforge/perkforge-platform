@@ -1,5 +1,15 @@
 # Retained offline fixtures
 
+`harbor-pgx/` pins pgx v5.10.0, the driver in the immutable Harbor 2.15.2
+source linked in the [Harbor contract](../../configuration/packages/harbor/README.md#native-jobservice-database-dependency).
+It executes native config parsing and TLS with synthetic certificates over
+in-memory pipes, not a Harbor image, PostgreSQL server or user credentials.
+Prepare public checksummed dependencies once with Go 1.25+:
+`(cd big-bang-bootstrap/tests/fixtures/harbor-pgx && GOWORK=off go mod download)`.
+Then run `PYTHONPATH=big-bang-bootstrap/tests REQUIRE_NATIVE_HARBOR_PGX=1 python3 -m unittest security.test_harbor_pgx_tls -v`.
+The test disables dependency/toolchain downloads. Missing Go is an explicit skip
+unless required; missing cached dependencies or an incomplete Go installation fail.
+
 `harbor-image-startup/` retains the unchanged Iron Bank Harbor 2.15.2
 `install_cert.sh` (identical for core/jobservice) and two entrypoints. Immutable
 source URLs and SHA-256 values are in `sources.json`; the exact Dockerfiles are
