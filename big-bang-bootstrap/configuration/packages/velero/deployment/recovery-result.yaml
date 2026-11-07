@@ -1,0 +1,33 @@
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", velero_recovery_action, velero_recovery_name, "-n", "velero", "-o", "json"] }}'
+  changed_when: false
+  register: recovery_result
+  until: (recovery_result.stdout | from_json).status.phase | default('') in ['Completed','PartiallyFailed','Failed','FailedValidation']
+  retries: 360
+  delay: 5
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "datauploads" if velero_recovery_action == "backup" else "datadownloads", "-n", "velero", "-l", "velero.io/" + velero_recovery_action + "-uid=" + (recovery_result.stdout | from_json).metadata.uid, "-o", "json"] }}'
+  changed_when: false
+  register: recovery_transfers
+- when: velero_recovery_action == 'backup'
+  block:
+  - ansible.builtin.copy:
+      dest: '{{ velero_state_dir }}/backup-{{ velero_recovery_name }}.json'
+      content: '{{ {"backup":recovery_result.stdout | from_json,"uploads":(recovery_transfers.stdout | from_json)["items"],"pvcs":(recovery_source_pvcs.stdout | from_json)["items"]} | to_nice_json }}'
+      mode: '0600'
+      force: false
+  - ansible.builtin.assert:
+      that: recovery_result.stdout | from_json | velero_copied_transfers((recovery_transfers.stdout | from_json)["items"], (recovery_source_pvcs.stdout | from_json)["items"])
+- when: velero_recovery_action == 'restore'
+  block:
+  - ansible.builtin.command:
+      argv: '{{ vk + ["get", "pvc", "-n", velero_target_namespace, "-o", "json"] }}'
+    changed_when: false
+    register: recovery_target_pvcs
+  - ansible.builtin.copy:
+      dest: '{{ velero_state_dir }}/restore-{{ velero_recovery_name }}.json'
+      content: '{{ {"restore":recovery_result.stdout | from_json,"downloads":(recovery_transfers.stdout | from_json)["items"],"pvcs":(recovery_target_pvcs.stdout | from_json)["items"],"functional_service":false} | to_nice_json }}'
+      mode: '0600'
+      force: false
+  - ansible.builtin.assert:
+      that: recovery_result.stdout | from_json | velero_copied_transfers((recovery_transfers.stdout | from_json)["items"], verified_point.pvcs, (recovery_target_pvcs.stdout | from_json)["items"], verified_point.uploads)

@@ -1,0 +1,65 @@
+# Narrow compare-and-swap promotion. A failure leaves containment/retained data for inspection.
+- ansible.builtin.stat:
+    path: '{{ velero_state_dir }}/selector-before.json'
+    follow: false
+  register: selector_receipt
+- ansible.builtin.assert:
+    that:
+      - selector_receipt.stat.isreg | default(false)
+      - not (selector_receipt.stat.islnk | default(false))
+      - selector_receipt.stat.mode == '0600' and selector_receipt.stat.pw_name == lookup('env','USER')
+  when: selector_receipt.stat.exists
+- ansible.builtin.assert:
+    that:
+      - not (selector_root.spec.suspend | default(false))
+      - selector_root.spec.path == velero_previous_path
+      - selector_source.spec.ref.tag == velero_previous_tag
+  when: not selector_receipt.stat.exists
+- ansible.builtin.copy:
+    dest: '{{ velero_state_dir }}/selector-before.json'
+    content: '{{ {"root":selector_root,"source":selector_source,"target_commit":velero_release_commit,"target_tag":velero_release_tag} | to_nice_json }}'
+    mode: '0600'
+    force: false
+  when: not selector_receipt.stat.exists
+- ansible.builtin.assert:
+    that:
+      - saved.target_commit == velero_release_commit and saved.target_tag == velero_release_tag
+      - saved.root.metadata.uid == selector_root.metadata.uid
+      - saved.source.metadata.uid == selector_source.metadata.uid
+      - saved | velero_selector_specs_match(selector_source, selector_root)
+  vars:
+    saved: '{{ lookup("file",velero_state_dir + "/selector-before.json") | from_json }}'
+- ansible.builtin.command:
+    argv: '{{ vk + ["patch", "kustomization", velero_root_name, "-n", "flux-system", "--type=json", "-p", patch | to_json] }}'
+  vars:
+    patch:
+    - {op: test, path: /metadata/resourceVersion, value: '{{ selector_root.metadata.resourceVersion }}'}
+    - {op: add, path: /spec/suspend, value: true}
+  when: not (selector_root.spec.suspend | default(false)) and (selector_source.spec.ref.tag != velero_release_tag or selector_root.spec.path != './big-bang-bootstrap/clusters/local-velero')
+  changed_when: true
+- ansible.builtin.command:
+    argv: '{{ vk + ["patch", "gitrepository", "cluster-config", "-n", "flux-system", "--type=json", "-p", patch | to_json] }}'
+  vars:
+    patch:
+    - {op: test, path: /spec, value: '{{ selector_source.spec }}'}
+    - {op: test, path: /spec/ref/tag, value: '{{ velero_previous_tag }}'}
+    - {op: replace, path: /spec/ref/tag, value: '{{ velero_release_tag }}'}
+  when: selector_source.spec.ref.tag != velero_release_tag
+  changed_when: true
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "gitrepository", "cluster-config", "-n", "flux-system", "-o", "json"] }}'
+  register: source_ready
+  changed_when: false
+  until: source_ready.rc == 0 and (source_ready.stdout | from_json).status.artifact.revision | default('') == velero_release_tag + '@sha1:' + velero_release_commit
+  retries: 120
+  delay: 5
+- ansible.builtin.include_tasks: read-selectors.yaml
+- ansible.builtin.command:
+    argv: '{{ vk + ["patch", "kustomization", velero_root_name, "-n", "flux-system", "--type=json", "-p", patch | to_json] }}'
+  vars:
+    patch:
+    - {op: test, path: /metadata/resourceVersion, value: '{{ selector_root.metadata.resourceVersion }}'}
+    - {op: replace, path: /spec/path, value: ./big-bang-bootstrap/clusters/local-velero}
+    - {op: add, path: /spec/suspend, value: false}
+  when: selector_root.spec.path != './big-bang-bootstrap/clusters/local-velero' or selector_root.spec.suspend | default(false)
+  changed_when: true

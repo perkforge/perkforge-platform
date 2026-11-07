@@ -1,0 +1,56 @@
+---
+- name: Prepare a disabled Velero review bundle without contacting any service
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - defaults.yaml
+  tasks:
+    - name: Refuse activation, schedules and tenant access in this source-only procedure
+      ansible.builtin.assert:
+        that:
+          - velero_prepare is boolean
+          - velero_review_recovery is boolean
+          - velero_apply is sameas false
+          - velero_schedules_enabled is sameas false
+          - velero_tenant_access is sameas false
+          - velero_environment in ['local', 'aws']
+        fail_msg: This procedure only prepares disabled review inputs; activation is not implemented.
+    - name: Validate and prepare only on explicit non-check request
+      when: velero_prepare and not ansible_check_mode
+      block:
+        - name: Load one common environment profile
+          ansible.builtin.include_vars:
+            file: 'profiles/{{ velero_environment }}.yaml'
+            name: selected
+        - name: Validate public references and recovery inputs
+          ansible.builtin.include_tasks: tasks/validate.yaml
+        - name: Review a complete recovery request only when separately selected
+          ansible.builtin.include_tasks: tasks/validate-recovery.yaml
+          when: velero_review_recovery
+        - name: Inspect the explicitly supplied existing output directory
+          ansible.builtin.stat:
+            path: '{{ velero_output_dir }}'
+            follow: false
+          register: output_directory
+        - name: Require a real existing private output directory
+          ansible.builtin.assert:
+            that:
+              - velero_output_dir is match('^/[^\n]+$')
+              - output_directory.stat.isdir | default(false)
+              - not (output_directory.stat.islnk | default(false))
+              - output_directory.stat.mode == '0700'
+        - name: Check that the review output does not already exist
+          ansible.builtin.stat:
+            path: '{{ velero_output_dir }}/velero-review.yaml'
+            follow: false
+          register: output_file
+        - name: Refuse replacing any previous review or symlink
+          ansible.builtin.assert:
+            that: not output_file.stat.exists
+        - name: Render non-applyable public review inputs, never a Backup or Restore object
+          ansible.builtin.template:
+            src: templates/review.yaml.j2
+            dest: '{{ velero_output_dir }}/velero-review.yaml'
+            mode: '0600'
+            force: false

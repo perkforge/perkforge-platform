@@ -1,0 +1,26 @@
+# Inactive review input. No root or valuesFrom selects this file.
+addons:
+  velero:
+    enabled: false
+    flux:
+      suspend: true
+    values:
+      upstream:
+        # Activation requires separately reviewed installer/runtime privileges.
+        rbac:
+          create: false
+        deployNodeAgent: false
+        backupsEnabled: false
+        snapshotsEnabled: false
+        upgradeCRDs: false
+        cleanUpCRDs: false
+        schedules: {}
+        configuration:
+          uploaderType: kopia
+          defaultSnapshotMoveData: true
+          # Do not trigger the wrapper's generic EBS VolumeSnapshotClass.
+          features: ''
+          backupStorageLocation: []
+          volumeSnapshotLocation: []
+        credentials:
+          useSecret: false

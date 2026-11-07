@@ -1,0 +1,14 @@
+# Proposed local upgrade recovery, not independent disaster recovery.
+profile:
+  retention_hours: 48
+  csi_driver: driver.longhorn.io
+  data_engine: v1
+  volume_filesystem: ext4
+  object_store: separate-s3-compatible-service
+  backing: quota-bounded-directory-static-local-pv
+  storage_node: worker-2
+  reclaim_policy: Retain
+  filesystem: xfs
+  # Observed 2026-11-07: one existing filesystem, mounted with noquota.
+  observed_project_quota_enabled: false
+  independent_failure_domain: false

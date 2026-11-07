@@ -1,0 +1,39 @@
+---
+- name: Require the complete reference-only request shape
+  ansible.builtin.assert:
+    that:
+      - velero_request is mapping
+      - velero_request.keys() | list | sort == expected.keys() | list | sort
+      - velero_request.local is mapping
+      - velero_request.aws is mapping
+      - velero_request.local.keys() | list | sort == expected.local.keys() | list | sort
+      - velero_request.aws.keys() | list | sort == expected.aws.keys() | list | sort
+    fail_msg: Use the exact reference-only request.example.yaml shape; no credential values or extra keys.
+  vars:
+    expected: "{{ (lookup('ansible.builtin.file', playbook_dir + '/request.example.yaml') | from_yaml).velero_request }}"
+- name: Require explicit CSI classes and private authenticated TLS storage references
+  ansible.builtin.assert:
+    that:
+      - item is string and item | length > 0
+      - not (item is search('(?i)(unconfigured|placeholder|changeme|example|todo|tbd|[<>])'))
+      - not (item is search('[\n\r]'))
+  loop: '{{ [velero_request.backup_storage_location, velero_request.snapshot_class, velero_request.source_storage_class, velero_request.restore_storage_class, velero_request.region, velero_request.bucket, velero_request.prefix] }}'
+- name: Require explicit identity and public trust references
+  ansible.builtin.assert:
+    that:
+      - item is string and item | length >= 3
+      - not (item is search('(?i)(unconfigured|placeholder|changeme|example|todo|tbd|[<>])'))
+      - not (item is search('[\n\r]'))
+  loop: '{{ [velero_request.ca_bundle_ref, velero_request.identity_ref] }}'
+- name: Validate TLS endpoint structure and optional recovery cron offline
+  ansible.builtin.command:
+    argv:
+      - '{{ ansible_playbook_python }}'
+      - '{{ playbook_dir }}/verify-inputs.py'
+    stdin: "{{ {'endpoint': velero_request.endpoint, 'prefix': velero_request.prefix, 'cron': (velero_request.schedule_cron if velero_review_recovery else none)} | to_json }}"
+  changed_when: false
+- name: Require platform identity appropriate to the profile
+  ansible.builtin.assert:
+    that:
+      - velero_request.identity_mode == ('existing-secret' if velero_environment == 'local' else 'workload-identity')
+      - velero_environment != 'aws' or (velero_request.kms_key_ref is string and velero_request.kms_key_ref | length >= 3 and not (velero_request.kms_key_ref is search('(?i)(unconfigured|placeholder|changeme|example|todo|tbd|[<>])')))

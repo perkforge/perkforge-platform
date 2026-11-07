@@ -1,0 +1,143 @@
+---
+- name: Require reviewed references rather than placeholders
+  ansible.builtin.assert:
+    that:
+      - item.value is string
+      - item.value | length >= 3
+      - not (item.value is search('(?i)(unconfigured|placeholder|changeme|example|todo|tbd|[<>])'))
+      - not (item.value is search('[\n\r]'))
+    fail_msg: 'Missing or placeholder public reference: {{ item.key }}'
+  loop: "{{ velero_request | dict2items | selectattr('key', 'match', '.*_ref$') | rejectattr('key', 'equalto', 'kms_key_ref') | list }}"
+  loop_control:
+    label: '{{ item.key }}'
+- name: Require exact reviewed namespace scope and an isolated restore target
+  ansible.builtin.assert:
+    that:
+      - velero_request.approved_namespaces is sequence and velero_request.approved_namespaces is not string
+      - velero_request.selected_namespaces is sequence and velero_request.selected_namespaces is not string
+      - velero_request.selected_namespaces | length == 1
+      - velero_request.selected_namespaces | unique | length == velero_request.selected_namespaces | length
+      - velero_request.selected_namespaces | difference(velero_request.approved_namespaces) | length == 0
+      - velero_request.approved_restore_namespaces is sequence and velero_request.approved_restore_namespaces is not string
+      - velero_request.restore_target_namespace in velero_request.approved_restore_namespaces
+      - velero_request.restore_target_namespace not in velero_request.selected_namespaces
+  # Namespace filtering is NOT a permission boundary; authorization_review_ref is also mandatory.
+- name: Reject system, wildcard and malformed namespaces
+  ansible.builtin.assert:
+    that:
+      - item is string and item is match('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')
+      - item | length <= 63
+      - item not in ['default', 'bigbang', 'flux-system', 'velero', 'longhorn-system', 'gitlab', 'keycloak', 'monitoring']
+      - not item.startswith('kube-')
+  loop: '{{ velero_request.selected_namespaces + [velero_request.restore_target_namespace] }}'
+- name: Require bounded retention, a decided RPO and last-good rollback protection
+  ansible.builtin.assert:
+    that:
+      - velero_request.rpo_hours is number and velero_request.rpo_hours is not boolean
+      - velero_request.rpo_hours > 0
+      - velero_request.rpo_hours < selected.profile.retention_hours
+      - velero_request.rollback_window_hours is number and velero_request.rollback_window_hours is not boolean
+      - velero_request.rollback_window_hours > 0
+      - velero_request.rollback_window_hours + velero_request.rpo_hours < selected.profile.retention_hours
+      - velero_request.schedule_cron is string
+      - velero_request.schedule_cron.split() | length == 5
+    fail_msg: Decide cadence/RPO and preserve a last-known-good point for the full rollback window; TTL alone is insufficient.
+- name: Require immutable application and configuration identity
+  ansible.builtin.assert:
+    that:
+      - velero_request.app_image_digest is match('^sha256:[0-9a-f]{64}$')
+      - velero_request.chart_artifact_digest is match('^sha256:[0-9a-f]{64}$')
+      - velero_request.app_git_commit is match('^[0-9a-f]{40}$')
+      - velero_request.platform_git_commit is match('^[0-9a-f]{40}$')
+      - velero_request.enrollment_git_commit is match('^[0-9a-f]{40}$')
+      - velero_request.database_scope in ['dedicated', 'shared']
+      - velero_request.database_version is string and velero_request.database_version | length > 0
+      - velero_request.schema_version is string and velero_request.schema_version | length > 0
+      - velero_request.backup_hooks is sequence and velero_request.backup_hooks is not string
+      - velero_request.backup_hooks | length > 0
+      - velero_request.restore_hooks is sequence and velero_request.restore_hooks is not string
+      - velero_request.restore_hooks | length > 0
+    fail_msg: Match immutable app/chart/Git and DB/schema versions; reviewed consistency and DB-native recovery are required.
+- name: Require local filesystem quota and reconciled Longhorn capacity evidence
+  when: velero_environment == 'local'
+  block:
+    - name: Validate the separate local backend references
+      ansible.builtin.assert:
+        that:
+          - item.value is string and item.value | length >= 3
+          - not (item.value is search('(?i)(unconfigured|placeholder|changeme|example|todo|tbd|[<>])'))
+      loop: "{{ velero_request.local | dict2items | selectattr('key', 'match', '.*_ref$') | list }}"
+      loop_control:
+        label: '{{ item.key }}'
+    - name: Reject PV-capacity-only and unreserved free-space assumptions
+      ansible.builtin.assert:
+        that:
+          - velero_request.identity_mode == 'existing-secret'
+          - velero_request.local.enforced_quota_bytes is integer and velero_request.local.enforced_quota_bytes is not boolean
+          - velero_request.local.reconciled_backup_budget_bytes is integer and velero_request.local.reconciled_backup_budget_bytes is not boolean
+          - velero_request.local.snapshot_restore_headroom_bytes is integer and velero_request.local.snapshot_restore_headroom_bytes is not boolean
+          - velero_request.local.enforced_quota_bytes > 0
+          - velero_request.local.snapshot_restore_headroom_bytes > 0
+          - velero_request.local.enforced_quota_bytes + velero_request.local.snapshot_restore_headroom_bytes <= velero_request.local.reconciled_backup_budget_bytes
+        fail_msg: Local noquota is a blocker until separately reviewed quota maintenance and Longhorn capacity reconciliation; a PV capacity is not a disk quota.
+- name: Require future AWS EBS/S3 identity, KMS and snapshot mapping reviews
+  when: velero_environment == 'aws'
+  block:
+    - name: Validate AWS public references
+      ansible.builtin.assert:
+        that:
+          - item is string and item | length >= 3
+          - not (item is search('(?i)(unconfigured|placeholder|changeme|example|todo|tbd|[<>])'))
+      loop: '{{ (velero_request.aws.values() | list) + [velero_request.kms_key_ref] }}'
+    - name: Require platform workload identity, never tenant access keys
+      ansible.builtin.assert:
+        that: velero_request.identity_mode == 'workload-identity'
+
+- name: Require bounded application-specific consistency hooks
+  ansible.builtin.assert:
+    that:
+      - item is mapping
+      - item.name is string and item.name | length > 0
+      - item.includedNamespaces == velero_request.selected_namespaces
+      - item.labelSelector is mapping and item.labelSelector.matchLabels | length > 0
+      - item.pre is sequence and item.pre is not string and item.pre | length > 0
+      - item.post is sequence and item.post is not string and item.post | length > 0
+    fail_msg: Backup hooks must select the approved application and define both quiesce and thaw.
+  loop: '{{ velero_request.backup_hooks }}'
+- name: Require fail-closed backup commands and explicit timeouts
+  ansible.builtin.assert:
+    that:
+      - item.keys() | list == ['exec']
+      - item.exec is mapping
+      - item.exec.container is string and item.exec.container | length > 0
+      - item.exec.command is sequence and item.exec.command is not string and item.exec.command | length > 0
+      - item.exec.onError == 'Fail'
+      - item.exec.timeout is match('^[1-9][0-9]*(s|m)$')
+  loop: "{{ (velero_request.backup_hooks | map(attribute='pre') | flatten) + (velero_request.backup_hooks | map(attribute='post') | flatten) }}"
+- name: Require explicitly scoped restore hook review
+  ansible.builtin.assert:
+    that:
+      - item is mapping
+      - item.name is string and item.name | length > 0
+      - item.includedNamespaces == [velero_request.restore_target_namespace]
+      - item.labelSelector is mapping and item.labelSelector.matchLabels | length > 0
+      - item.postHooks is sequence and item.postHooks is not string and item.postHooks | length > 0
+  loop: '{{ velero_request.restore_hooks }}'
+- name: Require bounded fail-closed restore hook commands
+  ansible.builtin.assert:
+    that:
+      - item.keys() | list == ['exec']
+      - item.exec is mapping
+      - item.exec.container is string and item.exec.container | length > 0
+      - item.exec.command is sequence and item.exec.command is not string and item.exec.command | length > 0
+      - item.exec.onError == 'Fail'
+      - item.exec.execTimeout is match('^[1-9][0-9]*(s|m)$')
+      - item.exec.waitTimeout is match('^[1-9][0-9]*(s|m)$')
+  loop: "{{ velero_request.restore_hooks | map(attribute='postHooks') | flatten }}"
+- name: Require an identified recovery point, not an upgrade guess
+  ansible.builtin.assert:
+    that:
+      - velero_request.restore_backup_name is match('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')
+      - not (velero_request.restore_backup_name is search('(?i)(unconfigured|placeholder|changeme|example|todo|tbd)'))
+      - not (velero_request.database_version is search('(?i)(unconfigured|placeholder|changeme|example|todo|tbd|[<>])'))
+      - not (velero_request.schema_version is search('(?i)(unconfigured|placeholder|changeme|example|todo|tbd|[<>])'))

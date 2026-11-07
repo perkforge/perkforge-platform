@@ -1,0 +1,31 @@
+# One optional rollout root; never selected by the existing platform roots.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-harbor-app
+- ../../configuration/packages/velero/runtime
+patches:
+- target: {group: helm.toolkit.fluxcd.io, version: v2, kind: HelmRelease, name: bigbang, namespace: bigbang}
+  patch: |-
+    - op: add
+      path: /spec/valuesFrom/-
+      value:
+        kind: ConfigMap
+        name: velero-runtime-values
+        valuesKey: velero.yaml
+        optional: false
+- target: {group: helm.toolkit.fluxcd.io, version: v2, kind: HelmRelease, name: bigbang, namespace: bigbang}
+  patch: |-
+    - op: add
+      path: /spec/postRenderers/0/kustomize/patches/-
+      value:
+        target: {kind: Namespace, name: velero}
+        patch: |-
+          $patch: delete
+          apiVersion: v1
+          kind: Namespace
+          metadata: {name: velero}
+commonAnnotations:
+  platform.perkforge.io/cluster: local
+  platform.perkforge.io/environment: local
+  platform.perkforge.io/profile: il2

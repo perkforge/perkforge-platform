@@ -1,0 +1,20 @@
+# Default and check modes contact no API.
+- name: Verify native CSI copied bytes survive backend reopen and isolated restore
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    velero_exercise_run: false
+    velero_exercise_scope: ''
+    velero_exercise_id: ''
+    velero_exercise_source: velero-check-{{ velero_exercise_id }}-source
+    velero_exercise_target: velero-check-{{ velero_exercise_id }}-target
+    velero_exercise_storage_class: ''
+    velero_exercise_node: ''
+    velero_kubectl: /usr/local/bin/kubectl
+  tasks:
+  - ansible.builtin.assert:
+      that: velero_exercise_run is boolean
+  - name: Load only the explicitly approved live operation
+    ansible.builtin.include_tasks: deployment/exercise-run.yaml
+    when: velero_exercise_run and not ansible_check_mode

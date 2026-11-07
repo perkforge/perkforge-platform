@@ -1,0 +1,31 @@
+# All objects are inspected before the first write; existing objects are never adopted or patched.
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", item.kind, item.metadata.name, "--ignore-not-found", "-o", "json"] + (["-n", item.metadata.namespace] if item.metadata.namespace is defined else []) }}'
+  loop: '{{ owned_objects }}'
+  changed_when: false
+  register: owned_before
+  no_log: '{{ owned_secret | default(false) }}'
+- ansible.builtin.assert:
+    that: item.stdout | from_json | velero_owned_matches(item.item)
+    fail_msg: Refusing foreign ownership or existing configuration drift before creation.
+  when: item.stdout | length > 0
+  loop: '{{ owned_before.results }}'
+  no_log: '{{ owned_secret | default(false) }}'
+- ansible.builtin.command:
+    argv: '{{ vk + ["create", "-f", "-"] }}'
+    stdin: '{{ item.item | to_json }}'
+    stdin_add_newline: false
+  when: item.stdout | length == 0
+  loop: '{{ owned_before.results }}'
+  changed_when: true
+  no_log: '{{ owned_secret | default(false) }}'
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", item.kind, item.metadata.name, "-o", "json"] + (["-n", item.metadata.namespace] if item.metadata.namespace is defined else []) }}'
+  loop: '{{ owned_objects }}'
+  changed_when: false
+  register: owned_after
+  no_log: '{{ owned_secret | default(false) }}'
+- ansible.builtin.assert:
+    that: item.stdout | from_json | velero_owned_matches(item.item)
+  loop: '{{ owned_after.results }}'
+  no_log: '{{ owned_secret | default(false) }}'

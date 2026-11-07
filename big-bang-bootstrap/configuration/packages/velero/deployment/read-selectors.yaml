@@ -1,0 +1,41 @@
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "gitrepository", "cluster-config", "-n", "flux-system", "-o", "json"] }}'
+  changed_when: false
+  register: source_read
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "kustomization", velero_root_name, "-n", "flux-system", "-o", "json"] }}'
+  changed_when: false
+  register: root_read
+- ansible.builtin.set_fact:
+    selector_source: '{{ source_read.stdout | from_json }}'
+    selector_root: '{{ root_read.stdout | from_json }}'
+- ansible.builtin.assert:
+    that:
+      - selector_source.spec.url == 'https://github.com/perkforge/perkforge-platform.git'
+      - selector_source.spec.ref.keys() | list == ['tag']
+      - selector_source.spec.ref.tag in [velero_previous_tag, velero_release_tag]
+      - selector_source.status.artifact.revision == (velero_release_tag + '@sha1:' + velero_release_commit if selector_source.spec.ref.tag == velero_release_tag else velero_previous_tag + '@sha1:' + compiled_base.base_commit)
+      - not (selector_source.spec.suspend | default(false))
+      - selector_root.spec.sourceRef.name == 'cluster-config'
+      - selector_root.spec.sourceRef.kind == 'GitRepository'
+      - selector_root.spec.sourceRef.namespace | default('flux-system') == 'flux-system'
+      - selector_root.spec.serviceAccountName == 'platform-reconciler'
+      - selector_root.spec.prune is sameas false
+      - selector_root.spec.path in [velero_previous_path, './big-bang-bootstrap/clusters/local-velero']
+    fail_msg: Source or root differs from the explicitly selected baseline. Review the new app composition rather than switching it off.
+  vars:
+    compiled_base: '{{ lookup("file",playbook_dir + "/deployment/base.yaml") | from_yaml }}'
+
+- name: Refuse to start the next app while the preserved Harbor release is unready
+  ansible.builtin.command:
+    argv: '{{ vk + ["get", "helmrelease", "harbor", "-n", "bigbang", "-o", "json"] }}'
+  changed_when: false
+  register: harbor_read
+- ansible.builtin.assert:
+    that:
+      - not (harbor.spec.suspend | default(false))
+      - harbor.status.observedGeneration | default(-1) == harbor.metadata.generation
+      - harbor.status.conditions | default([]) | selectattr('type','equalto','Ready') | selectattr('status','equalto','True') | list | length == 1
+    fail_msg: Harbor must be Ready at the current generation before Velero stages. Its separate functional acceptance remains required.
+  vars:
+    harbor: '{{ harbor_read.stdout | from_json }}'

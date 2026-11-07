@@ -1,0 +1,9 @@
+# Boolean controls are intentionally not string-coerced.
+velero_prepare: false
+velero_apply: false
+velero_review_recovery: false
+velero_schedules_enabled: false
+velero_tenant_access: false
+velero_environment: local
+velero_output_dir: ''
+velero_request: {}

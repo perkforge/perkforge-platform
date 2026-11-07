@@ -1,0 +1,5 @@
+# Must be reviewed when another platform app changes the accepted composition.
+base_commit: 4b6677fab7533b1f602564e5f4915ba37d619e75
+base_root: ./big-bang-bootstrap/clusters/local-harbor-app
+rollout_root: ./big-bang-bootstrap/clusters/local-velero
+source_repository: https://github.com/perkforge/perkforge-platform.git

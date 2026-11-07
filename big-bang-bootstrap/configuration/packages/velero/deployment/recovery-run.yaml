@@ -1,0 +1,176 @@
+# Loaded only after explicit apply, never in check mode.
+- ansible.builtin.assert:
+    that:
+    - velero_recovery_scope == 'velero-' + velero_recovery_action + '-v1'
+    - velero_recovery_name is match('^[a-z0-9][a-z0-9-]{5,62}$')
+    - velero_source_namespace is match('^tenant-[a-z0-9][a-z0-9-]{1,48}$')
+    - velero_database_scope == 'dedicated'
+    - velero_rollback_window_hours is integer and 0 < velero_rollback_window_hours < 48
+    - velero_recovery_versions.keys() | sort == ['app_git_commit','app_image_digest','chart_artifact_digest','database_version','enrollment_git_commit','platform_git_commit','schema_version']
+    - velero_recovery_versions.app_image_digest is match('^sha256:[a-f0-9]{64}$')
+    - velero_recovery_versions.chart_artifact_digest is match('^sha256:[a-f0-9]{64}$')
+    - velero_recovery_versions.app_git_commit is match('^[a-f0-9]{40}$')
+    - velero_recovery_versions.database_version | length > 0 and velero_recovery_versions.schema_version | length
+      > 0
+    - velero_backup_hooks | length > 0
+    - velero_backup_hooks | velero_safe_hooks(velero_source_namespace, false)
+    - velero_recovery_versions.platform_git_commit is match('^[a-f0-9]{40}$')
+    - velero_recovery_versions.enrollment_git_commit is match('^[a-f0-9]{40}$')
+- ansible.builtin.command:
+    argv:
+    - python3
+    - '{{ playbook_dir }}/verify-inputs.py'
+    stdin: '{{ {"endpoint":"https://backup.internal","prefix":"reviewed/tenant","cron":velero_schedule_cron} | to_json
+      }}'
+  when: velero_recovery_action == 'paused-schedule'
+  changed_when: false
+- ansible.builtin.include_tasks: deployment/context.yaml
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "namespace", velero_source_namespace, "-o", "name"] }}'
+  changed_when: false
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "pvc", "-n", velero_source_namespace, "-o", "json"] }}'
+  register: recovery_source_pvcs
+  changed_when: false
+  when: velero_recovery_action != 'restore'
+- ansible.builtin.set_fact:
+    velero_source_catalog: []
+- ansible.builtin.assert:
+    that:
+    - (recovery_source_pvcs.stdout | from_json)["items"] | length > 0
+  when: velero_recovery_action != 'restore'
+- ansible.builtin.set_fact:
+    velero_source_catalog: '{{ velero_source_catalog + [{"metadata":{"name":item.metadata.name,"namespace":item.metadata.namespace,"uid":item.metadata.uid},"spec":{"volumeName":item.spec.volumeName}}]
+      }}'
+  loop: '{{ (recovery_source_pvcs.stdout | from_json)["items"] if velero_recovery_action != "restore" else [] }}'
+  when: velero_recovery_action != 'restore'
+- when: velero_recovery_action == 'restore'
+  block:
+  - ansible.builtin.assert:
+      that:
+      - velero_target_namespace is match('^tenant-[a-z0-9][a-z0-9-]{1,48}$')
+      - velero_target_namespace != velero_source_namespace
+      - velero_restore_owners | length > 0
+      - velero_restore_hooks | length > 0 and velero_restore_hooks | velero_safe_hooks(velero_target_namespace,
+        true)
+  - ansible.builtin.command:
+      argv: '{{ vk + ["get", "namespace", velero_target_namespace, "-o", "name"] }}'
+    changed_when: false
+  - ansible.builtin.command:
+      argv: '{{ vk + ["get", "pods,pvc,deployments,statefulsets,daemonsets,jobs,cronjobs,ingresses", "-n", velero_target_namespace,
+        "-o", "json"] }}'
+    register: target_empty
+    changed_when: false
+  - ansible.builtin.assert:
+      that: (target_empty.stdout | from_json)["items"] | length == 0
+  - ansible.builtin.assert:
+      that:
+      - item.kind in ['kustomizations.kustomize.toolkit.fluxcd.io','helmreleases.helm.toolkit.fluxcd.io']
+      - item.name is match('^[a-z0-9][a-z0-9-]+$')
+      - item.namespace is match('^[a-z0-9][a-z0-9-]+$')
+    loop: '{{ velero_restore_owners }}'
+  - ansible.builtin.command:
+      argv: '{{ vk + ["get", item.kind, item.name, "-n", item.namespace, "-o", "json"] }}'
+    loop: '{{ velero_restore_owners }}'
+    register: owner_states
+    changed_when: false
+  - ansible.builtin.assert:
+      that: (item.stdout | from_json).spec.suspend | default(false)
+    loop: '{{ owner_states.results }}'
+  - ansible.builtin.command:
+      argv: '{{ vk + ["get", "backup", velero_backup_name, "-n", "velero", "-o", "json"] }}'
+    register: selected_backup
+    changed_when: false
+  - ansible.builtin.command:
+      argv: '{{ vk + ["get", "datauploads", "-n", "velero", "-l", "velero.io/backup-uid=" + (selected_backup.stdout
+        | from_json).metadata.uid, "-o", "json"] }}'
+    register: point_uploads
+    changed_when: false
+  - ansible.builtin.set_fact:
+      verified_point: '{{ {"backup":selected_backup.stdout | from_json,"uploads":(point_uploads.stdout | from_json)["items"],"pvcs":(selected_backup.stdout
+        | from_json).metadata.annotations["recovery.perkforge.io/source-pvcs"] | from_json} }}'
+  - ansible.builtin.assert:
+      that:
+      - verified_point.backup | velero_copied_transfers(verified_point.uploads, verified_point.pvcs)
+  - ansible.builtin.assert:
+      that:
+      - (selected_backup.stdout | from_json).status.phase == 'Completed'
+      - (selected_backup.stdout | from_json).status.errors | default(0) == 0
+      - (selected_backup.stdout | from_json).spec.includedNamespaces == [velero_source_namespace]
+      - (selected_backup.stdout | from_json).spec.snapshotMoveData is sameas true
+      - (selected_backup.stdout | from_json).metadata.annotations['recovery.perkforge.io/' + item.key | replace('_','-')]
+        == item.value
+    loop: '{{ velero_recovery_versions | dict2items }}'
+  - ansible.builtin.command:
+      argv: '{{ vk + ["get", "services", "-n", velero_target_namespace, "-o", "json"] }}'
+    register: target_services
+    changed_when: false
+  - ansible.builtin.assert:
+      that:
+      - item.spec.type == "ClusterIP"
+      - not (item.spec.externalIPs | default([]))
+      - not (item.spec.externalName | default(""))
+      - not (item.spec.loadBalancerClass | default(""))
+    loop: '{{ (target_services.stdout | from_json)["items"] }}'
+  - ansible.builtin.command:
+      argv: '{{ vk + ["get", "networkpolicies", "-n", velero_target_namespace, "-o", "json"] }}'
+    register: target_policies
+    changed_when: false
+  - ansible.builtin.assert:
+      that:
+      - item.spec.podSelector == {}
+      - item.spec.policyTypes | sort == ["Egress","Ingress"]
+      - not (item.spec.ingress | default([]))
+      - not (item.spec.egress | default([]))
+    loop: '{{ (target_policies.stdout | from_json)["items"] }}'
+  - ansible.builtin.include_tasks: deployment/create-owned.yaml
+    vars:
+      owned_objects:
+      - apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: velero-restore-isolation
+          namespace: '{{ velero_target_namespace }}'
+          labels:
+            perkforge.io/owner: velero-platform-v1
+        spec:
+          podSelector: {}
+          policyTypes:
+          - Ingress
+          - Egress
+          ingress: []
+          egress: []
+- ansible.builtin.set_fact:
+    velero_namespaces: '{{ [velero_source_namespace,velero_target_namespace] if velero_recovery_action == "restore"
+      else [velero_source_namespace] }}'
+    velero_write_namespaces: '{{ [velero_target_namespace] if velero_recovery_action == "restore" else [] }}'
+    owned_objects: []
+    velero_backup_spec:
+      includedNamespaces:
+      - '{{ velero_source_namespace }}'
+      includedResources: '{{ velero_resource_types }}'
+      includeClusterResources: false
+      snapshotVolumes: true
+      snapshotMoveData: true
+      defaultVolumesToFsBackup: false
+      storageLocation: local
+      ttl: 48h0m0s
+      itemOperationTimeout: 30m0s
+      csiSnapshotTimeout: 10m0s
+      hooks:
+        resources: '{{ velero_backup_hooks }}'
+- ansible.builtin.set_fact:
+    owned_objects: '{{ owned_objects + [item | combine({"metadata":item.metadata | combine({"labels":(item.metadata.labels
+      | default({})) | combine({"perkforge.io/owner":"velero-platform-v1"})})})] }}'
+  loop: '{{ lookup("template","templates/namespace-access.yaml.j2") | from_yaml_all | select | list }}'
+- ansible.builtin.include_tasks: deployment/create-owned.yaml
+- ansible.builtin.include_tasks: deployment/create-owned.yaml
+  vars:
+    owned_objects:
+    - '{{ lookup("template","templates/recovery.yaml.j2") | from_yaml }}'
+- ansible.builtin.include_tasks: deployment/recovery-result.yaml
+  when: velero_recovery_action != 'paused-schedule'
+- ansible.builtin.debug:
+    msg: Native operation submitted and copied-byte status checked for immediate operations. Check exact UID/PVC
+      transfer coverage, hook success, immutable application/database versions and functional service before acceptance
+      or traffic handback. Schedules remain paused; owner reconciliation remains paused for restore.
