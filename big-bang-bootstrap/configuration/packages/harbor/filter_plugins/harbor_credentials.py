@@ -128,6 +128,13 @@ def _values(items, profile, pins, database_pin, valkey_pin, identity_pin):
     for name, key in [('initial-admin','HARBOR_ADMIN_PASSWORD'), ('encryption-key','secretKey'), ('core-auth','secret'), ('xsrf','CSRF_KEY'), ('jobservice-auth','JOBSERVICE_SECRET'), ('registry-auth','REGISTRY_HTTP_SECRET')]:
         if not _password(d['harbor-' + name][key], 32 if name == 'xsrf' else 16):
             return False
+    # Bootstrap bypasses native password-change validation; preserve later UI/API compatibility.
+    admin = d['harbor-initial-admin']['HARBOR_ADMIN_PASSWORD']
+    if not _password(admin, 16, 128) or not all(re.search(pattern, admin) for pattern in ('[a-z]', '[A-Z]', '[0-9]')):
+        return False
+    # Native v2.15.2 csrf middleware rejects (and logs) any non-32-byte key.
+    if len(d['harbor-xsrf']['CSRF_KEY'].encode('ascii')) != 32:
+        return False
     if len(d['harbor-encryption-key']['secretKey'].encode('ascii')) != 16:
         return False
     credentials = d['harbor-registry-credentials']

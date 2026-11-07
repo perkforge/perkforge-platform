@@ -77,6 +77,7 @@ def manifest(profile, ca, cert, key):
         for name, contract in CONTRACTS[profile].items():
             values[name] = {k: PASSWORD for k in contract['keys']}
         values['harbor-encryption-key']['secretKey'] = 'SyntheticKey1234'
+        values['harbor-xsrf']['CSRF_KEY'] = 'SyntheticXsrfKey1234567890123456'
         values['harbor-registry-credentials'] = {'REGISTRY_PASSWD':PASSWORD, 'REGISTRY_HTPASSWD':'harbor_registry_user:' + bcrypt.hashpw(PASSWORD.encode(), bcrypt.gensalt(rounds=4)).decode()}
         values['harbor-token-signing'] = {'tls.crt':cert['core'],'tls.key':key}
         for part in ('core','jobservice','registry','portal'):
@@ -184,6 +185,23 @@ class GuardValidation(unittest.TestCase):
             self.assertFalse(self.valid(m,'application'))
         self.assertFalse(guard.manifest_valid(self.app,CONTRACTS['application'],UID,'application',[],self.pin))
         self.assertFalse(guard.manifest_valid(self.app,CONTRACTS['application'],UID,'application',[self.pin],'0'*64))
+
+    def test_initial_admin_preserves_native_password_change_compatibility(self):
+        # Initial bootstrap hashes directly; later API/UI changes require8–128 and all3 classes.
+        # https://github.com/goharbor/harbor/blob/v2.15.2/src/server/v2.0/handler/user.go#L431-L438
+        for value in ('Aa1'+'x'*126, 'a1'*16, 'A1'*16, 'Aa'*16, 'éAa1'*8):
+            bad=copy.deepcopy(self.app)
+            next(i for i in bad['items'] if i['metadata']['name']=='harbor-initial-admin')['stringData']['HARBOR_ADMIN_PASSWORD']=value
+            self.assertFalse(self.valid(bad,'application'))
+        self.assertTrue(self.valid(self.app,'application'))
+
+    def test_xsrf_requires_exactly_32_ascii_bytes(self):
+        # https://github.com/goharbor/harbor/blob/v2.15.2/src/server/middleware/csrf/csrf.go#L69-L79
+        for value in ('x'*31, 'x'*33, 'é'*32, 'é'*16):
+            bad=copy.deepcopy(self.app)
+            next(i for i in bad['items'] if i['metadata']['name']=='harbor-xsrf')['stringData']['CSRF_KEY']=value
+            self.assertFalse(self.valid(bad,'application'))
+        self.assertTrue(self.valid(self.app,'application'))
 
     def test_tls_rejects_extra_wildcard_expired_and_wrong_ca(self):
         for extra,expired in [('unrelated.invalid',False),('*.harbor.svc',False),(None,True)]:
