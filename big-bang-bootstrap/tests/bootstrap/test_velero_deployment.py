@@ -148,16 +148,17 @@ class VeleroDeployment(unittest.TestCase):
             binary=path/'kubectl';binary.write_text((ROOT/'tests/fixtures/velero_kubectl.py').read_text());binary.chmod(0o700)
             state=path/'state.json';state.write_text(json.dumps({'target_commit':'a'*40,
                 'HelmRelease|bigbang|harbor':{'kind':'HelmRelease','metadata':{'name':'harbor','namespace':'bigbang','generation':2},'spec':{},'status':{'observedGeneration':2,'conditions':[{'type':'Ready','status':'True'}]}},
-                'GitRepository|flux-system|cluster-config':{'kind':'GitRepository','metadata':{'uid':'source-uid','name':'cluster-config','namespace':'flux-system','resourceVersion':'1'},'spec':{'url':'https://github.com/perkforge/perkforge-platform.git','ref':{'tag':'v1.0.0'},'interval':'1m'}},
+                'GitRepository|flux-system|cluster-config':{'kind':'GitRepository','metadata':{'uid':'source-uid','name':'cluster-config','namespace':'flux-system','resourceVersion':'1'},'spec':{'url':'https://github.com/perkforge/perkforge-platform.git','ref':{'tag':'v1.0.0'},'interval':'1m'},'status':{'artifact':{'revision':'v1.0.0@sha1:4b6677fab7533b1f602564e5f4915ba37d619e75'}}},
                 'Kustomization|flux-system|cluster-root':{'kind':'Kustomization','metadata':{'uid':'root-uid','name':'cluster-root','namespace':'flux-system','resourceVersion':'1'},'spec':{'sourceRef':{'kind':'GitRepository','name':'cluster-config'},'path':'./big-bang-bootstrap/clusters/local-harbor-app','serviceAccountName':'platform-reconciler','prune':False,'interval':'1m'}}}))
             values={'vk':[str(binary)],'velero_state_dir':str(path),'velero_root_name':'cluster-root','velero_previous_tag':'v1.0.0','velero_release_tag':'v1.0.1','velero_release_commit':'a'*40,'velero_previous_path':'./big-bang-bootstrap/clusters/local-harbor-app'}
             harness=package/'fixture.yaml';harness.write_text(yaml.safe_dump([{'hosts':'localhost','connection':'local','gather_facts':False,'vars':values,'tasks':[{'ansible.builtin.include_tasks':'deployment/read-selectors.yaml'},{'ansible.builtin.include_tasks':'deployment/promote.yaml'}]}]))
             env={**os.environ,'VELERO_FAKE_STATE':str(state),'ANSIBLE_LOCAL_TEMP':str(path/'ansible')};command=['ansible-playbook','-i','localhost,',str(harness)]
             original=json.loads(state.read_text())
-            for failure in ('unready','stale'):
+            for failure in ('unready','stale','new-base'):
                 failed=deepcopy(original);status=failed['HelmRelease|bigbang|harbor']['status']
                 if failure=='unready':status['conditions'][0]['status']='False'
-                else:status['observedGeneration']=1
+                elif failure=='stale':status['observedGeneration']=1
+                else:failed['GitRepository|flux-system|cluster-config']['status']['artifact']['revision']='v1.0.0@sha1:'+'b'*40
                 state.write_text(json.dumps(failed));denied=subprocess.run(command,env=env,text=True,capture_output=True,timeout=25)
                 self.assertNotEqual(denied.returncode,0);self.assertNotIn('\"patch\"',Path(str(state)+'.calls').read_text())
             state.write_text(json.dumps(original))

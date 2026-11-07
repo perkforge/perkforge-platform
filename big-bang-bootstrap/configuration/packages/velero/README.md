@@ -172,11 +172,14 @@ repair, destructive restore or release of traffic is part of this installer.
    storage inventory host in the `velero_storage` group. Keep receipts in
    a separate existing 0700 owner directory. Do not put physical IDs or keys in Git.
 3. Verify the current composition. The compiled base in `deployment/base.yaml` is
-   `local-harbor-app`, preserving Harbor data/app resources and its inherited
+   `local-harbor-app` at commit
+   `4b6677fab7533b1f602564e5f4915ba37d619e75`, preserving Harbor data/app resources and its inherited
    metrics/Grafana composition. Harbor must finish functional acceptance first;
    merely selecting its root is not acceptance. The preflight requires Harbor
    Ready at its current generation, which still does not prove SSO/push/pull.
-   If another app changes the root, revise this composition in the same release.
+   The live source artifact must match that compiled base commit, even when its
+   root path is unchanged. If a Harbor hotfix or another app advances the accepted
+   source/root, integrate it and update this same MR before release/rollout.
    The selector preflight fails closed; it must never turn those apps off. Confirm
    actual `flux-system/cluster-root` and source `flux-system/cluster-config` names.
 4. With exact foundation approval, run `install.yaml` stage `foundation`. It verifies
