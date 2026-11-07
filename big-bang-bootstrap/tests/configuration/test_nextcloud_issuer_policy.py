@@ -1,5 +1,7 @@
 """Exact LOCAL policy selection; offline builds only, no Kubernetes API."""
 import copy
+import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -93,6 +95,66 @@ class LocalIssuerSelection(unittest.TestCase):
         self.assertIn('serviceAccountName: platform-reconciler', seed)
         self.assertIn('prune: false', seed)
         self.assertEqual(yaml.safe_load((path / 'kustomization.yaml').read_text())['resources'], ['network.yaml'])
+
+    def test_runtime_access_is_exact_and_not_selected(self):
+        path = ROOT / 'configuration/identity/nextcloud/local'
+        role, binding = list(yaml.safe_load_all((path / 'runtime-policy-access.yaml').read_text()))
+        self.assertEqual(role, {
+            'apiVersion': 'rbac.authorization.k8s.io/v1', 'kind': 'ClusterRole',
+            'metadata': {'name': 'nextcloud-runtime-policy-writer'},
+            'rules': [{'apiGroups': ['admissionregistration.k8s.io'],
+                       'resources': ['validatingadmissionpolicies'],
+                       'resourceNames': ['nextcloud-app-pod-templates'],
+                       'verbs': ['get', 'patch', 'update']}]})
+        self.assertEqual(binding, {
+            'apiVersion': 'rbac.authorization.k8s.io/v1', 'kind': 'ClusterRoleBinding',
+            'metadata': {'name': 'nextcloud-runtime-policy-writer'},
+            'roleRef': {'apiGroup': 'rbac.authorization.k8s.io', 'kind': 'ClusterRole',
+                        'name': 'nextcloud-runtime-policy-writer'},
+            'subjects': [{'kind': 'ServiceAccount', 'name': 'platform-reconciler',
+                          'namespace': 'flux-system'}]})
+        for root in sorted((ROOT / 'clusters').iterdir()):
+            if (root / 'kustomization.yaml').exists():
+                self.assertFalse(any(o['metadata']['name'] == 'nextcloud-runtime-policy-writer'
+                                     for o in build(root)))
+
+    def test_explicit_accepted_selection_preserves_bootstrap_defaults(self):
+        ansible = ROOT / 'configuration/ansible'
+        selection = yaml.safe_load((ansible / 'vars/local-nextcloud-selection.yaml').read_text())
+        self.assertEqual(selection, {
+            'config_repository': 'https://github.com/perkforge/perkforge-platform.git',
+            'config_tag': 'v0.26.0',
+            'gitops_path': './big-bang-bootstrap/clusters/local-metrics-limited-pilot-ui',
+            'deployment_environment': 'local', 'impact_profile': 'il2'})
+        inventory = yaml.safe_load((ansible / 'inventory.yaml').read_text())
+        defaults = inventory['all']['children']['bootstrap_clusters']['vars']
+        self.assertEqual(defaults['config_tag'], 'UNCONFIGURED')
+        self.assertFalse(defaults['bootstrap_apply'])
+        self.assertEqual((ansible / 'seed.yaml.j2').read_text().count('suspend: true'), 2)
+        objects = build(ROOT / selection['gitops_path'].split('big-bang-bootstrap/')[1])
+        self.assertFalse(any(o['kind'] == 'GitRepository' and o['metadata']['name'] == 'cluster-config'
+                             for o in objects))
+
+    def test_accepted_selection_renders_paused_seed_offline(self):
+        ansible = ROOT / 'configuration/ansible'
+        with tempfile.TemporaryDirectory() as directory:
+            args = json.dumps({'msg': "{{ lookup('ansible.builtin.template', '" +
+                               str(ansible / 'seed.yaml.j2') + "') }}"})
+            output = subprocess.check_output([
+                'ansible', 'local', '-i', str(ansible / 'inventory.yaml'),
+                '-m', 'ansible.builtin.debug', '-a', args,
+                '-e', '@' + str(ansible / 'vars/local-nextcloud-selection.yaml')],
+                text=True, env={**os.environ, 'KUBECONFIG': '/dev/null',
+                                'ANSIBLE_LOCAL_TEMP': directory, 'ANSIBLE_NOCOLOR': '1'})
+            response, _ = json.JSONDecoder().raw_decode(output[output.index('{'):])
+            source, root = list(yaml.safe_load_all(response['msg']))
+            self.assertEqual(source['spec']['ref'], {'tag': 'v0.26.0'})
+            self.assertEqual(root['spec']['path'],
+                             './big-bang-bootstrap/clusters/local-metrics-limited-pilot-ui')
+            self.assertEqual(root['spec']['serviceAccountName'], 'platform-reconciler')
+            self.assertFalse(root['spec']['prune'])
+            self.assertTrue(source['spec']['suspend'])
+            self.assertTrue(root['spec']['suspend'])
 
     def test_contract_rejects_widening_or_identity_drift(self):
         original = yaml.safe_load((ROOT / 'configuration/identity/nextcloud/local/network.yaml').read_text())
