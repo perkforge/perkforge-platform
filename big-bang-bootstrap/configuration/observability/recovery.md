@@ -79,6 +79,45 @@ If the native hook cannot complete, the narrow one-time recovery is:
 and upgrade paths, hook ordering/policy and caBundle ownership. It is offline
 source proof, not live authorizer, cryptographic or admission acceptance.
 
+## Source and permission ownership
+
+The selected `clusters/local-metrics-limited-pilot-ui` root carries monitoring
+and Grafana values through the existing Big Bang owner. Keep these distinct
+owners when comparing live state with Git:
+
+| Configuration | Authoritative source | Reconciliation owner |
+|---|---|---|
+| Chart pins, pull references, worker placement, retention, bootstrap-admin reference and disabled Grafana migration | `candidate-values.yaml`, `pilot/`, `limited-pilot/` | Flux root, Big Bang, then the child Helm releases |
+| Installer identities, namespaced Helm storage, ConfigMap-only Grafana reader, named CRD/webhook permissions and kube-system metric Services | `metrics-prerequisites/foundation.yaml` | Separately gated owner-admin prerequisite delivery |
+| Namespace ingress isolation and exact API-server webhook sources | `metrics-prerequisites/templates/network-policy.yaml.j2` | Separately gated prerequisites with protected target inputs |
+| Six platform dashboard ConfigMaps | `metrics-prerequisites/dashboards.yaml` | Prerequisite delivery, then the namespaced Grafana sidecar |
+| Grafana route and Traefik ingress policy | `grafana-ui/ingress.yaml`, `grafana-ui/network.yaml` | Flux root |
+| Grafana route-writing permission for `flux-system:platform-reconciler` | `grafana-ui/access.yaml` | Separate owner-admin prerequisite, outside the root receiving its grant |
+| Runtime operator, Prometheus and kube-state-metrics RBAC | The pinned monitoring chart rendered from these values | Monitoring child Helm release |
+
+Common root/umbrella identities and ConfigMap/HelmRelease writing permissions
+remain in `../packages/bigbang/prerequisites/`. Do not move owner-admin grants
+into the root that receives those grants or grant broad namespace/cluster access
+merely to remove an ownership boundary. The Grafana UI Role permits creation of
+Ingress/NetworkPolicy objects in monitoring (Kubernetes cannot name-restrict
+create), while get/update/patch are limited to the exact two owned objects. It
+permits no Secret reads, Role writes, bindings or deletion.
+
+A read-only comparison on 2026-11-07 against deployed v0.26.0 verified the foundations,
+UI grants and runtime monitoring RBAC against their source. This does not prove
+all effective authorizer/admission behavior or replace separately approved
+negative tests. Root ConfigMaps and generated public monitoring/Grafana/CRD values
+also matched Git. The redundant inline registry fields listed below remain live;
+retirement has **not** run. The three native webhook entries retain matching
+nonempty trust bundles and Fail; runtime CA injection remains hook-owned rather
+than an environment certificate copied into Git.
+
+Protected registry/admin/TLS material, service-account tokens, API-server
+addresses, runtime UIDs and resourceVersions stay outside tracked configuration.
+Keep source templates, secret references and supported delivery/recovery steps
+in Git, not exported runtime credentials or generated Helm state. Both monitoring
+claims remain retained; no cleanup here deletes, recreates or resizes them.
+
 ## Registry overrides: review before retirement
 
 The published package-local `values.global.imagePullSecrets` references now
