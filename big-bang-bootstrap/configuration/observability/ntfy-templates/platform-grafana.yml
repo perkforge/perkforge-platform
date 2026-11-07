@@ -1,0 +1,9 @@
+# Native ntfy named formatter; do not forward labels, annotations, values or URLs.
+title: >-
+  {{- if eq .status "firing" -}}Platform alerts firing
+  {{- else if eq .status "resolved" -}}Platform alerts resolved
+  {{- else -}}Platform alert status unknown{{- end -}}
+message: >-
+  {{ len .alerts }} grouped alert(s). Open Grafana with your approved account for details.
+priority: >-
+  {{- if eq .status "firing" -}}4{{- else -}}3{{- end -}}

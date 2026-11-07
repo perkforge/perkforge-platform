@@ -1,5 +1,16 @@
 # Current operator handoff
 
+## Inactive alert/validation preparation
+
+[Native rule overlay and acceptance contract](big-bang-bootstrap/configuration/observability/alerts-and-validation.md)
+preserve vendor rules while selecting Grafana's built-in Alertmanager as the
+eventual single notification owner; no route is armed or notifications sent.
+Default-off readiness capture is not completed #40
+acceptance. Native ntfy v2.37.2 component tests verify a minimal status/count
+formatter, TLS denials and separate exact-topic publisher/subscriber permissions.
+No ntfy server or Grafana contact point is deployed; endpoint, protected identities,
+Grafana integration and physical notification acceptance remain gates.
+
 ## Inactive logging draft
 
 The [logging candidate](big-bang-bootstrap/configuration/observability/logging.md)

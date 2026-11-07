@@ -1,0 +1,37 @@
+# Not a deployable Alertmanager receiver or a secret-bearing app configuration.
+# A real reviewed endpoint/adapter must satisfy this before routing is armed.
+notification:
+  enabled: false
+  owner: grafana-built-in-alertmanager
+  destination: ntfy-compatible-authenticated-tls
+  endpoint_ref: UNCONFIGURED
+  credential_ref: UNCONFIGURED
+  adapter: native-ntfy-named-template
+  subscriber_credential_ref: UNCONFIGURED
+  candidate:
+    server_version: 2.37.2
+    official_linux_amd64_archive_sha256: e67f53d7fbed529b83faf3993b584110921ef3567b0ac0b033c6910879a4ffd1
+    template_file: ntfy-templates/platform-grafana.yml
+    template_name: platform-grafana
+    method: POST
+    topic_ref: UNCONFIGURED
+    default_access: deny-all
+    publisher_permission: exact-topic-write-only
+    subscriber_permission: exact-topic-read-only
+    payload_policy: status-and-count-only-no-labels-annotations-values-or-urls
+  rule_migration: upstream-alert-inventory-and-grafana-import-required
+  prometheus_notification_route: false
+  external_alertmanager: false
+  send_resolved: true
+  duplicate_direct_grafana_route: false
+  transport:
+    verify_tls: true
+    secrets_in_url_or_labels: false
+  acceptance:
+  - firing-and-resolved-reach-only-intended-client
+  - group-and-repeat-behavior
+  - silence-suppresses-and-expires
+  - no-double-delivery-from-grafana-and-prometheus
+  - invalid-credential-or-certificate-is-denied
+  - failed-delivery-is-visible-with-bounded-retry
+  - payload-conversion-and-sensitive-label-review

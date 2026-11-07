@@ -1,0 +1,35 @@
+# No live receiver or standalone human identity provider.
+enabled: false
+review_only: true
+live_apply_implemented: false
+protocol: machine-only
+application: alertmanager-ntfy
+human_entrypoint: Grafana dedicated OIDC; PA administers, engineer/viewer read-only
+  initially
+machine_identity:
+  rule_evaluation: existing Prometheus identity
+  notification_sender: Grafana built-in Alertmanager, one authenticated route
+  receiver: topic-scoped subscriber credentials, no invented OIDC browser client
+transport:
+  verify_tls: true
+  skip_certificate_verification: false
+  status: notification endpoint/adapter unselected
+recovery:
+  independent_local_access: true
+  custody: independent operator access and protected notification credentials
+activation_gates:
+- Grafana role/datasource isolation
+- notification adapter choice and protected credential refs
+- Grafana rule migration and native ntfy webhook payload remain unimplemented/off
+- no direct unauthenticated Alertmanager/ntfy admin ingress
+acceptance:
+  positive:
+  - approved platform admin can manage platform alerts
+  - assigned recipients receive firing/resolved state once
+  negative:
+  - viewer cannot edit rules/silences
+  - wrong topic credential and unassigned recipient denied
+  - cross-tenant alert query/action denied
+  rollback:
+  - remove only owned notification route/SSO authority
+  - preserve useful upstream rule sources and recovery; separate Alertmanager disabled

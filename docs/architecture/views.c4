@@ -467,4 +467,15 @@ views {
     platform.observability.stores -> engineer '6. Verify real ingest/query, spoofed-header and backend-bypass denial, disk headroom and restore before expansion'
   }
 
+  dynamic view observability_acceptance {
+    title 'Alert ownership and acceptance gates — inactive'
+    description 'Who does what and why: offline native rules/render tests only. No notification destination or live acceptance claimed.'
+    engineer -> platform.observability.alerts '1. Review native rules plus three lab thresholds; approve exact release and one notification contract'
+    platform.observability.stores -> platform.observability.alerts '2. Import reviewed useful rules into Grafana; built-in Alertmanager owns grouping and routing'
+    platform.observability.grafana -> platform.observability.alerts '3. Grafana manages rules, contacts and silences; no external Alertmanager or duplicate route'
+    platform.observability.alerts -> platform.observability.notification '4. BLOCKED: TLS/auth/payload adapter and firing/resolved/dedup evidence required before routing'
+    engineer -> platform.prerequisite_applier '5. Separately approve read-only UID-checked readiness capture to fresh protected evidence directory'
+    platform.prerequisite_applier -> engineer '6. Stop on failed condition; actual scrapes/log auth/retention/notification/recovery acceptance remains separate'
+  }
+
 }

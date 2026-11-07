@@ -7,6 +7,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../../..')
 const output = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(here, '../public/sources')
 const files = {
+  'alerts-sso-review.yaml': 'big-bang-bootstrap/configuration/observability/alerts-sso-review.yaml',
   'logging-sso-review.yaml': 'big-bang-bootstrap/configuration/observability/logging-sso-review.yaml',
   'grafana-sso-values.yaml': 'big-bang-bootstrap/configuration/observability/grafana-sso-values.yaml',
   'queued-sso.yaml': 'big-bang-bootstrap/configuration/observability/sso-review.yaml',
