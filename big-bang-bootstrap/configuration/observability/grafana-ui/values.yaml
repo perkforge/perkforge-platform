@@ -1,0 +1,10 @@
+grafana:
+  values:
+    upstream:
+      grafana.ini:
+        server:
+          domain: grafana.perkforge.home.arpa
+          root_url: https://grafana.perkforge.home.arpa/
+          enforce_domain: true
+        security:
+          cookie_secure: true

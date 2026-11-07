@@ -18,7 +18,7 @@
   changed_when: false
 - name: Sign a one-year server certificate using the encrypted root
   ansible.builtin.command:
-    argv: [openssl, x509, -req, -in, '{{ lab_pki_bundle.path }}/{{ lab_pki_application }}/request.csr', -CA, '{{ lab_pki_bundle.path }}/root-ca.crt', -CAkey, '{{ lab_pki_bundle.path }}/root-ca.key.pem', -passin, stdin, -set_serial, '0x{{ lab_pki_serial.stdout }}', -days, '365', -sha256, -extfile, '{{ lab_pki_bundle.path }}/{{ lab_pki_application }}/extensions.cnf', -out, '{{ lab_pki_bundle.path }}/{{ lab_pki_application }}/tls.crt']
+    argv: [openssl, x509, -req, -in, '{{ lab_pki_bundle.path }}/{{ lab_pki_application }}/request.csr', -CA, '{{ lab_pki_bundle.path }}/root-ca.crt', -CAkey, '{{ lab_pki_signing_key | default(lab_pki_bundle.path ~ "/root-ca.key.pem") }}', -passin, stdin, -set_serial, '0x{{ lab_pki_serial.stdout }}', -days, '365', -sha256, -extfile, '{{ lab_pki_bundle.path }}/{{ lab_pki_application }}/extensions.cnf', -out, '{{ lab_pki_bundle.path }}/{{ lab_pki_application }}/tls.crt']
     stdin: '{{ lab_pki_passphrase.user_input }}'
   no_log: true
 - name: Verify hostname, chain and server-auth purpose

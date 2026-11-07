@@ -1,0 +1,29 @@
+# Owner-admin prerequisite. Never selected by Flux; apply only with explicit approval.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nextcloud-runtime-policy-writer
+rules:
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - validatingadmissionpolicies
+  resourceNames:
+  - nextcloud-app-pod-templates
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: nextcloud-runtime-policy-writer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: nextcloud-runtime-policy-writer
+subjects:
+- kind: ServiceAccount
+  name: platform-reconciler
+  namespace: flux-system

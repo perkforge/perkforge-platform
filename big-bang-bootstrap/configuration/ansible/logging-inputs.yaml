@@ -24,7 +24,7 @@
         - ansible_play_hosts_all == ['local']
         - deployment_environment == 'local'
         - impact_profile == 'il2'
-        - gitops_path == './big-bang-bootstrap/clusters/local-logging-pilot'
+        - gitops_path in ['./big-bang-bootstrap/clusters/local-logging-pilot', './big-bang-bootstrap/clusters/local-logging-backend', './big-bang-bootstrap/clusters/local-logging-limited-pilot']
         - target_kubeconfig != '/UNCONFIGURED/kubeconfig'
         - target_context != 'UNCONFIGURED'
         - expected_cluster_uid != 'UNCONFIGURED'

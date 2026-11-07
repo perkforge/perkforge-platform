@@ -22,13 +22,22 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertEqual(self.jobs['release']['needs'], ['configuration', 'release-checks'])
         self.assertFalse(self.workflow['concurrency']['cancel-in-progress'] == 'true')
 
-    def test_legacy_draft_keeps_validation_paused(self):
+    def test_temporary_pause_preserves_reporting_and_release_graph(self):
+        # Keep workflow triggers/job IDs, but skip every offline validation job.
         check = yaml.load(Path('.github/workflows/gitops-selection.yml').read_text(), Loader=yaml.BaseLoader)
-        for name, job in check['jobs'].items():
-            with self.subTest(job=name):
-                self.assertEqual(job['if'], '${{ false }}')
-                self.assertTrue(job['steps'])
+        self.assertEqual(set(check['jobs']), {
+            'changes', 'docs', 'metrics-placement', 'selection', 'regressions',
+            'platform-sso', 'headlamp-prerequisites',
+        })
+        for job in check['jobs'].values():
+            self.assertEqual(job['if'], '${{ false }}')
+            self.assertTrue(job['steps'])  # Restore by reverting; suites stay intact.
+        self.assertNotIn('if', self.jobs['configuration'])
         self.assertEqual(self.jobs['release-checks']['if'], '${{ false }}')
+        # A status function suppresses GitHub's implicit success() dependency gate.
+        self.assertIn('!cancelled()', self.jobs['release']['if'])
+        self.assertNotIn('success()', self.jobs['release']['if'])
+        self.assertEqual(self.jobs['release']['needs'], ['configuration', 'release-checks'])
 
     def test_checks_read_only_and_minimal_release_rights(self):
         self.assertEqual(self.workflow['permissions'], {'contents': 'read'})

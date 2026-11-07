@@ -1,7 +1,7 @@
 - ansible.builtin.set_fact:
-    tls_namespace: '{{ "cattle-system" if tls_application == "rancher" else tls_application }}'
+    tls_namespace: '{{ "monitoring" if tls_application == "grafana" else "cattle-system" if tls_application == "rancher" else tls_application }}'
     tls_secret_name: '{{ "tls-rancher-ingress" if tls_application == "rancher" else tls_application ~ "-local-tls" }}'
-    tls_namespace_manifest: '{{ lookup("file", playbook_dir ~ "/../packages/" ~ tls_application ~ "/prerequisites/namespace.yaml") | from_yaml }}'
+    tls_namespace_manifest: '{{ (lookup("file", playbook_dir ~ "/../observability/metrics-prerequisites/foundation.yaml") | from_yaml_all | first) if tls_application == "grafana" else (lookup("file", playbook_dir ~ "/../packages/" ~ tls_application ~ "/prerequisites/namespace.yaml") | from_yaml) }}'
 - ansible.builtin.command:
     argv: "{{ tls_cli + ['get', 'namespace', tls_namespace, '--ignore-not-found', '-o', 'json'] }}"
   register: tls_existing_namespace
@@ -10,6 +10,9 @@
   ansible.builtin.assert:
     quiet: true
     that: tls_existing_namespace.stdout | length > 0 or platform_tls_namespaces_apply | bool
+- name: Grafana delivery requires the already prepared monitoring namespace
+  ansible.builtin.assert:
+    that: tls_application != 'grafana' or tls_existing_namespace.stdout | length > 0
 - name: Require authored ownership labels on an existing namespace
   ansible.builtin.assert:
     quiet: true
@@ -62,11 +65,13 @@
       tls_ca_payloads: {}
       cacheable: false
   - name: Read back only the created TLS resource under secret redaction
+    when: tls_application != "grafana"
     ansible.builtin.command:
       argv: "{{ tls_cli + ['get', 'secret', tls_secret_name, '-n', tls_namespace, '-o', 'json'] }}"
     register: tls_created_secret
     changed_when: false
-  - ansible.builtin.assert:
+  - when: tls_application != "grafana"
+    ansible.builtin.assert:
       that:
       - (tls_created_secret.stdout | from_json).type == 'kubernetes.io/tls'
       - (tls_created_secret.stdout | from_json).data['tls.crt'] == (lookup('file', platform_tls_bundle ~ '/' ~ tls_application ~ '/tls.crt', rstrip=false) | b64encode)
@@ -74,3 +79,12 @@
   - ansible.builtin.set_fact:
       tls_created_secret: {}
       cacheable: false
+  - name: Read back only Grafana TLS type and public certificate
+    when: tls_application == 'grafana'
+    ansible.builtin.command:
+      argv: "{{ tls_cli + ['get', 'secret', tls_secret_name, '-n', tls_namespace, '-o', 'jsonpath={.type} {.data.tls\\.crt}'] }}"
+    register: tls_grafana_public
+    changed_when: false
+  - ansible.builtin.assert:
+      that: tls_grafana_public.stdout == 'kubernetes.io/tls ' ~ (lookup('file', platform_tls_bundle ~ '/grafana/tls.crt', rstrip=false) | b64encode)
+    when: tls_application == 'grafana'

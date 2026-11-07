@@ -56,3 +56,33 @@ calls, renders the actual restricted pod/1Gi claim templates and checks positive
 replica health plus co-location, degraded/RW-mode and failed-replica negatives.
 The live Ansible smoke is separately approved, retains storage and is not invoked
 by this unittest suite. See the Longhorn package procedure for its observed result.
+
+`integration/test_metrics_worker_placement.py` compares default, CRD-only,
+limited-metrics and limited-logging renders, preserving all objects except the
+two PVC consumer selectors and derived values checksums. The separate mandatory
+`metrics-placement` CI job additionally sets `REQUIRE_NATIVE_OPERATOR_PLACEMENT=1`
+and `PROMETHEUS_OPERATOR_SOURCE` to the verified public operator source and runs:
+
+```sh
+KUBECONFIG=/dev/null PYTHONPATH=big-bang-bootstrap/tests \
+  python3 -m unittest integration.test_metrics_worker_placement -v
+```
+
+Provide `PREFLIGHT_SOURCES_DIR`, the two native-test variables above and Go/Helm
+on PATH to reproduce native coverage locally. It feeds the actual rendered
+Prometheus CR to the pinned operator's StatefulSet generator, verifies Kubernetes
+label matching excludes the observed unlabelled control-plane and accepts both
+labelled workers, and compares the entire generated StatefulSet after removing
+only its new selector. This is scheduling-constraint evidence; it does not prove
+live CSI mounts, scheduler decisions, free capacity or storage persistence.
+
+`integration/test_metrics_registry_pull_refs.py` reproduces the empty-reference
+failure through the real umbrella and child charts across seven default/review/
+CRD/full/limited roots. It checks every limited-pilot Pod/CR consumer and native
+monitoring ServiceAccount, including admission hooks. Exact equality after removing
+only those references preserves other app inputs, credentials, RBAC, images,
+resources, security, placement and storage. The existing `metrics-placement` job
+runs it with the native operator source; the generated StatefulSet must retain
+`private-registry` for both Prometheus and its reloader. Broader roots' deferred
+blackbox exporter is explicitly asserted unchanged, not claimed covered. No
+registry authentication, actual pull, live recovery or Secret value is tested.

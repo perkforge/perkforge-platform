@@ -19,6 +19,19 @@ portal chart/image versions are independent; this does not bump either of those.
 
 Dependency tags and reviewed resolved commits are recorded in `release-evidence.json`. The selected configuration dependency chain is enrollment v1.0.0 → portal config v1.0.0; a compatible platform release containing this selection must publish before bootstrap can use it. Image versions remain independently selected by application configuration. Do not infer compatibility from version numbers alone.
 
+The separate Nextcloud-only selection is enrollment
+[v1.5.0](https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v1.5.0)
+→ app configuration
+[v1.1.0](https://github.com/perkforge/perkforge-tenant-nextcloud/releases/tag/v1.1.0).
+Its platform overlay changes only the enrollment ref; the existing
+`local-metrics-limited-pilot-ui` stage and enrollment `./clusters/local-nextcloud`
+path, suspension flags, data/claim/recovery guards and Portal selection remain
+unchanged. This is source review, not live promotion. Before separately approved
+promotion, the private-image app requires `nextcloud-registry-existing`,
+`nextcloud-oidc` and `nextcloud-oidc-ca`; OIDC inputs and live policy/network/rollout
+approval remain separate gates. Shared-ingress selection is not approval to apply
+it. No bootstrap or Jett enrollment is included.
+
 Publish source/image changes first when required, then app configuration → enrollment → platform. Each dependency advance is a reviewed PR using an actually published compatible tag. Verify source contents, paths, cluster/environment/profile context and rendering before adopting it.
 
 The restructuring moves bootstrap paths to `big-bang-bootstrap`. Existing published tags retain old paths and cannot satisfy the new root path. After the feature PR merges, review its generated release PR and verify publication before selecting the new layout. No future tag is committed in inventory. Bootstrap defaults remain UNCONFIGURED and apply=false; actual release evidence is an explicit operator input. See [physical local onboarding](big-bang-bootstrap/README.md#point-local-at-your-physical-cluster). CI's v0.1.0 fixture explicitly uses its historical path; it does not activate the old workflow.
@@ -41,10 +54,30 @@ alone is not cryptographically immutable. Repository release/tag protection or
 immutable-release settings are **not configured by this PR**; any required change
 needs owner approval. Do not grant a broad PAT just to bypass workflow behavior.
 
+## Temporary CI pause for Nextcloud SSO
+
+All platform CI validation is temporarily skipped: change-selection policy,
+documentation, metrics placement, full selection/review-chain checks, all five
+regression shards, both SSO shards, Headlamp prerequisites and release tests.
+Jobs and event triggers remain defined and report skipped, not validated. No
+successful test coverage is implied. Test implementations are retained unchanged.
+
+Source release generation/publication remains enabled on main pushes, including
+its release-tag/source-commit verification. There are no image workflow changes,
+registry/digest promotion bypasses, credential changes or branch-rule changes.
+Runtime acceptance and separately authorized rollout safeguards remain mandatory.
+
+After Nextcloud SSO is complete, restore CI by reverting the commit titled
+`fix(ci): temporarily pause validation until Nextcloud SSO is complete` through
+a reviewed PR. Revert all four changed files together: both workflow files,
+`scripts/test_release_workflow.py` and this document. This restores the original
+job predicates and success-dependent release gate. Do not simply remove the
+false predicates from jobs that previously had change-selection conditions.
+
 ## Events, rights and recovery
 
-The release job requires successful configuration and release tests and only runs
-on a main **push**, using `GITHUB_TOKEN` with contents/PR/issues write (release,
+While the temporary Nextcloud SSO pause below is active, the release job permits
+skipped validation dependencies and only runs on a non-cancelled main **push**, using `GITHUB_TOKEN` with contents/PR/issues write (release,
 release-PR and label operations). All checks have contents read only. No job
 approves/merges PRs. Existing Actions PR-creation settings were observed enabled;
 no setting or credential is changed here.

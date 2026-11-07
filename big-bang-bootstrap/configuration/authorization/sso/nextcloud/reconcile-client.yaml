@@ -1,0 +1,82 @@
+- name: Independently reconcile the owned Nextcloud client without group or other-app grants
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [../client-scopes.yaml]
+  vars:
+    nextcloud_client_run: false
+    nextcloud_client_operation: inspect
+    nextcloud_client_approval: UNAPPROVED
+    nextcloud_recovery_verified: false
+    nextcloud_native_ready: false
+    nextcloud_provisioning_approval: UNAPPROVED
+    nextcloud_sso_callback_path: /index.php/apps/user_oidc/code
+    nextcloud_sso_origin: https://nextcloud.example.invalid
+    nextcloud_sso_issuer: https://identity.example.invalid/auth/realms/perkforge
+    nextcloud_operator_token_file: /UNCONFIGURED/operator-token
+    nextcloud_client_secret_file: /UNCONFIGURED/client-secret
+    nextcloud_ca_file: /UNCONFIGURED/public-ca.pem
+    nextcloud_subjects: []
+    nextcloud_native_revoked_subjects: []
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ nextcloud_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      unredirected_headers: [Authorization]
+      timeout: 20
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Nextcloud client={{ nextcloud_client_operation }}; default/check contact no APIs or private files. No group/global grant or user creation.'
+  - when: nextcloud_client_run | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - nextcloud_client_operation in ['inspect','prepare','activate','rollback','members']
+        - nextcloud_client_approval == 'nextcloud-client-' + nextcloud_client_operation + '-v1'
+        - nextcloud_recovery_verified | bool
+        - nextcloud_client_operation != 'activate' or nextcloud_native_ready | bool
+        - nextcloud_client_operation not in ['members','activate'] or nextcloud_provisioning_approval == 'own-client-role-jit-v1'
+        - nextcloud_sso_callback_path in ['/index.php/apps/user_oidc/code','/apps/user_oidc/code']
+        - nextcloud_sso_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - nextcloud_sso_issuer is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?(/auth)?/realms/perkforge$')
+        - nextcloud_sso_origin is not search('\.invalid$')
+        - nextcloud_sso_issuer is not search('\.invalid/')
+        - not nextcloud_sso_issuer.startswith(nextcloud_sso_origin + '/')
+        - nextcloud_subjects | length <= 20
+        - nextcloud_subjects | map(attribute='sub') | unique | length == nextcloud_subjects | length
+    - ansible.builtin.assert:
+        that:
+        - item.keys() | list | sort == ['role','sub']
+        - item.sub is match('^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$')
+        - item.role in ['household','owner','absent']
+      loop: '{{ nextcloud_subjects }}'
+    - no_log: true
+      block:
+      - ansible.builtin.stat:
+          path: '{{ item }}'
+          follow: false
+        loop: '{{ [nextcloud_operator_token_file, nextcloud_ca_file] + ([nextcloud_client_secret_file] if nextcloud_client_operation != "rollback" else []) }}'
+        register: nc_files
+      - ansible.builtin.assert:
+          that:
+          - item.item is match('^/') and item.item | realpath == item.item
+          - item.stat.isreg | default(false)
+          - not (item.stat.islnk | default(false))
+          - item.stat.size > 0
+          - item.item == nextcloud_ca_file or (item.stat.mode == '0600' and item.stat.pw_name == lookup('env','USER'))
+        loop: '{{ nc_files.results }}'
+      - ansible.builtin.set_fact:
+          nc_api: '{{ nextcloud_sso_issuer | regex_replace("/realms/perkforge$", "/admin/realms/perkforge") }}'
+          nc_headers: {Authorization: 'Bearer {{ lookup("file", nextcloud_operator_token_file) | trim }}'}
+          nc_candidate: '{{ lookup("file","client.json") | from_json | combine({"redirectUris":[nextcloud_sso_origin + nextcloud_sso_callback_path]}) }}'
+      - ansible.builtin.include_tasks: client-tasks.yaml
+      always:
+      - ansible.builtin.set_fact:
+          nc_headers: {}
+          nc_secret: ''
+          nc_credential: {}
+          cacheable: false
+        no_log: true

@@ -111,6 +111,52 @@ spec:
           kind: Namespace
 
           metadata: {name: gitlab-runner}'
+      # Local metrics have no Flux-to-Grafana notification route or credential copy.
+      # Native Grafana/foundation dashboards retain their existing owners.
+      - target:
+          group: "notification.toolkit.fluxcd.io"
+          version: v1beta3
+          kind: Alert
+          namespace: monitoring
+          name: grafana
+        patch: |-
+          $patch: delete
+          apiVersion: notification.toolkit.fluxcd.io/v1beta3
+          kind: Alert
+          metadata: {name: grafana, namespace: monitoring}
+      - target:
+          group: "notification.toolkit.fluxcd.io"
+          version: v1beta3
+          kind: Provider
+          namespace: monitoring
+          name: grafana
+        patch: |-
+          $patch: delete
+          apiVersion: notification.toolkit.fluxcd.io/v1beta3
+          kind: Provider
+          metadata: {name: grafana, namespace: monitoring}
+      - target:
+          group: ""
+          version: v1
+          kind: Secret
+          namespace: monitoring
+          name: grafana-flux-auth
+        patch: |-
+          $patch: delete
+          apiVersion: v1
+          kind: Secret
+          metadata: {name: grafana-flux-auth, namespace: monitoring}
+      - target:
+          group: ""
+          version: v1
+          kind: ConfigMap
+          namespace: monitoring
+          name: flux-grafana-dashboards
+        patch: |-
+          $patch: delete
+          apiVersion: v1
+          kind: ConfigMap
+          metadata: {name: flux-grafana-dashboards, namespace: monitoring}
       - target:
           group: helm.toolkit.fluxcd.io
           version: v2

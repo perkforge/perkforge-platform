@@ -19,6 +19,11 @@ monitoring:
     serviceAccountName: monitoring-installer
     storageNamespace: monitoring
   values:
+    # Consume the existing namespace credential; Big Bang emits empty pull refs
+    # when registry credentials are deliberately kept outside Git values.
+    global:
+      imagePullSecrets:
+      - name: private-registry
     upstream:
       grafana:
         enabled: false
@@ -27,6 +32,9 @@ monitoring:
         enabled: false
       prometheus:
         prometheusSpec:
+          # Longhorn CSI is registered only on the labelled storage workers.
+          nodeSelector:
+            storage.perkforge.io/worker: "true"
           replicas: 1
           retention: 7d
           retentionSize: 8GB
@@ -77,15 +85,38 @@ grafana:
         remediateLastFailure: false
     serviceAccountName: grafana-installer
     storageNamespace: monitoring
+    # Native HelmRelease values override valuesFrom after umbrella rendering.
+    # Keep bootstrap references out of the umbrella's Grafana notification lookup.
+    values:
+      upstream:
+        admin:
+          existingSecret: grafana-admin
+          userKey: admin-user
+          passwordKey: admin-password
   values:
+    # This platform starts at 13.2.4; the pre-9.3.1 migration is inapplicable.
+    # Disable its cross-namespace HelmRelease lookup and deployment-deletion hook.
+    autoRollingUpgrade:
+      enabled: false
+    # Helm globals propagate to the pinned Grafana dependency and its sidecar.
+    global:
+      imagePullSecrets:
+      - name: private-registry
     sso:
       enabled: false
     upstream:
+      # Keep the persistent Grafana consumer on Longhorn-capable workers.
+      nodeSelector:
+        storage.perkforge.io/worker: "true"
       replicas: 1
+      # No umbrella Secret lookup or usable fallback notification credential.
+      # The child-only override above supplies the existing bootstrap reference.
       admin:
-        existingSecret: grafana-admin
+        existingSecret: ''
         userKey: admin-user
         passwordKey: admin-password
+      adminUser: ''
+      adminPassword: ''
       persistence:
         enabled: true
         storageClassName: longhorn

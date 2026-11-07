@@ -1,12 +1,13 @@
 ---
 - ansible.builtin.assert:
-    that: lab_dns_maintenance_scope in ['gitlab-dns-records-v1', 'nextcloud-dns-record-v1']
+    that: lab_dns_maintenance_scope in ['gitlab-dns-records-v1', 'nextcloud-dns-record-v1', 'grafana-dns-record-v1']
 - ansible.builtin.set_fact:
+    dns_is_grafana: "{{ lab_dns_maintenance_scope == 'grafana-dns-record-v1' }}"
     dns_is_nextcloud: "{{ lab_dns_maintenance_scope == 'nextcloud-dns-record-v1' }}"
 - ansible.builtin.set_fact:
-    dns_existing_records: "{{ ['headlamp','keycloak','rancher','openbao','gitlab','gitlab-objects'] if dns_is_nextcloud else ['headlamp','keycloak','rancher','openbao'] }}"
-    dns_added_records: "{{ ['nextcloud'] if dns_is_nextcloud else ['gitlab','gitlab-objects'] }}"
-    dns_record_marker: "{{ 'Nextcloud DNS v1' if dns_is_nextcloud else 'GitLab DNS v1' }}"
+    dns_existing_records: "{{ ['headlamp','keycloak','rancher','openbao','gitlab','gitlab-objects','nextcloud'] if dns_is_grafana else ['headlamp','keycloak','rancher','openbao','gitlab','gitlab-objects'] if dns_is_nextcloud else ['headlamp','keycloak','rancher','openbao'] }}"
+    dns_added_records: "{{ ['grafana'] if dns_is_grafana else ['nextcloud'] if dns_is_nextcloud else ['gitlab','gitlab-objects'] }}"
+    dns_record_marker: "{{ 'Grafana DNS v1' if dns_is_grafana else 'Nextcloud DNS v1' if dns_is_nextcloud else 'GitLab DNS v1' }}"
 - ansible.builtin.stat:
     path: '{{ item }}'
     follow: false
