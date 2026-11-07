@@ -1,0 +1,73 @@
+# Only an explicit own-client role is allowed. Realm groups never grant access.
+- ansible.builtin.set_fact:
+    gf_role_candidate:
+      name: /platform/admins
+      description: grafana-explicit-admin-only-v1
+      composite: false
+      clientRole: true
+- ansible.builtin.assert:
+    that:
+    - gf_surface.results[4].json | length <= 1
+    - grafana_client_operation != 'prepare' or gf_surface.results[4].json | length == 0
+    - grafana_client_operation != 'prepare' or gf_surface.results[3].json.clientMappings | default({}) | length == 0
+- ansible.builtin.assert:
+    that:
+    - item.name == gf_role_candidate.name
+    - item.description == gf_role_candidate.description
+    - item.clientRole and item.containerId == gf_id and not item.composite
+    - item.id is match('^[A-Za-z0-9-]+$') and item.id is not search("[\\x00-\\x20\\x7f]")
+  loop: '{{ gf_surface.results[4].json }}'
+- ansible.builtin.uri:
+    url: '{{ gf_api }}/clients/{{ gf_id }}/scope-mappings/clients/{{ gf_id }}'
+    headers: '{{ gf_headers }}'
+  register: gf_scope_roles
+- ansible.builtin.assert:
+    that:
+    - gf_scope_roles.json | length <= 1
+    - gf_surface.results[3].json.clientMappings | default({}) | length == (1 if gf_scope_roles.json | length else 0)
+    - gf_scope_roles.json | length == 0 or gf_surface.results[3].json.clientMappings.grafana.id == gf_id
+    - gf_scope_roles.json | length == 0 or gf_surface.results[3].json.clientMappings.grafana.client == 'grafana'
+    - gf_scope_roles.json | length == 0 or gf_surface.results[3].json.clientMappings.grafana.mappings | map(attribute='id') | sort == gf_scope_roles.json | map(attribute='id') | sort
+    - gf_scope_roles.json | map(attribute='id') | difference(gf_surface.results[4].json | map(attribute='id') | list) | length == 0
+- name: Add the one reviewed role only to an exact disabled prepared client
+  ansible.builtin.uri:
+    url: '{{ gf_api }}/clients/{{ gf_id }}/roles'
+    headers: '{{ gf_headers }}'
+    method: POST
+    body_format: json
+    body: '{{ gf_role_candidate }}'
+    status_code: 201
+  when: grafana_client_operation == 'configure' and gf_surface.results[4].json | length == 0
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ gf_api }}/clients/{{ gf_id }}/roles?first=0&max=2&briefRepresentation=false'
+    headers: '{{ gf_headers }}'
+  register: gf_roles
+- ansible.builtin.assert:
+    that:
+    - gf_roles.json | length <= 1
+    - grafana_client_operation not in ['configure','members','activate'] or gf_roles.json | length == 1
+- ansible.builtin.assert:
+    that:
+    - item.name == gf_role_candidate.name and item.description == gf_role_candidate.description
+    - item.clientRole and item.containerId == gf_id and not item.composite
+    - item.id is match('^[A-Za-z0-9-]+$') and item.id is not search("[\\x00-\\x20\\x7f]")
+  loop: '{{ gf_roles.json }}'
+- name: Scope only this client's role into this client's bounded role claim
+  ansible.builtin.uri:
+    url: '{{ gf_api }}/clients/{{ gf_id }}/scope-mappings/clients/{{ gf_id }}'
+    headers: '{{ gf_headers }}'
+    method: POST
+    body_format: json
+    body: '{{ gf_roles.json }}'
+    status_code: 204
+  when: grafana_client_operation == 'configure' and gf_scope_roles.json | length == 0
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ gf_api }}/clients/{{ gf_id }}/scope-mappings/clients/{{ gf_id }}'
+    headers: '{{ gf_headers }}'
+  register: gf_scope_verified
+- ansible.builtin.assert:
+    that:
+    - gf_scope_verified.json | map(attribute='id') | difference(gf_roles.json | map(attribute='id') | list) | length == 0
+    - grafana_client_operation not in ['configure','members','activate'] or gf_scope_verified.json | map(attribute='id') | sort == gf_roles.json | map(attribute='id') | sort

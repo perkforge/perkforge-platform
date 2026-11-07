@@ -50,9 +50,8 @@ versioned replacement and workload/source change.
 
 This entrypoint grants no RBAC, creates no namespace, and never patches a
 Deployment, HelmRelease, source root, TLS route, claim, datasource or dashboard.
-It preserves existing monitoring and local Grafana recovery. Keeping the client
-and native OAuth disabled is mandatory until a paired own-client claim/role
-policy and account-linking/recovery behavior are reviewed. Tenant, engineer and
-viewer access are not approved here. Later source selection must verify the
-pinned chart, deployment effects, exact existing identities and rollback before
-separate activation and positive/denied/session acceptance.
+It preserves existing monitoring and local Grafana recovery. Keep the client and native OAuth disabled until the [admin-only policy and
+ordered activation](README.md) receive the required approvals. Tenant, engineer
+and viewer access are not approved. The optional native source stage and
+client activation remain separate steps after TLS, local recovery and identity
+checks; delivery alone does not select or enable either.

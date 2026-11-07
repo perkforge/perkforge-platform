@@ -185,10 +185,12 @@ risk but are not backup or authorization to delete/recreate.
 `grafana-sso-values.yaml` is an optional native Generic OAuth overlay, not selected
 by any root. It keeps the app disabled/paused, references a protected environment
 Secret and public CA ConfigMap, enables PKCE/verified TLS and strict role matching,
-and retains independent local recovery. Only exact platform-admin claims propose
-Grafana server administration; platform-engineer/viewer initially propose Viewer,
-with direct engineer edits still a review decision. Unmatched/tenant groups have no
-fallback grant. No users/clients/Secret values or mappings are created here.
+and retains independent local recovery. The narrower initial proposal permits
+only explicitly granted own-client admin claims; engineer, viewer, tenant and
+unmapped users are denied. No users/clients/Secret values or mappings are created
+by this review overlay. The [cohesive Grafana procedure](../authorization/sso/grafana/README.md)
+provides separately approved role/client operations and the optional
+`local-grafana-sso` native stage, with same-release source rollback.
 
 Pinned Grafana 13.2.1 supports this native configuration. OSS org-role mapping is
 not Enterprise Team Sync. Tenant organizations and backend-scoped datasources stay

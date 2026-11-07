@@ -164,8 +164,10 @@ boundaries. It remains evaluation-only, with no install or new service account.
 Sources: [Grafana OAuth](https://grafana.com/docs/grafana/latest/setup-grafana/configure-access/configure-authentication/generic-oauth/),
 [Velero restrictive RBAC](https://velero.io/docs/v1.18/rbac/).
 
-[Grafana offline preparation](../authorization/sso/grafana/README.md) now pairs a
-disabled dedicated client with exact provider endpoints. It creates review files
-only. Separately gated [dedicated input delivery](../authorization/sso/grafana/DELIVERY.md)
-delivers immutable Secret/public-CA objects only when explicitly approved without selecting or activating OAuth.
-Role grants, native source selection and live acceptance remain separate gates.
+[Grafana's cohesive procedure](../authorization/sso/grafana/README.md) pairs the
+disabled client with default-off explicit-admin role/member operations, activation
+and rollback, plus an optional native source stage. The narrower admin-only policy
+requires owner confirmation. [Dedicated input delivery](../authorization/sso/grafana/DELIVERY.md)
+changes only the approved immutable Secret/public-CA objects. Publication does not
+authorize credentials, grants, deployment or activation; live MFA/denial/recovery
+and existing-session acceptance remain gates.

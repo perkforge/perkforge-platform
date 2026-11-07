@@ -1,5 +1,15 @@
 # Current operator handoff
 
+## Grafana SSO candidate awaits policy and live approval
+
+[One cohesive source candidate](big-bang-bootstrap/configuration/authorization/sso/grafana/README.md)
+adds explicit-subject admin-only client roles, gated activation/rollback and an
+optional native stage preserving Harbor and monitoring. No new client credential,
+role/grant, delivery, deployment or live login is performed by this work.
+Owner confirmation of the narrower admin-only policy and action-specific
+credential/access/deployment approvals remain gates. CI stays paused; offline
+fixtures do not establish physical login, recovery or existing-session denial.
+
 ## Harbor jobservice correction awaits review
 
 Published v0.29.1's worker-only startup fix is live. Core, independent local

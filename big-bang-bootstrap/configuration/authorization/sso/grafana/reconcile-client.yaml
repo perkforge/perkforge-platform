@@ -1,4 +1,4 @@
-- name: Prepare or inspect only the disabled owned Grafana client
+- name: Reconcile only the owned Grafana client and explicitly approved admin subjects
   hosts: localhost
   connection: local
   gather_facts: false
@@ -8,6 +8,10 @@
     grafana_client_operation: inspect
     grafana_client_approval: UNAPPROVED
     grafana_recovery_verified: false
+    grafana_native_ready: false
+    grafana_role_policy_approval: UNAPPROVED
+    grafana_subjects: []
+    grafana_native_revoked_subjects: []
     grafana_sso_origin: https://grafana.example.invalid
     grafana_sso_issuer: https://identity.example.invalid/auth/realms/perkforge
     grafana_operator_token_file: /UNCONFIGURED/operator-token
@@ -24,14 +28,19 @@
       timeout: 20
   tasks:
   - ansible.builtin.debug:
-      msg: 'Default/check contact no APIs or private files. Only disabled-client prepare/inspect; no activation, grants, token issuance or Kubernetes delivery.'
+      msg: 'Default/check contact no APIs or private files. Live operations require separate approval. No token issuance, secret generation, group edits or Kubernetes delivery.'
   - when: grafana_client_run | bool and not ansible_check_mode
     block:
     - ansible.builtin.assert:
         that:
-        - grafana_client_operation in ['inspect', 'prepare']
+        - grafana_client_operation in ['inspect', 'prepare', 'configure', 'members', 'activate', 'rollback']
         - grafana_client_approval == 'grafana-client-' + grafana_client_operation + '-v1'
         - grafana_recovery_verified | bool
+        - grafana_client_operation not in ['configure','members','activate'] or grafana_role_policy_approval == 'grafana-explicit-admin-only-v1'
+        - grafana_client_operation != 'activate' or grafana_native_ready | bool
+        - grafana_subjects | length <= 20
+        - grafana_subjects | map(attribute='sub') | unique | length == grafana_subjects | length
+        - grafana_client_operation != 'activate' or grafana_subjects | selectattr('role','equalto','admin') | list | length > 0
         - grafana_sso_origin is not search("[\\x00-\\x20\\x7f]")
         - grafana_sso_issuer is not search("[\\x00-\\x20\\x7f]")
         - grafana_sso_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
@@ -43,6 +52,14 @@
         - >-
           (grafana_sso_origin | urlsplit('hostname') | lower | regex_replace('\.$', '')) != (grafana_sso_issuer | urlsplit('hostname') | lower | regex_replace('\.$', ''))
           or ((grafana_sso_origin | urlsplit('port')) or 443) != ((grafana_sso_issuer | urlsplit('port')) or 443)
+    - ansible.builtin.assert:
+        that:
+        - item.keys() | list | sort == ['role','sub']
+        - item.sub is match('^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$')
+        - item.sub is not search("[\\x00-\\x20\\x7f]")
+        - item.role in ['admin','absent']
+      loop: '{{ grafana_subjects }}'
+      no_log: true
     - no_log: true
       block:
       - ansible.builtin.command: {argv: [id, -u]}
