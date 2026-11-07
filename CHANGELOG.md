@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.1](https://github.com/perkforge/perkforge-platform/compare/v0.24.0...v0.24.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **grafana:** disable inapplicable historical upgrade migration ([#235](https://github.com/perkforge/perkforge-platform/issues/235)) ([1872c70](https://github.com/perkforge/perkforge-platform/commit/1872c70ffd713be9a913760c477c95c267e0d490))
+
 ## [0.24.0](https://github.com/perkforge/perkforge-platform/compare/v0.23.5...v0.24.0) (2026-11-07)
 
 
