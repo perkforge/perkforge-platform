@@ -1,0 +1,24 @@
+# Local shared-ingress endpoint, verified through the actual CNI/NAT route.
+# Adopt the existing object in place. No CA or credential input is managed here.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nextcloud-oidc-issuer
+  namespace: tenant-home-nextcloud
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+    kustomize.toolkit.fluxcd.io/force: disabled
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: nextcloud
+      app.kubernetes.io/instance: nextcloud
+      app.kubernetes.io/component: app
+  policyTypes: [Egress]
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 192.168.1.102/32
+    ports:
+    - protocol: TCP
+      port: 443
