@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.30.0](https://github.com/perkforge/perkforge-platform/compare/v0.29.5...v0.30.0) (2026-11-07)
+
+
+### Features
+
+* **grafana:** guard dedicated OAuth input delivery ([#253](https://github.com/perkforge/perkforge-platform/issues/253)) ([b5820cf](https://github.com/perkforge/perkforge-platform/commit/b5820cfdfb9090c9335925ad0ca9a47d941336c9))
+* **grafana:** prepare bounded disabled client lifecycle ([#252](https://github.com/perkforge/perkforge-platform/issues/252)) ([489bbc6](https://github.com/perkforge/perkforge-platform/commit/489bbc6acdccf8bba10e99c5617670520a950ea1))
+
 ## [0.29.5](https://github.com/perkforge/perkforge-platform/compare/v0.29.4...v0.29.5) (2026-11-07)
 
 
