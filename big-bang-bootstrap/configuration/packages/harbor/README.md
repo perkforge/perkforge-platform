@@ -70,6 +70,11 @@ Do not replay cluster bootstrap or manually override a child against Git values.
    tag/commit. Recheck all nodes/releases, per-worker requested capacity, Longhorn
    replicas/free space and current watches. Capture pre-Harbor preservation
    evidence with `scripts/harbor-stage-audit.py --verify --mode snapshot`.
+   The [record-only DNS procedure](../../../../infrastructure/ansible/DNS-MAINTENANCE.md)
+   adds only `harbor.perkforge.home.arpa` with `harbor-dns-record-v1`, preserving
+   all eight prior names. Its source belongs in this review, but the DNS write and
+   one service restart require separate network-change approval and the operator's
+   hidden sudo prompt. Keep it default-off until the release/base hash is reviewed.
 2. **Foundation and protected inputs.** Obtain the action-time approvals below.
    Run default-off `configuration/ansible/harbor-prerequisites.yaml` against the
    exact API/context/cluster/operator identities. It checks every target first,
@@ -173,6 +178,8 @@ any corresponding operation. Approval flags in source are guards, not permission
   CA signing keys stay local. No password/token appears in chat, argv or Git.
 - The two conditional GitOps selections and their new workloads, HTTPS route and
   namespace-only policies/transport grants. Scanner is off and egress unrestricted.
+- Harbor-only DNS maintenance and one DNS-service restart, separately approved
+  against the reviewed existing configuration checksum; no client resolver changes.
 - Exact empty default `library` project public-to-private change before data use.
 - Dedicated confidential Keycloak client/secret, the admin-group role grant for
   **current and future** `/platform/admins` members, native Harbor OIDC settings

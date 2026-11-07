@@ -35,7 +35,8 @@ ansible-playbook -i "$physical_inventory" \
 ```
 
 The private input file contains `lab_dns_maintenance_apply: true`, scope
-`gitlab-dns-records-v1`, `nextcloud-dns-record-v1` or `grafana-dns-record-v1`, `lab_dns_maintenance_expected_sha256` and the absolute
+`gitlab-dns-records-v1`, `nextcloud-dns-record-v1`, `grafana-dns-record-v1` or
+`harbor-dns-record-v1`, `lab_dns_maintenance_expected_sha256` and the absolute
 `lab_dns_maintenance_release_evidence` path. Release evidence identifies the
 repository, stable tag and resolved commit. The checked-out commit must match,
 and the tree must be clean. No password belongs in that file or chat: enter sudo
@@ -74,3 +75,27 @@ bytes and uses its own `Grafana DNS v1` block. The same checksum, release,
 restart, rollback and explicit approval boundaries apply. This does not activate
 Grafana routing. See the [Grafana UI procedure](../../big-bang-bootstrap/configuration/observability/grafana-ui/README.md)
 for dedicated leaf issuance, Secret delivery, access and route approvals.
+
+Harbor uses the separate fixed `harbor-dns-record-v1` scope: only
+`harbor.perkforge.home.arpa` at that same reviewed worker-1 ingress address from
+the private inventory. It requires all eight prior names: Headlamp, Keycloak,
+Rancher, OpenBao, GitLab, GitLab Objects, Nextcloud and Grafana. Their bytes are
+preserved; the only addition is the owned `Harbor DNS v1` block. An existing
+foreign Harbor record is refused, even at the expected address. No caller-selected
+record names, new listener, upstream, unit, firewall or client-resolver changes
+are included. The clean release, approved base checksum, backup, single restart,
+UDP/TCP verification and own-bytes-only rollback guards above also apply.
+
+Keep Harbor DNS in the [combined Harbor review](../../big-bang-bootstrap/configuration/packages/harbor/README.md),
+but obtain separate network-change approval before running this scope. Enter sudo
+only at the operator's hidden Ansible prompt. DNS success does not prove Harbor
+startup, HTTPS/core health, SSO or image push/pull acceptance; verify those
+separately after the application is healthy.
+
+Offline regression checks (fake executables and temporary local files, no live DNS):
+
+```sh
+python3 -m unittest discover -s infrastructure/ansible/tests -p 'test_*dns*.py' -v
+ansible-playbook -i infrastructure/ansible/inventory/hosts.yml \
+  infrastructure/ansible/playbooks/maintain-lab-dns.yml --syntax-check
+```
