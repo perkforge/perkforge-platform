@@ -19,6 +19,19 @@ portal chart/image versions are independent; this does not bump either of those.
 
 Dependency tags and reviewed resolved commits are recorded in `release-evidence.json`. The selected configuration dependency chain is enrollment v1.0.0 → portal config v1.0.0; a compatible platform release containing this selection must publish before bootstrap can use it. Image versions remain independently selected by application configuration. Do not infer compatibility from version numbers alone.
 
+The separate Nextcloud-only selection is enrollment
+[v1.5.0](https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v1.5.0)
+→ app configuration
+[v1.1.0](https://github.com/perkforge/perkforge-tenant-nextcloud/releases/tag/v1.1.0).
+Its platform overlay changes only the enrollment ref; the existing
+`local-metrics-limited-pilot-ui` stage and enrollment `./clusters/local-nextcloud`
+path, suspension flags, data/claim/recovery guards and Portal selection remain
+unchanged. This is source review, not live promotion. Before separately approved
+promotion, the private-image app requires `nextcloud-registry-existing`,
+`nextcloud-oidc` and `nextcloud-oidc-ca`; OIDC inputs and live policy/network/rollout
+approval remain separate gates. Shared-ingress selection is not approval to apply
+it. No bootstrap or Jett enrollment is included.
+
 Publish source/image changes first when required, then app configuration → enrollment → platform. Each dependency advance is a reviewed PR using an actually published compatible tag. Verify source contents, paths, cluster/environment/profile context and rendering before adopting it.
 
 The restructuring moves bootstrap paths to `big-bang-bootstrap`. Existing published tags retain old paths and cannot satisfy the new root path. After the feature PR merges, review its generated release PR and verify publication before selecting the new layout. No future tag is committed in inventory. Bootstrap defaults remain UNCONFIGURED and apply=false; actual release evidence is an explicit operator input. See [physical local onboarding](big-bang-bootstrap/README.md#point-local-at-your-physical-cluster). CI's v0.1.0 fixture explicitly uses its historical path; it does not activate the old workflow.
