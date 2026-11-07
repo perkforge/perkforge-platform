@@ -362,4 +362,46 @@ class RealAnsibleCredentials(unittest.TestCase):
         self.assertEqual(self.events(),[])  # manifest binding fails before API access
 
 
+class ActualTransportCompatibility(unittest.TestCase):
+    """Real issuance helpers must feed the actual credential validators unchanged."""
+    def test_real_issuance_outputs_pass_credential_crypto_guards(self):
+        from tests.security import test_harbor_transport as transport
+        fixture = transport.HarborTransport()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        before = set(fixture.out.iterdir())
+        code, log = fixture.run_play(values=fixture.internal_vars())
+        self.assertEqual(code, 0, log)
+        self.assertNotIn('BEGIN PRIVATE KEY', log)
+        internal_bundle, = set(fixture.out.iterdir()) - before
+        fixture.assert_protected(internal_bundle)
+        self.assertEqual((internal_bundle / 'READY').read_text().strip(), 'harbor-internal-transport-issuance-v1')
+        delivery = internal_bundle / 'delivery/internal'
+        ca = (delivery / 'ca.crt').read_text()
+        self.assertEqual(len(guard._ca_bundle(ca)), 1)
+        for service in transport.SERVICES:
+            leaf = {'tls.crt': (delivery / service / 'tls.crt').read_text(),
+                    'tls.key': (delivery / service / 'tls.key').read_text()}
+            guard._tls(leaf, ca, [service + suffix for suffix in ('','.harbor.svc','.harbor.svc.cluster.local')])
+        self.assertEqual(len(list(delivery.rglob('*.key'))), 5)
+        self.assertNotIn('ca.key', [p.name for p in delivery.rglob('*')])
+
+        before = set(fixture.out.iterdir())
+        code, log = fixture.run_play(True, fixture.public_vars(), passphrase='fixture-only')
+        self.assertEqual(code, 0, log)
+        self.assertNotIn('fixture-only', log)
+        self.assertNotIn('BEGIN PRIVATE KEY', log)
+        external_bundle, = set(fixture.out.iterdir()) - before
+        fixture.assert_protected(external_bundle)
+        self.assertEqual((external_bundle / 'READY').read_text().strip(), 'harbor-public-leaf-issuance-v1')
+        external = external_bundle / 'delivery/external'
+        external_ca = (external / 'ca.crt').read_text()
+        self.assertEqual(len(guard._ca_bundle(external_ca)), 1)
+        guard._tls({'tls.crt': (external / 'tls.crt').read_text(),
+                    'tls.key': (external / 'tls.key').read_text()}, external_ca,
+                   ['harbor.perkforge.home.arpa'])
+        self.assertEqual(len(guard._ca_bundle(ca + external_ca)), 2)
+        self.assertEqual({p.name for p in external.iterdir()}, {'ca.crt','tls.crt','tls.key'})
+
+
 if __name__=='__main__': unittest.main()
