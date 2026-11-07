@@ -48,6 +48,15 @@ def objects(items):
     return result
 
 
+# CNPG chart 0.29.1 config-template hashes, independently tested against the
+# integrity-pinned chart and both source roots. Keep the old checksum in the
+# normalized spec so existing pre-Harbor evidence remains valid byte-for-byte.
+OPERATOR_CONFIG_CHECKSUMS = {
+    'gitlab,tenant-home-nextcloud': '9a75f80da2e0bfc23a72060aa606a9e8e370955781a37870e3b1743ebfe7914e',
+    'gitlab,tenant-home-nextcloud,harbor': 'c7249aa557a41afa5b02e561126d9f84f9f2b7e0d53a0ce401c3f38a3bf94598',
+}
+
+
 def operator_identity(operator):
     healthy_deployment(operator)
     spec = copy.deepcopy(operator['spec'])
@@ -58,6 +67,11 @@ def operator_identity(operator):
     watch = [e for e in managers[0]['env'] if e['name'] == 'WATCH_NAMESPACE']
     require(len(watch) == 1 and 'value' in watch[0], 'Unexpected operator watch configuration')
     watched = watch[0].pop('value')
+    annotations = spec['template'].get('metadata', {}).get('annotations', {})
+    require(watched in OPERATOR_CONFIG_CHECKSUMS
+            and annotations.get('checksum/config') == OPERATOR_CONFIG_CHECKSUMS[watched],
+            'Unexpected operator watch/config checksum pair')
+    annotations['checksum/config'] = OPERATOR_CONFIG_CHECKSUMS['gitlab,tenant-home-nextcloud']
     return {'uid': operator['metadata']['uid'], 'spec_sha256_without_watch': digest(spec)}, watched
 
 

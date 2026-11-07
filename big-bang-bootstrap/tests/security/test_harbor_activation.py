@@ -85,6 +85,35 @@ class HarborActivation(unittest.TestCase):
             self.assertEqual(audit.release_fingerprint(named(self.data, 'HelmRelease', name), stage='data'), original)
             self.assertEqual(audit.release_fingerprint(named(self.app, 'HelmRelease', name), stage='app'), original)
 
+    def test_operator_config_checksums_match_pinned_chart_and_only_reviewed_watch_delta(self):
+        spec = importlib.util.spec_from_file_location('harbor_audit_operator_contract', ROOT.parent / 'scripts/harbor-stage-audit.py')
+        audit = importlib.util.module_from_spec(spec); spec.loader.exec_module(audit)
+        chart = yaml.safe_load((self.sources / 'cnpg/Chart.yaml').read_text())
+        self.assertEqual(chart['version'], '0.29.1')
+        deployments = []
+        for objects in (self.baseline, self.data, self.app):
+            release = named(objects, 'HelmRelease', 'platform-cnpg')
+            values = ordered_values(objects, release) + [yaml.safe_dump(release['spec'].get('values', {}))]
+            rendered = helm(self.sources / 'cnpg', 'platform-cnpg', 'cnpg-system', values)
+            effective = postrender(rendered, release['spec']['postRenderers'])
+            deployment = named(effective, 'Deployment', 'platform-cnpg')
+            watched = next(e['value'] for c in deployment['spec']['template']['spec']['containers']
+                           if c['name'] == 'manager' for e in c['env'] if e['name'] == 'WATCH_NAMESPACE')
+            self.assertEqual(deployment['spec']['template']['metadata']['annotations']['checksum/config'],
+                             audit.OPERATOR_CONFIG_CHECKSUMS[watched])
+            deployment['metadata'].update(uid='synthetic-operator', generation=1)
+            deployment['status'] = dict(observedGeneration=1, replicas=1, updatedReplicas=1, readyReplicas=1, availableReplicas=1)
+            deployments.append(deployment)
+        for changed in deployments[1:]:
+            self.assertEqual(audit.operator_identity(deployments[0])[0], audit.operator_identity(changed)[0])
+            normalized = copy.deepcopy(changed['spec'])
+            normalized['template']['metadata']['annotations']['checksum/config'] = deployments[0]['spec']['template']['metadata']['annotations']['checksum/config']
+            for container in normalized['template']['spec']['containers']:
+                for entry in container.get('env', []):
+                    if entry['name'] == 'WATCH_NAMESPACE':
+                        entry['value'] = 'gitlab,tenant-home-nextcloud'
+            self.assertEqual(normalized, deployments[0]['spec'])
+
     def test_effective_app_keeps_namespace_ownership_scanner_and_exporter_off(self):
         self.assertFalse(any(o['kind'] == 'Namespace' and o['metadata']['name'] == 'harbor' for o in self.outer))
         self.assertTrue(any(o['kind'] == 'Namespace' and o['metadata']['name'] == 'harbor' for o in self.outer_raw))
