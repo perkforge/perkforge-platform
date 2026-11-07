@@ -70,8 +70,8 @@ class HarborDataCandidate(unittest.TestCase):
         core = named(self.app, 'ConfigMap', 'harbor-core')['data']
         self.assertEqual(core['POSTGRESQL_HOST'], 'harbor-postgres-rw.harbor.svc.cluster.local')
         self.assertEqual(core['POSTGRESQL_SSLMODE'], 'verify-full')
-        self.assertEqual(core['POSTGRESQL_MAX_OPEN_CONNS'], '50')
-        self.assertEqual(core['POSTGRESQL_MAX_IDLE_CONNS'], '10')
+        self.assertEqual(core['POSTGRESQL_MAX_OPEN_CONNS'], '20')
+        self.assertEqual(core['POSTGRESQL_MAX_IDLE_CONNS'], '5')
         pod = named(self.app, 'Deployment', 'harbor-core')['spec']['template']['spec']
         env = pod['containers'][0]['env']
         self.assertIn({'name': 'PGSSLROOTCERT', 'value': '/harbor_cust_cert/custom-ca.crt'}, env)
@@ -202,11 +202,18 @@ class HarborDataCandidate(unittest.TestCase):
         pg = named(self.objects, 'NetworkPolicy', 'harbor-postgres-from-core')['spec']
         self.assertEqual(pg['podSelector'], {'matchLabels': {'cnpg.io/cluster': 'harbor-postgres'}})
         self.assertEqual(pg['ingress'][0], {
-            'from': [{'podSelector': {'matchLabels': {'app': 'harbor', 'release': 'harbor', 'component': 'core'}}}],
+            'from': [{'podSelector': {'matchLabels': {'app': 'harbor', 'release': 'harbor', 'component': component}}}
+                     for component in ('core', 'jobservice')],
             'ports': [{'protocol': 'TCP', 'port': 5432}]})
-        operator = pg['ingress'][1]['from'][0]
-        self.assertEqual(operator['namespaceSelector']['matchLabels'], {'kubernetes.io/metadata.name': 'cnpg-system'})
-        self.assertEqual(operator['podSelector']['matchLabels'], {'app.kubernetes.io/instance': 'platform-cnpg', 'app.kubernetes.io/name': 'cloudnative-pg'})
+        operator = {
+            'namespaceSelector': {'matchLabels': {'kubernetes.io/metadata.name': 'cnpg-system'}},
+            'podSelector': {'matchLabels': {'app.kubernetes.io/instance': 'platform-cnpg', 'app.kubernetes.io/name': 'cloudnative-pg'}}}
+        self.assertEqual(set(pg), {'podSelector', 'policyTypes', 'ingress'})
+        self.assertEqual(pg['policyTypes'], ['Ingress'])
+        self.assertEqual(len(pg['ingress']), 2)
+        self.assertEqual(pg['ingress'][1], {
+            'from': [operator], 'ports': [{'protocol': 'TCP', 'port': 5432}, {'protocol': 'TCP', 'port': 8000}]})
+        self.assertNotIn('egress', pg)
         cache = named(self.objects, 'NetworkPolicy', 'harbor-valkey-from-components')['spec']
         self.assertEqual(cache['podSelector']['matchLabels'],
                          named(self.cache, 'Deployment', 'harbor-valkey')['spec']['template']['metadata']['labels'])
@@ -220,6 +227,28 @@ class HarborDataCandidate(unittest.TestCase):
                 self.assertTrue(rule['from'])
                 self.assertTrue(rule['ports'])
                 self.assertFalse(any('ipBlock' in peer for peer in rule['from']))
+
+    def test_postgres_application_peers_reject_other_namespaces_components_and_ports(self):
+        policy = named(self.objects, 'NetworkPolicy', 'harbor-postgres-from-core')
+        peers = policy['spec']['ingress'][0]
+
+        def allows_app(namespace, labels, port=5432, protocol='TCP'):
+            # These exact podSelector-only peers are namespace local by Kubernetes semantics.
+            return namespace == policy['metadata']['namespace'] and {'protocol': protocol, 'port': port} in peers['ports'] and any(
+                all(labels.get(k) == v for k, v in peer['podSelector']['matchLabels'].items())
+                for peer in peers['from'])
+
+        for component in ('core', 'jobservice'):
+            labels = {'app': 'harbor', 'release': 'harbor', 'component': component}
+            self.assertTrue(allows_app('harbor', labels))
+            self.assertFalse(allows_app('other', labels))
+            self.assertFalse(allows_app('harbor', labels, 8000))
+            self.assertFalse(allows_app('harbor', labels, protocol='UDP'))
+            for key in labels:
+                changed = {**labels, key: 'other'}
+                self.assertFalse(allows_app('harbor', changed))
+        for component in ('portal', 'registry', 'registryctl', 'trivy', 'exporter'):
+            self.assertFalse(allows_app('harbor', {'app': 'harbor', 'release': 'harbor', 'component': component}))
 
     def test_reviewed_request_and_storage_budget_is_not_silently_expanded(self):
         pg = named(self.objects, 'Cluster', 'harbor-postgres')['spec']

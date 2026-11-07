@@ -47,8 +47,10 @@ workflows disabled while maintaining and running local checks.
   security restrictions remain unchanged; the init requests 20m/32Mi, below the
   application's requests. Secret inputs stay read-only. No root init, capability,
   broad filesystem permission change or TLS-verification bypass is used.
-- PostgreSQL uses `verify-full`, explicit core
-  `PGSSLROOTCERT=/harbor_cust_cert/custom-ca.crt`, and a 50-open/10-idle pool.
+- PostgreSQL uses `verify-full` and explicit core/jobservice
+  `PGSSLROOTCERT=/harbor_cust_cert/custom-ca.crt`. Each process has a
+  20-open/5-idle pool: 40 open/10 idle with one replica each, leaving room within
+  the dedicated database's 100 connections. Reassess before scaling or load growth.
   Valkey requires TLS plus a dedicated password, with indexes 0/1/2.
 - NetworkPolicy denies ingress by default, admitting only Traefik, the exact
   Harbor consumers and existing CNPG operator. **Egress is not restricted.**
@@ -59,6 +61,31 @@ workflows disabled while maintaining and running local checks.
   ClusterRole, bind/escalate permission or shared `bigbang` Secret-history grant.
   CNPG's existing namespace authority includes workload/Secret management and
   Pod exec; adding Harbor is an explicit access expansion.
+
+### Native jobservice database dependency
+
+Harbor 2.15.2 jobservice directly connects to PostgreSQL during startup, before
+starting its Redis worker pool. The immutable source chain is
+[main/job context](https://github.com/goharbor/harbor/blob/a97e7b835d1364e2cc11fd706a15171a5c9d5d77/src/jobservice/job/impl/context.go#L67-L105)
+→ [configuration mapping](https://github.com/goharbor/harbor/blob/a97e7b835d1364e2cc11fd706a15171a5c9d5d77/src/pkg/config/manager.go#L159-L176)
+→ [DAO/pgx registration](https://github.com/goharbor/harbor/blob/a97e7b835d1364e2cc11fd706a15171a5c9d5d77/src/common/dao/pgsql.go#L81-L110).
+The [REST manager](https://github.com/goharbor/harbor/blob/a97e7b835d1364e2cc11fd706a15171a5c9d5d77/src/pkg/config/rest/manager.go#L28-L54)
+uses existing `JOBSERVICE_SECRET` and core's HTTPS `/api/v2.0/internalconfig`
+to obtain the dedicated DB configuration, including credentials, `verify-full`
+and pool limits. Do not add a separate DB Secret mount, role or credential copy.
+
+The retained `harbor-postgres-from-core` policy identity now admits exact core
+and jobservice Pods in `harbor` to only TCP 5432. Its operator rule is unchanged.
+Existing policies already cover core/registry TLS and Valkey 6379; no other
+ingress or egress expansion is needed by this startup path.
+
+The build revision above is the parent of release-tag commit
+`080b0220574cc853ae1e2946ce7a5610ba855757`; only `.buildbaselog` differs.
+Both pin [pgx v5.10.0](https://github.com/goharbor/harbor/blob/a97e7b835d1364e2cc11fd706a15171a5c9d5d77/src/go.mod#L89),
+whose [TLS configuration](https://github.com/jackc/pgx/blob/7293fb11125be0373a92f716683f2d494f6fd4b0/pgconn/config.go#L776-L963)
+honors `PGSSLROOTCERT`. Explicit selection uses the already mounted approved
+public bundle instead of depending on ambient system roots. These are source
+contracts, not proof of image contents or live DB/TLS/CNI acceptance.
 
 ## One-MR rollout order
 
@@ -196,6 +223,10 @@ only a successful real token exchange establishes that acceptance.
 
 - `test_harbor_review.py`, `test_harbor_data.py`, `test_harbor_activation.py` render
   pinned charts, apply every Flux post-renderer and compare existing resources.
+- `test_harbor_pgx_tls.py` uses pinned native pgx 5.10.0 with synthetic roots and
+  in-memory TLS, checking matching CA/hostname, wrong CA/hostname, invalid/missing
+  roots and no plaintext fallback. See the [fixture instructions](../../../tests/fixtures/README.md).
+  This does not start Harbor or PostgreSQL and is not database-auth acceptance.
 - `test_harbor_image_startup.py` checks immutable Iron Bank 2.15.2 source hashes
   and runs its unchanged startup scripts as UID 10000/GID 1000 in rootless,
   network-isolated bubblewrap with synthetic certificates and sentinel binaries.

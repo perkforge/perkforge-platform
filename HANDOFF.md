@@ -1,10 +1,12 @@
 # Current operator handoff
 
-## Harbor candidate is blocked
+## Harbor jobservice correction awaits review
 
-[Harbor review](big-bang-bootstrap/configuration/packages/harbor/README.md) adds a
-rendered disabled profile with protected Secret references, no generated values.
-External data services, TLS/network/capacity and explicit scanner scope need review.
+Published v0.29.1's worker-only startup fix is live. Core, independent local
+admin recovery and the private, empty `library` project are verified. The
+[jobservice PostgreSQL correction](big-bang-bootstrap/configuration/packages/harbor/README.md#native-jobservice-database-dependency)
+awaits a reviewed release and scoped network approval. DNS, SSO, push/pull and
+restore acceptance remain pending.
 
 
 ## Inactive alert/validation preparation

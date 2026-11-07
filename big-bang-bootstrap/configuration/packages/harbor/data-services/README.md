@@ -14,10 +14,12 @@ See the [single-MR rollout and approval sequence](../README.md).
 - Valkey 7.2.15: separate pinned chart/image; one Recreate writer; worker placement;
   2Gi `longhorn-dedicated`; requests 100m/256Mi, limits 500m/512Mi; bounded init;
   128Mi no-eviction cache and AOF every second; no replica or metrics exporter.
-- Harbor database/owner `harbor`, PostgreSQL `verify-full`, 50-open/10-idle core
-  pool. Cache password-only default user, TLS required, indexes core 0/jobs 1/
+- Harbor database/owner `harbor`, PostgreSQL `verify-full`, 20-open/5-idle pools
+  in both core and jobservice (40 open/10 idle at one replica each).
+  Cache password-only default user, TLS required, indexes core 0/jobs 1/
   registry 2. No sharing with existing stores or reuse of their credentials.
-- Ingress defaults to deny: core to PostgreSQL 5432; core/jobservice/registry to
+- Ingress defaults to deny: exact same-namespace core/jobservice to PostgreSQL
+  5432; core/jobservice/registry to
   Valkey 6379; exact existing CNPG operator to its 5432/8000 control ports.
   This is ingress-only policy; egress and host-local CNI isolation are not claimed.
 

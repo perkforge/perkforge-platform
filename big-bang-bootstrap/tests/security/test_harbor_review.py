@@ -54,18 +54,18 @@ class HarborReview(unittest.TestCase):
     self.assertTrue(any(m['name'] in volumes and m['mountPath']=='/harbor_cust_cert/custom-ca.crt' and m['subPath']=='ca.crt' for c in pod['containers'] for m in c.get('volumeMounts',[])))
   self.assertGreaterEqual(consumers,3)
 
- def test_core_database_driver_explicitly_selects_the_mounted_public_ca(self):
-  core=next(x for x in self.objects if x['kind']=='Deployment' and x['metadata']['name']=='harbor-core')
-  pod=core['spec']['template']['spec'];container=next(c for c in pod['containers'] if c['name']=='core')
-  root=next((x for x in container.get('env',[]) if x['name']=='PGSSLROOTCERT'),None)
-  self.assertIsNotNone(root,'A custom CA mount alone does not select the PostgreSQL driver trust root')
-  self.assertEqual(root,{'name':'PGSSLROOTCERT','value':'/harbor_cust_cert/custom-ca.crt'})
-  mount=next(x for x in container['volumeMounts'] if x['mountPath']==root['value'])
-  self.assertEqual(mount['subPath'],'ca.crt')
-  volume=next(v for v in pod['volumes'] if v['name']==mount['name'])
-  self.assertEqual(volume['secret']['secretName'],'harbor-public-ca')
+ def test_both_database_drivers_explicitly_select_the_mounted_public_ca(self):
+  for component in ('core','jobservice'):
+   deployment=next(x for x in self.objects if x['kind']=='Deployment' and x['metadata']['name']=='harbor-'+component)
+   pod=deployment['spec']['template']['spec'];container=next(c for c in pod['containers'] if c['name']==component)
+   roots=[x for x in container.get('env',[]) if x['name']=='PGSSLROOTCERT']
+   self.assertEqual(roots,[{'name':'PGSSLROOTCERT','value':'/harbor_cust_cert/custom-ca.crt'}])
+   mount=next(x for x in container['volumeMounts'] if x['mountPath']==roots[0]['value'])
+   self.assertEqual(mount['subPath'],'ca.crt')
+   volume=next(v for v in pod['volumes'] if v['name']==mount['name'])
+   self.assertEqual(volume['secret']['secretName'],'harbor-public-ca')
 
  def test_core_database_pool_limits_reach_native_configuration(self):
   core=next(x['data'] for x in self.objects if x['kind']=='ConfigMap' and 'POSTGRESQL_MAX_OPEN_CONNS' in x.get('data',{}))
-  self.assertEqual(core['POSTGRESQL_MAX_OPEN_CONNS'],'50','Do not silently restore the chart 1000-connection pool')
-  self.assertEqual(core['POSTGRESQL_MAX_IDLE_CONNS'],'10','Do not silently restore the native 100 idle connections')
+  self.assertEqual(core['POSTGRESQL_MAX_OPEN_CONNS'],'20','Core and jobservice each create this pool')
+  self.assertEqual(core['POSTGRESQL_MAX_IDLE_CONNS'],'5','Keep idle connections bounded in both processes')
