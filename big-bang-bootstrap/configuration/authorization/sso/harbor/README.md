@@ -80,3 +80,9 @@ browser, network, data isolation or restore evidence.
 
 References: [Harbor OIDC helper](https://github.com/goharbor/harbor/blob/v2.15.2/src/pkg/oidc/helper.go),
 [Keycloak role endpoints](https://github.com/keycloak/keycloak/blob/26.8.1/services/src/main/java/org/keycloak/services/resources/admin/RoleContainerResource.java).
+
+Enable/disable requests explicitly include `webOrigins: []` to preserve the
+reviewed empty origin set. Keycloak 26.8.1 defaults an omitted empty origin set
+from redirect URIs ([RepresentationToModel.java](https://github.com/keycloak/keycloak/blob/26.8.1/server-spi-private/src/main/java/org/keycloak/models/utils/RepresentationToModel.java),
+`defaultWebOrigins`). Existing origin drift still fails strict inspection;
+this change introduces no restoration or metadata-repair operation.
