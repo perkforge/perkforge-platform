@@ -116,7 +116,7 @@
     headers: '{{ hb_headers }}'
     method: PUT
     body_format: json
-    body: {enabled: '{{ harbor_client_operation == "activate" }}'}
+    body: {enabled: '{{ harbor_client_operation == "activate" }}', webOrigins: []}
     status_code: 204
   when: harbor_client_operation in ['activate','disable'] and hb_current.json.enabled != (harbor_client_operation == 'activate')
   changed_when: true
