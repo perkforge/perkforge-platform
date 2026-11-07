@@ -16,7 +16,7 @@ class OptionalEnrollmentTests(unittest.TestCase):
     def test_nextcloud_stage_preserves_packages_except_explicit_operator_watch(self):
         baseline=build(ROOT/'clusters/local-gitlab-runner')
         proposed=build(ROOT/'clusters/local-nextcloud')
-        existing=[x for x in proposed if x['metadata']['name']!='tenant-enrollments']
+        existing=[x for x in proposed if x['metadata']['name'] not in {'tenant-enrollments', 'nextcloud-oidc-issuer'}]
         baseline=copy.deepcopy(baseline)
         expected=next(x for x in baseline if x['kind']=='HelmRelease' and x['metadata']['name']=='platform-cnpg')
         watch='gitlab,tenant-home-nextcloud'
