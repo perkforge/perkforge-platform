@@ -1,4 +1,4 @@
-# Harbor initial administration — blocked inactive candidate (#25)
+# Harbor initial administration — inactive candidate (#25)
 
 Installer accounts live in `bigbang`, alongside their HelmReleases. Target Roles
 bind those exact identities; storageNamespace does not relocate impersonation.
@@ -68,7 +68,15 @@ PKI and network boundaries, approve scoped grants/release selection, then verify
 trusted admin login, authenticated push/pull and denial, retained data and isolated
 restore. User owns any eventual temporary credential-cache migration.
 
-## Shortest isolated data-service path — approval still required
+## Isolated data-service candidate — approval still required
+
+The [data candidate](data-services/README.md) now contains dedicated pinned
+PostgreSQL/Valkey manifests, bounded resource/storage proposals, namespace-only
+foundation, additive watch patch and native connection/placement values. It is
+unselected, Valkey remains paused, and no credential, apply procedure or cluster
+root was added. Read its remaining implementation and approval sequence.
+
+### Proposed operating boundary
 
 Use dedicated Harbor PostgreSQL and a dedicated TLS/authenticated Valkey instance;
 do not add users/databases to the accepted GitLab/Nextcloud clusters or share their
@@ -85,8 +93,8 @@ Do not replace the current watch configuration or rerun provider installation.
 The operator gains management of Harbor database workloads and Secrets; this is
 an action-time access decision. A new namespaced data installer, immutable inputs,
 database/cache certificates and public CA delivery also need reviewed source.
-Database/cache PVC sizes and resource requests remain undecided: count two
-Longhorn replicas plus existing registry/job-log 22Gi, snapshots and headroom
+Database/cache PVC sizes and resource requests are review proposals, not accepted
+capacity: count two Longhorn replicas plus existing registry/job-log 22Gi, snapshots and headroom
 before selecting them. Small single instances accept downtime and do not provide
 independent backup/restore by themselves.
 

@@ -1,0 +1,4 @@
+# Owner-admin candidate only, never reconciled by the account receiving authority.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [installer.yaml, cnpg.yaml]

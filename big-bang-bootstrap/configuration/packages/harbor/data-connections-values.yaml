@@ -1,0 +1,20 @@
+# Unselected app overlay: does not enable Harbor or either bundled dependency.
+addons:
+  harbor:
+    values:
+      upstream:
+        # RWO consumers must never surge or land on nodes without Longhorn CSI.
+        updateStrategy: {type: Recreate}
+        jobservice:
+          nodeSelector: {storage.perkforge.io/worker: 'true'}
+        registry:
+          nodeSelector: {storage.perkforge.io/worker: 'true'}
+        database:
+          external:
+            host: harbor-postgres-rw.harbor.svc.cluster.local
+        redis:
+          external:
+            addr: harbor-valkey.harbor.svc.cluster.local:6379
+            coreDatabaseIndex: '0'
+            jobserviceDatabaseIndex: '1'
+            registryDatabaseIndex: '2'
