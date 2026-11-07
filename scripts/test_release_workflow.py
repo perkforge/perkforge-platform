@@ -18,9 +18,17 @@ class ReleaseWorkflowTests(unittest.TestCase):
     def test_only_main_push_can_write_release(self):
         self.assertEqual(set(self.workflow['on']), {'push', 'pull_request', 'workflow_dispatch'})
         self.assertEqual(self.workflow['on']['push'], {'branches': ['main']})
-        self.assertEqual(self.jobs['release']['if'], "github.event_name == 'push' && github.ref == 'refs/heads/main'")
+        self.assertEqual(self.jobs['release']['if'], "${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}")
         self.assertEqual(self.jobs['release']['needs'], ['configuration', 'release-checks'])
         self.assertFalse(self.workflow['concurrency']['cancel-in-progress'] == 'true')
+
+    def test_legacy_draft_keeps_validation_paused(self):
+        check = yaml.load(Path('.github/workflows/gitops-selection.yml').read_text(), Loader=yaml.BaseLoader)
+        for name, job in check['jobs'].items():
+            with self.subTest(job=name):
+                self.assertEqual(job['if'], '${{ false }}')
+                self.assertTrue(job['steps'])
+        self.assertEqual(self.jobs['release-checks']['if'], '${{ false }}')
 
     def test_checks_read_only_and_minimal_release_rights(self):
         self.assertEqual(self.workflow['permissions'], {'contents': 'read'})

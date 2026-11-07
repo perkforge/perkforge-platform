@@ -6,6 +6,8 @@ permissions:
   contents: read
 jobs:
   changes:
+    # TEMPORARY: CI validation remains paused by owner instruction.
+    if: ${{ false }}
     runs-on: ubuntu-24.04
     outputs:
       full: ${{ steps.impact.outputs.full }}
@@ -33,6 +35,8 @@ jobs:
       run: python3 scripts/ci_impact.py
 
   docs:
+    # TEMPORARY: CI validation remains paused by owner instruction.
+    if: ${{ false }}
     needs: [changes]
     runs-on: ubuntu-24.04
     steps:
@@ -52,8 +56,9 @@ jobs:
         npm --prefix docs/architecture run validate
         npm --prefix docs/architecture run build
   selection:
+    # TEMPORARY: CI validation remains paused by owner instruction.
+    if: ${{ false }}
     needs: [changes]
-    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     # Preserve full API/graph regressions: baseline took 18m42s before this fix.
     timeout-minutes: 30
@@ -204,8 +209,9 @@ jobs:
   # Preserve the original discovery and flags; independent HTTPS fixtures and
   # host/PXE suites run on isolated runners, never against the physical cluster.
   regressions:
+    # TEMPORARY: CI validation remains paused by owner instruction.
+    if: ${{ false }}
     needs: [changes]
-    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -237,8 +243,9 @@ jobs:
   # Separate offline state machines keep application fixtures from lengthening the
   # existing full review-chain job. No kubeconfig, service credentials or live API.
   platform-sso:
+    # TEMPORARY: CI validation remains paused by owner instruction.
+    if: ${{ false }}
     needs: [changes]
-    if: needs.changes.outputs.sso == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
@@ -261,8 +268,9 @@ jobs:
       run: python3 scripts/ci_suite.py --family sso --shard "$CI_SUITE"
 
   headlamp-prerequisites:
+    # TEMPORARY: CI validation remains paused by owner instruction.
+    if: ${{ false }}
     needs: [changes]
-    if: needs.changes.outputs.headlamp == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:

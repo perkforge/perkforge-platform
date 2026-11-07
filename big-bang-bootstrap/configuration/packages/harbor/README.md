@@ -40,7 +40,7 @@ migration source](https://github.com/goharbor/harbor/blob/v2.15.2/src/common/dao
 and its [pgx v5.10.0 environment/TLS parser](https://github.com/jackc/pgx/blob/v5.10.0/pgconn/config.go).
 Exact image/runtime positive and wrong-CA/hostname tests remain required.
 The single-core pilot bounds its database pool at 50 open/10 idle connections,
-instead of the native 900/100 defaults; this is a ceiling, not a reservation or
+instead of the chart-rendered 1000/100 defaults (the driver alone defaults to 900/100); this is a ceiling, not a reservation or
 proof of adequate PostgreSQL capacity. Exporter/scanner remain off.
 
 Registry10Gi uses the accepted `longhorn-dedicated` class (two replicas, Retain,

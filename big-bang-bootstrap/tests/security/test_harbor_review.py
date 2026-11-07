@@ -64,3 +64,8 @@ class HarborReview(unittest.TestCase):
   self.assertEqual(mount['subPath'],'ca.crt')
   volume=next(v for v in pod['volumes'] if v['name']==mount['name'])
   self.assertEqual(volume['secret']['secretName'],'harbor-public-ca')
+
+ def test_core_database_pool_limits_reach_native_configuration(self):
+  core=next(x['data'] for x in self.objects if x['kind']=='ConfigMap' and 'POSTGRESQL_MAX_OPEN_CONNS' in x.get('data',{}))
+  self.assertEqual(core['POSTGRESQL_MAX_OPEN_CONNS'],'50','Do not silently restore the chart 1000-connection pool')
+  self.assertEqual(core['POSTGRESQL_MAX_IDLE_CONNS'],'10','Do not silently restore the native 100 idle connections')
