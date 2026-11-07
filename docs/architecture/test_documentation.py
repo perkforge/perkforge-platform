@@ -134,6 +134,8 @@ class Documentation(unittest.TestCase):
 
     def test_current_allowlisted_sources_are_copied_without_recursion(self):
         copies={
+         'harbor-sso-review.yaml': 'big-bang-bootstrap/configuration/packages/harbor/sso-review.yaml',
+         'gitlab-sso-review.yaml': 'big-bang-bootstrap/configuration/packages/gitlab/sso-review.yaml',
          'alerts-sso-review.yaml': 'big-bang-bootstrap/configuration/observability/alerts-sso-review.yaml',
          'logging-sso-review.yaml': 'big-bang-bootstrap/configuration/observability/logging-sso-review.yaml',
          'grafana-sso-values.yaml': 'big-bang-bootstrap/configuration/observability/grafana-sso-values.yaml',
