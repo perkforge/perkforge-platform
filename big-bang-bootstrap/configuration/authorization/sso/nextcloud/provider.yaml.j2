@@ -6,6 +6,7 @@ discovery_uri: {{ nextcloud_sso_issuer }}/.well-known/openid-configuration
 callback: {{ nextcloud_sso_origin }}{{ nextcloud_sso_callback_path }}
 scope: openid
 mapping_uid: sub
+mapping_display_name: name
 unique_uid: true
 soft_auto_provision: false
 # No supported activation path until provisioning and native admin decisions are reviewed.

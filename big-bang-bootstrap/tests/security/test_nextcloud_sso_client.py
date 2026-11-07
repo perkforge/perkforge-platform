@@ -57,11 +57,15 @@ class NextcloudClient(unittest.TestCase):
                 if self.headers.get('Authorization')!='Bearer fixture-operator-token':return self.reply(403,{})
                 s['writes'].append((self.command,p))
                 if p=='/clients':s['client']={**data,'id':'nc-id'};s['client'].pop('secret');return self.reply(201)
+                if p=='/clients/nc-id/protocol-mappers/models' and self.command=='POST':
+                    s['client']['protocolMappers'].append({**data,'id':'display-name-id','consentRequired':False});return self.reply(201)
                 if p=='/clients/nc-id/roles':
                     if s['fail_role'] and data['name']=='owner':return self.reply(503,{})
                     s['roles'].append({**data,'id':'role-'+data['name'],'clientRole':True,'containerId':'nc-id'});return self.reply(201)
                 if p=='/clients/nc-id/scope-mappings/clients/nc-id':s['scope']=data;return self.reply(204)
                 if p=='/clients/nc-id':
+                    if set(data)=={'attributes'}:
+                        s['client']['attributes']=data['attributes'];return self.reply(204)
                     if set(data)!={'clientId','enabled'}:return self.reply(400,{})
                     s['client'].update(data)
                     return self.reply(503 if s['fail_enable'] else 204,{})
@@ -114,3 +118,54 @@ class NextcloudClient(unittest.TestCase):
         before=len(self.s['writes']);self.run_play('activate',success=False);self.assertEqual(len(self.s['writes']),before)
         self.s['client']=client;self.s['roles'].append({'name':'unknown'})
         self.run_play('activate',success=False);self.assertEqual(len(self.s['writes']),before)
+
+    def test_name_only_upgrade_is_explicit_bounded_and_idempotent(self):
+        self.run_play()
+        expected=copy.deepcopy(self.s['client'])
+        self.s['client']['protocolMappers']=[m for m in self.s['client']['protocolMappers'] if m['name']!='nextcloud-display-name']
+        old=copy.deepcopy(self.s['client']);before=len(self.s['writes'])
+        self.run_play('inspect',success=False)
+        self.assertEqual(len(self.s['writes']),before)
+        self.run_play('display-name',check=True)
+        self.assertEqual(self.s['client'],old)
+        self.run_play('display-name')
+        self.assertEqual(self.s['writes'][before:],[('POST','/clients/nc-id/protocol-mappers/models')])
+        self.assertEqual({k:v for k,v in self.s['client'].items() if k!='protocolMappers'},
+                         {k:v for k,v in old.items() if k!='protocolMappers'})
+        mapper=self.s['client']['protocolMappers'][-1]
+        self.assertEqual(mapper['name'],'nextcloud-display-name')
+        self.assertEqual(mapper['protocolMapper'],'oidc-full-name-mapper')
+        self.assertEqual(mapper['config'],{'id.token.claim':'true','access.token.claim':'false',
+                         'userinfo.token.claim':'false','introspection.token.claim':'false'})
+        self.assertIn('changed=0',self.run_play('display-name').stdout)
+        self.run_play('inspect')
+
+    def test_name_upgrade_refuses_unknown_or_overbroad_mapper(self):
+        self.run_play();client=copy.deepcopy(self.s['client'])
+        for change in ['access','unknown','legacy-drift']:
+            self.s['client']=copy.deepcopy(client)
+            if change=='access':self.s['client']['protocolMappers'][-1]['config']['access.token.claim']='true'
+            elif change=='unknown':self.s['client']['protocolMappers'][-1]['name']='foreign-name'
+            else:
+                self.s['client']['protocolMappers'].pop()
+                self.s['client']['protocolMappers'][0]['config']['included.client.audience']='foreign'
+            before=len(self.s['writes'])
+            self.run_play('display-name',success=False)
+            self.assertEqual(len(self.s['writes']),before)
+
+    def test_exact_logout_upgrade_preserves_client_and_rejects_foreign_targets(self):
+        self.run_play()
+        self.s['client']['attributes'].pop('post.logout.redirect.uris')
+        old=copy.deepcopy(self.s['client']);before=len(self.s['writes'])
+        self.run_play('inspect',success=False)
+        self.run_play('logout-redirect',check=True)
+        self.assertEqual(self.s['client'],old)
+        self.run_play('logout-redirect')
+        expected=copy.deepcopy(old);expected['attributes']['post.logout.redirect.uris']='https://files.example.test/'
+        self.assertEqual(self.s['client'],expected)
+        self.assertEqual(self.s['writes'][before:],[('PUT','/clients/nc-id')])
+        self.assertIn('changed=0',self.run_play('logout-redirect').stdout)
+        for invalid in ['*','+','https://foreign.test/','https://files.example.test/##https://foreign.test/']:
+            self.s['client']['attributes']['post.logout.redirect.uris']=invalid
+            before=len(self.s['writes']);self.run_play('logout-redirect',success=False)
+            self.assertEqual(len(self.s['writes']),before)

@@ -37,7 +37,7 @@
         state: directory
         mode: '0700'
     - ansible.builtin.copy:
-        content: "{{ lookup('file', 'client.json') | from_json | combine({'redirectUris':[nextcloud_sso_origin + nextcloud_sso_callback_path]}) | to_nice_json }}"
+        content: "{{ lookup('file', 'client.json') | from_json | combine({'redirectUris':[nextcloud_sso_origin + nextcloud_sso_callback_path], 'attributes':{'post.logout.redirect.uris':nextcloud_sso_origin + '/'}}, recursive=true) | to_nice_json }}"
         dest: '{{ nextcloud_sso_output }}/client.json'
         mode: '0600'
         force: false

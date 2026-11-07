@@ -24,7 +24,8 @@
     "oauth2.device.authorization.grant.enabled": "false",
     "oidc.ciba.grant.enabled": "false",
     "standard.token.exchange.enabled": "false",
-    "token.exchange.grant.enabled": "false"
+    "token.exchange.grant.enabled": "false",
+    "post.logout.redirect.uris": "https://nextcloud.example.invalid/"
   },
   "protocolMappers": [
     {
@@ -52,6 +53,17 @@
         "access.token.claim": "false",
         "userinfo.token.claim": "false",
         "usermodel.clientRoleMapping.rolePrefix": "",
+        "introspection.token.claim": "false"
+      }
+    },
+    {
+      "name": "nextcloud-display-name",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-full-name-mapper",
+      "config": {
+        "id.token.claim": "true",
+        "access.token.claim": "false",
+        "userinfo.token.claim": "false",
         "introspection.token.claim": "false"
       }
     }

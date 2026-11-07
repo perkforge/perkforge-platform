@@ -34,7 +34,7 @@
     block:
     - ansible.builtin.assert:
         that:
-        - nextcloud_client_operation in ['inspect','prepare','activate','rollback','members']
+        - nextcloud_client_operation in ['inspect','prepare','activate','rollback','members','display-name','logout-redirect']
         - nextcloud_client_approval == 'nextcloud-client-' + nextcloud_client_operation + '-v1'
         - nextcloud_recovery_verified | bool
         - nextcloud_client_operation != 'activate' or nextcloud_native_ready | bool
@@ -71,7 +71,7 @@
       - ansible.builtin.set_fact:
           nc_api: '{{ nextcloud_sso_issuer | regex_replace("/realms/perkforge$", "/admin/realms/perkforge") }}'
           nc_headers: {Authorization: 'Bearer {{ lookup("file", nextcloud_operator_token_file) | trim }}'}
-          nc_candidate: '{{ lookup("file","client.json") | from_json | combine({"redirectUris":[nextcloud_sso_origin + nextcloud_sso_callback_path]}) }}'
+          nc_candidate: '{{ lookup("file","client.json") | from_json | combine({"redirectUris":[nextcloud_sso_origin + nextcloud_sso_callback_path], "attributes":{"post.logout.redirect.uris":nextcloud_sso_origin + "/"}}, recursive=true) }}'
       - ansible.builtin.include_tasks: client-tasks.yaml
       always:
       - ansible.builtin.set_fact:

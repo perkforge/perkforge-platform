@@ -1,0 +1,14 @@
+- ansible.builtin.assert:
+    that:
+    - nc_mapper_records | length == nc_mapper_expected | length
+    - nc_mapper_records | map(attribute='name') | sort == nc_mapper_expected | map(attribute='name') | sort
+- ansible.builtin.assert:
+    that:
+    - actual.protocol == item.protocol
+    - actual.protocolMapper == item.protocolMapper
+    - normalized == item.config
+    - not (actual.consentRequired | default(false))
+  vars:
+    actual: '{{ nc_mapper_records | selectattr("name","equalto",item.name) | first }}'
+    normalized: '{{ ({"usermodel.clientRoleMapping.rolePrefix":""} | combine(actual.config)) if item.name == "nextcloud-own-roles" else actual.config }}'
+  loop: '{{ nc_mapper_expected }}'
