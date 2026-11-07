@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.0](https://github.com/perkforge/perkforge-platform/compare/v0.30.0...v0.31.0) (2026-11-07)
+
+
+### Features
+
+* **grafana:** prepare cohesive gated SSO activation ([#270](https://github.com/perkforge/perkforge-platform/issues/270)) ([b0c4641](https://github.com/perkforge/perkforge-platform/commit/b0c4641e84f65642cb500cdd5712fc59d71972b6))
+
 ## [0.30.0](https://github.com/perkforge/perkforge-platform/compare/v0.29.5...v0.30.0) (2026-11-07)
 
 
