@@ -94,6 +94,10 @@ grafana:
           userKey: admin-user
           passwordKey: admin-password
   values:
+    # This platform starts at 13.2.4; the pre-9.3.1 migration is inapplicable.
+    # Disable its cross-namespace HelmRelease lookup and deployment-deletion hook.
+    autoRollingUpgrade:
+      enabled: false
     # Helm globals propagate to the pinned Grafana dependency and its sidecar.
     global:
       imagePullSecrets:
