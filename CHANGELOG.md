@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.0](https://github.com/perkforge/perkforge-platform/compare/v0.23.5...v0.24.0) (2026-11-07)
+
+
+### Features
+
+* **monitoring:** prepare scoped lab Grafana HTTPS UI ([#232](https://github.com/perkforge/perkforge-platform/issues/232)) ([e18f068](https://github.com/perkforge/perkforge-platform/commit/e18f06802162f3c8fc36d6c8f38fe62f7070ca6f))
+
 ## [0.23.5](https://github.com/perkforge/perkforge-platform/compare/v0.23.4...v0.23.5) (2026-11-06)
 
 
