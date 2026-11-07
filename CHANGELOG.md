@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.2](https://github.com/perkforge/perkforge-platform/compare/v0.29.1...v0.29.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* **harbor:** allow jobservice PostgreSQL initialization ([#261](https://github.com/perkforge/perkforge-platform/issues/261)) ([3d28773](https://github.com/perkforge/perkforge-platform/commit/3d28773332ab1161eff67b0b2e473c099c3b306c))
+
 ## [0.29.1](https://github.com/perkforge/perkforge-platform/compare/v0.29.0...v0.29.1) (2026-11-07)
 
 
