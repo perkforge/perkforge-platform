@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.0](https://github.com/perkforge/perkforge-platform/compare/v0.24.1...v0.25.0) (2026-11-07)
+
+
+### Features
+
+* **sso:** add gated Nextcloud client and subject lifecycle ([#217](https://github.com/perkforge/perkforge-platform/issues/217)) ([f6b7f97](https://github.com/perkforge/perkforge-platform/commit/f6b7f97de61a2976e25f836b8d7a4e508ddad79e))
+
 ## [0.24.1](https://github.com/perkforge/perkforge-platform/compare/v0.24.0...v0.24.1) (2026-11-07)
 
 
