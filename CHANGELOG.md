@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.1](https://github.com/perkforge/perkforge-platform/compare/v0.31.0...v0.31.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **harbor:** use native PKCS1 token signing identities ([#272](https://github.com/perkforge/perkforge-platform/issues/272)) ([2144071](https://github.com/perkforge/perkforge-platform/commit/214407134bd801abb064bb919b564b4c0280ec39))
+
 ## [0.31.0](https://github.com/perkforge/perkforge-platform/compare/v0.30.0...v0.31.0) (2026-11-07)
 
 
