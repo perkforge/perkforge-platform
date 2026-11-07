@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.1](https://github.com/perkforge/perkforge-platform/compare/v0.29.0...v0.29.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **harbor:** verify approved CNPG config checksum delta ([#258](https://github.com/perkforge/perkforge-platform/issues/258)) ([7dacd3b](https://github.com/perkforge/perkforge-platform/commit/7dacd3b4baea8e76adef73e7f988a0d532dfb136))
+
 ## [0.29.0](https://github.com/perkforge/perkforge-platform/compare/v0.28.0...v0.29.0) (2026-11-07)
 
 
