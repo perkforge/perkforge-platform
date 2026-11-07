@@ -1,5 +1,17 @@
 # Retained offline fixtures
 
+`harbor-token-signing/` pins Harbor 2.15.2's native libtrust dependency at
+`aabc10ec26b754e797f9028f4589c5b7bd90dc20`. It uses synthetic RSA3072 keys to
+reproduce PKCS#8 rejection, accept genuine PKCS#1 and preserve the certificate's
+public key, JWT `kid` and RS256 signature. Prefetch with Go 1.25+:
+`(cd big-bang-bootstrap/tests/fixtures/harbor-token-signing && GOWORK=off go mod download github.com/docker/libtrust)`.
+Then run `PYTHONPATH=big-bang-bootstrap:big-bang-bootstrap/tests REQUIRE_NATIVE_HARBOR_SIGNING=1 python3 -m unittest security.test_harbor_token_signing -v`
+with the usual pinned Helm sources. Default discovery never downloads modules.
+Set `HARBOR_SIGNING_BASELINE_CHECKOUT` to an independently verified v0.29.2
+checkout to also compare the complete selected root against the released runtime
+baseline. Without it the render test compares the single-reference predecessor.
+See the [signing procedure](../../configuration/packages/harbor/TOKEN-SIGNING.md).
+
 `harbor-pgx/` pins pgx v5.10.0, the driver in the immutable Harbor 2.15.2
 source linked in the [Harbor contract](../../configuration/packages/harbor/README.md#native-jobservice-database-dependency).
 It executes native config parsing and TLS with synthetic certificates over

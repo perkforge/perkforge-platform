@@ -36,7 +36,7 @@ addons:
         existingSecretSecretKey: harbor-encryption-key
         core:
           existingSecret: harbor-core-auth
-          secretName: harbor-token-signing
+          secretName: harbor-token-signing-pkcs1-v1
           existingXsrfSecret: harbor-xsrf
           extraEnvVars:
           - name: PGSSLROOTCERT

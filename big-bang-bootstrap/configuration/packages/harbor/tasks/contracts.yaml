@@ -62,7 +62,7 @@
           - REGISTRY_PASSWD
           - REGISTRY_HTPASSWD
           owner: harbor-application-v1
-        harbor-token-signing:
+        harbor-token-signing-pkcs1-v1:
           type: Opaque
           keys:
           - tls.crt

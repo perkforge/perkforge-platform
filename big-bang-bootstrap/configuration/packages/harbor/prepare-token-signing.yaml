@@ -1,0 +1,125 @@
+---
+# Portable local issuance only. No credentials are read and no API is contacted.
+# A repeated invocation explicitly refuses the same bundle, even when complete.
+- name: Prepare a fresh Harbor PKCS1 token signing identity locally
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    harbor_token_signing_run: false
+    harbor_token_signing_scope: UNAPPROVED
+    harbor_token_signing_output_parent: /UNCONFIGURED/private-output
+    harbor_token_signing_bundle_name: harbor-token-signing-pkcs1-v1
+    # Stable operator-selected cluster identity, including before namespaces exist.
+    harbor_token_signing_cluster_id: UNCONFIGURED
+    harbor_token_signing_namespace_uid: NOT_CREATED
+  tasks:
+  - ansible.builtin.debug:
+      msg: >-
+        Default/check mode reads no private material and issues nothing. Explicit
+        harbor-token-signing-issuance-v1 approval creates a new local RSA identity
+        only. No adoption, overwrite, rotation, delivery or cluster API operations.
+  - when: harbor_token_signing_run | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - harbor_token_signing_scope == 'harbor-token-signing-issuance-v1'
+        - harbor_token_signing_output_parent is match('^/')
+        - not harbor_token_signing_output_parent.startswith('/UNCONFIGURED/')
+        - harbor_token_signing_output_parent | realpath == harbor_token_signing_output_parent
+        - harbor_token_signing_output_parent not in ['/', '/home', '/tmp', '/var', '/run']
+        - harbor_token_signing_cluster_id != 'UNCONFIGURED'
+        - harbor_token_signing_cluster_id is match('^[a-zA-Z0-9][a-zA-Z0-9_.-]{2,127}$')
+        - harbor_token_signing_namespace_uid == 'NOT_CREATED' or harbor_token_signing_namespace_uid is match('^[a-zA-Z0-9-]{8,64}$')
+        - harbor_token_signing_bundle_name is match('^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$')
+    - ansible.builtin.command:
+        argv: [id, -u]
+      register: harbor_token_signing_uid
+      changed_when: false
+    - name: Inspect custody without reading any private content
+      ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+        get_checksum: false
+        get_mime: false
+        get_attributes: false
+      loop: '{{ harbor_token_signing_output_parent | harbor_ancestors }}'
+      register: harbor_token_signing_parent_metadata
+    - ansible.builtin.assert:
+        that:
+        - item.stat.isdir | default(false)
+        - not (item.stat.islnk | default(false))
+        - item.stat.uid in [0, harbor_token_signing_uid.stdout | int]
+        - item.stat.mode[-2] in ['0', '1', '4', '5']
+        - item.stat.mode[-1] in ['0', '1', '4', '5']
+        - item.item != harbor_token_signing_output_parent or item.stat.mode == '0700'
+        - item.item != harbor_token_signing_output_parent or item.stat.uid == harbor_token_signing_uid.stdout | int
+      loop: '{{ harbor_token_signing_parent_metadata.results }}'
+    - name: Refuse output inside any Git worktree
+      ansible.builtin.command:
+        argv: [git, -C, '{{ harbor_token_signing_output_parent }}', rev-parse, --is-inside-work-tree]
+      register: harbor_token_signing_git
+      changed_when: false
+      failed_when: >-
+        harbor_token_signing_git.rc != 128 or
+        not harbor_token_signing_git.stderr.startswith('fatal: not a git repository')
+      environment:
+        LC_ALL: C
+        GIT_CEILING_DIRECTORIES: ''
+        GIT_DISCOVERY_ACROSS_FILESYSTEM: '1'
+    - name: Reserve the exact fresh bundle atomically; refuse complete or partial existing output
+      ansible.builtin.command:
+        argv: [mkdir, '-m', '0700', '--', '{{ harbor_token_signing_output_parent }}/{{ harbor_token_signing_bundle_name }}']
+    - name: Generate and verify one independent RSA3072 PKCS1 key and self-signed certificate
+      ansible.builtin.shell: |
+        set -euo pipefail
+        umask 077
+        mkdir -m 0700 delivery
+        mkdir -m 0700 delivery/token-signing
+        key=delivery/token-signing/tls.key
+        cert=delivery/token-signing/tls.crt
+        openssl genrsa -traditional -out "$key" 3072
+        openssl req -new -x509 -key "$key" -sha256 -days 365 \
+          -subj '/O=Harbor/CN=Harbor Token Signing' \
+          -addext 'basicConstraints=critical,CA:FALSE' \
+          -addext 'keyUsage=critical,digitalSignature' -out "$cert"
+        test "$(head -n 1 "$key")" = '-----BEGIN RSA PRIVATE KEY-----'
+        test "$(grep -c '^-----BEGIN CERTIFICATE-----$' "$cert")" = 1
+        openssl rsa -in "$key" -check -noout
+        openssl pkey -in "$key" -pubout -out key.public
+        openssl x509 -in "$cert" -pubkey -noout > cert.public
+        cmp key.public cert.public
+        openssl verify -CAfile "$cert" "$cert"
+        openssl x509 -in "$cert" -checkend 31449600 -noout
+        openssl x509 -in "$cert" -noout -ext keyUsage | grep -q 'Digital Signature'
+        rm key.public cert.public
+        # Validate file custody before writing completion evidence. Existing paths
+        # cannot be adopted: the exclusive bundle mkdir above is mandatory.
+        for file in "$key" "$cert"; do
+          test ! -L "$file"
+          test "$(stat -c '%a:%u:%h' "$file")" = "600:$(id -u):1"
+        done
+        # Public hashes only. Receipt and READY are emitted only after validation.
+        {
+          printf '%s\n' 'harbor-token-signing-issuance-v1' 'Secret: harbor-token-signing-pkcs1-v1'
+          printf 'Cluster identity: %s\nNamespace UID: %s\n' "$HARBOR_CLUSTER_ID" "$HARBOR_NAMESPACE_UID"
+          openssl pkey -in "$key" -pubout -outform DER | openssl dgst -sha256
+          openssl x509 -in "$cert" -noout -fingerprint -sha256
+        } > receipt.txt
+        printf '%s\n' 'harbor-token-signing-issuance-v1' > READY
+      args:
+        executable: /bin/bash
+        chdir: '{{ harbor_token_signing_output_parent }}/{{ harbor_token_signing_bundle_name }}'
+      environment:
+        HARBOR_CLUSTER_ID: '{{ harbor_token_signing_cluster_id }}'
+        HARBOR_NAMESPACE_UID: '{{ harbor_token_signing_namespace_uid }}'
+      no_log: true
+    - ansible.builtin.debug:
+        msg: >-
+          Verified private bundle: {{ harbor_token_signing_output_parent }}/{{ harbor_token_signing_bundle_name }}.
+          Require READY and receipt.txt before use, and compare the recorded cluster
+          identity and namespace UID with the intended target. For separately approved application
+          prepare-credentials.yaml assembly, map harbor-token-signing-pkcs1-v1 tls.crt
+          and tls.key to the absolute paths under delivery/token-signing. A repeat
+          refuses this path without reading or replacing existing material. Failures
+          retain partial output for operator inspection; never deliver partial output.
