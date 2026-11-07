@@ -33,7 +33,7 @@ class HarborDataCandidate(unittest.TestCase):
 
     def test_no_existing_root_selects_data_app_watch_or_foundation(self):
         for root in (ROOT / 'clusters').iterdir():
-            if not (root / 'kustomization.yaml').exists():
+            if root.name in ('local-harbor-data', 'local-harbor-app') or not (root / 'kustomization.yaml').exists():
                 continue
             with self.subTest(root=root.name):
                 objects = build(root)

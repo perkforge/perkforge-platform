@@ -24,7 +24,7 @@
     - name: Require exact approval scope and protected target inputs
       ansible.builtin.assert:
         that:
-        - harbor_foundation_scope == 'harbor-data-foundation-v1'
+        - harbor_foundation_scope == 'harbor-foundation-v1'
         - harbor_package_directory | realpath == (playbook_dir + '/../packages/harbor') | realpath
         - harbor_expected_api is match('^https://[A-Za-z0-9.:-]+$')
         - "'UNCONFIGURED' not in harbor_expected_api"
@@ -96,15 +96,18 @@
     - ansible.builtin.set_fact:
         harbor_foundation_documents: "{{ harbor_foundation_documents + (lookup('file',harbor_package_directory + '/data-services/prerequisites/' + item) | from_yaml_all | select | list) }}"
       loop: [installer.yaml, cnpg.yaml]
+    - name: Add only the reviewed application installer and transport grants
+      ansible.builtin.set_fact:
+        harbor_foundation_documents: "{{ harbor_foundation_documents + (lookup('file',harbor_package_directory + '/prerequisites/installer.yaml') | from_yaml_all | select | rejectattr('kind','equalto','Namespace') | list) + (lookup('file',harbor_package_directory + '/prerequisites/gitops.yaml') | from_yaml_all | select | list) }}"
     - name: Refuse unexpected resource identities or global grants
       ansible.builtin.assert:
         that:
-        - harbor_foundation_documents | length == 8
+        - harbor_foundation_documents | length == 13
         - item.kind in ['Namespace','ServiceAccount','Role','RoleBinding']
         - item.metadata.labels['perkforge.io/owner'] in ['harbor-foundation-v1','harbor-data-foundation-v1']
-        - (item.kind == 'Namespace' and item.metadata.name == 'harbor') or (item.kind == 'ServiceAccount' and item.metadata.name == 'harbor-data-installer' and item.metadata.namespace == 'bigbang') or (item.kind in ['Role','RoleBinding'] and item.metadata.name in ['harbor-data-installer','harbor-data-gitops','platform-cnpg-databases'] and item.metadata.namespace == 'harbor')
+        - (item.kind == 'Namespace' and item.metadata.name == 'harbor') or (item.kind == 'ServiceAccount' and item.metadata.name in ['harbor-data-installer','harbor-installer'] and item.metadata.namespace == 'bigbang') or (item.kind in ['Role','RoleBinding'] and item.metadata.name in ['harbor-data-installer','harbor-data-gitops','platform-cnpg-databases','harbor-installer','harbor-application-gitops'] and item.metadata.namespace == 'harbor')
       loop: '{{ harbor_foundation_documents }}'
-    - name: Inspect all eight targets before any create
+    - name: Inspect all thirteen targets before any create
       ansible.builtin.command:
         argv: "{{ ['kubectl','--kubeconfig',target_kubeconfig,'--context',target_context,'get',item.kind,item.metadata.name,'--ignore-not-found','-o','json'] + (['-n',item.metadata.namespace] if item.metadata.namespace is defined else []) }}"
       loop: '{{ harbor_foundation_documents }}'

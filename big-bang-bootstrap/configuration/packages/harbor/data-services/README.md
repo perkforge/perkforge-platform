@@ -67,7 +67,7 @@ agreement and container trust loading remain unverified.
 ## Guarded prerequisite procedure
 
 `configuration/ansible/harbor-prerequisites.yaml` defaults to no contact, including
-check mode. After explicit approval it creates only the eight authored namespace,
+check mode. After explicit approval it creates only the thirteen authored namespace,
 installer and namespaced Role/binding objects. It never changes the operator,
 watch list, credentials, workloads, source selection or existing objects.
 
@@ -84,7 +84,7 @@ watch list, credentials, workloads, source selection or existing objects.
 Use the existing `configuration/ansible/inventory.yaml` with an owner-only extra
 vars file containing the published release evidence/target inputs,
 `harbor_expected_api`, `harbor_expected_operator_uid`,
-`harbor_foundation_scope=harbor-data-foundation-v1` and
+`harbor_foundation_scope=harbor-foundation-v1` and
 `harbor_foundation_apply=true`. The scope string is a guard, not authorization.
 Keep the current accepted root selection; the procedure does not promote a root.
 Real authority acceptance and operator/data readiness are separate from fixtures.

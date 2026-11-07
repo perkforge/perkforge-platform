@@ -1,0 +1,33 @@
+# Future data-only root; release selection and separate approval are required.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-metrics-limited-pilot-ui
+- ../../configuration/packages/harbor/data-services
+commonAnnotations:
+  platform.perkforge.io/cluster: local
+  platform.perkforge.io/environment: local
+  platform.perkforge.io/profile: il2
+patches:
+- target:
+    group: helm.toolkit.fluxcd.io
+    version: v2
+    kind: HelmRelease
+    name: platform-cnpg
+    namespace: bigbang
+  patch: "apiVersion: helm.toolkit.fluxcd.io/v2\nkind: HelmRelease\nmetadata:\n  name:\
+    \ platform-cnpg\n  namespace: bigbang\nspec:\n  values:\n    config:\n      data:\n\
+    \        WATCH_NAMESPACE: gitlab,tenant-home-nextcloud,harbor\n  postRenderers:\n\
+    \  - kustomize:\n      patches:\n      - target:\n          kind: Deployment\n\
+    \          name: platform-cnpg\n        patch: \"apiVersion: apps/v1\\nkind: Deployment\\\
+    nmetadata: {name: platform-cnpg,\\\n          \\ namespace: cnpg-system}\\nspec:\\\
+    n  template:\\n    spec:\\n      containers:\\n\\\n          \\      - name: manager\\\
+    n        env:\\n        - name: WATCH_NAMESPACE\\n\\\n          \\          value:\
+    \ gitlab,tenant-home-nextcloud,harbor\"\n"
+- target:
+    group: helm.toolkit.fluxcd.io
+    version: v2
+    kind: HelmRelease
+    name: harbor-valkey
+    namespace: bigbang
+  patch: "- op: replace\n  path: /spec/suspend\n  value: false\n"

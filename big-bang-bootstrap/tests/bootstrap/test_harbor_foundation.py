@@ -79,7 +79,8 @@ class HarborFoundation(unittest.TestCase):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ANSIBLE / relative, target)
         for relative in ('harbor/data-services/prerequisites/installer.yaml',
-                         'harbor/data-services/prerequisites/cnpg.yaml', 'cloudnative-pg/values.yaml'):
+                         'harbor/data-services/prerequisites/cnpg.yaml', 'harbor/prerequisites/installer.yaml',
+                         'harbor/prerequisites/gitops.yaml', 'cloudnative-pg/values.yaml'):
             source = ROOT / 'configuration/packages' / relative
             target = self.ansible.parent / 'packages' / relative
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -103,13 +104,16 @@ class HarborFoundation(unittest.TestCase):
         self.save()
         kubeconfig = self.path / 'kubeconfig'; kubeconfig.write_text('synthetic fixture only'); kubeconfig.chmod(0o600)
         release = self.path / 'release.json'; release.write_text(json.dumps({'repository': 'perkforge/perkforge-platform', 'tag': 'v0.99.0', 'resolvedCommit': SHA}))
-        self.params = {'harbor_foundation_apply': True, 'harbor_foundation_scope': 'harbor-data-foundation-v1',
+        self.params = {'harbor_foundation_apply': True, 'harbor_foundation_scope': 'harbor-foundation-v1',
                        'harbor_expected_api': 'https://synthetic.invalid:6443', 'harbor_expected_operator_uid': OPERATOR_UID,
                        'target_context': 'synthetic', 'expected_cluster_uid': CLUSTER_UID, 'target_kubeconfig': str(kubeconfig),
                        'config_tag': 'v0.99.0', 'config_release_evidence': str(release)}
         self.desired = []
         for filename in ('installer.yaml', 'cnpg.yaml'):
             self.desired += list(yaml.safe_load_all((ROOT / 'configuration/packages/harbor/data-services/prerequisites' / filename).read_text()))
+
+        for filename in ('installer.yaml', 'gitops.yaml'):
+            self.desired += [o for o in yaml.safe_load_all((ROOT / 'configuration/packages/harbor/prerequisites' / filename).read_text()) if o and o['kind'] != 'Namespace']
 
     def save(self):
         (self.path / 'fixture.json').write_text(json.dumps(self.config))
@@ -183,16 +187,16 @@ class HarborFoundation(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(self.writes())
 
-    def test_create_exact_eight_and_repeat_without_changes(self):
+    def test_create_exact_thirteen_and_repeat_without_changes(self):
         result = self.run_play()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(len(self.writes()), 8)
+        self.assertEqual(len(self.writes()), 13)
         self.assertEqual({identity(o) for o in self.writes()}, {identity(o) for o in self.desired})
         state_before = (self.path / 'state.json').read_text()
         result = self.run_play()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('changed=0', result.stdout)
-        self.assertEqual(len(self.writes()), 8)
+        self.assertEqual(len(self.writes()), 13)
         self.assertEqual((self.path / 'state.json').read_text(), state_before)
         self.assertFalse(any('patch' in call or 'apply' in call or 'delete' in call for call in self.calls()))
 
@@ -209,7 +213,7 @@ class HarborFoundation(unittest.TestCase):
                 (self.path / 'fixture.json').write_text(json.dumps(self.config))
                 result = self.run_play()
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                self.assertEqual(len(self.writes()), 8)
+                self.assertEqual(len(self.writes()), 13)
                 after = json.loads((self.path / 'state.json').read_text())
                 self.assertTrue(all(after[k] == value for k, value in before.items()))
 

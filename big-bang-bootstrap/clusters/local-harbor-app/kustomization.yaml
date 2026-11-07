@@ -1,0 +1,27 @@
+# Future app root; use only after data/credentials/TLS and capacity acceptance.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-harbor-data
+- ../../configuration/packages/harbor
+- ../../configuration/packages/harbor/application
+commonAnnotations:
+  platform.perkforge.io/cluster: local
+  platform.perkforge.io/environment: local
+  platform.perkforge.io/profile: il2
+patches:
+- target:
+    group: helm.toolkit.fluxcd.io
+    version: v2
+    kind: HelmRelease
+    name: bigbang
+    namespace: bigbang
+  patch: "- op: add\n  path: /spec/valuesFrom/-\n  value:\n    kind: ConfigMap\n \
+    \   name: values-harbor-candidate\n    valuesKey: values.yaml\n- op: add\n  path:\
+    \ /spec/valuesFrom/-\n  value:\n    kind: ConfigMap\n    name: values-harbor-data\n\
+    \    valuesKey: values.yaml\n- op: add\n  path: /spec/valuesFrom/-\n  value:\n\
+    \    kind: ConfigMap\n    name: values-harbor-application\n    valuesKey: values.yaml\n\
+    - op: add\n  path: /spec/postRenderers/0/kustomize/patches/-\n  value:\n    target:\n\
+    \      kind: Namespace\n      name: harbor\n    patch: '$patch: delete\n\n   \
+    \   apiVersion: v1\n\n      kind: Namespace\n\n      metadata: {name: harbor}\n\
+    \n      '\n"
