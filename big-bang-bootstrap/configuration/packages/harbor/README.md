@@ -147,6 +147,10 @@ Use an owned 0700 private directory outside Git and world-writable ancestors;
 all supplied input/output files are canonical, single-link, owned 0600 files.
 Password inputs contain the exact value with **no trailing newline**.
 
+- `prepare-token-signing.yaml`: [portable new-cluster issuance and same-key
+  recovery](TOKEN-SIGNING.md). Produces a fresh protected RSA3072 PKCS#1 key and
+  matching certificate only after explicit issuance approval. Repeats refuse an
+  existing output bundle rather than silently generating a replacement identity.
 - `prepare-transport.yaml`: explicit `harbor_transport_run=true` and
   `harbor_transport_scope=harbor-internal-transport-issuance-v1`; supply
   `harbor_transport_output_parent`. Creates a fresh dedicated internal CA and
@@ -165,14 +169,16 @@ Password inputs contain the exact value with **no trailing newline**.
   `harbor_credentials_manifest`, exact `harbor_expected_namespace_uid`, and
   `harbor_credentials_inputs` mapping Secret name → key → protected input path.
   The [exact contracts](tasks/contracts.yaml) contain four data and 16 app Secrets.
-  This assembles existing values; it does not generate passwords/token signing
-  material, fetch registry credentials or read the cluster. Arrange those exact
-  protected inputs under the separately approved local custody procedure.
+  This assembles existing values; it does not generate passwords, fetch registry
+  credentials or read the cluster. Feed token-signing inputs from the separately
+  approved producer; arrange the other inputs under their local custody procedure.
   Encryption `secretKey` is exactly 16 ASCII bytes; `CSRF_KEY` exactly 32.
   Initial admin is 16–128 ASCII bytes with lowercase/uppercase/digit; Valkey is
   24–128 URL-safe alphanumeric/underscore/hyphen characters. The registry bcrypt
   entry must match its password for `harbor_registry_user`; token signing uses
-  a matching RSA key/certificate with digital-signature usage.
+  a matching RSA key/certificate with digital-signature usage. Its key must be
+  unencrypted PKCS#1 `RSA PRIVATE KEY`; PKCS#8 `PRIVATE KEY` is rejected before
+  assembly/delivery. Network TLS key encoding support is unchanged.
 - App assembly also pins the deduplicated public trust bundle with
   `harbor_public_ca_sha256` and the separately approved
   `harbor_database_ca_sha256`, `harbor_valkey_ca_sha256`,
