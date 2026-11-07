@@ -1,0 +1,106 @@
+- ansible.builtin.uri:
+    url: '{{ gf_api }}'
+    headers: '{{ gf_headers }}'
+  register: gf_realm
+- ansible.builtin.assert:
+    that:
+    - gf_realm.json.realm == 'perkforge' and gf_realm.json.enabled
+    - gf_realm.json.attributes['perkforge-managed'] == 'true'
+    - gf_realm.json.attributes['perkforge-purpose'] == 'realm-foundation-v1'
+- ansible.builtin.uri:
+    url: '{{ gf_api }}/client-scopes'
+    headers: '{{ gf_headers }}'
+  register: gf_scopes
+- ansible.builtin.assert:
+    that: gf_scopes.json | selectattr('name','equalto',item) | list | length == 1
+  loop: '{{ gf_candidate.defaultClientScopes }}'
+- ansible.builtin.include_tasks: ../tasks/client-scope.yaml
+  vars:
+    sso_client_api: '{{ gf_api }}'
+    sso_client_headers: '{{ gf_headers }}'
+    sso_scope: '{{ gf_scopes.json | selectattr("name","equalto",gf_scope_name) | first }}'
+  loop: '{{ gf_candidate.defaultClientScopes }}'
+  loop_control: {loop_var: gf_scope_name}
+- ansible.builtin.uri:
+    url: '{{ gf_api }}/clients?clientId=grafana'
+    headers: '{{ gf_headers }}'
+  register: gf_lookup
+- ansible.builtin.assert:
+    that:
+    - gf_lookup.json | length <= 1
+    - gf_lookup.json | length == 1 or grafana_client_operation == 'prepare'
+- ansible.builtin.set_fact:
+    gf_secret: '{{ lookup("file",grafana_client_secret_file) | trim }}'
+  when: grafana_client_operation == 'prepare'
+- ansible.builtin.assert:
+    that: gf_secret | length >= 24
+  when: grafana_client_operation == 'prepare'
+- name: Create one disabled client only when absent; never update or adopt drift
+  ansible.builtin.uri:
+    url: '{{ gf_api }}/clients'
+    headers: '{{ gf_headers }}'
+    method: POST
+    body_format: json
+    body: '{{ gf_candidate | combine({"secret":gf_secret}) }}'
+    status_code: 201
+  when: gf_lookup.json | length == 0
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ gf_api }}/clients?clientId=grafana'
+    headers: '{{ gf_headers }}'
+  register: gf_lookup_after
+- ansible.builtin.assert:
+    that:
+    - gf_lookup_after.json | length == 1
+    - gf_lookup_after.json[0].clientId == 'grafana'
+    - gf_lookup_after.json[0].id is match('^[A-Za-z0-9-]+$')
+    - gf_lookup_after.json[0].id is not search("[\\x00-\\x20\\x7f]")
+- ansible.builtin.set_fact:
+    gf_id: '{{ gf_lookup_after.json[0].id }}'
+- ansible.builtin.uri:
+    url: '{{ gf_api }}/clients/{{ gf_id }}'
+    headers: '{{ gf_headers }}'
+  register: gf_current
+- name: Refuse foreign, active or drifted clients without changing them
+  ansible.builtin.assert:
+    that:
+    - gf_current.json.get(item.key) == item.value
+    - gf_current.json.id == gf_id
+    - gf_current.json.authenticationFlowBindingOverrides | default({}) == {}
+    - gf_current.json.authorizationServicesEnabled | default(false) == false
+  loop: '{{ gf_candidate | dict2items | rejectattr("key","in",["protocolMappers","attributes","defaultClientScopes","optionalClientScopes"]) | list }}'
+- ansible.builtin.assert:
+    that: gf_current.json.attributes.get(item.key) == item.value
+  loop: '{{ gf_candidate.attributes | dict2items }}'
+- ansible.builtin.uri:
+    url: '{{ gf_api }}/clients/{{ gf_id }}/{{ item }}'
+    headers: '{{ gf_headers }}'
+  loop: [default-client-scopes, optional-client-scopes, protocol-mappers/models, scope-mappings, 'roles?first=0&max=1&briefRepresentation=false']
+  register: gf_surface
+- ansible.builtin.assert:
+    that:
+    - gf_surface.results[0].json | map(attribute='name') | sort == gf_candidate.defaultClientScopes | sort
+    - gf_surface.results[1].json | length == 0
+    - gf_surface.results[3].json.realmMappings | default([]) | length == 0
+    - gf_surface.results[3].json.clientMappings | default({}) | length == 0
+    - gf_surface.results[4].json | length == 0
+    - gf_surface.results[2].json | length == gf_candidate.protocolMappers | length
+    - gf_surface.results[2].json | map(attribute='name') | sort == gf_candidate.protocolMappers | map(attribute='name') | sort
+- ansible.builtin.assert:
+    that:
+    - actual.protocol == item.protocol
+    - actual.protocolMapper == item.protocolMapper
+    - normalized == item.config
+    - not (actual.consentRequired | default(false))
+  vars:
+    actual: '{{ gf_surface.results[2].json | selectattr("name","equalto",item.name) | first }}'
+    normalized: '{{ ({"usermodel.clientRoleMapping.rolePrefix":""} | combine(actual.config)) if item.name == "grafana-own-roles" else actual.config }}'
+  loop: '{{ gf_candidate.protocolMappers }}'
+- when: grafana_client_operation == 'prepare'
+  block:
+  - ansible.builtin.uri:
+      url: '{{ gf_api }}/clients/{{ gf_id }}/client-secret'
+      headers: '{{ gf_headers }}'
+    register: gf_credential
+  - ansible.builtin.assert:
+      that: gf_credential.json.value == gf_secret
