@@ -30,7 +30,7 @@ def deployment(name, namespace='harbor'):
 class HarborStage(unittest.TestCase):
     def setUp(self):
         operator = deployment('platform-cnpg', 'cnpg-system')
-        operator['spec']['template'] = {'spec': {'serviceAccountName': 'platform-cnpg', 'containers': [
+        operator['spec']['template'] = {'metadata': {'annotations': {'checksum/config': audit.OPERATOR_CONFIG_CHECKSUMS['gitlab,tenant-home-nextcloud'], 'checksum/rbac': 'fixed-rbac', 'checksum/monitoring-config': 'fixed-monitoring'}}, 'spec': {'serviceAccountName': 'platform-cnpg', 'containers': [
             {'name': 'manager', 'image': 'pinned', 'env': [{'name': 'WATCH_NAMESPACE', 'value': 'gitlab,tenant-home-nextcloud'}]}]}}
         self.baseline = {'operator': operator, 'releases': [obj('HelmRelease', name, 'bigbang') for name in ('bigbang', 'platform-cnpg', 'gitlab')],
                          'claims': [obj('PersistentVolumeClaim', 'existing', 'gitlab', {'volumeName': 'retained'})],
@@ -49,6 +49,7 @@ class HarborStage(unittest.TestCase):
         self.before['cluster_uid'] = 'cluster-uid'
         self.state = copy.deepcopy(self.baseline)
         self.state['operator']['spec']['template']['spec']['containers'][0]['env'][0]['value'] += ',harbor'
+        self.state['operator']['spec']['template']['metadata']['annotations']['checksum/config'] = audit.OPERATOR_CONFIG_CHECKSUMS['gitlab,tenant-home-nextcloud,harbor']
         self.state['releases'][1]['spec'] = json.loads(json.dumps(self.state['releases'][1]['spec']).replace('gitlab,tenant-home-nextcloud', 'gitlab,tenant-home-nextcloud,harbor'))
         self.state.update(source=obj('GitRepository', 'cluster-config', 'flux-system', {'url': 'https://github.com/perkforge/perkforge-platform.git', 'ref': {'tag': 'v0.99.0'}}),
                           root=obj('Kustomization', 'cluster-root', 'flux-system', {'path': './big-bang-bootstrap/clusters/local-harbor-data', 'sourceRef': {'kind': 'GitRepository', 'name': 'cluster-config'}, 'serviceAccountName': 'platform-reconciler', 'prune': False}),
@@ -255,3 +256,34 @@ class HarborStage(unittest.TestCase):
             with self.assertRaises(audit.Refusal): audit.protected(str(link))
             link.unlink(); os.link(path, link)
             with self.assertRaises(audit.Refusal): audit.protected(str(path))
+
+    def test_operator_config_checksum_preserves_existing_baseline_format(self):
+        original = copy.deepcopy(self.baseline['operator'])
+        legacy_spec = copy.deepcopy(original['spec'])
+        legacy_spec['template']['spec']['containers'][0]['env'][0].pop('value')
+        expected = {'uid': original['metadata']['uid'], 'spec_sha256_without_watch': audit.digest(legacy_spec)}
+        self.assertEqual(audit.operator_identity(original)[0], expected)
+        self.assertEqual(audit.operator_identity(self.state['operator'])[0], expected)
+        self.assertEqual(self.baseline['operator'], original)
+        self.verify()
+
+    def test_operator_checksum_exception_is_exact_and_preserves_other_fields(self):
+        original = copy.deepcopy(self.state['operator'])
+        changes = [
+            lambda o: o['spec']['template']['metadata']['annotations'].pop('checksum/config'),
+            lambda o: o['spec']['template']['metadata']['annotations'].update({'checksum/config': 'unrecognized'}),
+            lambda o: o['spec']['template']['metadata']['annotations'].update({'checksum/config': audit.OPERATOR_CONFIG_CHECKSUMS['gitlab,tenant-home-nextcloud']}),
+            lambda o: o['spec']['template']['spec']['containers'][0]['env'][0].update(value='unreviewed'),
+            lambda o: o['spec']['template']['metadata']['annotations'].update({'checksum/rbac': 'changed'}),
+            lambda o: o['spec']['template']['metadata']['annotations'].update({'checksum/monitoring-config': 'changed'}),
+            lambda o: o['spec']['template']['metadata']['annotations'].update({'unreviewed': 'added'}),
+        ]
+        for change in changes:
+            self.state['operator'] = copy.deepcopy(original)
+            change(self.state['operator'])
+            with self.assertRaises(audit.Refusal):
+                self.verify()
+        old = copy.deepcopy(self.baseline['operator'])
+        old['spec']['template']['metadata']['annotations']['checksum/config'] = audit.OPERATOR_CONFIG_CHECKSUMS['gitlab,tenant-home-nextcloud,harbor']
+        with self.assertRaises(audit.Refusal):
+            audit.operator_identity(old)
