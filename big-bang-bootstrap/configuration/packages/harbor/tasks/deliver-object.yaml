@@ -1,0 +1,14 @@
+# include_tasks (not a command loop) stops before the next object on any failure.
+- ansible.builtin.command:
+    argv: "{{ harbor_kubectl_argv + ['create','-f','-'] }}"
+    stdin: '{{ harbor_delivery_object.item | to_json }}'
+    stdin_add_newline: false
+  when: harbor_delivery_object.stdout | length == 0
+- ansible.builtin.command:
+    argv: "{{ harbor_kubectl_argv + ['get','secret',harbor_delivery_object.item.metadata.name,'-n','harbor','-o','json'] }}"
+  changed_when: false
+  register: harbor_delivery_readback
+- ansible.builtin.assert:
+    that:
+    - (harbor_delivery_readback.stdout | from_json) | harbor_secret_matches(harbor_delivery_object.item)
+    - harbor_delivery_object.stdout | length == 0 or (harbor_delivery_readback.stdout | from_json).metadata.uid == (harbor_delivery_object.stdout | from_json).metadata.uid

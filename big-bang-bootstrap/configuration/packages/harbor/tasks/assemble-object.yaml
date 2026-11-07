@@ -1,0 +1,10 @@
+- ansible.builtin.set_fact:
+    harbor_object_data: {}
+    cacheable: false
+- ansible.builtin.set_fact:
+    harbor_object_data: "{{ harbor_object_data | combine({item.key: lookup('file', item.value, rstrip=false)}) }}"
+    cacheable: false
+  loop: '{{ harbor_credentials_inputs[harbor_object.key] | dict2items }}'
+- ansible.builtin.set_fact:
+    harbor_manifest_items: "{{ harbor_manifest_items + [{'apiVersion':'v1','kind':'Secret','immutable':true,'metadata':{'name':harbor_object.key,'namespace':'harbor','labels':{'perkforge.io/owner':harbor_object.value.owner},'annotations':{'perkforge.io/namespace-uid':harbor_expected_namespace_uid}},'type':harbor_object.value.type,'stringData':harbor_object_data}] }}"
+    cacheable: false

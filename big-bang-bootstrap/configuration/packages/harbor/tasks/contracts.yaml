@@ -1,0 +1,120 @@
+# Native upstream Harbor1.19.2 consumers; no generated credential values.
+- ansible.builtin.set_fact:
+    harbor_contracts:
+      data:
+        harbor-database:
+          type: kubernetes.io/basic-auth
+          keys:
+          - username
+          - password
+          owner: harbor-data-v1
+        harbor-valkey-acl:
+          type: Opaque
+          keys:
+          - default
+          owner: harbor-data-v1
+        harbor-redis:
+          type: Opaque
+          keys:
+          - REDIS_PASSWORD
+          owner: harbor-data-v1
+        harbor-valkey-tls:
+          type: Opaque
+          keys:
+          - ca.crt
+          - tls.crt
+          - tls.key
+          owner: harbor-transport-v1
+      application:
+        harbor-initial-admin:
+          type: Opaque
+          keys:
+          - HARBOR_ADMIN_PASSWORD
+          owner: harbor-application-v1
+        harbor-encryption-key:
+          type: Opaque
+          keys:
+          - secretKey
+          owner: harbor-application-v1
+        harbor-core-auth:
+          type: Opaque
+          keys:
+          - secret
+          owner: harbor-application-v1
+        harbor-xsrf:
+          type: Opaque
+          keys:
+          - CSRF_KEY
+          owner: harbor-application-v1
+        harbor-jobservice-auth:
+          type: Opaque
+          keys:
+          - JOBSERVICE_SECRET
+          owner: harbor-application-v1
+        harbor-registry-auth:
+          type: Opaque
+          keys:
+          - REGISTRY_HTTP_SECRET
+          owner: harbor-application-v1
+        harbor-registry-credentials:
+          type: Opaque
+          keys:
+          - REGISTRY_PASSWD
+          - REGISTRY_HTPASSWD
+          owner: harbor-application-v1
+        harbor-token-signing:
+          type: Opaque
+          keys:
+          - tls.crt
+          - tls.key
+          owner: harbor-application-v1
+        harbor-core-tls:
+          type: kubernetes.io/tls
+          keys:
+          - ca.crt
+          - tls.crt
+          - tls.key
+          owner: harbor-transport-v1
+        harbor-jobservice-tls:
+          type: kubernetes.io/tls
+          keys:
+          - ca.crt
+          - tls.crt
+          - tls.key
+          owner: harbor-transport-v1
+        harbor-registry-tls:
+          type: kubernetes.io/tls
+          keys:
+          - ca.crt
+          - tls.crt
+          - tls.key
+          owner: harbor-transport-v1
+        harbor-portal-tls:
+          type: kubernetes.io/tls
+          keys:
+          - ca.crt
+          - tls.crt
+          - tls.key
+          owner: harbor-transport-v1
+        harbor-service-tls:
+          type: kubernetes.io/tls
+          keys:
+          - tls.crt
+          - tls.key
+          owner: harbor-transport-v1
+        harbor-public-ca:
+          type: Opaque
+          keys:
+          - ca.crt
+          owner: harbor-transport-v1
+        harbor-internal-ca:
+          type: Opaque
+          keys:
+          - ca.crt
+          owner: harbor-transport-v1
+        private-registry:
+          type: kubernetes.io/dockerconfigjson
+          keys:
+          - .dockerconfigjson
+          owner: harbor-registry-v1
+    cacheable: false

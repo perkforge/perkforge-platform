@@ -1,0 +1,15 @@
+# Metadata only: never checksum or MIME-sniff a private file before validating custody.
+- ansible.builtin.stat:
+    path: '{{ harbor_path_component }}'
+    follow: false
+    get_checksum: false
+    get_mime: false
+    get_attributes: false
+  loop: '{{ harbor_guard_path | harbor_ancestors }}'
+  loop_control:
+    loop_var: harbor_path_component
+  register: harbor_path_metadata
+  no_log: true
+- ansible.builtin.assert:
+    that: harbor_path_metadata.results | harbor_protected_path(harbor_guard_path, harbor_private_root, harbor_effective_uid.stdout | int, harbor_guard_optional | default(false))
+  no_log: true
