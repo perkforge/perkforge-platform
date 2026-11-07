@@ -13,7 +13,7 @@ while args and args[0].startswith('--'):
     if '=' not in option:args.pop(0)
 with Path(str(state_path)+'.calls').open('a') as log:log.write(json.dumps(args)+'\n')
 ns=args[args.index('-n')+1] if '-n' in args else ''
-kindmap={'namespace':'Namespace','pod':'Pod','pvc':'PersistentVolumeClaim','backup':'Backup','restore':'Restore','schedule':'Schedule','gitrepository':'GitRepository','kustomization':'Kustomization','kustomizations.kustomize.toolkit.fluxcd.io':'Kustomization'}
+kindmap={'namespace':'Namespace','pod':'Pod','pvc':'PersistentVolumeClaim','backup':'Backup','restore':'Restore','schedule':'Schedule','gitrepository':'GitRepository','kustomization':'Kustomization','helmrelease':'HelmRelease','kustomizations.kustomize.toolkit.fluxcd.io':'Kustomization'}
 def key(kind,name,namespace=''):return '|'.join((kind,namespace,name))
 def output(value):
     state_path.write_text(json.dumps(state))

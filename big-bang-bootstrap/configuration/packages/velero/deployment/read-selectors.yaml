@@ -22,3 +22,17 @@
       - selector_root.spec.prune is sameas false
       - selector_root.spec.path in [velero_previous_path, './big-bang-bootstrap/clusters/local-velero']
     fail_msg: Source or root differs from the explicitly selected baseline. Review the new app composition rather than switching it off.
+
+- name: Refuse to start the next app while the preserved Harbor release is unready
+  ansible.builtin.command:
+    argv: '{{ vk + ["get", "helmrelease", "harbor", "-n", "bigbang", "-o", "json"] }}'
+  changed_when: false
+  register: harbor_read
+- ansible.builtin.assert:
+    that:
+      - not (harbor.spec.suspend | default(false))
+      - harbor.status.observedGeneration | default(-1) == harbor.metadata.generation
+      - harbor.status.conditions | default([]) | selectattr('type','equalto','Ready') | selectattr('status','equalto','True') | list | length == 1
+    fail_msg: Harbor must be Ready at the current generation before Velero stages. Its separate functional acceptance remains required.
+  vars:
+    harbor: '{{ harbor_read.stdout | from_json }}'

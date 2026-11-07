@@ -1,0 +1,125 @@
+{
+  "status": {
+    "layoutVersion": 1,
+    "nodes": [
+      {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "garageVersion": "v2.5.0",
+        "addr": "127.0.0.1:3901",
+        "hostname": "synthetic-container",
+        "isUp": true,
+        "lastSeenSecsAgo": null,
+        "role": {
+          "zone": "synthetic",
+          "tags": [],
+          "capacity": 256000000
+        },
+        "draining": false,
+        "dataPartition": {
+          "available": 8589934592,
+          "total": 10737418240
+        },
+        "metadataPartition": {
+          "available": 8589934592,
+          "total": 10737418240
+        },
+        "resyncQueueLen": 12
+      }
+    ]
+  },
+  "layout": {
+    "version": 1,
+    "roles": [
+      {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "zone": "synthetic",
+        "tags": [],
+        "capacity": 256000000,
+        "storedPartitions": 256,
+        "usableCapacity": 256000000
+      }
+    ],
+    "parameters": {
+      "zoneRedundancy": "maximum"
+    },
+    "partitionSize": 1000000,
+    "stagedRoleChanges": [],
+    "stagedParameters": null
+  },
+  "keys": [
+    {
+      "id": "GK111111111111111111111111",
+      "name": "perkforge-velero-data-v1",
+      "created": "2026-11-07T16:35:53.074Z",
+      "expiration": null,
+      "expired": false
+    }
+  ],
+  "key": {
+    "accessKeyId": "GK111111111111111111111111",
+    "created": "2026-11-07T16:35:53.074Z",
+    "name": "perkforge-velero-data-v1",
+    "expiration": null,
+    "expired": false,
+    "permissions": {
+      "createBucket": false
+    },
+    "buckets": [
+      {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "globalAliases": [
+          "velero-probe"
+        ],
+        "localAliases": [],
+        "permissions": {
+          "read": true,
+          "write": true,
+          "owner": false
+        }
+      }
+    ]
+  },
+  "buckets": [
+    {
+      "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "created": "2026-11-07T16:35:33.631Z",
+      "globalAliases": [
+        "velero-probe"
+      ],
+      "localAliases": []
+    }
+  ],
+  "infos": [
+    {
+      "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "created": "2026-11-07T16:35:33.631Z",
+      "globalAliases": [
+        "velero-probe"
+      ],
+      "websiteAccess": false,
+      "keys": [
+        {
+          "accessKeyId": "GK111111111111111111111111",
+          "name": "perkforge-velero-data-v1",
+          "permissions": {
+            "read": true,
+            "write": true,
+            "owner": false
+          },
+          "bucketLocalAliases": []
+        }
+      ],
+      "objects": 10,
+      "bytes": 17845740,
+      "unfinishedUploads": 0,
+      "unfinishedMultipartUploads": 0,
+      "unfinishedMultipartUploadParts": 0,
+      "unfinishedMultipartUploadBytes": 0,
+      "quotas": {
+        "maxSize": null,
+        "maxObjects": null
+      }
+    }
+  ],
+  "_fixture_note": "Garage2.5 observed response fields; identifiers, names and filesystem sizes normalized for offline tests; not live capacity evidence."
+}

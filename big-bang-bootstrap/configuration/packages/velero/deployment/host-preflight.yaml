@@ -9,7 +9,8 @@
       - velero_project_id is integer and velero_project_id > 0
       - velero_quota_bytes is integer and velero_quota_bytes > 0
       - velero_store_capacity_bytes is integer and velero_store_capacity_bytes > 0
-      - velero_store_capacity_bytes + 2147483648 <= velero_quota_bytes
+      - velero_metadata_budget_bytes is integer and velero_metadata_budget_bytes > 0
+      - velero_store_capacity_bytes + velero_metadata_budget_bytes <= velero_quota_bytes
       - velero_restore_headroom_bytes is integer and velero_restore_headroom_bytes > 0
 - ansible.builtin.stat:
     path: '{{ velero_storage_path }}'
@@ -22,6 +23,7 @@
       - backing_directory.stat.isdir | default(false)
       - not (backing_directory.stat.islnk | default(false))
       - backing_directory.stat.uid == 1000 and backing_directory.stat.gid == 1000
+      - backing_directory.stat.mode[-1] == '0'
 - ansible.builtin.command:
     argv: [findmnt, --json, --bytes, --target, '{{ velero_storage_path }}', --output, 'SOURCE,FSTYPE,OPTIONS,TARGET,UUID,SIZE,AVAIL']
   delegate_to: '{{ velero_storage_host }}'

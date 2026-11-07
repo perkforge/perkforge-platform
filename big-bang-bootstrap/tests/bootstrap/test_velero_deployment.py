@@ -29,6 +29,7 @@ def storage_fixture():
                           {'metadata':{'name':'storage-minimal-available-percentage'},'value':'25'}]}
     inputs = {'velero_storage_mount':'/disk','velero_storage_uuid':'fixture-uuid','velero_storage_path':'/disk/velero-backups',
               'velero_project_id':42,'velero_quota_bytes':100*Gi,'velero_restore_headroom_bytes':20*Gi,
+              'velero_store_capacity_bytes':80*Gi,'velero_metadata_budget_bytes':20*Gi,
               'velero_longhorn_disk_name':'one','velero_longhorn_disk_path':'/disk'}
     return [fs, project, enforcement, quota, node, settings, deepcopy(fs), {'diskUUID':'disk-id'}, inputs]
 
@@ -146,11 +147,20 @@ class VeleroDeployment(unittest.TestCase):
             path=Path(directory);path.chmod(0o700);package=path/'velero';shutil.copytree(PACKAGE,package,ignore=shutil.ignore_patterns('__pycache__'))
             binary=path/'kubectl';binary.write_text((ROOT/'tests/fixtures/velero_kubectl.py').read_text());binary.chmod(0o700)
             state=path/'state.json';state.write_text(json.dumps({'target_commit':'a'*40,
+                'HelmRelease|bigbang|harbor':{'kind':'HelmRelease','metadata':{'name':'harbor','namespace':'bigbang','generation':2},'spec':{},'status':{'observedGeneration':2,'conditions':[{'type':'Ready','status':'True'}]}},
                 'GitRepository|flux-system|cluster-config':{'kind':'GitRepository','metadata':{'uid':'source-uid','name':'cluster-config','namespace':'flux-system','resourceVersion':'1'},'spec':{'url':'https://github.com/perkforge/perkforge-platform.git','ref':{'tag':'v1.0.0'},'interval':'1m'}},
-                'Kustomization|flux-system|cluster-root':{'kind':'Kustomization','metadata':{'uid':'root-uid','name':'cluster-root','namespace':'flux-system','resourceVersion':'1'},'spec':{'sourceRef':{'kind':'GitRepository','name':'cluster-config'},'path':'./big-bang-bootstrap/clusters/local-metrics-limited-pilot-ui','serviceAccountName':'platform-reconciler','prune':False,'interval':'1m'}}}))
-            values={'vk':[str(binary)],'velero_state_dir':str(path),'velero_root_name':'cluster-root','velero_previous_tag':'v1.0.0','velero_release_tag':'v1.0.1','velero_release_commit':'a'*40,'velero_previous_path':'./big-bang-bootstrap/clusters/local-metrics-limited-pilot-ui'}
+                'Kustomization|flux-system|cluster-root':{'kind':'Kustomization','metadata':{'uid':'root-uid','name':'cluster-root','namespace':'flux-system','resourceVersion':'1'},'spec':{'sourceRef':{'kind':'GitRepository','name':'cluster-config'},'path':'./big-bang-bootstrap/clusters/local-harbor-app','serviceAccountName':'platform-reconciler','prune':False,'interval':'1m'}}}))
+            values={'vk':[str(binary)],'velero_state_dir':str(path),'velero_root_name':'cluster-root','velero_previous_tag':'v1.0.0','velero_release_tag':'v1.0.1','velero_release_commit':'a'*40,'velero_previous_path':'./big-bang-bootstrap/clusters/local-harbor-app'}
             harness=package/'fixture.yaml';harness.write_text(yaml.safe_dump([{'hosts':'localhost','connection':'local','gather_facts':False,'vars':values,'tasks':[{'ansible.builtin.include_tasks':'deployment/read-selectors.yaml'},{'ansible.builtin.include_tasks':'deployment/promote.yaml'}]}]))
             env={**os.environ,'VELERO_FAKE_STATE':str(state),'ANSIBLE_LOCAL_TEMP':str(path/'ansible')};command=['ansible-playbook','-i','localhost,',str(harness)]
+            original=json.loads(state.read_text())
+            for failure in ('unready','stale'):
+                failed=deepcopy(original);status=failed['HelmRelease|bigbang|harbor']['status']
+                if failure=='unready':status['conditions'][0]['status']='False'
+                else:status['observedGeneration']=1
+                state.write_text(json.dumps(failed));denied=subprocess.run(command,env=env,text=True,capture_output=True,timeout=25)
+                self.assertNotEqual(denied.returncode,0);self.assertNotIn('\"patch\"',Path(str(state)+'.calls').read_text())
+            state.write_text(json.dumps(original))
             result=subprocess.run(command,env=env,text=True,capture_output=True,timeout=45);self.assertEqual(result.returncode,0,result.stdout+result.stderr)
             promoted=json.loads(state.read_text());self.assertEqual(promoted['GitRepository|flux-system|cluster-config']['spec']['ref']['tag'],'v1.0.1')
             self.assertEqual(promoted['Kustomization|flux-system|cluster-root']['spec']['path'],'./big-bang-bootstrap/clusters/local-velero')
@@ -192,7 +202,7 @@ class VeleroDeployment(unittest.TestCase):
             if not os.environ.get('VELERO_CHART_SOURCE') or not os.environ.get('PREFLIGHT_SOURCES_DIR') or not shutil.which('helm'):
                 self.skipTest('native Ansible passed; exact Helm comparison requires pinned fixture inputs')
             from fixtures.render_helpers import helm,build,ordered_values,child_values
-            base=build(ROOT/'clusters/local-metrics-limited-pilot-ui');release=next(x for x in base if x['kind']=='HelmRelease' and x['metadata']['name']=='bigbang')
+            base=build(ROOT/'clusters/local-harbor-app');release=next(x for x in base if x['kind']=='HelmRelease' and x['metadata']['name']=='bigbang')
             bigbang=Path(os.environ['PREFLIGHT_SOURCES_DIR'])/'bigbang/chart'
             vals=ordered_values(base,release);old=helm(bigbang,'bigbang','bigbang',vals);new=helm(bigbang,'bigbang','bigbang',vals+[runtime['data']['velero.yaml']])
             key=lambda x:(x['kind'],x['metadata'].get('namespace',''),x['metadata']['name'])
@@ -207,8 +217,12 @@ class VeleroDeployment(unittest.TestCase):
             self.assertIn('--node-agent-configmap=velero-node-agent',ds['spec']['template']['spec']['containers'][0]['args'])
             store=helm(PACKAGE/'backend-chart','velero-store','velero-store',[runtime['data']['backend.yaml']])
             self.assertFalse(any(x['kind'] in ('PersistentVolume','PersistentVolumeClaim','Secret','ClusterRole','ClusterRoleBinding') for x in store))
+            cfg=next(x for x in store if x['kind']=='ConfigMap')['data']['garage.toml']
+            for setting in ('db_engine = "sqlite"','metadata_fsync = true','data_fsync = true','metadata_auto_snapshot_interval = "1h"','metadata_snapshots_dir = "/data/meta-snapshots"'):self.assertIn(setting,cfg)
             sts=next(x for x in store if x['kind']=='StatefulSet');self.assertFalse(sts['spec']['template']['spec']['automountServiceAccountToken'])
-            self.assertEqual(sts['spec']['template']['spec']['nodeSelector'],{'kubernetes.io/hostname':'worker-fixture'})
+            self.assertEqual(sts['spec']['template']['spec']['nodeSelector'],{'kubernetes.io/hostname':'worker-fixture','kubernetes.io/arch':'amd64'})
+            self.assertEqual(sts['spec']['template']['spec']['securityContext']['fsGroupChangePolicy'],'OnRootMismatch')
+            self.assertEqual(sts['spec']['template']['spec']['containers'][0]['image'],'docker.io/dxflrs/garage:v2.5.0@sha256:23b16d34e0348d9aca9b960a7429a7e6d494974b5288bfb8f6c3ab856895f71e')
 
     def test_native_garage_single_bucket_bootstrap_and_uncertain_write(self):
         import threading
@@ -217,6 +231,7 @@ class VeleroDeployment(unittest.TestCase):
         class StoreAPI(FakeAPI):
             def __call__(self,name,body=None):
                 result=super().__call__(name,body)
+                if name=='GetClusterStatus':result['nodes'][0]['garageVersion']='v2.5.0'
                 if name=='AllowBucketKey':
                     for bucket in self.buckets.values():
                         for grant in bucket['keys']:grant['name']='perkforge-velero-data-v1'
@@ -265,9 +280,29 @@ class VeleroDeployment(unittest.TestCase):
         finally:
             server.shutdown();server.server_close();thread.join(timeout=2)
 
+    def test_exact_garage_native_shape_and_version_evidence(self):
+        spec=importlib.util.spec_from_file_location('velero_garage',PACKAGE/'filter_plugins/velero_garage.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        fixture=ROOT/'tests/fixtures/velero_native'
+        shape=json.loads((fixture/'garage-admin-shapes.json').read_text())
+        expected={k:shape['layout']['roles'][0][k] for k in ('id','zone','capacity','tags')}
+        receipt={'key_imported':True,'buckets':{'velero-probe':shape['infos'][0]['id']}}
+        args=[shape['status'],shape['layout'],shape['keys'],shape['key'],shape['infos'],receipt,expected['id'],shape['key']['accessKeyId'],expected,['velero-probe']]
+        self.assertEqual(module.garage_verdict(*args),{'phase':'ready','missing':[],'ungranted':[]})
+        shape['status']['nodes'][0]['garageVersion']='v2.2.0'
+        with self.assertRaises(ValueError):module.garage_verdict(*args)
+        evidence=json.loads((fixture/'evidence.json').read_text())
+        self.assertEqual(evidence['garage']['version'],'2.5.0')
+        self.assertEqual(evidence['garage']['metadata_engine'],'sqlite')
+        self.assertEqual(evidence['garage']['retained_native_metadata_snapshots'],2)
+        self.assertEqual(evidence['aws_plugin']['checksum_algorithm'],'default CRC32')
+        self.assertEqual(evidence['native_bootstrap']['repeat_changes'],0)
+
     def test_storage_requires_quota_identity_capacity_and_existing_commitments(self):
         self.assertTrue(guard.storage_safe(*storage_fixture()))
         cases=[]
+        x=storage_fixture();x[8]['velero_metadata_budget_bytes']=0;cases.append(x)
+        x=storage_fixture();x[8]['velero_store_capacity_bytes']=100*Gi;cases.append(x)
         x=storage_fixture();x[0]['filesystems'][0]['options']='rw,noquota';cases.append(x)
         x=storage_fixture();x[2]='Project quota state\nAccounting: ON\nEnforcement: OFF';cases.append(x)
         x=storage_fixture();x[6]['filesystems'][0]['uuid']='other-disk';cases.append(x)
@@ -327,7 +362,7 @@ class VeleroDeployment(unittest.TestCase):
         def render(name):
             return list(yaml.safe_load_all(subprocess.check_output(['kubectl','kustomize',str(ROOT/'clusters'/name)],text=True)))
         key=lambda x:(x['kind'],x['metadata'].get('namespace',''),x['metadata']['name'])
-        old={key(x):x for x in render('local-metrics-limited-pilot-ui')}
+        old={key(x):x for x in render('local-harbor-app')}
         new={key(x):x for x in render('local-velero')}
         self.assertEqual(set(new)-set(old),{('HelmRelease','bigbang','velero-store')})
         for k,v in old.items():

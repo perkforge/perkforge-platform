@@ -4,9 +4,9 @@
 separate bounded local Garage instance, Velero installation, copied-data acceptance
 and platform-operated backup/restore. Current roots remain unchanged. No live
 storage, quota, key, RBAC, backup or schedule has been changed by this source work.
-The maintained Garage image selection and exact-client interoperability test are
-still blocked; the chart's existing 2.2.0 digest is a comparison baseline, **not an
-accepted fresh-install pin**. Do not execute the rollout until that is resolved.
+Garage 2.5.0 is pinned and its exact S3/Kopia component tests passed. Host quota/
+capacity maintenance, private endpoint isolation and native cluster acceptance
+remain required. A component pass does not mean tenant data is protected.
 
 Only platform operators use Velero, its API and repository/store credentials.
 Tenant namespace selection is a content filter, not authorization. Tenants receive
@@ -46,10 +46,14 @@ Before the rollout, approve a maintenance window and exact byte budget. The host
 procedure must preserve mount identity, Longhorn replica availability and recovery
 access while enabling XFS project accounting/enforcement. Set an exclusive project
 ID and inherited hard quota on a new dedicated direct child directory named
-`velero-backups` (or a suffixed variant), owned 1000:1000, outside every Longhorn
-replica/engine/metadata subtree. Set Garage's object capacity below the hard quota,
-leaving metadata margin. Reconcile the Longhorn reservation to cover the quota,
-original free-space floor and additional snapshot/restore/cleanup headroom.
+`velero-backups` (or a suffixed variant), owned 1000:1000 with no world permissions,
+outside every Longhorn replica/engine/metadata subtree. Set Garage's object capacity below the hard quota,
+leaving the separately entered `velero_metadata_budget_bytes` inside the quota.
+Budget for the active SQLite DB, WAL, up to three transient native snapshots and
+growth (at least four times the observed DB size, plus WAL/growth). This is a
+planning reserve, not a second quota or verified growth estimate; monitor actual
+usage and stop before exhaustion. The only hard limit is the filesystem project
+quota. Reconcile the Longhorn reservation to cover the quota, original free-space floor and additional snapshot/restore/cleanup headroom.
 
 Do not unmount an active Longhorn disk, edit fstab, change reservations or create the
 backing path through this installer. Those host operations need a separately
@@ -86,20 +90,33 @@ standalone CSI plugin in wrapper annotations is not needed. Kubernetes 1.36.5 is
 expected by upstream's broad range but not among 1.18's listed test versions;
 actual cluster acceptance remains required.
 
-Garage is AGPLv3. The existing 2.2.0 digest is a known platform baseline, not proof of
-current support. Official releases list 2.5.0; review its changes, verify an immutable
-image and test it before selecting the fresh-install pin. MinIO's archived upstream
-is not a maintained drop-in alternative. Garage implements the required basic and
+Garage is AGPLv3. This new instance selects current official release 2.5.0, pinned
+to the verified linux/amd64 manifest
+`sha256:23b16d34e0348d9aca9b960a7429a7e6d494974b5288bfb8f6c3ab856895f71e`.
+The store selects an amd64 node; existing GitLab 2.2.0 is not upgraded. This is not
+an LTS/security-support claim. MinIO's archived upstream is not a maintained
+drop-in alternative. Garage implements the required basic and
 multipart S3 APIs, but not S3 bucket versioning or AWS IAM/policy APIs. Its native
 bucket-scoped key has read/write, **not owner/create-bucket**, authority. Prefixes
 organize data; the Garage authorization boundary here is the dedicated bucket.
 
-AWS plugin 1.14.4 defaults to CRC32. Cached Garage source supports checksums, so do not
-blank `checksumAlgorithm` speculatively. Test exact plugin Put/Get/Head/List/Delete,
-large multipart and failure cleanup, then the exact Velero Kopia replacement
-`project-velero/kopia@d946b1e75197`: create/incremental/write/reopen/hash/delete and
-maintenance. A latest-Kopia CLI or AWS CLI pass is not equivalent. Native tests have
-**not run** because external download/container execution is currently blocked.
+On 2026-11-07, disposable native tests passed with AWS plugin 1.14.4's exact
+object-store source and unchanged dependency graph. Its default CRC32 works:
+4 KiB and 11 MiB multipart PUT/HEAD/GET/hash/list/prefix/delete passed without a
+checksum workaround. Velero 1.18.4's exact
+`project-velero/kopia@d946b1e75197` and unchanged dependency graph initialized an
+encrypted repository, uploaded 17 MiB, survived Garage restart, restored the SHA256
+through a fresh config/cache, ran full `SafetyFull` maintenance and restored again.
+Both clients rejected an untrusted CA, wrong hostname, wrong key and another
+existing bucket. Normal snapshot manifest deletion and maintenance passed; this
+does not prove immediate physical chunk reclamation, interrupted multipart abort
+cleanup or incremental snapshot growth.
+
+The actual `bootstrap-store.yaml` also passed against a separate empty native
+2.5.0 SQLite instance: one layout, supplied key and bucket, read/write without owner or
+create-bucket authority, then zero-change repeat. Both disposable instances were
+stopped. These are component tests, not full plugin gRPC/Iron Bank image execution,
+Kubernetes CSI data movement, application consistency or live recovery acceptance.
 
 Traefik terminates HTTPS on a new platform-only backup hostname/certificate.
 Garage's internal backend hop is HTTP; do not call this end-to-end encryption.
@@ -111,21 +128,55 @@ private routing design before activation; DNS alone does not enforce privacy. En
 firewall verification. Keep the route private to platform clients. Supply a trusted
 CA and verify both the plugin and exact Kopia path, including wrong-CA denial.
 `insecureSkipTLSVerify` stays false. The pinned source propagates BSL CA bytes into
-Kopia RootCA; that is source evidence, not a TLS interoperability pass.
+Kopia RootCA. The verified localhost TLS proxy exercised both pinned client
+libraries; the actual Traefik route, certificate delivery and cluster path still
+require acceptance.
+
+## Single-node metadata durability
+
+For this **new** instance, SQLite is selected instead of GitLab's LMDB baseline.
+Garage's [known issues](https://garagehq.deuxfleurs.fr/documentation/reference-manual/known-issues/)
+warn that LMDB metadata can corrupt after forced shutdown/power loss; RF1 has no
+second metadata copy. SQLite avoids those listed LMDB-specific issues, at lower
+throughput. Both `metadata_fsync` and `data_fsync` are explicitly true. Native
+`metadata_auto_snapshot_interval = "1h"` writes to `/data/meta-snapshots` within
+the same hard quota. Garage keeps the newest two snapshots automatically, with
+three temporarily present during cleanup. There is no invented keep-count option.
+Three manual native snapshots on the exact SQLite image retained exactly two.
+The hourly timer and forced-power-loss recovery were not tested. This metadata
+interval is not the tenant backup cadence or an RPO promise.
+
+Snapshots remain on the same disk and can be lost with it. A clean restart does
+not prove power-loss safety, and Garage has no object locking/WORM guarantee.
+Treat the bucket/key and repository password as trusted platform custody; the
+immutable references here identify app versions, not immutable backup storage.
+
+If metadata is damaged, stop writes and pause owners under a separately approved
+recovery action. Preserve the original data/metadata and node identity before any
+repair. Use a native consistent snapshot with the same Garage version in an
+isolated offline recovery copy; never copy a running DB as its backup. Retain the
+object directory and protected node/RPC/key material, verify repository reopening
+and an isolated fresh-cache restore before returning service, and keep the failed
+original until acceptance. A snapshot rewind can lose metadata for newer writes
+and does not guarantee every backup point remains usable. No automatic corruption
+repair, destructive restore or release of traffic is part of this installer.
 
 ## One rollout, with explicit stops
 
-1. Resolve the maintained pin/native client tests and approve host quota/capacity
-   maintenance. Confirm healthy apps/Longhorn before and after the host change.
+1. Approve and complete host quota/capacity maintenance. Confirm healthy apps/Longhorn before and after the host change.
 2. Merge/release through normal review, never direct-main publication. Use a clean
    checkout of the published immutable tag/commit. Copy
    [deployment.example.yaml](deployment.example.yaml) outside Git with mode 0600;
    fill exact context/API/cluster UID, current source tag/root, node/disk identity,
-   capacity, private endpoint/certificate and protected file paths. Keep receipts in
+   capacity, private endpoint/certificate and protected file paths. Put the exact
+   storage inventory host in the `velero_storage` group. Keep receipts in
    a separate existing 0700 owner directory. Do not put physical IDs or keys in Git.
 3. Verify the current composition. The compiled base in `deployment/base.yaml` is
-   `local-metrics-limited-pilot-ui`. If Grafana SSO, Harbor or another app has since
-   changed the accepted root, revise this composition in the same MR/release first.
+   `local-harbor-app`, preserving Harbor data/app resources and its inherited
+   metrics/Grafana composition. Harbor must finish functional acceptance first;
+   merely selecting its root is not acceptance. The preflight requires Harbor
+   Ready at its current generation, which still does not prove SSO/push/pull.
+   If another app changes the root, revise this composition in the same release.
    The selector preflight fails closed; it must never turn those apps off. Confirm
    actual `flux-system/cluster-root` and source `flux-system/cluster-config` names.
 4. With exact foundation approval, run `install.yaml` stage `foundation`. It verifies
@@ -272,8 +323,32 @@ region, endpoint/CA, bucket/prefix, identity/KMS and storage/snapshot mappings.
 Offline tests check native Ansible default behavior/control flow, refusal paths,
 exact chart rendering, scoped authority and unchanged old roots. API fixtures are
 not Kubernetes integration, quota enforcement, S3 compatibility or data durability.
-The exact upstream Go semantic tests could not run with uncached dependencies;
-source inspection and offline tests must not be promoted to live acceptance.
+The official release index and native tests are verified, but a complete tagged
+changelog/security audit was not available. The broader upstream Go semantic suite
+did not run with uncached dependencies.
+The later exact-client probes are narrower component evidence, not a substitute.
+
+[Sanitized native evidence](../../../tests/fixtures/velero_native/evidence.json),
+[exact AWS harness](../../../tests/fixtures/velero_native/aws_object_store_test.go),
+[Kopia harness](../../../tests/fixtures/velero_native/kopia_client.go) and
+[normalized Admin v2 fields](../../../tests/fixtures/velero_native/garage-admin-shapes.json)
+preserve the tested implementation and limits. These fixtures are not auto-run by
+unit tests. To reproduce, use an independently approved disposable Garage/TLS
+fixture on loopback port 44390 with bucket `velero-probe` and a second ungranted
+`other-probe` bucket. Set `PROBE_ROOT` to a private temporary directory. Supply
+only synthetic `runtime/tls.crt`, `runtime/aws-credentials`, `runtime/key.json`
+(`id`/`secret`) and `runtime/repository-password`; never production credentials.
+
+Use the exact source/archive hashes in the evidence. In an AWS plugin 1.14.4
+checkout, copy the AWS harness beside `object_store.go` and run `go test -v
+object_store.go config.go helpers.go aws_object_store_test.go`. For Kopia, use a
+new directory with the byte-identical Velero 1.18.4 `go.mod`/`go.sum`, copy the
+harness as `main.go` and build it. Run `create`, stop/start Garage without removing
+its data, then `restore`, `maintenance`, `restore-after-maintenance`, `negative`
+and `cleanup`. Each operation uses its own cache; retain evidence and stop the
+fixture afterward. The bootstrap repeat uses the ordinary documented
+`bootstrap-store.yaml` against a separate empty disposable instance, not the
+client test repository. Never apply this procedure to an existing app store.
 
 References: [CSI data movement](https://velero.io/docs/v1.18/csi-snapshot-data-movement/),
 [exact restore implementation](https://github.com/velero-io/velero/blob/v1.18.4/pkg/restore/actions/csi/pvc_action.go),

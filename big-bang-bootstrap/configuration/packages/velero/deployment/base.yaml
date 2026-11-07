@@ -1,4 +1,4 @@
 # Must be reviewed when another platform app changes the accepted composition.
-base_root: ./big-bang-bootstrap/clusters/local-metrics-limited-pilot-ui
+base_root: ./big-bang-bootstrap/clusters/local-harbor-app
 rollout_root: ./big-bang-bootstrap/clusters/local-velero
 source_repository: https://github.com/perkforge/perkforge-platform.git

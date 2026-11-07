@@ -58,6 +58,12 @@ def exact_hosts(values):
 
 def storage_safe(mount, project, enforcement, quota, node, settings, longhorn_mount, disk_identity, inputs):
     try:
+        data = inputs['velero_store_capacity_bytes']
+        metadata = inputs['velero_metadata_budget_bytes']
+        if type(data) is not int or type(metadata) is not int or min(data, metadata) <= 0:
+            return False
+        if data + metadata > inputs['velero_quota_bytes']:
+            return False
         fs, = mount['filesystems']
         options = fs['options'].split(',')
         if fs['fstype'] != 'xfs' or 'noquota' in options or not {'prjquota', 'pquota'} & set(options):

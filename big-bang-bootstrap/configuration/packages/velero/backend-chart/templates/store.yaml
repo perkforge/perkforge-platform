@@ -10,7 +10,11 @@ data:
   garage.toml: |
     metadata_dir = "/data/meta"
     data_dir = "/data/objects"
-    db_engine = "lmdb"
+    db_engine = "sqlite"
+    metadata_fsync = true
+    data_fsync = true
+    metadata_snapshots_dir = "/data/meta-snapshots"
+    metadata_auto_snapshot_interval = "1h"
     replication_factor = 1
     rpc_bind_addr = "127.0.0.1:3901"
     rpc_public_addr = "127.0.0.1:3901"
@@ -41,10 +45,11 @@ spec:
     metadata: {labels: {app: velero-store}}
     spec:
       nodeSelector:
+        kubernetes.io/arch: amd64
         kubernetes.io/hostname: {{ required "storageNode is required" .Values.storageNode | quote }}
       serviceAccountName: velero-store
       automountServiceAccountToken: false
-      securityContext: {runAsUser: 1000, runAsGroup: 1000, runAsNonRoot: true, fsGroup: 1000, seccompProfile: {type: RuntimeDefault}}
+      securityContext: {runAsUser: 1000, runAsGroup: 1000, runAsNonRoot: true, fsGroup: 1000, fsGroupChangePolicy: OnRootMismatch, seccompProfile: {type: RuntimeDefault}}
       initContainers:
       - name: private-files
         image: docker.io/library/busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4
@@ -58,7 +63,7 @@ spec:
         - {name: data, mountPath: /data}
       containers:
       - name: garage
-        image: docker.io/dxflrs/garage:v2.2.0@sha256:45a61ce3f7c9c24fc23d9ed2b09b27ed560ab87b34605d175d5c588f539c24e4
+        image: docker.io/dxflrs/garage:v2.5.0@sha256:23b16d34e0348d9aca9b960a7429a7e6d494974b5288bfb8f6c3ab856895f71e
         command: [/garage]
         args: [-c, /etc/garage/garage.toml, server]
         securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}

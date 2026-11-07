@@ -4,7 +4,7 @@ import re
 def garage_layout_verdict(status,layout,node,expected):
  if not re.fullmatch('[a-f0-9]{64}',node) or len(status['nodes'])!=1:raise ValueError('node identity')
  n=status['nodes'][0]
- if n['id']!=node or n['isUp'] is not True or n['draining'] is not False or n['garageVersion'] not in ('2.2.0','v2.2.0'):raise ValueError('node health/version')
+ if n['id']!=node or n['isUp'] is not True or n['draining'] is not False or n['garageVersion'] not in ('2.5.0','v2.5.0'):raise ValueError('node health/version')
  if (not isinstance(layout['version'],int) or isinstance(layout['version'],bool)) or layout['version']!=status['layoutVersion'] or layout.get('stagedParameters') is not None:raise ValueError('layout drift')
  staged=layout['stagedRoleChanges']
  if layout['roles']:

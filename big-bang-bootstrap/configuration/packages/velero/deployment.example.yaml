@@ -22,6 +22,7 @@ velero_storage_uuid: ''
 velero_project_id: 0
 velero_quota_bytes: 0
 velero_store_capacity_bytes: 0 # Garage data budget smaller than filesystem hard quota.
+velero_metadata_budget_bytes: 0 # Active DB + up to3 transient snapshot copies, WAL and growth.
 velero_restore_headroom_bytes: 0
 velero_longhorn_disk_name: ''
 velero_longhorn_disk_path: ''

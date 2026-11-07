@@ -45,5 +45,6 @@ Flux installation requires the pinned Iron Bank image-pull credential. The suppo
 The default-off [Velero rollout and recovery](configuration/packages/velero/README.md)
 consolidates local installation, a separate bounded Garage store and isolated
 copied-data restore, with a future AWS design. Existing roots remain unchanged.
-The maintained backend pin, exact-client tests and approved host quota/capacity
-maintenance currently block deployment; schedules remain paused.
+Pinned Garage 2.5/exact-client component tests pass. Approved host quota/capacity
+maintenance, private routing and native cluster acceptance still gate deployment;
+schedules remain paused.
