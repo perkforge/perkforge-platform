@@ -1,0 +1,98 @@
+# CSI-only: native fs-backup and node-agent hostPath mounts are disabled.
+addons:
+  velero:
+    enabled: true
+    flux:
+      serviceAccountName: velero-installer
+      install:
+        createNamespace: false
+        crds: Skip
+        remediation:
+          retries: 0
+      upgrade:
+        crds: Skip
+        remediation:
+          retries: 0
+      storageNamespace: velero
+      test:
+        enable: false
+    postRenderers:
+    - kustomize:
+        patches:
+        - target:
+            group: snapshot.storage.k8s.io
+            version: v1
+            kind: VolumeSnapshotClass
+            name: csi-volumesnapshotclass
+          patch: '$patch: delete
+
+            apiVersion: snapshot.storage.k8s.io/v1
+
+            kind: VolumeSnapshotClass
+
+            metadata: {name: csi-volumesnapshotclass}'
+    values:
+      upstream:
+        rbac:
+          create: false
+          clusterAdministrator: false
+        serviceAccount:
+          server:
+            create: false
+            name: velero-server
+            automountServiceAccountToken: true
+        image:
+          imagePullSecrets:
+          - private-registry
+        upgradeCRDs: false
+        cleanUpCRDs: false
+        credentials:
+          useSecret: true
+          existingSecret: velero-cloud-credentials
+        deployNodeAgent: true
+        nodeAgent:
+          nodeSelector:
+            storage.perkforge.io/worker: 'true'
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+              ephemeral-storage: 128Mi
+            limits:
+              cpu: '1'
+              memory: 1Gi
+              ephemeral-storage: 1Gi
+          extraArgs:
+          - --node-agent-configmap=velero-node-agent
+          useScratchEmptyDir: false
+          extraVolumes:
+          - name: scratch
+            emptyDir:
+              sizeLimit: 1Gi
+          extraVolumeMounts:
+          - name: scratch
+            mountPath: /scratch
+          disableHostPath: true
+        nodeSelector:
+          storage.perkforge.io/worker: 'true'
+        configuration:
+          features: EnableCSI
+          uploaderType: kopia
+          defaultSnapshotMoveData: true
+          defaultVolumesToFsBackup: false
+          defaultBackupTTL: 48h
+          volumeSnapshotLocation: []
+          extraArgs:
+          - --repo-maintenance-job-configmap=velero-maintenance
+        backupsEnabled: true
+        snapshotsEnabled: false
+        schedules: {}
+        metrics:
+          serviceMonitor:
+            enabled: false
+          prometheusRule:
+            enabled: false
+      monitoring:
+        enabled: false
+      networkPolicies:
+        enabled: false

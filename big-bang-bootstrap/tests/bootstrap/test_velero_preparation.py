@@ -237,8 +237,8 @@ class VeleroPreparation(unittest.TestCase):
             self.assertIsNone(output)
 
     def test_current_roots_never_select_velero_and_implementation_has_no_api_module(self):
-        roots = sorted((ROOT / 'clusters').glob('*/kustomization.yaml'))
-        self.assertEqual(len(roots), 18)
+        roots = sorted(p for p in (ROOT / 'clusters').glob('*/kustomization.yaml') if p.parent.name != 'local-velero')
+        self.assertGreaterEqual(len(roots), 18) # New unrelated opt-in roots must also stay Velero-free.
         for root in roots:
             rendered = subprocess.check_output(['kubectl', 'kustomize', str(root.parent)], text=True)
             objects = list(yaml.safe_load_all(rendered))

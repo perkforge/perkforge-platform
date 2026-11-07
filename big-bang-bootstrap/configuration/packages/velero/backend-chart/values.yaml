@@ -1,0 +1,6 @@
+# No capacity or backing-path defaults. Owner-admin foundation supplies the claim.
+host: ''
+region: garage
+claimName: velero-store
+storageNode: ''
+clientCIDRs: [] # Exact reviewed source addresses as Traefik actually observes them.

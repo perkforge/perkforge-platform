@@ -1,0 +1,71 @@
+# Read-only. This does NOT enable quotas, edit fstab, unmount, reserve or allocate storage.
+- ansible.builtin.assert:
+    that:
+      - velero_host_preflight is sameas true
+      - velero_storage_host in groups['velero_storage']
+      - velero_storage_node | length > 0
+      - velero_storage_path is match('^/') and velero_storage_mount is match('^/')
+      - velero_storage_path != velero_storage_mount
+      - velero_project_id is integer and velero_project_id > 0
+      - velero_quota_bytes is integer and velero_quota_bytes > 0
+      - velero_store_capacity_bytes is integer and velero_store_capacity_bytes > 0
+      - velero_store_capacity_bytes + 2147483648 <= velero_quota_bytes
+      - velero_restore_headroom_bytes is integer and velero_restore_headroom_bytes > 0
+- ansible.builtin.stat:
+    path: '{{ velero_storage_path }}'
+    follow: false
+  delegate_to: '{{ velero_storage_host }}'
+  become: true
+  register: backing_directory
+- ansible.builtin.assert:
+    that:
+      - backing_directory.stat.isdir | default(false)
+      - not (backing_directory.stat.islnk | default(false))
+      - backing_directory.stat.uid == 1000 and backing_directory.stat.gid == 1000
+- ansible.builtin.command:
+    argv: [findmnt, --json, --bytes, --target, '{{ velero_storage_path }}', --output, 'SOURCE,FSTYPE,OPTIONS,TARGET,UUID,SIZE,AVAIL']
+  delegate_to: '{{ velero_storage_host }}'
+  become: true
+  changed_when: false
+  register: backing_mount
+- ansible.builtin.command:
+    argv: [findmnt, --json, --bytes, --target, '{{ velero_longhorn_disk_path }}', --output, 'SOURCE,FSTYPE,OPTIONS,TARGET,UUID,SIZE,AVAIL']
+  delegate_to: '{{ velero_storage_host }}'
+  become: true
+  changed_when: false
+  register: longhorn_mount
+- ansible.builtin.slurp:
+    src: '{{ velero_longhorn_disk_path }}/longhorn-disk.cfg'
+  delegate_to: '{{ velero_storage_host }}'
+  become: true
+  register: longhorn_disk_identity
+- ansible.builtin.command:
+    argv: [xfs_io, -c, stat, '{{ velero_storage_path }}']
+  delegate_to: '{{ velero_storage_host }}'
+  become: true
+  changed_when: false
+  register: backing_project
+- ansible.builtin.command:
+    argv: [xfs_quota, -x, -c, 'state -p', '{{ velero_storage_mount }}']
+  delegate_to: '{{ velero_storage_host }}'
+  become: true
+  changed_when: false
+  register: backing_enforcement
+- ansible.builtin.command:
+    argv: [xfs_quota, -x, -c, 'report -p -b -n -N', '{{ velero_storage_mount }}']
+  delegate_to: '{{ velero_storage_host }}'
+  become: true
+  changed_when: false
+  register: backing_quota
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "nodes.longhorn.io", velero_storage_node, "-n", "longhorn-system", "-o", "json"] }}'
+  changed_when: false
+  register: backing_longhorn
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "settings.longhorn.io", "storage-minimal-available-percentage", "storage-over-provisioning-percentage", "-n", "longhorn-system", "-o", "json"] }}'
+  changed_when: false
+  register: backing_settings
+- ansible.builtin.assert:
+    that:
+      - backing_mount.stdout | from_json | velero_storage_safe(backing_project.stdout, backing_enforcement.stdout, backing_quota.stdout, backing_longhorn.stdout | from_json, backing_settings.stdout | from_json, longhorn_mount.stdout | from_json, longhorn_disk_identity.content | b64decode | from_json, vars)
+    fail_msg: Local backing is not accepted. Enforced project quota, correct path/project, reserve plus free-space and restore headroom must be verified before installation.

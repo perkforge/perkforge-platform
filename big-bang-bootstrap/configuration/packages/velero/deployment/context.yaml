@@ -1,0 +1,36 @@
+- name: Require exact owner-selected target and protected local custody
+  ansible.builtin.assert:
+    that:
+      - velero_kubectl is match('^/')
+      - velero_kubeconfig is match('^/') and velero_kubeconfig | realpath == velero_kubeconfig
+      - velero_context is string and velero_context | length > 0
+      - velero_api is match('^https://[^\s/]+(:[0-9]+)?$')
+      - velero_cluster_uid is match('^[A-Za-z0-9-]{8,64}$')
+      - velero_state_dir is match('^/') and velero_state_dir | realpath == velero_state_dir
+- ansible.builtin.stat:
+    path: '{{ item }}'
+    follow: false
+  loop: '{{ [velero_kubeconfig, velero_state_dir] }}'
+  register: custody
+- ansible.builtin.assert:
+    that:
+      - not (item.stat.islnk | default(false))
+      - item.stat.pw_name == lookup('env', 'USER')
+  loop: '{{ custody.results }}'
+- ansible.builtin.assert:
+    that:
+      - custody.results[0].stat.isreg and custody.results[0].stat.mode == '0600'
+      - custody.results[1].stat.isdir and custody.results[1].stat.mode == '0700'
+- ansible.builtin.set_fact:
+    vk: ['{{ velero_kubectl }}', --kubeconfig, '{{ velero_kubeconfig }}', --context, '{{ velero_context }}', --request-timeout=30s]
+    cacheable: false
+- ansible.builtin.command:
+    argv: '{{ vk + ["config", "view", "--minify", "-o", "jsonpath={.clusters[0].cluster.server}"] }}'
+  changed_when: false
+  register: actual_api
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "namespace", "kube-system", "-o", "jsonpath={.metadata.uid}"] }}'
+  changed_when: false
+  register: actual_cluster
+- ansible.builtin.assert:
+    that: [actual_api.stdout == velero_api, actual_cluster.stdout == velero_cluster_uid]

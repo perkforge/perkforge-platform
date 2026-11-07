@@ -1,196 +1,283 @@
-# Disabled tenant recovery preparation
+# Local Velero rollout and tenant recovery
 
-One common contract, local and future AWS profiles. Platform operators own Velero,
-its API, repository keys and object store access. Tenants never run it or receive
-those credentials. Namespace filters select content; they are **not authorization**.
-A separately reviewed installer/controller/node-agent permission and admission
-boundary is required. This directory is not selected by any root or valuesFrom.
-There is no deploy/apply/backup/restore command here.
+**Work in progress, not ready to deploy.** This is one cohesive source change for a
+separate bounded local Garage instance, Velero installation, copied-data acceptance
+and platform-operated backup/restore. Current roots remain unchanged. No live
+storage, quota, key, RBAC, backup or schedule has been changed by this source work.
+The maintained Garage image selection and exact-client interoperability test are
+still blocked; the chart's existing 2.2.0 digest is a comparison baseline, **not an
+accepted fresh-install pin**. Do not execute the rollout until that is resolved.
 
-## What this source does
+Only platform operators use Velero, its API and repository/store credentials.
+Tenant namespace selection is a content filter, not authorization. Tenants receive
+no Velero identity, role, bucket key or repository password.
 
-- Keeps the addon disabled, Flux suspended, node agent/backup/snapshot resources
-  disabled, CRD hooks off and schedules empty. No new RBAC or credentials.
-- Validates a reference-only recovery request through native Ansible and writes
-  one private, non-applyable review bundle when explicitly requested. Default and
-  check modes are inert. It never contacts Kubernetes, AWS, S3 or a tenant.
-- Uses one tenant namespace per recovery request. Multi-namespace applications
-  require a separately reviewed consistency and restore mapping extension.
-- Prepares Backup/Restore **spec fragments**, a paused schedule plan and immutable
-  release identity. It emits no actionable Backup or Restore objects.
+## Scope and ownership
 
-Run the safe default or syntax check from this directory:
+- `install.yaml`: default-off foundation, backend and activation stages for one
+  immutable released commit. Ansible creates owned prerequisites and protected
+  references; Flux owns the actual backend and Velero releases/workloads.
+- `bootstrap-store.yaml`: default-off native Garage layout, one supplied key and
+  one bucket. Admin access is loopback-only. No adoption, deletion, rotation or
+  uncertain-write retry. Private intent receipts stop ambiguous resumes.
+- `exercise.yaml`: default-off native CSI/Kopia copied-byte roundtrip through a
+  backend restart, two disposable namespaces and fresh target storage.
+- `recovery.yaml`: default-off one-tenant backup, **paused** schedule or isolated
+  restore with native hooks, immutable application/database identity and transfer
+  checks. It never switches traffic, changes app versions or unpauses owners.
+- `prepare.yaml`: optional offline profile preview only, including future AWS.
+  Its review references are operator input, not approval or verified evidence.
+  No preview receipt is needed to install or run the native exercise.
+
+All default and `--check` invocations are inert. Source review does not approve
+execution. Live namespace/RBAC/Secret creation, Garage key import, backend/Velero
+activation, synthetic storage use and backup/restore each need their actual scope
+approved. Host maintenance and schedule activation are separate decisions.
+
+## Current prerequisites and storage safety
+
+Worker-2 has one approximately 931 GiB XFS filesystem, about 910 GiB free, mounted
+**noquota**. Longhorn reserves 30% (about 279 GiB), has about 49 GiB scheduled, uses a 25%
+minimum-free floor and 100% overprovisioning. Those are observed capacity facts,
+not a backup allocation. **No backup capacity has been selected.** A PV capacity
+field, free bytes and a Longhorn reserve are not a filesystem hard quota.
+
+Before the rollout, approve a maintenance window and exact byte budget. The host
+procedure must preserve mount identity, Longhorn replica availability and recovery
+access while enabling XFS project accounting/enforcement. Set an exclusive project
+ID and inherited hard quota on a new dedicated direct child directory named
+`velero-backups` (or a suffixed variant), owned 1000:1000, outside every Longhorn
+replica/engine/metadata subtree. Set Garage's object capacity below the hard quota,
+leaving metadata margin. Reconcile the Longhorn reservation to cover the quota,
+original free-space floor and additional snapshot/restore/cleanup headroom.
+
+Do not unmount an active Longhorn disk, edit fstab, change reservations or create the
+backing path through this installer. Those host operations need a separately
+reviewed safety plan. One uninterrupted deployment is unsafe while `noquota` is
+present. The same MR can deliver the remaining app rollout after that prerequisite.
+
+The read-only host preflight checks filesystem UUID/source, project inheritance,
+quota accounting/enforcement and hard limit, directory ownership, Longhorn disk
+UUID, current scheduled replica promises, reserve, free space and headroom. It
+rejects a reserve that leaves less capacity than already scheduled. It does not
+claim that synthetic guard tests verified the live host. Failures stop before new
+cluster resources. The local PV is statically prebound, node-affine and **Retain**.
+A failed reinstall never adopts a foreign PV/claim or silently changes its path.
+
+Use observed compressed baseline plus measured daily changed bytes, metadata and
+maintenance growth to propose the 48h allocation. Include simultaneous old/new
+restore volumes and snapshot space; do not assume deduplication/compression. The
+Nextcloud tenant's existing 2 PVC/48 Gi quota is fully allocated, so its real isolated
+restore needs a separate approved namespace/quota/capacity plan.
+
+This is local upgrade recovery, not independent disaster recovery. Losing this
+worker/disk can lose its backups. An independent disk/site/account copy is a
+separate durability decision. Existing GitLab Garage remains untouched on its
+replicated Longhorn claims. A separate instance is a placement/failure-boundary
+choice, not a Velero requirement.
+
+## Versions and transport
+
+The exact Big Bang 3.35.1 wrapper 12.2.1-bb.0 contains upstream chart 12.2.1,
+Velero 1.18.4 and AWS plugin 1.14.4. The official matrix pairs 1.18.x/1.14.x.
+[Compatibility evidence](compatibility.yaml) pins the downloaded chart checksum.
+Do not replace only one image or upgrade shared pins. CSI is integrated; the old
+standalone CSI plugin in wrapper annotations is not needed. Kubernetes 1.36.5 is
+expected by upstream's broad range but not among 1.18's listed test versions;
+actual cluster acceptance remains required.
+
+Garage is AGPLv3. The existing 2.2.0 digest is a known platform baseline, not proof of
+current support. Official releases list 2.5.0; review its changes, verify an immutable
+image and test it before selecting the fresh-install pin. MinIO's archived upstream
+is not a maintained drop-in alternative. Garage implements the required basic and
+multipart S3 APIs, but not S3 bucket versioning or AWS IAM/policy APIs. Its native
+bucket-scoped key has read/write, **not owner/create-bucket**, authority. Prefixes
+organize data; the Garage authorization boundary here is the dedicated bucket.
+
+AWS plugin 1.14.4 defaults to CRC32. Cached Garage source supports checksums, so do not
+blank `checksumAlgorithm` speculatively. Test exact plugin Put/Get/Head/List/Delete,
+large multipart and failure cleanup, then the exact Velero Kopia replacement
+`project-velero/kopia@d946b1e75197`: create/incremental/write/reopen/hash/delete and
+maintenance. A latest-Kopia CLI or AWS CLI pass is not equivalent. Native tests have
+**not run** because external download/container execution is currently blocked.
+
+Traefik terminates HTTPS on a new platform-only backup hostname/certificate.
+Garage's internal backend hop is HTTP; do not call this end-to-end encryption.
+There is no admin ingress/service. A dedicated Traefik IP allowlist requires exact
+reviewed platform source addresses; the backend policy permits only the existing
+Traefik selector. Never allow a shared tenant/NAT source identity merely to make
+connectivity pass. If source identity cannot distinguish clients, resolve the
+private routing design before activation; DNS alone does not enforce privacy. Endpoint reachability still needs actual CNI/DNAT and
+firewall verification. Keep the route private to platform clients. Supply a trusted
+CA and verify both the plugin and exact Kopia path, including wrong-CA denial.
+`insecureSkipTLSVerify` stays false. The pinned source propagates BSL CA bytes into
+Kopia RootCA; that is source evidence, not a TLS interoperability pass.
+
+## One rollout, with explicit stops
+
+1. Resolve the maintained pin/native client tests and approve host quota/capacity
+   maintenance. Confirm healthy apps/Longhorn before and after the host change.
+2. Merge/release through normal review, never direct-main publication. Use a clean
+   checkout of the published immutable tag/commit. Copy
+   [deployment.example.yaml](deployment.example.yaml) outside Git with mode 0600;
+   fill exact context/API/cluster UID, current source tag/root, node/disk identity,
+   capacity, private endpoint/certificate and protected file paths. Keep receipts in
+   a separate existing 0700 owner directory. Do not put physical IDs or keys in Git.
+3. Verify the current composition. The compiled base in `deployment/base.yaml` is
+   `local-metrics-limited-pilot-ui`. If Grafana SSO, Harbor or another app has since
+   changed the accepted root, revise this composition in the same MR/release first.
+   The selector preflight fails closed; it must never turn those apps off. Confirm
+   actual `flux-system/cluster-root` and source `flux-system/cluster-config` names.
+4. With exact foundation approval, run `install.yaml` stage `foundation`. It verifies
+   the release, target and host; installs only the 13 pinned Velero CRDs (existing
+   snapshot controller/CRDs remain owned elsewhere); creates scoped foundation,
+   Longhorn V1/ext4 `type:snap` VolumeSnapshotClass and supplied immutable Secrets.
+   It creates inactive runtime values. No app is started in this stage.
+5. Approve stage `backend`. The installer saves old source/root identity, pauses root,
+   promotes only the verified tag, then selects `local-velero` and resumes root using
+   compare-and-swap guards. The new Garage release starts, Velero remains off.
+   Helm histories live in their own namespaces, not other apps' Big Bang history.
+6. Through an explicitly established `kubectl port-forward --address=127.0.0.1`
+   to the **new** store Pod's admin 3903 port, run `bootstrap-store.yaml` with exact
+   node ID, approved capacity, bucket and supplied private key/admin files. The
+   playbook does not create a forward or credentials. A pending receipt means
+   inspect the actual outcome before any retry; never delete receipts to bypass it.
+7. Approve stage `activate`. It only transitions the owned runtime ConfigMap to the
+   source-owned enabled values, waits for Velero/node-agent and the Available BSL.
+   The generic wrapper EBS snapshot class is removed by its narrow postrenderer.
+   Actual Longhorn class ownership remains with foundation. No schedules exist.
+8. Approve and run the disposable `exercise.yaml`, including its new namespaces,
+   two 1Gi claims, temporary CSI snapshots/mover storage and one graceful restart of
+   the new Garage Pod. Verify exact operation UIDs, each source PVC UID, completed
+   copied snapshot IDs, fresh target PVC/PV binding and identical SHA256 after
+   repository reopen. Partial failures, warnings, missing/duplicate/wrong-UID
+   transfers fail. All resources/evidence remain on failure; cleanup is explicit.
+9. Review network/RBAC denial checks and runtime usage, then onboard an approved
+   tenant through `recovery.yaml` and its reviewed app-specific native hooks.
+   A synthetic byte pass does **not** prove database consistency or tenant service.
+   Complete functional acceptance before scheduling or returning traffic.
+
+Example invocation shape, only after approval and filled private inputs:
 
 ```sh
-ansible-playbook -i localhost, prepare.yaml
-ansible-playbook -i localhost, prepare.yaml --syntax-check
+ansible-playbook -i /private/reviewed-inventory install.yaml -e @/private/deployment.yaml \
+  -e '{"velero_install_apply":true,"velero_install_stage":"foundation","velero_install_scope":"velero-foundation-v1"}'
 ```
 
-To review proposed disabled profile inputs, supply a public copy of `request.example.yaml` and an
-existing private (0700) output directory. `velero_prepare` must be a YAML/JSON
-boolean, not a string. Both profiles run the same playbook:
+Use the corresponding `backend`/`activate` stage and scope for later stages. Plain
+`ansible-playbook -i localhost, install.yaml` is the safe inert check. Secrets are
+supplied, never generated or rotated: separate Garage admin/RPC material, a
+bucket-scoped key, repository password, TLS leaf/key/CA and authorized registry
+copy. Preserve repository-password and object-store recovery custody outside the
+cluster. Never rebuild the repository with a different password.
 
-```sh
-ansible-playbook -i localhost, prepare.yaml -e @/path/to/reviewed-request.yaml \
-  -e '{"velero_prepare":true,"velero_environment":"local","velero_output_dir":"/path/to/private-review"}'
-```
+On failure, do not rollback by deleting PVs, buckets, credentials or backups. Inspect
+saved selector identity and current Flux state. If an explicit handback is approved,
+pause root, restore only the recorded source tag/path after checking for intervening
+app changes, then resume. `prune:false` prevents automatic old-resource removal but
+is not a substitute for deliberate Velero/store suspension and retained-data review.
+No automatic destructive cleanup or force recovery is supplied.
 
-Use `aws` for the other profile. Preparation requires explicit proposed storage
-classes, endpoint, region, bucket/prefix, CA/identity references and AWS KMS reference.
-These can identify proposed resources; preparation does not connect or assert they
-exist. Empty source-profile fields fail. It does **not** require an already-installed
-Velero, backup or acceptance receipt. Recovery fields may remain empty and no backup,
-schedule or restore spec fragment is emitted in that mode.
+## Security and recovery acceptance
 
-Only for a complete, separately reviewed recovery request, add the boolean
-`velero_review_recovery: true`. This enables the stronger namespace, consistency,
-immutable-version, retention, backing-capacity and recovery-point input checks and
-includes the non-applyable spec fragments. Do not invent evidence to pass a guard.
-Nonempty references and declared quota bytes do not prove approval, actual quota
-installation, compatibility or successful recovery. A reviewer must inspect the
-referenced evidence; every output still says readiness unverified and preserves
-the local quota-maintenance blocker. `velero_apply`, tenant access or schedules cannot be
-enabled by this procedure. No output is permission to activate anything.
+The server/node-agent is **trusted platform backup infrastructure**. The exact 1.18
+CSI-only path does not need node-agent hostPath mounts: `disableHostPath:true` removes
+them and fs-backup remains disabled. The namespace uses baseline admission because
+CSI mover containers still run as root with access to copied tenant volumes. Global
+PV/VSC authority can expose storage outside a namespace; Roles are not a tenant
+sandbox. Explicit selected workers, independent key custody, source-owned RBAC and
+actual admission/audit checks remain required. Never re-enable hostPath or legacy
+filesystem backup as an unreviewed fallback. Runtime global writes are limited to PVs and
+VolumeSnapshotContents needed by CSI exposure/rebinding; global reads include Pods
+and Velero CRs because the exact node-agent uses all-namespace LIST with field
+selectors. It cannot mutate arbitrary cluster RBAC or read all cluster Secrets.
 
-## Actual pinned compatibility and remaining gates
+Selected source namespaces receive workload read, native hook exec and snapshot
+permissions. Only selected isolated restore targets receive workload write/delete
+permissions. Flux/RBAC/ServiceAccount objects are excluded from recovery. Identity,
+quota and operator-owned objects must be supplied by their existing source owners.
+The installer does not patch a live-only admission exception. Test authorization
+and actual snapshot/mover behavior; any missing permission must receive narrow
+source review, not a cluster-admin workaround.
 
-[Compatibility evidence](compatibility.yaml) records Big Bang **3.35.1** selecting
-Velero wrapper **12.2.1-bb.0**, upstream chart **12.2.1**, Velero **1.18.4** and AWS
-plugin **1.14.4**. The exact wrapper archive and vendored dependencies were inspected.
-The official plugin matrix pairs 1.18.x with 1.14.x; newer 1.19.x/1.15.x are not
-selected. No shared pin is bumped. CSI support is integrated into modern Velero;
-do not add the historical standalone CSI plugin listed in wrapper annotations.
+For real tenants, capture matching image digest, chart digest, app/platform/enrollment Git commits and
+DB/schema version with each point. Native pre/post backup hooks must quiesce and
+release the application with `onError:Fail`; restore hooks select the **target**
+namespace in 1.18. Restore only into empty, separately budgeted storage with the
+relevant Flux owners already suspended. Restore excludes Ingress, Service, network
+policy, scheduled jobs and daemonsets, preserving target isolation instead of
+replaying source routing. Only existing internal ClusterIP services are accepted;
+the target has a default-deny network policy. Existing app/operator versions, dependent
+services, database recovery and routing must be deliberately coordinated. Shared
+DB tenants require DB-native selective recovery and are rejected by the generic
+volume restore path. Never overwrite a shared DB volume to recover one tenant.
 
-Upstream 1.18 expects Kubernetes 1.18-latest but tests 1.33.7, 1.34.1 and 1.35.0.
-The current target 1.36.5 needs explicit compatibility/recovery evidence; this is
-**unverified**, not proof of incompatibility. Chart kubeVersion >=1.18 is not a
-runtime acceptance test. Before activation, verify immutable image digests,
-installer and runtime privileges, APIs/CRDs, hooks, S3 transport/plugin behavior,
-node-agent placement/resources and a copied-byte restore on the actual target.
-
-The wrapper auto-creates a generic `csi-volumesnapshotclass` with Delete policy
-when `features: EnableCSI`, defaulting to the EBS driver. The inert candidate does
-not set that feature. Before activation, suppress/replace that template through
-the existing Flux post-render path and have the platform foundation own an explicit
-provider-specific class, driver, parameters and cleanup policy. Do not deploy an
-EBS class onto Longhorn. No VolumeSnapshotClass or Velero was installed at inspection;
-snapshot CRDs/controller were available. Chart rendering is not driver acceptance.
-
-## Local means filesystem space outside Longhorn
-
-The proposed backend is a **separate S3-compatible service** on a dedicated bounded
-directory/static local PV on worker-2, outside Longhorn replica/metadata paths.
-It is not a Longhorn-provisioned backup PVC and must not reuse GitLab Garage,
-its buckets or keys. Product selection, service resources and capacity are undecided.
-The existing disk is one XFS filesystem, not spare unpartitioned space.
-
-Read-only inspection on 2026-11-07 found about 931 GiB total/910 GiB free,
-279 GiB Longhorn reserve, 49 GiB scheduled, 25% minimum-free and no overprovisioning.
-Actual mount options include **noquota**. Free space is not an exclusive backup
-allocation, Longhorn reserve is not a filesystem quota, and a PV capacity declaration
-is not a disk quota. Operational recovery review requires references for enforced filesystem
-quota plus reconciled Longhorn capacity reservation, bounded backend usage and
-additional snapshot/temporary restore/cleanup headroom. Current noquota blocks that
-acceptance until separately approved mount/quota maintenance. This PR selects no
-capacity, creates no directories/mounts/PVs, and changes no reserve or host setting.
-Use node affinity and Retain for the future static local PV; account for unavailable
-worker-2 and manual reclaim. Same-node/disk recovery is **not independent disaster
-recovery**. Keep an independent copy for node, disk, site or operator loss.
-
-Longhorn 1.13.0 here uses the V1 engine with ext4. Favor CSI snapshot plus **Kopia
-snapshot data movement** to copy PVC bytes into the repository, not snapshot
-references alone. Validate actual DataUpload/DataDownload completion and restore
-bytes independently of the source PV/snapshot. The spec fragments are **unvalidated
-candidates**, restricted to completed CSI data movement for every selected PVC;
-no snapshot-only/native-PV fallback is accepted. In pinned 1.18.4, the CSI PVC action
-reads DataUpload results, clears the original volumeName and creates DataDownload
-for the target. That explains the proposed cluster-resource exclusion without
-assuming PV/VolumeSnapshotContent metadata is automatically included. The generic
-resource filter can exclude those resources; accepting any non-moved volume would
-need a different explicitly reviewed plan. Source inspection does not prove the
-complete backup/restore flow. Read [the exact data-movement restore branch](https://github.com/velero-io/velero/blob/v1.18.4/pkg/restore/actions/csi/pvc_action.go)
-and [upstream storage-class requirements](https://velero.io/docs/v1.18/csi-snapshot-data-movement/#configure-storage-class-on-target-cluster). Do not assume V2 linked-clone support.
-
-## AWS uses the same recovery contract
-
-The future profile changes retention to 336 hours, driver to `ebs.csi.aws.com`
-and backing to durable S3. Require explicit source/restore StorageClass and
-VolumeSnapshotClass mapping, topology/region, TLS endpoint/CA trust reference,
-platform workload identity, least-privilege bucket policy and KMS references.
-No AWS target, IAM grant, bucket, key, snapshot or credential is created here.
-CSI plus data movement remains the proposed path rather than an EBS snapshot-only
-DR claim. Review cross-zone/region/account recovery and object/KMS availability.
-S3-compatible local service behavior with the pinned AWS SDK/plugin must be tested.
-
-## Functional service recovery, not only PVC recovery
-
-1. Approve the tenant and isolated restore namespace/capacity. Inventory every
-   resource, config/Secret, PVC, object store and database dependency. Backups are
-   confidential, including any selected application Secrets; custody is platform-only.
-   Pre-create reviewed namespace/admission/network/quota and omit cluster-scoped
-   resources, RBAC, service accounts and Flux control objects from tenant recovery.
-2. Record exact immutable app image/chart digests, app/platform/enrollment commits,
-   database engine and schema versions alongside the backup in the protected recovery
-   catalog. Record which app Secrets/config versions must match without copying them
-   into Git. Do not restore old data under a newer incompatible app/schema.
-3. Use reviewed application-specific quiesce/checkpoint/freeze and thaw hooks with
-   timeouts and fail-closed behavior. Guarantee thaw/rollback on hook, snapshot or
-   upload failure in the operational plan. CSI snapshots alone are crash consistency,
-   not application/database consistency. Shared database tenants need DB-native
-   selective recovery; never restore a shared DB PVC over unrelated tenants.
-4. Before upgrading, require a Completed backup with no partial failures and completed
-   data uploads, known-good DB recovery point and sufficient rollback TTL. Failed
-   backup, missing bytes or unproven thaw blocks upgrade. Keep the last known-good
-   pre-upgrade point through the entire rollback window, including age before upgrade.
-5. Explicitly suspend the relevant Flux app reconciliation and any database/application
-   operators under a reviewed scoped plan before recovery. Restore into the approved
-   isolated namespace, never overwrite a running tenant with existingResourcePolicy
-   update. Map storage with the reviewed Velero change-storage-class mechanism and
-   restore hooks; the spec fragment alone does not implement this mapping. Restore
-   hook namespace selectors use the **target** namespace: pinned 1.18.4 groups exec
-   hooks against the created Pod and maps init-hook selection to the target too.
-   Backup hooks still use the source namespace. See the
-   [native hook selector](https://github.com/velero-io/velero/blob/v1.18.4/internal/hook/item_hook_handler.go).
-   Inspect backed-up Pod hook annotations too: they can override spec hooks.
-6. Verify checksums/data, DB/schema consistency and real service login/read/write
-   using the matching release/config. Account for tenant dependencies, endpoints,
-   TLS/Secrets and identity. Then separately approve cutover and resume reconciliation
-   against matching Git. Preserve the original failed volumes until accepted cleanup.
-   Nextcloud currently fully allocates its two-PVC/48 GiB quota; isolated restore
-   needs separately planned namespace/quota/capacity, not reuse of that allowance.
+The copied-data path excludes cluster resource manifests intentionally. Exact 1.18
+CSI restore consumes completed DataUpload results, clears the old volumeName and
+creates DataDownload for fresh PVCs. It does not automatically preserve excluded
+PV/VSC metadata. No snapshot-reference/native-PV fallback is accepted. The live
+exercise is still required to validate this path with Longhorn 1.13 V1/ext4.
 
 ## Retention and schedules
 
-Local proposed TTL is **48h**; AWS is **336h**. Cadence, maximum acceptable data loss
-(RPO), rollback window and missed/partial backup alerts still need decisions. The optional recovery-review
-contract rejects a rollback window plus RPO that consumes the TTL. Review the cron
-against the stated RPO; syntax validation and a paused plan do not establish cadence.
-No schedule is created or resumed. A future schedule must remain paused until
-acceptance; prevent surprise first runs and do not owner-reference backups to it.
+Local TTL is 48h; future AWS TTL is 336h. Cadence/RPO is **undecided**, not implied by
+TTL. `recovery.yaml` accepts valid numeric cron only to create a **paused** Schedule.
+The source records the current PVC name/UID/PV catalog on the Backup or Schedule.
+Native scheduled Backups inherit it. Restore compares the complete catalog with
+actual DataUploads for that exact Backup UID, without requiring a manufactured
+local acceptance receipt. A changed PVC set/UID fails coverage. App/DB versions and
+PVC catalogs must be refreshed while schedules are paused during an upgrade; hooks
+must reject a version mismatch, not merely run a generic sync command.
+Review timezone/DST, maximum interval, overlapping runs, workload change rate,
+restore duration, cost and missed-run handling before a separate activation.
+Keep a fresh verified pre-upgrade point alive through the entire rollback window.
+Do not start an upgrade using a nearly expired point, or assume a paused Schedule
+extends Backup TTL. Arrange a separately reviewed longer-lived point if 48h cannot
+cover the upgrade/recovery window.
 
-Velero expiration requires a running controller, backup deletion and Kopia repository
-maintenance/garbage collection. Monitor stale backups, failed deletions, repository
-health and backend usage; TTL is not a precise physical-space bound. Do not set a
-blanket object-store lifecycle that deletes shared Kopia chunks by object age.
-Encryption/repository-password custody and independent restore tests are separate
-gates. Never expire the last valid recovery point merely because an upgrade failed.
+TTL depends on running Velero deletion controllers and Kopia repository maintenance.
+Observe BackupRepository readiness, last successful backup, expiry/deletion errors,
+DataUpload failures, quota/free-space alerts and maintenance status before enabling
+cadence. Vendor monitoring objects are initially disabled rather than granted extra
+permissions silently. Do not add a blanket S3 object lifecycle rule that deletes
+shared Kopia chunks. Test deletion/maintenance and verify actual capacity recovery.
 
-## Verification
+## Future AWS configuration
 
-```sh
-KUBECONFIG=/dev/null PYTHONPATH=big-bang-bootstrap/tests \
-  python3 -m unittest bootstrap.test_velero_preparation -v
-```
+The same Velero/chart/plugin, Kopia and recovery contracts apply with a durable S3
+bucket, 336h TTL and EBS CSI driver `ebs.csi.aws.com`. There is no AWS provisioning root
+or claimed operational AWS target in this repository; local/il2 remains supported.
+The [AWS profile](profiles/aws.yaml) and offline preview record explicit proposed
+region, endpoint/CA, bucket/prefix, identity/KMS and storage/snapshot mappings.
 
-Run from the repository root. Tests use synthetic public references, local Ansible and a pure offline URL/cron
-verifier (Python verifies inputs; Ansible/YAML alone owns configuration). Exact chart tests additionally need `VELERO_CHART_SOURCE` pointing
-to the archive above after SHA256 verification, `PREFLIGHT_SOURCES_DIR` containing
-the existing checksum-verified Big Bang fixture, and Helm on PATH. Missing fixtures
-are explicit skips. All current cluster roots must remain byte-equivalent. No live
-backup, upload, restore, credential, installer/RBAC or capacity acceptance is claimed.
+- Separate EBS CSI controller/node IAM and EBS KMS permissions from Velero's bucket
+  access. CSI copied-data mode does not justify unused native EC2 snapshot grants.
+- Choose EKS IRSA or supported EKS Pod Identity explicitly. Self-managed RKE2 needs
+  its own reviewed OIDC/credential delivery path; these are not interchangeable.
+  Pod Identity link-local credential endpoints need provider-specific network
+  policy, not the local exact-host guard or a broad metadata-access exception.
+- Scope S3 list/get/put/delete/multipart to the reviewed bucket/prefix, including
+  Kopia repository objects. Review destination account/region and outage/custody
+  boundaries before calling it independent DR. Off-worker storage alone proves none.
+- Set bucket-default SSE-KMS and permissions for **both** plugin metadata and Kopia
+  writes. An AWS-plugin-only `kmsKeyId` is not proof that Kopia uses that key. Test
+  read/write/delete/maintenance and key-denial behavior with both actual clients.
+- Map source and restore StorageClasses, EBS CSI VolumeSnapshotClass, filesystem,
+  target AZ/topology and EBS encryption key for fresh restore. Review cross-zone or
+  cross-region restore separately. Store repository-password recovery custody
+  outside the cluster and include S3/KMS cost and retention in capacity planning.
 
-Sources: [Velero CSI data movement](https://velero.io/docs/v1.18/csi-snapshot-data-movement/),
-[backup](https://velero.io/docs/v1.18/backup-reference/),
-[restore](https://velero.io/docs/v1.18/restore-reference/),
-[Longhorn V1 CSI snapshots](https://longhorn.io/docs/1.13.0/snapshots-and-backups/csi-snapshot-support/csi-volume-snapshot-associated-with-longhorn-snapshot/),
+## Verification limits
+
+Offline tests check native Ansible default behavior/control flow, refusal paths,
+exact chart rendering, scoped authority and unchanged old roots. API fixtures are
+not Kubernetes integration, quota enforcement, S3 compatibility or data durability.
+The exact upstream Go semantic tests could not run with uncached dependencies;
+source inspection and offline tests must not be promoted to live acceptance.
+
+References: [CSI data movement](https://velero.io/docs/v1.18/csi-snapshot-data-movement/),
+[exact restore implementation](https://github.com/velero-io/velero/blob/v1.18.4/pkg/restore/actions/csi/pvc_action.go),
+[Garage S3 compatibility](https://garagehq.deuxfleurs.fr/documentation/reference-manual/s3-compatibility/),
+[Garage releases](https://garagehq.deuxfleurs.fr/_releases.html),
+[Longhorn snapshot support](https://longhorn.io/docs/1.13.0/snapshots-and-backups/csi-snapshot-support/csi-volume-snapshot-associated-with-longhorn-snapshot/),
 [Kubernetes local volumes](https://kubernetes.io/docs/concepts/storage/volumes/#local).

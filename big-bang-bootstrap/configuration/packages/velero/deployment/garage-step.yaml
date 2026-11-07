@@ -1,0 +1,89 @@
+- when: not velero_garage_ready | bool
+  block:
+  - ansible.builtin.include_tasks: garage-snapshot.yaml
+  - ansible.builtin.assert:
+      that: velero_garage_allow_first_layout | bool
+    when: velero_garage_verdict.phase != 'ready'
+  - ansible.builtin.set_fact:
+      velero_garage_action: "{{ 'UpdateClusterLayout' if velero_garage_verdict.phase == 'stage' else ('ApplyClusterLayout' if velero_garage_verdict.phase == 'apply' else ('ImportKey' if not velero_garage_receipt.key_imported else ('CreateBucket' if velero_garage_verdict.missing | length > 0 else ('AllowBucketKey' if velero_garage_verdict.ungranted | length > 0 else 'ready')))) }}"
+      velero_garage_alias: '{{ (velero_garage_verdict.missing + velero_garage_verdict.ungranted + [""]) | first }}'
+      cacheable: false
+  - ansible.builtin.set_fact:
+      velero_garage_ready: true
+    when: velero_garage_action == 'ready'
+  - when: velero_garage_action != 'ready'
+    block:
+    - when: velero_garage_action == 'ApplyClusterLayout'
+      block:
+      - ansible.builtin.uri:
+          url: '{{ velero_garage_url }}/v2/PreviewClusterLayoutChanges'
+          method: POST
+          body: {}
+        register: velero_garage_preview
+      - ansible.builtin.assert:
+          that:
+          - "'error' not in velero_garage_preview.json"
+          - velero_garage_preview.json.newLayout.version == 1
+          - velero_garage_preview.json.newLayout.roles | length == 1
+          - velero_garage_preview.json.newLayout.stagedRoleChanges | length == 0
+          - velero_garage_preview.json.newLayout.stagedParameters | default(none) == none
+          - velero_garage_preview.json.newLayout.roles[0].id == velero_garage_expected_role.id
+          - velero_garage_preview.json.newLayout.roles[0].zone == velero_garage_expected_role.zone
+          - velero_garage_preview.json.newLayout.roles[0].capacity == velero_garage_expected_role.capacity
+          - velero_garage_preview.json.newLayout.roles[0].tags == velero_garage_expected_role.tags
+    - ansible.builtin.set_fact:
+        velero_garage_receipt: "{{ velero_garage_receipt | combine({'pending':{'operation':velero_garage_action,'alias':velero_garage_alias}}) }}"
+        cacheable: false
+    - ansible.builtin.copy:
+        dest: '{{ velero_garage_state_directory }}/garage-bootstrap.json'
+        content: "{{ velero_garage_receipt | to_nice_json }}\n"
+        mode: '0600'
+    - ansible.builtin.set_fact:
+        velero_garage_body: '{{ velero_garage_bodies[velero_garage_action] }}'
+        cacheable: false
+      vars:
+        velero_garage_bodies:
+          UpdateClusterLayout: {roles: ['{{ velero_garage_expected_role }}']}
+          ApplyClusterLayout: {version: 1}
+          ImportKey: {accessKeyId: '{{ velero_garage_key_id }}', secretAccessKey: '{{ velero_garage_key_secret }}', name: perkforge-velero-data-v1}
+          CreateBucket: {globalAlias: '{{ velero_garage_alias }}'}
+          AllowBucketKey:
+            bucketId: '{{ velero_garage_receipt.buckets.get(velero_garage_alias, "") }}'
+            accessKeyId: '{{ velero_garage_key_id }}'
+            permissions: '{{ velero_garage_permissions }}'
+    - ansible.builtin.uri:
+        url: '{{ velero_garage_url }}/v2/{{ velero_garage_action }}'
+        method: POST
+        body: '{{ velero_garage_body }}'
+      register: velero_garage_mutation
+      changed_when: true
+    - ansible.builtin.set_fact:
+        velero_garage_receipt: "{{ velero_garage_receipt | combine({'key_imported':true}) }}"
+      when: velero_garage_action == 'ImportKey'
+    - when: velero_garage_action == 'CreateBucket'
+      block:
+      - ansible.builtin.assert:
+          that:
+          - velero_garage_mutation.json.id is match('^[a-f0-9]{64}$')
+          - velero_garage_mutation.json.globalAliases == [velero_garage_alias]
+      - ansible.builtin.set_fact:
+          velero_garage_receipt: "{{ velero_garage_receipt | combine({'buckets':velero_garage_receipt.buckets | combine({velero_garage_alias:velero_garage_mutation.json.id})}) }}"
+    - ansible.builtin.include_tasks: garage-snapshot.yaml
+    - ansible.builtin.assert:
+        that: velero_garage_verdict.phase == 'apply'
+      when: velero_garage_action == 'UpdateClusterLayout'
+    - ansible.builtin.assert:
+        that: velero_garage_verdict.phase == 'ready'
+      when: velero_garage_action == 'ApplyClusterLayout'
+    - ansible.builtin.assert:
+        that: velero_garage_alias not in velero_garage_verdict.ungranted
+      when: velero_garage_action == 'AllowBucketKey'
+    - ansible.builtin.set_fact:
+        velero_garage_receipt: "{{ velero_garage_receipt | combine({'pending':none}) }}"
+        velero_garage_changes: '{{ velero_garage_changes | int + 1 }}'
+        velero_garage_body: {}
+        cacheable: false
+    - ansible.builtin.copy:
+        dest: '{{ velero_garage_state_directory }}/garage-bootstrap.json'
+        content: "{{ velero_garage_receipt | to_nice_json }}\n"
+        mode: '0600'

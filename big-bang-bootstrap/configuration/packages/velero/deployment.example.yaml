@@ -1,0 +1,45 @@
+# Operator-local, mode0600. Inputs only; no guessed capacity or generated credentials.
+velero_install_apply: false
+velero_install_stage: foundation # foundation, backend, activate
+velero_install_scope: ''
+velero_kubectl: /usr/local/bin/kubectl
+velero_kubeconfig: ''
+velero_context: ''
+velero_api: ''
+velero_cluster_uid: ''
+velero_state_dir: '' # Existing operator-owned0700 directory, outside checkout.
+velero_release_tag: ''
+velero_release_commit: ''
+velero_root_name: '' # Exact current Kustomization name; do not guess.
+velero_previous_tag: '' # Exact currently selected immutable source tag.
+velero_previous_path: '' # Must match compiled base root; changed app composition requires source review.
+velero_storage_host: '' # Existing explicitly selected Ansible inventory host.
+velero_data_nodes: [] # Explicit reviewed workers for node-agent and mover/maintenance pods.
+velero_storage_node: '' # Actual Kubernetes worker node name.
+velero_storage_path: '' # Existing quota-enforced directory; never /replicas or Longhorn metadata.
+velero_storage_mount: ''
+velero_storage_uuid: ''
+velero_project_id: 0
+velero_quota_bytes: 0
+velero_store_capacity_bytes: 0 # Garage data budget smaller than filesystem hard quota.
+velero_restore_headroom_bytes: 0
+velero_longhorn_disk_name: ''
+velero_longhorn_disk_path: ''
+velero_host_preflight: true # Cannot be disabled for real installation.
+velero_store_hostname: '' # New hostname/DNS and supplied certificate, never GitLab's route.
+velero_store_bucket: ''
+velero_store_prefix: ''
+velero_api_cidrs: [] # Exact API endpoints (/32 or /128), no broad egress.
+velero_store_client_cidrs: [] # Exact source IPs observed by Traefik; not shared tenant/NAT identities.
+velero_store_cidrs: [] # Exact HTTPS endpoint addresses, including observed CNI/DNAT route.
+velero_api_port: 6443
+velero_secret_files:
+  rpc: ''
+  admin: ''
+  access_key: ''
+  secret_key: ''
+  repository_password: ''
+  tls_cert: ''
+  tls_key: ''
+  ca_cert: ''
+  registry: '' # Existing dockerconfigjson input authorized for a velero-only copy.

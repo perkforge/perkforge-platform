@@ -1,0 +1,7 @@
+- name: Assemble actual Big Bang values with external credential references
+  ansible.builtin.set_fact:
+    velero_runtime_values: "{{ lookup('file', playbook_dir + '/deployment/install-values.yaml') | from_yaml | combine({'addons':{'velero':{'enabled':velero_runtime_enabled,'values':{'upstream':{'nodeAgent':{'affinity':{'nodeAffinity':{'requiredDuringSchedulingIgnoredDuringExecution':{'nodeSelectorTerms':[{'matchExpressions':[{'key':'kubernetes.io/hostname','operator':'In','values':velero_data_nodes}]}]}}}},'configuration':{'backupStorageLocation':[{'name':'local','provider':'aws','bucket':velero_store_bucket,'prefix':velero_store_prefix,'default':true,'accessMode':'ReadWrite','caCert':lookup('file',velero_secret_files.ca_cert) | b64encode,'config':{'region':'garage','s3ForcePathStyle':'true','s3Url':'https://' + velero_store_hostname,'insecureSkipTLSVerify':'false'}}]}}}}}}, recursive=true) }}"
+    cacheable: false
+- ansible.builtin.set_fact:
+    velero_desired_runtime: '{{ lookup("template", "templates/runtime-values.yaml.j2") | from_yaml }}'
+    cacheable: false

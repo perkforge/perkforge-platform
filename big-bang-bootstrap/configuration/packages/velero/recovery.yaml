@@ -1,0 +1,47 @@
+# Default and check modes contact no API.
+- name: Submit a bounded local tenant backup or isolated restore
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+  - recovery.example.yaml
+  vars:
+    velero_kubectl: /usr/local/bin/kubectl
+    velero_resource_types:
+    - pods
+    - persistentvolumeclaims
+    - configmaps
+    - secrets
+    - services
+    - endpoints
+    - replicationcontrollers
+    - deployments.apps
+    - statefulsets.apps
+    - daemonsets.apps
+    - replicasets.apps
+    - controllerrevisions.apps
+    - jobs.batch
+    - cronjobs.batch
+    - ingresses.networking.k8s.io
+    - networkpolicies.networking.k8s.io
+    - horizontalpodautoscalers.autoscaling
+    - poddisruptionbudgets.policy
+    velero_restore_resource_types:
+    - pods
+    - persistentvolumeclaims
+    - configmaps
+    - secrets
+    - deployments.apps
+    - statefulsets.apps
+    - replicasets.apps
+    - controllerrevisions.apps
+    - horizontalpodautoscalers.autoscaling
+    - poddisruptionbudgets.policy
+  tasks:
+  - ansible.builtin.assert:
+      that:
+      - velero_recovery_run is boolean
+      - velero_recovery_action in ['backup','paused-schedule','restore']
+  - name: Load only the explicitly approved live operation
+    ansible.builtin.include_tasks: deployment/recovery-run.yaml
+    when: velero_recovery_run and not ansible_check_mode

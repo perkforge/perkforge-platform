@@ -1,0 +1,166 @@
+# Loaded only after explicit apply, never in check mode.
+- ansible.builtin.assert:
+    that:
+    - velero_install_scope == 'velero-' + velero_install_stage + '-v1'
+    - velero_release_tag is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+    - velero_release_commit is match('^[0-9a-f]{40}$')
+    - velero_root_name is match('^[a-z0-9][a-z0-9-]+$')
+    - velero_previous_tag is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+    - velero_previous_path == base.base_root
+    - velero_data_nodes is sequence and velero_data_nodes is not string
+    - 0 < velero_data_nodes | length <= 2
+    - velero_data_nodes | unique | list | length == velero_data_nodes | length
+    - velero_storage_node in velero_data_nodes
+    - velero_api_cidrs | velero_exact_hosts
+    - velero_store_cidrs | velero_exact_hosts
+    - velero_api_port in [443,6443]
+    - velero_store_hostname is match('^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$')
+    - not (velero_store_hostname is search('(?i)(gitlab|example|invalid|unconfigured)'))
+    - velero_store_bucket is match('^[a-z0-9][a-z0-9-]{2,62}$')
+    - velero_store_prefix is match('^[a-z0-9][a-z0-9/_-]+$')
+    - velero_store_client_cidrs | velero_exact_hosts
+  vars:
+    base: '{{ lookup("file",playbook_dir + "/deployment/base.yaml") | from_yaml }}'
+- name: Validate the actual DNS endpoint and prefix before any API access
+  ansible.builtin.command:
+    argv:
+    - python3
+    - '{{ playbook_dir }}/verify-inputs.py'
+    stdin: '{{ {"endpoint":"https://" + velero_store_hostname,"prefix":velero_store_prefix,"cron":none} | to_json
+      }}'
+  changed_when: false
+- ansible.builtin.command:
+    argv:
+    - git
+    - -C
+    - '{{ playbook_dir }}/../../../..'
+    - rev-parse
+    - HEAD
+  changed_when: false
+  register: local_head
+- ansible.builtin.command:
+    argv:
+    - git
+    - -C
+    - '{{ playbook_dir }}/../../../..'
+    - status
+    - --porcelain
+  changed_when: false
+  register: local_changes
+- ansible.builtin.assert:
+    that:
+    - local_head.stdout == velero_release_commit
+    - local_changes.stdout | length == 0
+- ansible.builtin.command:
+    argv:
+    - bash
+    - '{{ playbook_dir }}/../../../../scripts/verify-release-ref.sh'
+    - perkforge/perkforge-platform
+    - '{{ velero_release_tag }}'
+    - '{{ velero_release_commit }}'
+  changed_when: false
+- ansible.builtin.include_tasks: deployment/context.yaml
+- ansible.builtin.include_tasks: deployment/read-selectors.yaml
+- ansible.builtin.include_tasks: deployment/host-preflight.yaml
+- name: Deliver the actual create-only foundation and protected inputs
+  when: velero_install_stage == 'foundation'
+  block:
+  - ansible.builtin.include_tasks: deployment/crds.yaml
+  - ansible.builtin.set_fact:
+      owned_objects: []
+  - ansible.builtin.set_fact:
+      owned_objects: '{{ owned_objects + [item | combine({"metadata":item.metadata | combine({"labels":(item.metadata.labels
+        | default({})) | combine({"perkforge.io/owner":"velero-platform-v1"})})})] }}'
+    loop: '{{ lookup("template", "templates/foundation.yaml.j2") | from_yaml_all | select | list }}'
+  - ansible.builtin.include_tasks: deployment/create-owned.yaml
+  - ansible.builtin.include_tasks: deployment/credentials.yaml
+  - ansible.builtin.include_tasks: deployment/runtime-values.yaml
+    vars:
+      velero_runtime_enabled: false
+  - ansible.builtin.include_tasks: deployment/create-owned.yaml
+    vars:
+      owned_objects:
+      - '{{ velero_desired_runtime }}'
+- name: Promote only the approved release and preserved composition, then start the backend
+  when: velero_install_stage == 'backend'
+  block:
+  - ansible.builtin.include_tasks: deployment/runtime-values.yaml
+    vars:
+      velero_runtime_enabled: false
+  - ansible.builtin.command:
+      argv: '{{ vk + ["get", "configmap", "velero-runtime-values", "-n", "bigbang", "-o", "json"] }}'
+    changed_when: false
+    register: runtime_before
+  - ansible.builtin.assert:
+      that: runtime_before.stdout | from_json | velero_owned_matches(velero_desired_runtime)
+  - ansible.builtin.include_tasks: deployment/promote.yaml
+  - ansible.builtin.command:
+      argv: '{{ vk + ["wait", "helmrelease/velero-store", "-n", "bigbang", "--for=condition=Ready", "--timeout=600s"]
+        }}'
+    changed_when: false
+  - ansible.builtin.command:
+      argv: '{{ vk + ["rollout", "status", "statefulset/velero-store", "-n", "velero-store", "--timeout=300s"] }}'
+    changed_when: false
+  - ansible.builtin.debug:
+      msg: Backend started. Bootstrap its new layout/bucket/key through the loopback-only admin procedure before
+        activate. Velero and schedules remain off.
+- name: Activate Velero from source-owned values without altering credentials or schedules
+  when: velero_install_stage == 'activate'
+  block:
+  - ansible.builtin.assert:
+      that:
+      - selector_source.spec.ref.tag == velero_release_tag
+      - selector_root.spec.path == './big-bang-bootstrap/clusters/local-velero'
+      - not (selector_root.spec.suspend | default(false))
+  - ansible.builtin.include_tasks: deployment/runtime-values.yaml
+    vars:
+      velero_runtime_enabled: false
+  - ansible.builtin.set_fact:
+      inactive_runtime: '{{ velero_desired_runtime }}'
+  - ansible.builtin.include_tasks: deployment/runtime-values.yaml
+    vars:
+      velero_runtime_enabled: true
+  - ansible.builtin.command:
+      argv: '{{ vk + ["get", "configmap", "velero-runtime-values", "-n", "bigbang", "-o", "json"] }}'
+    changed_when: false
+    register: runtime_before
+  - ansible.builtin.assert:
+      that: (runtime_before.stdout | from_json | velero_owned_matches(inactive_runtime)) or (runtime_before.stdout
+        | from_json | velero_owned_matches(velero_desired_runtime))
+  - ansible.builtin.command:
+      argv: '{{ vk + ["patch", "configmap", "velero-runtime-values", "-n", "bigbang", "--type=json", "-p", patch
+        | to_json] }}'
+    vars:
+      patch:
+      - op: test
+        path: /metadata/resourceVersion
+        value: '{{ (runtime_before.stdout | from_json).metadata.resourceVersion }}'
+      - op: replace
+        path: /data
+        value: '{{ velero_desired_runtime.data }}'
+    when: not (runtime_before.stdout | from_json | velero_owned_matches(velero_desired_runtime))
+    changed_when: true
+  - ansible.builtin.command:
+      argv: '{{ vk + ["get", "helmrelease", "velero", "-n", "bigbang", "-o", "json"] }}'
+    changed_when: false
+    register: velero_release_status
+    until: velero_release_status.rc == 0 and (velero_release_status.stdout | from_json).status.conditions | selectattr('type','equalto','Ready')
+      | selectattr('status','equalto','True') | list | length == 1
+    retries: 120
+    delay: 5
+  - ansible.builtin.command:
+      argv: '{{ vk + ["rollout", "status", item, "-n", "velero", "--timeout=300s"] }}'
+    loop:
+    - deployment/velero
+    - daemonset/node-agent
+    changed_when: false
+  - ansible.builtin.command:
+      argv: '{{ vk + ["get", "backupstoragelocation", "local", "-n", "velero", "-o", "json"] }}'
+    changed_when: false
+    register: location
+    until: location.rc == 0 and (location.stdout | from_json).status.phase | default('') == 'Available'
+    retries: 60
+    delay: 5
+  - ansible.builtin.debug:
+      msg: Velero is running and its object location is Available. Protection is NOT accepted until the disposable
+        copied-byte restore passes; schedules remain absent/paused.

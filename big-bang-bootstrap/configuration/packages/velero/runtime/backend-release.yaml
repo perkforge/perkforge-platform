@@ -1,0 +1,21 @@
+# Only the separately selected local-velero root includes this release.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata: {name: velero-store, namespace: bigbang}
+spec:
+  interval: 10m
+  timeout: 10m
+  releaseName: velero-store
+  targetNamespace: velero-store
+  storageNamespace: velero-store
+  serviceAccountName: velero-store-installer
+  chart:
+    spec:
+      chart: ./big-bang-bootstrap/configuration/packages/velero/backend-chart
+      reconcileStrategy: Revision
+      sourceRef: {kind: GitRepository, name: cluster-config, namespace: flux-system}
+  valuesFrom:
+  - {kind: ConfigMap, name: velero-runtime-values, valuesKey: backend.yaml, optional: false}
+  install: {createNamespace: false, crds: Skip, remediation: {retries: 0}}
+  upgrade: {crds: Skip, remediation: {retries: 0}}
+  uninstall: {keepHistory: true}

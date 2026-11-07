@@ -1,0 +1,24 @@
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "gitrepository", "cluster-config", "-n", "flux-system", "-o", "json"] }}'
+  changed_when: false
+  register: source_read
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "kustomization", velero_root_name, "-n", "flux-system", "-o", "json"] }}'
+  changed_when: false
+  register: root_read
+- ansible.builtin.set_fact:
+    selector_source: '{{ source_read.stdout | from_json }}'
+    selector_root: '{{ root_read.stdout | from_json }}'
+- ansible.builtin.assert:
+    that:
+      - selector_source.spec.url == 'https://github.com/perkforge/perkforge-platform.git'
+      - selector_source.spec.ref.keys() | list == ['tag']
+      - selector_source.spec.ref.tag in [velero_previous_tag, velero_release_tag]
+      - not (selector_source.spec.suspend | default(false))
+      - selector_root.spec.sourceRef.name == 'cluster-config'
+      - selector_root.spec.sourceRef.kind == 'GitRepository'
+      - selector_root.spec.sourceRef.namespace | default('flux-system') == 'flux-system'
+      - selector_root.spec.serviceAccountName == 'platform-reconciler'
+      - selector_root.spec.prune is sameas false
+      - selector_root.spec.path in [velero_previous_path, './big-bang-bootstrap/clusters/local-velero']
+    fail_msg: Source or root differs from the explicitly selected baseline. Review the new app composition rather than switching it off.
