@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.28.0](https://github.com/perkforge/perkforge-platform/compare/v0.27.0...v0.28.0) (2026-11-07)
+
+
+### Features
+
+* **harbor:** prepare protected-input registry candidate ([#115](https://github.com/perkforge/perkforge-platform/issues/115)) ([#250](https://github.com/perkforge/perkforge-platform/issues/250)) ([1cef723](https://github.com/perkforge/perkforge-platform/commit/1cef72331c8abbd62e11d26e20e6e23f85d74da9))
+* **observability:** prepare native alerts and acceptance checks ([#113](https://github.com/perkforge/perkforge-platform/issues/113)) ([6b9f94d](https://github.com/perkforge/perkforge-platform/commit/6b9f94da97c42491a24e9a4ef0166579bdfc58be))
+
 ## [0.27.0](https://github.com/perkforge/perkforge-platform/compare/v0.26.0...v0.27.0) (2026-11-07)
 
 
