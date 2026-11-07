@@ -19,6 +19,104 @@ addons:
             - op: replace
               path: /spec/ports/0
               value: {name: https-registry, port: 5443, targetPort: 5443}
+        # Iron Bank's entrypoints append to the UBI trust bundle as UID 10000.
+        # Overlay only its resolved file, preserving the image's public roots.
+        - target: {kind: Deployment, name: harbor-core}
+          patch: |-
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: harbor-core
+            spec:
+              template:
+                spec:
+                  initContainers:
+                  - name: prepare-trust-bundle
+                    image: registry1.dso.mil/ironbank/opensource/goharbor/harbor-core:v2.15.2@sha256:9cc273deb8c896ab850f7a4a0306fd6d7f036ad5bd02328f998727adc6d6ad2d
+                    imagePullPolicy: IfNotPresent
+                    command: [/bin/sh, -ec]
+                    args:
+                    - |
+                      source=/etc/pki/tls/certs/ca-bundle.crt
+                      target=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+                      if [ "$(readlink -f "$source")" != "$target" ] ||
+                         [ ! -f "$target" ] || [ ! -r "$target" ] || [ ! -s "$target" ]; then
+                        echo "Refusing unexpected Harbor trust-bundle layout" >&2
+                        exit 1
+                      fi
+                      umask 077
+                      cat "$source" > /harbor-trust/ca-bundle.crt
+                      test -s /harbor-trust/ca-bundle.crt
+                    securityContext:
+                      runAsUser: 10000
+                      runAsGroup: 1000
+                      runAsNonRoot: true
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: true
+                      capabilities: {drop: [ALL]}
+                      seccompProfile: {type: RuntimeDefault}
+                    resources:
+                      requests: {cpu: 20m, memory: 32Mi}
+                      limits: {cpu: 100m, memory: 64Mi}
+                    volumeMounts:
+                    - {name: trust-bundle, mountPath: /harbor-trust}
+                  containers:
+                  - name: core
+                    volumeMounts:
+                    - name: trust-bundle
+                      mountPath: /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+                      subPath: ca-bundle.crt
+                  volumes:
+                  - name: trust-bundle
+                    emptyDir: {sizeLimit: 4Mi}
+        - target: {kind: Deployment, name: harbor-jobservice}
+          patch: |-
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: harbor-jobservice
+            spec:
+              template:
+                spec:
+                  initContainers:
+                  - name: prepare-trust-bundle
+                    image: registry1.dso.mil/ironbank/opensource/goharbor/harbor-jobservice:v2.15.2@sha256:8886fed2f71a3787a9d435cbe964aa82b6d576d8f16a62055545c33fbc54e06e
+                    imagePullPolicy: IfNotPresent
+                    command: [/bin/sh, -ec]
+                    args:
+                    - |
+                      source=/etc/pki/tls/certs/ca-bundle.crt
+                      target=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+                      if [ "$(readlink -f "$source")" != "$target" ] ||
+                         [ ! -f "$target" ] || [ ! -r "$target" ] || [ ! -s "$target" ]; then
+                        echo "Refusing unexpected Harbor trust-bundle layout" >&2
+                        exit 1
+                      fi
+                      umask 077
+                      cat "$source" > /harbor-trust/ca-bundle.crt
+                      test -s /harbor-trust/ca-bundle.crt
+                    securityContext:
+                      runAsUser: 10000
+                      runAsGroup: 1000
+                      runAsNonRoot: true
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: true
+                      capabilities: {drop: [ALL]}
+                      seccompProfile: {type: RuntimeDefault}
+                    resources:
+                      requests: {cpu: 20m, memory: 32Mi}
+                      limits: {cpu: 100m, memory: 64Mi}
+                    volumeMounts:
+                    - {name: trust-bundle, mountPath: /harbor-trust}
+                  containers:
+                  - name: jobservice
+                    volumeMounts:
+                    - name: trust-bundle
+                      mountPath: /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+                      subPath: ca-bundle.crt
+                  volumes:
+                  - name: trust-bundle
+                    emptyDir: {sizeLimit: 4Mi}
     values:
       domain: perkforge.home.arpa
       upstream:
@@ -40,13 +138,32 @@ addons:
               traefik.ingress.kubernetes.io/router.tls: 'true'
         # Native ingress avoids nginx's built-in proxy_ssl_verify=off.
         core:
+          nodeSelector: {storage.perkforge.io/worker: 'true'}
+          affinity: &workerOnlyAffinity
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - {key: node-role.kubernetes.io/control-plane, operator: DoesNotExist}
+                  - {key: node-role.kubernetes.io/master, operator: DoesNotExist}
+          # Same immutable image for the copy and the application entrypoint.
+          image:
+            tag: v2.15.2@sha256:9cc273deb8c896ab850f7a4a0306fd6d7f036ad5bd02328f998727adc6d6ad2d
           serviceAnnotations:
             traefik.ingress.kubernetes.io/service.serversscheme: https
             traefik.ingress.kubernetes.io/service.serverstransport: harbor-harbor-core-transport@kubernetescrd
+        jobservice:
+          affinity: *workerOnlyAffinity
+          image:
+            tag: v2.15.2@sha256:8886fed2f71a3787a9d435cbe964aa82b6d576d8f16a62055545c33fbc54e06e
         portal:
+          nodeSelector: {storage.perkforge.io/worker: 'true'}
+          affinity: *workerOnlyAffinity
           serviceAnnotations:
             traefik.ingress.kubernetes.io/service.serversscheme: https
             traefik.ingress.kubernetes.io/service.serverstransport: harbor-harbor-portal-transport@kubernetescrd
+        registry:
+          affinity: *workerOnlyAffinity
         internalTLS:
           enabled: true
           strong_ssl_ciphers: true

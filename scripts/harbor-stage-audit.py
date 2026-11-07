@@ -164,7 +164,18 @@ def snapshot(state):
     return result
 
 
-def verify(state, before, mode, commit, tag, namespace_uid, checkpoint=None):
+def checkpoint_release_binding(mode, commit, tag, data_commit=None, data_release=None):
+    require((data_commit is None) == (data_release is None), 'Provide data release and data commit together')
+    if data_commit is not None:
+        require(mode == 'app', 'Prior data release binding is only valid for app acceptance')
+        require(re.fullmatch(r'[0-9a-f]{40}', data_commit) and re.fullmatch(r'v\d+\.\d+\.\d+', data_release),
+                'Exact prior data release and commit required')
+        return data_commit, data_release
+    return commit, tag
+
+
+def verify(state, before, mode, commit, tag, namespace_uid, checkpoint=None, *, data_commit=None, data_release=None):
+    checkpoint_commit, checkpoint_tag = checkpoint_release_binding(mode, commit, tag, data_commit, data_release)
     require(before.get('format') == 1, 'Unsupported preservation evidence')
     for key in ('source', 'root'):
         healthy(state[key])
@@ -222,6 +233,7 @@ def verify(state, before, mode, commit, tag, namespace_uid, checkpoint=None):
     require(set(deployments) == expected_deployments, 'Unexpected Harbor deployment set')
     for obj in deployments.values():
         healthy_deployment(obj)
+    verify_worker_placement(state, database)
     active = [p for p in state['pods'] if p.get('status', {}).get('phase') != 'Succeeded']
     require(len(active) == (2 if mode == 'data' else 6), 'Unexpected active Harbor Pod count')
     for pod in active:
@@ -230,11 +242,50 @@ def verify(state, before, mode, commit, tag, namespace_uid, checkpoint=None):
         require(len(ready) == 1 and ready[0]['status'] == 'True', 'Harbor Pod is not Ready')
     if mode == 'app':
         require(isinstance(checkpoint, dict), 'Approved data checkpoint required before app acceptance')
-        verify_checkpoint(state, before, checkpoint, commit, tag, namespace_uid)
+        verify_checkpoint(state, before, checkpoint, checkpoint_commit, checkpoint_tag, namespace_uid)
         verify_transport(state)
     return {'stage': mode, 'release': tag, 'commit': commit, 'preserved_releases': len(before['releases']),
             'preserved_claims': len(before['claims']), 'preserved_databases': len(before['databases']),
             'readiness_only': True, 'tls_login_push_pull_restore_accepted': False}
+
+
+WORKER_LABEL = 'storage.perkforge.io/worker'
+CONTROL_PLANE_LABELS = {'node-role.kubernetes.io/control-plane', 'node-role.kubernetes.io/master'}
+
+
+def verify_worker_placement(state, database):
+    nodes = objects(state['nodes'])
+    workers = {}
+    for node in nodes.values():
+        labels = node['metadata'].get('labels', {})
+        if labels.get(WORKER_LABEL) == 'true':
+            require(not CONTROL_PLANE_LABELS.intersection(labels), 'Worker label is present on a control-plane/master node')
+            workers[node['metadata']['name']] = node
+    require(workers, 'No exclusive Harbor worker nodes')
+    require(database['spec'].get('affinity', {}).get('nodeSelector', {}).get(WORKER_LABEL) == 'true',
+            'Harbor PostgreSQL lacks required worker selector')
+    for deployment in state['deployments']:
+        pod_spec = deployment['spec'].get('template', {}).get('spec', {})
+        require(pod_spec.get('nodeSelector', {}).get(WORKER_LABEL) == 'true',
+                identity(deployment) + ' lacks required worker selector')
+        require(not pod_spec.get('nodeName'), 'Harbor deployment bypasses worker scheduling with nodeName')
+    # Inspect actual Pods as well as controllers: this includes CNPG bootstrap/init
+    # Pods and their init containers, which share the Pod's scheduling constraints.
+    for pod in state['pods']:
+        spec = pod.get('spec', {})
+        require(spec.get('nodeSelector', {}).get(WORKER_LABEL) == 'true', identity(pod) + ' lacks inherited worker selector')
+        if pod.get('status', {}).get('phase') == 'Succeeded':
+            # Removed historical nodes need not exist, but known nodes must still
+            # prove exclusive worker placement. Completed Pods need no Ready node.
+            if 'Node//' + spec.get('nodeName', '') in nodes:
+                require(spec['nodeName'] in workers, identity(pod) + ' completed on a known non-worker node')
+            continue
+
+        node = workers.get(spec.get('nodeName'))
+        require(node is not None, identity(pod) + ' is not assigned to a known exclusive worker')
+        ready = [c for c in node.get('status', {}).get('conditions', []) if c['type'] == 'Ready']
+        require(not node['metadata'].get('deletionTimestamp') and len(ready) == 1 and ready[0]['status'] == 'True',
+                identity(pod) + ' worker is not Ready')
 
 
 def verify_transport(state):
@@ -286,10 +337,13 @@ def main(argv=None):
     parser.add_argument('--mode', choices=('snapshot', 'data', 'app'))
     for name in ('kubeconfig', 'context', 'expected-api', 'expected-cluster-uid', 'expected-namespace-uid', 'baseline', 'data-checkpoint', 'commit', 'release'):
         parser.add_argument('--' + name)
+    parser.add_argument('--data-release', help='Explicitly approved prior data checkpoint release; pair with --data-commit (app only)')
+    parser.add_argument('--data-commit', help='Exact prior data checkpoint commit; defaults with --data-release to current release/commit')
     args = parser.parse_args(argv)
     if not args.verify:
         print('Disabled: no files read, API contacted or local evidence written.')
         return 0
+    checkpoint_release_binding(args.mode, args.commit, args.release, args.data_commit, args.data_release)
     require(args.mode and args.context and args.expected_api and args.expected_cluster_uid and args.baseline and args.kubeconfig, 'Explicit target/evidence inputs required')
     require(re.fullmatch(r'https://[A-Za-z0-9.:-]+', args.expected_api), 'HTTPS API required')
     kubeconfig = protected(args.kubeconfig)
@@ -335,12 +389,14 @@ def main(argv=None):
         before = json.loads(baseline.read_text())
         require(before['cluster_uid'] == args.expected_cluster_uid, 'Preservation evidence belongs to another cluster')
         state.update(namespace=get('namespace', 'harbor'),
-                     deployments=get('deployments', namespace='harbor')['items'], pods=get('pods', namespace='harbor')['items'])
+                     deployments=get('deployments', namespace='harbor')['items'], pods=get('pods', namespace='harbor')['items'],
+                     nodes=get('nodes')['items'])
         if args.mode == 'app':
             state.update(transport_crd=get('crd', 'serverstransports.traefik.io'), services=get('services', namespace='harbor')['items'],
                          transports=get('serverstransports.traefik.io', namespace='harbor')['items'], ingress=get('ingress', 'harbor-ingress', 'harbor'))
         checkpoint = json.loads(checkpoint_path.read_text()) if checkpoint_path.exists() else None
-        report = verify(state, before, args.mode, args.commit, args.release, args.expected_namespace_uid, checkpoint)
+        report = verify(state, before, args.mode, args.commit, args.release, args.expected_namespace_uid, checkpoint,
+                        data_commit=args.data_commit, data_release=args.data_release)
         if args.mode == 'data':
             expected_checkpoint = data_checkpoint(state, before, args.commit, args.release, args.expected_namespace_uid)
             if checkpoint is not None:
