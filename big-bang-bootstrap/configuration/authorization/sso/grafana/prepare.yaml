@@ -16,7 +16,7 @@
       - (grafana_sso_origin | urlsplit('port')) is none or 1 <= (grafana_sso_origin | urlsplit('port')) <= 65535
       - (grafana_sso_issuer | urlsplit('port')) is none or 1 <= (grafana_sso_issuer | urlsplit('port')) <= 65535
       - >-
-        (grafana_sso_origin | urlsplit('hostname') | lower) != (grafana_sso_issuer | urlsplit('hostname') | lower)
+        (grafana_sso_origin | urlsplit('hostname') | lower | regex_replace('\.$', '')) != (grafana_sso_issuer | urlsplit('hostname') | lower | regex_replace('\.$', ''))
         or ((grafana_sso_origin | urlsplit('port')) or 443) != ((grafana_sso_issuer | urlsplit('port')) or 443)
   - ansible.builtin.debug:
       msg: 'Review preparation only; no API, credentials, grants, native activation or existing SSO app changes.'
@@ -25,8 +25,8 @@
     - ansible.builtin.assert:
         that:
         - grafana_sso_output is match('^/') and not grafana_sso_output.startswith('/UNCONFIGURED/')
-        - grafana_sso_origin is not search('(?i)\.invalid(:[0-9]+)?$')
-        - grafana_sso_issuer is not search('(?i)\.invalid(:[0-9]+)?/')
+        - (grafana_sso_origin | urlsplit('hostname') | lower | regex_replace('\.$', '')) is not search('\.invalid$')
+        - (grafana_sso_issuer | urlsplit('hostname') | lower | regex_replace('\.$', '')) is not search('\.invalid$')
     - ansible.builtin.stat:
         path: '{{ grafana_sso_output }}'
         follow: false

@@ -84,13 +84,14 @@ class GrafanaPreparation(unittest.TestCase):
         cases = [dict(grafana_sso_origin=v) for v in [
             'http://grafana.example.test', 'https://grafana.example.test/path',
             'https://*.example.test', 'https://user@grafana.example.test',
-            'https://grafana.example.invalid', 'https://grafana.EXAMPLE.INVALID:443',
+            'https://grafana.example.invalid', 'https://grafana.example.invalid.', 'https://grafana.EXAMPLE.INVALID:443',
             'https://IDENTITY.example.test', 'https://identity.example.test:443',
             'https://grafana.example.test:0', 'https://grafana.example.test:65536']]
         cases += [dict(grafana_sso_issuer=v) for v in [
             'http://identity.example.test/realms/perkforge',
             'https://identity.example.test/realms/foreign',
             'https://identity.example.invalid/realms/perkforge',
+            'https://identity.example.invalid./realms/perkforge',
             'https://identity.EXAMPLE.INVALID:443/realms/perkforge',
             'https://identity.example.test/realms/perkforge?x=1',
             'https://identity.example.test:0/realms/perkforge',
