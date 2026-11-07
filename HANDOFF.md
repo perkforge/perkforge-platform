@@ -1,5 +1,12 @@
 # Current operator handoff
 
+## Harbor candidate is blocked
+
+[Harbor review](big-bang-bootstrap/configuration/packages/harbor/README.md) adds a
+rendered disabled profile with protected Secret references, no generated values.
+External data services, TLS/network/capacity and explicit scanner scope need review.
+
+
 ## Inactive alert/validation preparation
 
 [Native rule overlay and acceptance contract](big-bang-bootstrap/configuration/observability/alerts-and-validation.md)
