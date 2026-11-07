@@ -8,6 +8,39 @@
 
 ## Remaining gates
 
-- Review exact claim/scope and role policy, implement a bounded client lifecycle and independently gated provider/Secret/CA delivery.
+- Review exact claim/role policy and separately implement activation/rollback and independently gated provider/Secret/CA delivery.
 - Verify pinned Grafana rendering, TLS, recovery and native positive/unmapped/engineer/tenant denial behavior before activation. No tenant access is authorized by this preparation.
 - Separately approve source selection and live activation; test rollback and existing sessions. Offline payload tests are not live login or data-isolation evidence.
+
+## Disabled client lifecycle (source only)
+
+`ansible-playbook reconcile-client.yaml` and `--check` are noncontacting by default,
+even if run is requested in check mode. This entrypoint does not activate SSO.
+After separate action-specific approval, provide protected operator variables:
+
+- `grafana_client_run: true`, `grafana_client_operation: inspect` or `prepare`,
+  `grafana_client_approval: grafana-client-<operation>-v1`, and
+  `grafana_recovery_verified: true` after independently verifying recovery.
+- Exact `grafana_sso_origin` and `grafana_sso_issuer` used for preparation.
+- Absolute `grafana_operator_token_file` and `grafana_ca_file`; token must be an
+  existing operator-owned 0600 regular file in an owned 0700 directory, public CA must be a regular file.
+- For `prepare` only, `grafana_client_secret_file`: an existing operator-owned
+  0600 regular file containing the separately approved confidential client secret.
+  Secret/token generation, persistent access creation and delivery are not included.
+
+`inspect` reads only client/scope metadata, never the client credential endpoint.
+`prepare` creates exactly one missing **disabled** client, then checks the exact
+callback, owned identity, grant flags, reviewed shared-scope mappers, own-client
+mappers, absence of roles/scope-role grants, and matching supplied credential.
+An existing active, foreign or drifted client is refused, never adopted/repaired.
+No PUT/DELETE, role or membership writes, token issuance or other app operations
+exist. An interrupted create can be inspected and repeated without rotation if
+its readback matches; do not automatically delete a partially created client.
+API calls require verified TLS, do not follow redirects or use proxy/netrc, and
+private inputs/results are suppressed. Approval strings are guards, not consent.
+
+This stage intentionally cannot activate or disable an active client. Role policy,
+client activation/rollback, protected Kubernetes Secret/public-CA delivery, pinned
+native source selection, login/denial/session acceptance and live rollback still
+need separate reviewed changes and approval. Preserve existing Grafana local
+recovery, organization/admin/dashboard ownership and all other app grants.
