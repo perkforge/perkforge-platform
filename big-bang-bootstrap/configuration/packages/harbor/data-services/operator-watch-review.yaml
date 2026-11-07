@@ -1,4 +1,4 @@
-# Public patch proposal only, not included in any Kustomization.
+# Exact public patch embedded by the explicit local-harbor-data root.
 # Apply both settings together only after the additive Harbor Role is approved.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease

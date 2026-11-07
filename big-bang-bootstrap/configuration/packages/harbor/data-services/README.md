@@ -1,139 +1,94 @@
-# Harbor isolated data candidate
+# Dedicated Harbor data and foundation
 
-Unselected public source; data and app activation are not wired yet. No cluster root
-includes these manifests or the watch patch; Valkey is suspended. Do not apply
-this directory directly or rerun the shared operator's original foundation.
-Harbor, its OIDC client, scanner and CI remain off.
+These manifests are selected only by the new explicit `local-harbor-data` root,
+which inherits the existing accepted stack. The base Valkey manifest remains
+suspended; that root enables it and adds Harbor to the existing CNPG watches.
+The app root inherits the data root. Neither root is selected by publication.
+See the [single-MR rollout and approval sequence](../README.md).
 
-## Proposed scope
+## Data contract
 
-- One dedicated CNPG PostgreSQL 17.11 instance and one TLS/authenticated Valkey
-  7.2.15 instance, reusing the existing reviewed pins. Existing GitLab/Nextcloud
-  stores, cache, credentials and PVCs are untouched.
-- PostgreSQL: 8Gi dedicated Longhorn, 250m/512Mi requests, 1 CPU/1Gi limits,
-  100 connections, no superuser login, plaintext rejected. Harbor's one core pool
-  remains capped at 50 open/10 idle; scanner/exporter remain off.
-- Valkey: 2Gi dedicated Longhorn, 100m/256Mi requests, 500m/512Mi limits,
-  128Mi no-eviction cache, persistent AOF, one Recreate writer. Init resources
-  are also bounded. These small budgets require workload acceptance, not just Ready.
-- Both data Pods require storage-capable workers. The app connection overlay
-  also gives registry/jobservice worker placement and Recreate for their RWO claims.
-- Data ingress defaults to deny. Only Harbor core reaches PostgreSQL; only core,
-  jobservice and registry reach Valkey. The existing CNPG operator may reach its
-  database health/control ports. This does not implement full application ingress,
-  internal TLS or egress policy, and host-local paths need independent testing.
+- PostgreSQL 17.11: one CNPG instance; worker placement; 8Gi
+  `longhorn-dedicated`; requests 250m/512Mi, limits 1 CPU/1Gi; 100 connections;
+  superuser access off and plaintext connections rejected.
+- Valkey 7.2.15: separate pinned chart/image; one Recreate writer; worker placement;
+  2Gi `longhorn-dedicated`; requests 100m/256Mi, limits 500m/512Mi; bounded init;
+  128Mi no-eviction cache and AOF every second; no replica or metrics exporter.
+- Harbor database/owner `harbor`, PostgreSQL `verify-full`, 50-open/10-idle core
+  pool. Cache password-only default user, TLS required, indexes core 0/jobs 1/
+  registry 2. No sharing with existing stores or reuse of their credentials.
+- Ingress defaults to deny: core to PostgreSQL 5432; core/jobservice/registry to
+  Valkey 6379; exact existing CNPG operator to its 5432/8000 control ports.
+  This is ingress-only policy; egress and host-local CNI isolation are not claimed.
 
-## Authority and protected inputs
+## Protected input order
 
-The separate owner-admin prerequisite bundle grants no new cluster authority.
-It proposes the existing CNPG namespace Role unchanged in `harbor`, bound only
-to the existing `cnpg-system/platform-cnpg` account. That role includes management
-of Harbor Secrets/workloads and Pod exec. Adding the namespace is a material
-access expansion and needs explicit action-time approval.
+Before data selection, provide the dedicated database username/password Secret,
+Valkey ACL Secret, matching `harbor-redis` password and Valkey TLS material. Verify
+all exact names/keys in the preparation/delivery contracts before any write.
+After PostgreSQL is ready, export only its public server CA certificate into the
+app trust bundle; keep CNPG's CA signing key in place. Check ownership/Cluster UID
+and recorded server CA Secret rather than guessing its name.
 
-`operator-watch-review.yaml` adds `harbor` while retaining `gitlab` and
-`tenant-home-nextcloud` in both the chart values and native Deployment patch.
-It is not included in any build. Changing the shared operator requires a fresh
-read-only comparison against the current watches, followed by the approved narrow
-GitOps rollout and preservation checks. Never replace a newer watch list with this
-snapshot or create another operator.
+Internal/service certificates must match their actual service DNS identities.
+The pinned Harbor chart resolves Redis Secret values into private runtime
+configuration. Never print, commit or render real credentials into the public
+source cache. Offline chart tests use absent/synthetic credentials only.
+Preserve admin, encryption, signing, shared-service and database/registry inputs
+with consistent database/content backups. Password replacement is not recovery.
 
-The separate `bigbang/harbor-data-installer` gets Valkey workload/Helm-history
-CRUD only in Harbor, with no bind/escalate/cluster grants. It has no shared
-`bigbang` Secret-history access. Test hooks are disabled. `platform-reconciler`
-gets only Harbor Cluster/NetworkPolicy reconciliation and Pod health reads;
-namespace/Role creation remains an owner-admin task.
+## Namespace authority
 
-No Secret values or credential generator are included. Future protected Ansible
-preparation must create/reuse exact owned immutable inputs without rotating them:
+The 13-object owner-admin foundation includes the Harbor namespace, app/data
+installer accounts in `bigbang`, and five scoped Roles/bindings in Harbor.
 
-- `harbor-database`: basic-auth `username=harbor` and `password`, used by CNPG
-  bootstrap and Harbor's existing password reference. Never reuse another app's
-  database or credential.
-- `harbor-valkey-acl`: key `default`; `harbor-redis`: the identical dedicated
-  password under `REDIS_PASSWORD`. Password-only default-user auth is deliberate.
-- `harbor-valkey-tls`: `tls.crt`, `tls.key`, `ca.crt`, with the service FQDN in
-  its SAN. Server-only TLS is required; Harbor does not support cache mTLS here.
-- `harbor-public-ca`: public CNPG server CA plus the approved Valkey/service CA
-  trust roots under `ca.crt`. Do not export any CA signing key. Preserve the
-  explicit core `PGSSLROOTCERT` path and verify native hostname/CA enforcement.
+- CNPG gets the existing namespace Role unchanged, including Secret/workload and
+  Pod exec authority, bound to `cnpg-system/platform-cnpg` only.
+- Data installer manages only Valkey native workload and Harbor Helm history;
+  app installer manages only rendered Harbor workload/Ingress and Harbor history.
+- `flux-system/platform-reconciler` gets Harbor Cluster/NetworkPolicy reconciliation,
+  Pod reads and namespace-local ServersTransport reconciliation, without delete.
+- No ClusterRole, bind/escalate or shared `bigbang` history access is added.
+- Both installer token automounts are off. Namespace/Role creation remains an
+  owner-admin step; the child chart does not own the namespace.
 
-The pinned Harbor chart resolves Redis credentials through Secret lookups into
-its private runtime configuration. Real credential-bearing rendered output must
-never be committed, printed or placed in a public fixture cache. Offline renders
-use absent/synthetic Secrets only. PostgreSQL/Valkey certificates, password
-agreement and container trust loading remain unverified.
+`operator-watch-review.yaml` documents the exact patch embedded by the data root:
+`gitlab,tenant-home-nextcloud,harbor` in both Helm values and native Deployment.
+Immediately before selection, compare live watches and the whole operator spec.
+Stop/rebase if another approved namespace was added; never overwrite newer work.
 
-## Guarded prerequisite procedure
+## Create-only foundation
 
-`configuration/ansible/harbor-prerequisites.yaml` defaults to no contact, including
-check mode. After explicit approval it creates only the thirteen authored namespace,
-installer and namespaced Role/binding objects. It never changes the operator,
-watch list, credentials, workloads, source selection or existing objects.
+`configuration/ansible/harbor-prerequisites.yaml` is default-off/check-safe. With
+explicit approval, it requires the clean exact published release, pinned API,
+cluster/operator UIDs, protected kubeconfig and accepted operator pin/readiness.
+It inspects all 13 targets before any create and refuses foreign ownership,
+rule/subject drift, terminating objects, or token-mount changes. Missing objects
+are created/read back one at a time; failure stops subsequent creates. A repeat
+reuses exact owned objects without changes and preserves all previous UIDs.
+It never changes watches, credentials, workloads, source selection or existing
+objects. Supply the inventory plus protected inputs and
+`harbor_foundation_scope=harbor-foundation-v1`, `harbor_foundation_apply=true`.
+The scope is an approval guard, not permission itself.
 
-- Requires a clean exact published-release checkout and matching release evidence.
-- Pins the API, cluster UID, protected kubeconfig and existing operator UID,
-  chart/image, service account, readiness and both retained namespace watches.
-- Validates every existing target before writing anything. Foreign ownership,
-  rule/subject drift, token mounting and terminating objects are refused.
-- Creates and reads back one missing object at a time. A failure or uncertain
-  response stops further writes; keep completed objects and inspect before retry.
-- A repeated approved invocation reuses exact owned objects, preserves their UIDs
-  and makes no changes. There is no patch, adoption, rotation or automatic cleanup.
+## Capacity and physical acceptance
 
-Use the existing `configuration/ansible/inventory.yaml` with an owner-only extra
-vars file containing the published release evidence/target inputs,
-`harbor_expected_api`, `harbor_expected_operator_uid`,
-`harbor_foundation_scope=harbor-foundation-v1` and
-`harbor_foundation_apply=true`. The scope string is a guard, not authorization.
-Keep the current accepted root selection; the procedure does not promote a root.
-Real authority acceptance and operator/data readiness are separate from fixtures.
+Read-only sample, 2026-11-07 about 14:40 UTC: three Ready nodes, 15 Ready releases,
+no unready active Pods; live source v0.26.0. Source publication v0.28.0 had not
+installed Harbor. These observations must be refreshed before deployment.
 
-## Cumulative capacity gate
+- Worker CPU requests: 5.270/6 and 5.045/6 cores, leaving 1.685 cores in total.
+- Finite worker memory limits: about 99% and 90% of allocatable. Some existing
+  containers are unbounded, so finite totals are not actual memory ceilings.
+- Data plus the native-Ingress app proposes 850m/2048Mi requests. New init,
+  migration and push/pull peaks, per-node placement and other queued work still
+  require capacity acceptance. Do not shrink existing applications to force fit.
+- Two-replica data storage adds 20Gi; registry/job logs add 22Gi, total 42Gi.
+  Preserve existing/retained smoke claims and backup reservations. Replication is
+  not a backup, and single database/cache instances intentionally accept downtime.
 
-Read-only sample on 2026-11-07 at about 14:40 UTC: all three nodes and 15 releases
-were Ready, with no unready active Pods. Live source was v0.26.0; v0.28.0 publication
-had not deployed Harbor.
-
-- Worker CPU requests were 5.270/6 and 5.045/6 cores, leaving 1.685 cores total.
-  Actual utilization was low, but requests determine scheduling.
-- Worker finite memory limits were approximately 99% and 90% of allocatable.
-  Several existing containers are unbounded; finite totals are not real ceilings.
-- This data candidate requests 350m/768Mi, with 1.5 CPU/1.5Gi limits. CNPG's
-  generated init work and migration peaks still need exact runtime validation.
-- Current scanner-off Harbor native chart requests 600m/1536Mi across six
-  containers, before any tuning needed for reliable startup or push/pull load.
-  Data plus app requests therefore begin at 950m/2304Mi. No fit/performance claim
-  follows, and this does not budget later Grafana/backup/other queued changes.
-- Proposed data adds 20Gi of two-replica scheduled storage; registry10Gi plus
-  job logs1Gi add another22Gi, total42Gi. Of that, 40Gi is dedicated-disk replicas
-  and 2Gi remains on root-disk Longhorn. Retained smoke claims stay untouched.
-  Snapshots, growth, migration, restore and backup headroom are additional.
-
-Recalculate per-node scheduling, limit overlap and storage budgets immediately
-before activation. Do not shrink existing apps or reserve space intended for
-backup work without a separate reviewed decision.
-
-## Remaining sequence and approvals
-
-1. Review/release this inactive source and its guarded prerequisite procedure.
-   Complete private input/CA delivery before any data-stage activation.
-2. Approve the isolated data sizes/resources, Harbor-only CNPG access expansion,
-   protected credentials/certificates and exact foundation objects. Then add a
-   data-only root based on the latest accepted app stack, preserving all existing
-   selections and watches; publish/review the new immutable release.
-3. Separately approve source/root selection and data-service activation. Verify
-   TLS, correct credentials, wrong password/CA/hostname/plaintext/cross-namespace
-   denials, one bounded persistence test and unchanged existing apps/PVCs.
-4. Complete app protected inputs, internal transport, egress, trusted external
-   routing and native release behavior. Deploy an empty scanner-deferred pilot,
-   verify built-in local admin, authenticated push/pull and denied access.
-5. Implement the dedicated Keycloak client plus guarded Harbor OIDC API adapter;
-   approve credential delivery and the explicit platform-admin mapping before
-   activation. Configure OIDC before creating local non-admin accounts. Preserve
-   built-in local recovery and all projects/images/robots. Verify named MFA login,
-   local recovery and unmatched/non-admin access separately.
-
-SSO is not implemented by these data manifests. Tenant project sync/offboarding,
-robots, CI publishing, Trivy/scanning and isolated restore remain separate gates.
-No successful offline render counts as a live TLS, CNI, data or login test.
+Before app selection: correct TLS/password success; wrong password/CA/hostname,
+plaintext and cross-namespace denial; bounded write/restart persistence; healthy
+replicas and unchanged existing stores/claims. Ready alone proves none of these.
+Certificate lifecycle/renewal, backup recovery, performance and tightly restricted
+egress need separate evidence before broader use.

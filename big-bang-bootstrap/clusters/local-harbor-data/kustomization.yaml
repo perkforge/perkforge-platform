@@ -1,4 +1,4 @@
-# Future data-only root; release selection and separate approval are required.
+# Future explicit stage; never selected by publication alone.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -15,19 +15,42 @@ patches:
     kind: HelmRelease
     name: platform-cnpg
     namespace: bigbang
-  patch: "apiVersion: helm.toolkit.fluxcd.io/v2\nkind: HelmRelease\nmetadata:\n  name:\
-    \ platform-cnpg\n  namespace: bigbang\nspec:\n  values:\n    config:\n      data:\n\
-    \        WATCH_NAMESPACE: gitlab,tenant-home-nextcloud,harbor\n  postRenderers:\n\
-    \  - kustomize:\n      patches:\n      - target:\n          kind: Deployment\n\
-    \          name: platform-cnpg\n        patch: \"apiVersion: apps/v1\\nkind: Deployment\\\
-    nmetadata: {name: platform-cnpg,\\\n          \\ namespace: cnpg-system}\\nspec:\\\
-    n  template:\\n    spec:\\n      containers:\\n\\\n          \\      - name: manager\\\
-    n        env:\\n        - name: WATCH_NAMESPACE\\n\\\n          \\          value:\
-    \ gitlab,tenant-home-nextcloud,harbor\"\n"
+  patch: |
+    apiVersion: helm.toolkit.fluxcd.io/v2
+    kind: HelmRelease
+    metadata:
+      name: platform-cnpg
+      namespace: bigbang
+    spec:
+      values:
+        config:
+          data:
+            WATCH_NAMESPACE: gitlab,tenant-home-nextcloud,harbor
+      postRenderers:
+      - kustomize:
+          patches:
+          - target:
+              kind: Deployment
+              name: platform-cnpg
+            patch: |-
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata: {name: platform-cnpg, namespace: cnpg-system}
+              spec:
+                template:
+                  spec:
+                    containers:
+                    - name: manager
+                      env:
+                      - name: WATCH_NAMESPACE
+                        value: gitlab,tenant-home-nextcloud,harbor
 - target:
     group: helm.toolkit.fluxcd.io
     version: v2
     kind: HelmRelease
     name: harbor-valkey
     namespace: bigbang
-  patch: "- op: replace\n  path: /spec/suspend\n  value: false\n"
+  patch: |
+    - op: replace
+      path: /spec/suspend
+      value: false

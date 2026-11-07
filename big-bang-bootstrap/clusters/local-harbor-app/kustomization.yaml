@@ -1,4 +1,4 @@
-# Future app root; use only after data/credentials/TLS and capacity acceptance.
+# Future explicit stage; never selected by publication alone.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -16,12 +16,33 @@ patches:
     kind: HelmRelease
     name: bigbang
     namespace: bigbang
-  patch: "- op: add\n  path: /spec/valuesFrom/-\n  value:\n    kind: ConfigMap\n \
-    \   name: values-harbor-candidate\n    valuesKey: values.yaml\n- op: add\n  path:\
-    \ /spec/valuesFrom/-\n  value:\n    kind: ConfigMap\n    name: values-harbor-data\n\
-    \    valuesKey: values.yaml\n- op: add\n  path: /spec/valuesFrom/-\n  value:\n\
-    \    kind: ConfigMap\n    name: values-harbor-application\n    valuesKey: values.yaml\n\
-    - op: add\n  path: /spec/postRenderers/0/kustomize/patches/-\n  value:\n    target:\n\
-    \      kind: Namespace\n      name: harbor\n    patch: '$patch: delete\n\n   \
-    \   apiVersion: v1\n\n      kind: Namespace\n\n      metadata: {name: harbor}\n\
-    \n      '\n"
+  patch: |
+    - op: add
+      path: /spec/valuesFrom/-
+      value:
+        kind: ConfigMap
+        name: values-harbor-candidate
+        valuesKey: values.yaml
+    - op: add
+      path: /spec/valuesFrom/-
+      value:
+        kind: ConfigMap
+        name: values-harbor-data
+        valuesKey: values.yaml
+    - op: add
+      path: /spec/valuesFrom/-
+      value:
+        kind: ConfigMap
+        name: values-harbor-application
+        valuesKey: values.yaml
+    - op: add
+      path: /spec/postRenderers/0/kustomize/patches/-
+      value:
+        target:
+          kind: Namespace
+          name: harbor
+        patch: |
+          $patch: delete
+          apiVersion: v1
+          kind: Namespace
+          metadata: {name: harbor}
