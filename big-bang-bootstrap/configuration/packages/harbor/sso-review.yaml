@@ -1,0 +1,67 @@
+# Public API proposal only; no API operation or Secret values.
+enabled: false
+review_only: true
+live_apply_implemented: false
+protocol: oidc
+application: harbor
+keycloak:
+  realm: perkforge
+  client_id: harbor
+  enabled: false
+  flow: authorization-code
+  full_scope_allowed: false
+  redirect_uri: https://harbor.UNCONFIGURED.invalid/c/oidc/callback
+  claim: groups
+  claim_location: ID token; bounded app-specific claims, not every realm group
+native_configuration:
+  auth_mode: oidc_auth
+  oidc_name: Keycloak
+  oidc_endpoint: https://identity.UNCONFIGURED.invalid/auth/realms/perkforge
+  oidc_client_id: harbor
+  oidc_scope: openid profile email
+  oidc_groups_claim: groups
+  oidc_admin_group: /platform/admins
+  oidc_verify_cert: true
+  oidc_auto_onboard: false
+  project_creation_restriction: adminonly
+  self_registration: false
+credential_ref: protected external oidc_client_secret; do not embed in values/config
+  overwrite JSON
+mappings:
+  tenant_global_admin: false
+  platform_admin: one explicit oidc_admin_group -> Harbor system admin
+  platform_engineer: explicit approved platform project role only, no default system
+    admin
+  platform_viewer: explicit Guest on approved projects only
+  tenant_admin: own private project Project Admin
+  tenant_developer: own private project Developer
+  tenant_viewer: own private project Guest
+limitations:
+- OIDC group filter selects imported groups, not who may log in
+- OIDC mode migration is blocked after local non-admin users exist
+- project membership synchronization/offboarding is not implemented
+- public projects and unassigned-user admission require explicit review
+transport:
+  verify_tls: true
+  skip_certificate_verification: false
+  public_ca_ref: approved Harbor system trust
+recovery:
+  independent_local_access: true
+  custody: built-in local admin remains separately protected; verify in actual OIDC
+    mode
+activation_gates:
+- separate reviewed client/app apply wiring
+- verify exact native version/schema and no local non-admin users
+- protected client secret and issuer trust
+- project membership/offboarding and unmatched-user behavior reviewed
+acceptance:
+  positive:
+  - fresh MFA for platform admin and own-project roles
+  negative:
+  - tenant admin cannot become system admin
+  - cross-tenant project push/pull denied
+  - group filter is not misreported as login denial
+  rollback:
+  - remove only owned project/global grants and disable own client
+  - retain projects/images/robots and built-in local admin
+  - do not promise a blind switch back to database mode or instant token revocation

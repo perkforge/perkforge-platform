@@ -331,6 +331,7 @@ activation. Native apply wiring remains explicit where unimplemented.
 | Grafana | Optional native OIDC overlay rendered; PA explicit server admin, PE/PV Viewer initially. Strict unmatched/tenant denial; native client/apply and org/datasource isolation remain gates. |
 | Loki / Alloy | Grafana login differs from scoped machine write/query credentials. Labels and caller tenant headers are not isolation; backend tenant enforcement remains a gate. |
 | Alertmanager / ntfy | Human access follows Grafana; machine publisher/subscriber credentials are separate. No direct admin ingress. Grafana built-in routing selected; rule import and ntfy payload/delivery remain unimplemented. |
+| Harbor | OIDC API proposal: ID-token groups and private-project roles. Filter is not login restriction; migration/local admin and membership lifecycle require review. API apply remains unimplemented. |
 
 ## Nextcloud preparatory candidate
 
