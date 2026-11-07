@@ -29,7 +29,14 @@ class GrafanaLabUI(unittest.TestCase):
         self.assertEqual(policy['ingress'],[{'from':[{'namespaceSelector':{'matchLabels':{'kubernetes.io/metadata.name':'kube-system'}},'podSelector':{'matchLabels':{'app.kubernetes.io/name':'rke2-traefik'}}}], 'ports':[{'protocol':'TCP','port':3000}]}])
         self.assertEqual(policy['podSelector']['matchLabels'],{'app.kubernetes.io/name':'grafana','app.kubernetes.io/instance':'monitoring-grafana'})
         access=list(yaml.safe_load_all((ROOT/'configuration/observability/grafana-ui/access.yaml').read_text()))
-        self.assertEqual(access[0]['rules'][0],{'apiGroups':['networking.k8s.io'],'resources':['ingresses','networkpolicies'],'verbs':['create']})
+        self.assertEqual(access[0]['kind'], 'Role')
+        self.assertEqual(access[0]['rules'], [
+            {'apiGroups':['networking.k8s.io'],'resources':['ingresses','networkpolicies'],'verbs':['create']},
+            {'apiGroups':['networking.k8s.io'],'resources':['ingresses'],'resourceNames':['grafana-lab'],'verbs':['get','patch','update']},
+            {'apiGroups':['networking.k8s.io'],'resources':['networkpolicies'],'resourceNames':['grafana-from-traefik'],'verbs':['get','patch','update']},
+        ])
+        self.assertEqual(access[1]['kind'], 'RoleBinding')
+        self.assertEqual(access[1]['roleRef'], {'apiGroup':'rbac.authorization.k8s.io','kind':'Role','name':'grafana-ui-writer'})
         self.assertEqual(access[1]['subjects'],[{'kind':'ServiceAccount','name':'platform-reconciler','namespace':'flux-system'}])
         self.assertTrue(all(x['metadata']['namespace']=='monitoring' for x in access))
         self.assertFalse(any(key(x) in ui for x in access))

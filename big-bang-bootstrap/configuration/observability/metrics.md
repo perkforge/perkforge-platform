@@ -216,3 +216,7 @@ unused migration. Regression coverage exercises actual `--is-upgrade` rendering
 against a loopback API with the unchanged installer bounds, plus current/old
 history calibration and selected-root manifest preservation. Install-only
 rendering cannot expose the upgrade-only lookup.
+
+See [monitoring recovery and retained state](recovery.md) for the pinned webhook
+trust lifecycle, guarded public-CA recovery, registry override retirement review
+and active pilot-path boundaries. This adds no automatic repair or cleanup.
