@@ -54,16 +54,29 @@
         - harbor_foundation_kubeconfig.stat.isreg and not (harbor_foundation_kubeconfig.stat.islnk | default(false))
         - harbor_foundation_kubeconfig.stat.mode == '0600' and harbor_foundation_kubeconfig.stat.pw_name == lookup('env','USER')
     - ansible.builtin.command:
-        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', config, view, --minify, -o, 'jsonpath={.clusters[0].cluster.server}']
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', config, view, --minify, -o, json]
       changed_when: false
       register: harbor_foundation_api
+    - name: Verify the pinned API TLS configuration before any network request
+      ansible.builtin.assert:
+        that:
+        - config['current-context'] == target_context
+        - config.contexts | length == 1 and config.clusters | length == 1
+        - config.contexts[0].name == target_context
+        - config.contexts[0].context.cluster == config.clusters[0].name
+        - endpoint.server == harbor_expected_api
+        - not (endpoint['insecure-skip-tls-verify'] | default(false))
+        - not (endpoint['proxy-url'] | default('')) and not (endpoint['tls-server-name'] | default(''))
+        - (endpoint['certificate-authority-data'] | default('') | length > 0) or (endpoint['certificate-authority'] | default('') | length > 0)
+      vars:
+        config: '{{ harbor_foundation_api.stdout | from_json }}'
+        endpoint: '{{ config.clusters[0].cluster }}'
     - ansible.builtin.command:
         argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
       changed_when: false
       register: harbor_foundation_cluster
     - ansible.builtin.assert:
         that:
-        - harbor_foundation_api.stdout == harbor_expected_api
         - harbor_foundation_cluster.stdout == expected_cluster_uid
     - name: Inspect only the already installed shared operator
       ansible.builtin.command:

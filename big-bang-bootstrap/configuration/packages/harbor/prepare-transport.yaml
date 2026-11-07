@@ -1,0 +1,66 @@
+---
+- name: Prepare only dedicated Harbor internal transport identities locally
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    harbor_transport_run: false
+    harbor_transport_scope: UNAPPROVED
+    harbor_transport_output_parent: /UNCONFIGURED/private-output
+  tasks:
+  - ansible.builtin.debug:
+      msg: >-
+        Default/check mode reads no private material and issues nothing. Human approval
+        is required before enabling harbor_transport_run with scope
+        harbor-internal-transport-issuance-v1. No external lab CA, cluster API,
+        trust-store, DNS, renewal or delivery operations are performed.
+  - when: harbor_transport_run | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - harbor_transport_scope == 'harbor-internal-transport-issuance-v1'
+        - harbor_transport_output_parent is match('^/')
+        - not harbor_transport_output_parent.startswith('/UNCONFIGURED/')
+        - harbor_transport_output_parent | realpath == harbor_transport_output_parent
+    - ansible.builtin.command:
+        argv: [id, -u]
+      register: harbor_transport_uid
+      changed_when: false
+    - ansible.builtin.stat:
+        path: '{{ harbor_transport_output_parent }}'
+        follow: false
+        get_checksum: false
+      register: harbor_transport_parent
+    - ansible.builtin.assert:
+        that:
+        - harbor_transport_parent.stat.isdir | default(false)
+        - not (harbor_transport_parent.stat.islnk | default(false))
+        - harbor_transport_parent.stat.mode == '0700'
+        - harbor_transport_parent.stat.uid == harbor_transport_uid.stdout | int
+    - name: Reserve a fresh private bundle; never reuse existing identity directories
+      ansible.builtin.tempfile:
+        state: directory
+        path: '{{ harbor_transport_output_parent }}'
+        prefix: harbor-transport-
+      register: harbor_transport_bundle
+    - block:
+      - ansible.builtin.template:
+          src: templates/harbor-internal-transport.sh.j2
+          dest: '{{ harbor_transport_bundle.path }}/prepare.sh'
+          mode: '0600'
+      - name: Issue and verify fixed Harbor service names only after approval
+        ansible.builtin.command:
+          argv: [bash, '{{ harbor_transport_bundle.path }}/prepare.sh']
+          chdir: '{{ harbor_transport_bundle.path }}'
+        no_log: true
+      always:
+      - ansible.builtin.file:
+          path: '{{ harbor_transport_bundle.path }}/prepare.sh'
+          state: absent
+    - ansible.builtin.debug:
+        msg: >-
+          Verified private bundle: {{ harbor_transport_bundle.path }}.
+          Only delivery/internal contains deliverable CA certificate and service leaves.
+          signer/ca.key MUST remain local, outside all assembly and delivery inputs.
+          Require the bundle READY marker before using any output. A failure leaves
+          an incomplete private bundle for operator inspection, never automatic reuse.

@@ -60,7 +60,7 @@ Do not replay cluster bootstrap or manually override a child against Git values.
 3. **Data root.** Conditionally select the published tag and
    `./big-bang-bootstrap/clusters/local-harbor-data` through the existing owner
    promotion procedure. Verify exact source artifact/root revision and run the
-   read-only audit in `data` mode. Test correct password/CA/hostname and rejection
+   read-only audit in `data` mode and preserve its separate data checkpoint. Test correct password/CA/hostname and rejection
    of wrong password, wrong CA, wrong hostname, plaintext and other namespaces.
    Run one explicitly approved bounded persistence test. Preserve existing PVCs.
 4. **Application inputs.** Export only the new CNPG server CA's `ca.crt`, after
@@ -89,6 +89,59 @@ Do not replay cluster bootstrap or manually override a child against Git values.
    existing releases/databases/PVCs after every stage. Do not onboard production
    data until consistent database + registry + credential backup and isolated
    restore are demonstrated. Velero design alone is not that evidence.
+
+## Protected-input procedure
+
+Run with Ansible, OpenSSL, Python `PyYAML`, `cryptography>=43` and `bcrypt` available.
+Use an owned 0700 private directory outside Git and world-writable ancestors;
+all supplied input/output files are canonical, single-link, owned 0600 files.
+Password inputs contain the exact value with **no trailing newline**.
+
+- `prepare-transport.yaml`: explicit `harbor_transport_run=true` and
+  `harbor_transport_scope=harbor-internal-transport-issuance-v1`; supply
+  `harbor_transport_output_parent`. Creates a fresh dedicated internal CA and
+  five exact service leaf identities. Deliver only `delivery/internal/` after
+  the bundle has `READY`. `signer/ca.key` stays local and is never an input to
+  Secret assembly. This is fresh issuance, not an implicit renewal/rotation.
+- `prepare-public-certificate.yaml`: explicit `harbor_public_certificate_run=true`,
+  scope `harbor-public-leaf-issuance-v1`, existing CA/output private directories
+  and exact SHA256 fingerprint. Existing `root-ca.key.pem` must remain encrypted
+  PKCS8; unlock only through the local hidden prompt. Only
+  `harbor.perkforge.home.arpa` is issued. Deliver only `delivery/external/`
+  after `READY`; partial failed bundles are retained privately, never reused.
+- `prepare-credentials.yaml`: set profile `data` or `application`,
+  `harbor_credentials_run=true`, matching scope
+  `harbor-<profile>-private-assembly-v1`, `harbor_private_root`,
+  `harbor_credentials_manifest`, exact `harbor_expected_namespace_uid`, and
+  `harbor_credentials_inputs` mapping Secret name → key → protected input path.
+  The [exact contracts](tasks/contracts.yaml) contain four data and 16 app Secrets.
+  This assembles existing values; it does not generate passwords/token signing
+  material, fetch registry credentials or read the cluster. Arrange those exact
+  protected inputs under the separately approved local custody procedure.
+  Encryption `secretKey` is exactly 16 ASCII bytes; `CSRF_KEY` exactly 32.
+  Initial admin is 16–128 ASCII bytes with lowercase/uppercase/digit; Valkey is
+  24–128 URL-safe alphanumeric/underscore/hyphen characters. The registry bcrypt
+  entry must match its password for `harbor_registry_user`; token signing uses
+  a matching RSA key/certificate with digital-signature usage.
+- App assembly also pins the deduplicated public trust bundle with
+  `harbor_public_ca_sha256` and the separately approved
+  `harbor_database_ca_sha256`, `harbor_valkey_ca_sha256`,
+  `harbor_identity_ca_sha256`. Values are lowercase SHA256 DER fingerprints,
+  not the colon-form OpenSSL fingerprint string used for external leaf issuance.
+  Include the internal root; CNPG's public CA is available only after data startup.
+- `deliver-credentials.yaml`: use the same profile/manifest/pins, exact
+  `harbor_delivery_scope=harbor-<profile>-credential-delivery-v1`, explicit
+  `harbor_delivery_run=true`, protected `harbor_kubeconfig`, canonical
+  `harbor_kubectl`, `harbor_context`, expected API/cluster/namespace UIDs. It
+  preflights all targets, dry-runs missing objects, then creates/readbacks one at
+  a time. Existing immutable identical Secrets are reused; any foreign/changed
+  object is refused before writes. No adoption, overwrite or automatic rotation.
+
+Preserve the private manifest and original inputs for a zero-change repeat and
+recovery. Public CA/leaf expiry and later renewal need an explicit reviewed
+rotation plan because delivered inputs are immutable; no renewal automation is
+claimed. Never put private manifests, rendered credential-bearing configuration,
+key material or real operator variables in source, logs or chat.
 
 ## Required action-time approval bundle
 
@@ -122,7 +175,7 @@ only a successful real token exchange establishes that acceptance.
   including wrong target/ownership, zero-change repeat and partial/uncertain writes.
 - Native/client SSO tests run real Ansible against disposable HTTPS services.
 - `test_harbor_stage.py` checks read-only exact-release, runtime-schema, readiness
-  and UID/spec-preservation refusals. The audit reads no Kubernetes Secrets,
+  and UID/spec-preservation refusals, including the data-to-app checkpoint. The audit reads no Kubernetes Secrets,
   performs no exec, and never declares TLS/login/push-pull/restore acceptance.
 - No offline pass substitutes for physical TLS/CNI, image pull, browser/MFA,
   migrations, load, persistence or restore tests. CI skipping is not a pass.
@@ -130,7 +183,11 @@ only a successful real token exchange establishes that acceptance.
 For the audit, supply canonical owner-only 0600 kubeconfig/evidence files in owned
 0700 directories, exact `--context`, `--expected-api`, `--expected-cluster-uid`,
 `--baseline`; data/app modes also require `--expected-namespace-uid`, `--release`
-and `--commit`. Snapshot creates a new evidence file and never overwrites it.
+and `--commit`, plus `--data-checkpoint`. Data mode writes a new protected
+checkpoint only after its checks pass, or verifies an identical existing one.
+App mode requires that checkpoint and preserves the database, Valkey release and
+two data PVC identities/specs; it cannot capture its own replacement checkpoint.
+Snapshot creates a new evidence file and never overwrites it.
 Without `--verify`, it reads no files and contacts no APIs.
 
 Stop on any mismatch. Inspect uncertain outcomes before retrying. Preserve created

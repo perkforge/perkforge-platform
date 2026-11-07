@@ -1,6 +1,7 @@
 """Future Harbor stages: effective pinned Flux post-renders and preservation."""
 import copy
 import json
+import importlib.util
 import os
 from pathlib import Path
 import tempfile
@@ -76,6 +77,14 @@ class HarborActivation(unittest.TestCase):
         for key, obj in old.items():
             self.assertEqual(new[key], obj, key)
 
+    def test_audit_fingerprints_allow_only_effective_reviewed_release_deltas(self):
+        spec = importlib.util.spec_from_file_location('harbor_audit_render_contract', ROOT.parent / 'scripts/harbor-stage-audit.py')
+        audit = importlib.util.module_from_spec(spec); spec.loader.exec_module(audit)
+        for name in ('bigbang', 'platform-cnpg'):
+            original = audit.release_fingerprint(named(self.baseline, 'HelmRelease', name))
+            self.assertEqual(audit.release_fingerprint(named(self.data, 'HelmRelease', name), stage='data'), original)
+            self.assertEqual(audit.release_fingerprint(named(self.app, 'HelmRelease', name), stage='app'), original)
+
     def test_effective_app_keeps_namespace_ownership_scanner_and_exporter_off(self):
         self.assertFalse(any(o['kind'] == 'Namespace' and o['metadata']['name'] == 'harbor' for o in self.outer))
         self.assertTrue(any(o['kind'] == 'Namespace' and o['metadata']['name'] == 'harbor' for o in self.outer_raw))
@@ -99,6 +108,7 @@ class HarborActivation(unittest.TestCase):
         self.assertEqual(ingress['metadata']['annotations']['traefik.ingress.kubernetes.io/router.entrypoints'], 'websecure')
         rule = ingress['spec']['rules'][0]
         self.assertEqual(rule['host'], 'harbor.perkforge.home.arpa')
+        self.assertTrue(all(entry['pathType'] == 'Prefix' for entry in rule['http']['paths']))
         paths = {entry['path']: entry['backend']['service'] for entry in rule['http']['paths']}
         self.assertEqual(set(paths), {'/', '/api/', '/service/', '/v2/', '/c/'})
         for path, service in paths.items():

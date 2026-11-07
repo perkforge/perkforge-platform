@@ -38,7 +38,9 @@ if tool=='gh':
  sys.exit(0)
 if args[:1]==['--kubeconfig']:args=args[4:]
 state=json.loads((root/'state.json').read_text())
-if args[:2]==['config','view']:print(config.get('api','https://synthetic.invalid:6443'));sys.exit(0)
+if args[:2]==['config','view']:
+ endpoint={'server':config.get('api','https://synthetic.invalid:6443'),'certificate-authority-data':'SYNTHETIC',**config.get('tls_flags',{})}
+ print(json.dumps({'current-context':'synthetic','contexts':[{'name':'synthetic','context':{'cluster':'synthetic'}}],'clusters':[{'name':'synthetic','cluster':endpoint}]}));sys.exit(0)
 if args[:3]==['get','namespace','kube-system']:print(config.get('cluster_uid','00000000-0000-0000-0000-000000000001'));sys.exit(0)
 if args[:3]==['get','deployment','platform-cnpg']:print(json.dumps(config['operator']));sys.exit(0)
 def key(kind,name,namespace):return kind+'/'+namespace+'/'+name
@@ -159,7 +161,9 @@ class HarborFoundation(unittest.TestCase):
         self.assertFalse([x for x in self.calls() if x[0] == 'kubectl'])
 
     def test_target_and_operator_drift_fail_before_creation(self):
-        variants = [{'api': 'https://wrong.invalid:6443'}, {'cluster_uid': 'wrong'},
+        variants = [{'api': 'https://wrong.invalid:6443'}, {'tls_flags': {'insecure-skip-tls-verify': True}},
+                    {'tls_flags': {'proxy-url': 'http://wrong.invalid'}}, {'tls_flags': {'tls-server-name': 'other'}},
+                    {'tls_flags': {'certificate-authority-data': ''}}, {'cluster_uid': 'wrong'},
                     {'operator': {**self.operator, 'metadata': {**self.operator['metadata'], 'uid': 'wrong'}}}]
         changed = copy.deepcopy(self.operator)
         changed['spec']['template']['spec']['containers'][0]['env'][0]['value'] = 'gitlab'
