@@ -1,0 +1,190 @@
+- name: Deliver only Grafana's dedicated immutable OAuth input and public identity CA
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    grafana_delivery_run: false
+    grafana_delivery_approval: UNAPPROVED
+    grafana_kubectl: /usr/local/bin/kubectl
+    grafana_kubeconfig: /UNCONFIGURED/kubeconfig
+    grafana_context: UNCONFIGURED
+    grafana_expected_api: https://UNCONFIGURED.invalid:6443
+    grafana_expected_cluster_uid: UNCONFIGURED
+    grafana_expected_monitoring_uid: UNCONFIGURED
+    grafana_client_secret_file: /UNCONFIGURED/client-secret
+    grafana_ca_file: /UNCONFIGURED/public-ca.pem
+    grafana_expected_ca_sha256: UNCONFIGURED
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check reads no private files or APIs. Dedicated Grafana input delivery only; no activation, client creation, grants, registry/admin Secret changes or restart.'
+  - when: grafana_delivery_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - grafana_delivery_approval == 'grafana-sso-input-delivery-v1'
+        - grafana_context != 'UNCONFIGURED'
+        - grafana_context is not search("[\\x00-\\x20\\x7f]")
+        - grafana_expected_api is not search("[\\x00-\\x20\\x7f]")
+        - grafana_kubectl is match('^/')
+        - grafana_expected_api is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - (grafana_expected_api | urlsplit('hostname') | lower | regex_replace('\.$', '')) is not search('\.invalid$')
+        - grafana_expected_cluster_uid is match('^[a-f0-9-]{36}$')
+        - grafana_expected_monitoring_uid is match('^[a-f0-9-]{36}$')
+        - grafana_expected_ca_sha256 is match('^[a-f0-9]{64}$')
+        - grafana_expected_cluster_uid is not search("[\\x00-\\x20\\x7f]")
+        - grafana_expected_monitoring_uid is not search("[\\x00-\\x20\\x7f]")
+        - grafana_expected_ca_sha256 is not search("[\\x00-\\x20\\x7f]")
+    - ansible.builtin.command: {argv: [id, -u]}
+      register: gf_operator_uid
+      changed_when: false
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+        checksum_algorithm: sha256
+      loop: '{{ [grafana_kubeconfig, grafana_client_secret_file, grafana_ca_file] }}'
+      register: gf_delivery_files
+    - ansible.builtin.assert:
+        that:
+        - item.item is match('^/') and item.item | realpath == item.item
+        - item.stat.isreg | default(false)
+        - not (item.stat.islnk | default(false))
+        - item.stat.size > 0
+        - item.item == grafana_ca_file or (item.stat.mode == '0600' and item.stat.uid == (gf_operator_uid.stdout | int))
+        - item.item != grafana_ca_file or item.stat.checksum == grafana_expected_ca_sha256
+      loop: '{{ gf_delivery_files.results }}'
+    - ansible.builtin.stat:
+        path: '{{ item | dirname }}'
+        follow: false
+      loop: '{{ [grafana_kubeconfig, grafana_client_secret_file] }}'
+      register: gf_private_parents
+    - ansible.builtin.assert:
+        that:
+        - item.stat.isdir | default(false)
+        - not (item.stat.islnk | default(false))
+        - item.stat.mode == '0700'
+        - item.stat.uid == (gf_operator_uid.stdout | int)
+      loop: '{{ gf_private_parents.results }}'
+    - ansible.builtin.set_fact:
+        gf_delivery_ca: '{{ lookup("file", grafana_ca_file) }}'
+        gf_delivery_secret: '{{ lookup("file", grafana_client_secret_file) | trim }}'
+        gf_delivery_argv: ['{{ grafana_kubectl }}', --kubeconfig, '{{ grafana_kubeconfig }}', --context, '{{ grafana_context }}', --request-timeout=20s]
+        cacheable: false
+    - ansible.builtin.assert:
+        that:
+        - gf_delivery_secret | length >= 24
+        - gf_delivery_ca | regex_findall('-----BEGIN CERTIFICATE-----') | length == 1
+        - gf_delivery_ca | regex_findall('-----END CERTIFICATE-----') | length == 1
+        - gf_delivery_ca is match('^-----BEGIN CERTIFICATE-----')
+        - gf_delivery_ca is search('-----END CERTIFICATE-----$')
+        - "'PRIVATE KEY' not in gf_delivery_ca"
+    - ansible.builtin.command:
+        argv: [openssl, x509, -noout, -checkend, '86400', -ext, basicConstraints]
+        stdin: '{{ gf_delivery_ca }}'
+      register: gf_delivery_ca_check
+      changed_when: false
+    - ansible.builtin.assert:
+        that: "'CA:TRUE' in gf_delivery_ca_check.stdout"
+    - ansible.builtin.command:
+        argv: '{{ gf_delivery_argv + ["config", "view", "--minify", "-o", "json"] }}'
+      register: gf_delivery_config
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (gf_delivery_config.stdout | from_json).clusters | length == 1
+        - (gf_delivery_config.stdout | from_json).clusters[0].cluster.server == grafana_expected_api
+        - not ((gf_delivery_config.stdout | from_json).clusters[0].cluster.get('insecure-skip-tls-verify', false))
+        - not ((gf_delivery_config.stdout | from_json).clusters[0].cluster.get('proxy-url', ''))
+    - ansible.builtin.command:
+        argv: '{{ gf_delivery_argv + ["get", "namespace", item.name, "-o", "jsonpath={.metadata.uid}"] }}'
+      loop:
+      - {name: kube-system, uid: '{{ grafana_expected_cluster_uid }}'}
+      - {name: monitoring, uid: '{{ grafana_expected_monitoring_uid }}'}
+      register: gf_delivery_namespaces
+      changed_when: false
+    - ansible.builtin.assert:
+        that: item.stdout == item.item.uid
+      loop: '{{ gf_delivery_namespaces.results }}'
+    - ansible.builtin.set_fact:
+        gf_delivery_objects:
+        - apiVersion: v1
+          kind: Secret
+          metadata:
+            name: grafana-oidc-client
+            namespace: monitoring
+            labels: {perkforge.io/owner: grafana-sso-v1}
+          type: Opaque
+          immutable: true
+          data: {GRAFANA_OIDC_CLIENT_SECRET: '{{ gf_delivery_secret | b64encode }}'}
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: grafana-identity-ca
+            namespace: monitoring
+            labels: {perkforge.io/owner: grafana-sso-v1}
+          immutable: true
+          data: {ca.crt: '{{ gf_delivery_ca }}'}
+        cacheable: false
+    - ansible.builtin.command:
+        argv: '{{ gf_delivery_argv + ["get", item.kind, item.metadata.name, "-n", "monitoring", "--ignore-not-found", "-o", "json"] }}'
+      loop: '{{ gf_delivery_objects }}'
+      register: gf_delivery_before
+      changed_when: false
+    - name: Refuse collisions or implicit rotation before creating either object
+      ansible.builtin.assert:
+        that:
+        - current.kind == item.item.kind and current.apiVersion == 'v1'
+        - current.metadata.name == item.item.metadata.name and current.metadata.namespace == 'monitoring'
+        - current.metadata.labels == item.item.metadata.labels
+        - current.metadata.ownerReferences | default([]) | length == 0
+        - not current.metadata.get("deletionTimestamp")
+        - current.immutable | default(false)
+        - current.data == item.item.data
+        - current.binaryData | default({}) | length == 0
+        - current.get('type') == item.item.get('type')
+      vars:
+        current: '{{ item.stdout | from_json }}'
+      loop: '{{ gf_delivery_before.results }}'
+      when: item.stdout | length > 0
+    - name: Validate all absent objects with server dry-run before either create
+      ansible.builtin.command:
+        argv: '{{ gf_delivery_argv + ["create", "--dry-run=server", "-f", "-"] }}'
+        stdin: '{{ item.item | to_json }}'
+      loop: '{{ gf_delivery_before.results }}'
+      when: item.stdout | length == 0
+      changed_when: false
+    - ansible.builtin.command:
+        argv: '{{ gf_delivery_argv + ["create", "-f", "-"] }}'
+        stdin: '{{ item.item | to_json }}'
+      loop: '{{ gf_delivery_before.results }}'
+      when: item.stdout | length == 0
+    - ansible.builtin.command:
+        argv: '{{ gf_delivery_argv + ["get", item.kind, item.metadata.name, "-n", "monitoring", "-o", "json"] }}'
+      loop: '{{ gf_delivery_objects }}'
+      register: gf_delivery_after
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - current.kind == item.item.kind and current.apiVersion == 'v1'
+        - current.metadata.name == item.item.metadata.name and current.metadata.namespace == 'monitoring'
+        - current.metadata.labels == item.item.metadata.labels
+        - current.metadata.ownerReferences | default([]) | length == 0
+        - not current.metadata.get("deletionTimestamp")
+        - current.immutable
+        - current.data == item.item.data
+        - current.binaryData | default({}) | length == 0
+        - current.get('type') == item.item.get('type')
+      vars:
+        current: '{{ item.stdout | from_json }}'
+      loop: '{{ gf_delivery_after.results }}'
+    always:
+    - ansible.builtin.set_fact:
+        gf_delivery_secret: ''
+        gf_delivery_ca: ''
+        gf_delivery_objects: []
+        gf_delivery_before: {}
+        gf_delivery_after: {}
+        gf_delivery_files: {}
+        gf_delivery_config: {}
+        cacheable: false
+      no_log: true
