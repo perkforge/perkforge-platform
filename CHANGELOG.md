@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.27.0](https://github.com/perkforge/perkforge-platform/compare/v0.26.0...v0.27.0) (2026-11-07)
+
+
+### Features
+
+* **grafana:** prepare disabled SSO client and provider payloads ([#246](https://github.com/perkforge/perkforge-platform/issues/246)) ([a2a1730](https://github.com/perkforge/perkforge-platform/commit/a2a1730aec5eafbeed8ed62b06b4cf6e9286f69b))
+
+
+### Bug Fixes
+
+* **nextcloud:** capture approved bootstrap access and source selection ([#244](https://github.com/perkforge/perkforge-platform/issues/244)) ([1767c57](https://github.com/perkforge/perkforge-platform/commit/1767c57989d3faefad17e7aaced84a1dbe93e818))
+* **nextcloud:** capture exact SSO callback, name and logout settings ([#245](https://github.com/perkforge/perkforge-platform/issues/245)) ([620c8f9](https://github.com/perkforge/perkforge-platform/commit/620c8f9641398f9279b9a3cd5860895da54f946e))
+
 ## [0.26.0](https://github.com/perkforge/perkforge-platform/compare/v0.25.0...v0.26.0) (2026-11-07)
 
 
