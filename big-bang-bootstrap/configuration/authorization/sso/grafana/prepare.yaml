@@ -1,0 +1,50 @@
+- name: Render a disabled Grafana client independently of existing app clients
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    grafana_sso_render: false
+    grafana_sso_origin: https://grafana.example.invalid
+    grafana_sso_issuer: https://identity.example.invalid/auth/realms/perkforge
+    grafana_sso_output: /UNCONFIGURED/grafana-sso-review
+  tasks:
+  - name: Require exact independent HTTPS identities
+    ansible.builtin.assert:
+      that:
+      - grafana_sso_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+      - grafana_sso_issuer is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?(/auth)?/realms/perkforge$')
+      - (grafana_sso_origin | urlsplit('port')) is none or 1 <= (grafana_sso_origin | urlsplit('port')) <= 65535
+      - (grafana_sso_issuer | urlsplit('port')) is none or 1 <= (grafana_sso_issuer | urlsplit('port')) <= 65535
+      - >-
+        (grafana_sso_origin | urlsplit('hostname') | lower) != (grafana_sso_issuer | urlsplit('hostname') | lower)
+        or ((grafana_sso_origin | urlsplit('port')) or 443) != ((grafana_sso_issuer | urlsplit('port')) or 443)
+  - ansible.builtin.debug:
+      msg: 'Review preparation only; no API, credentials, grants, native activation or existing SSO app changes.'
+  - when: grafana_sso_render | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - grafana_sso_output is match('^/') and not grafana_sso_output.startswith('/UNCONFIGURED/')
+        - grafana_sso_origin is not search('(?i)\.invalid(:[0-9]+)?$')
+        - grafana_sso_issuer is not search('(?i)\.invalid(:[0-9]+)?/')
+    - ansible.builtin.stat:
+        path: '{{ grafana_sso_output }}'
+        follow: false
+      register: destination
+    - ansible.builtin.assert:
+        that: not destination.stat.exists
+        fail_msg: Preserve previous/interrupted output and choose a fresh directory.
+    - ansible.builtin.file:
+        path: '{{ grafana_sso_output }}'
+        state: directory
+        mode: '0700'
+    - ansible.builtin.copy:
+        content: "{{ lookup('file', 'client.json') | from_json | combine({'redirectUris':[grafana_sso_origin + '/login/generic_oauth']}) | to_nice_json }}"
+        dest: '{{ grafana_sso_output }}/client.json'
+        mode: '0600'
+        force: false
+    - ansible.builtin.template:
+        src: values.yaml.j2
+        dest: '{{ grafana_sso_output }}/values.yaml'
+        mode: '0600'
+        force: false

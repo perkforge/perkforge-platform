@@ -163,3 +163,7 @@ boundaries. It remains evaluation-only, with no install or new service account.
 
 Sources: [Grafana OAuth](https://grafana.com/docs/grafana/latest/setup-grafana/configure-access/configure-authentication/generic-oauth/),
 [Velero restrictive RBAC](https://velero.io/docs/v1.18/rbac/).
+
+[Grafana offline preparation](../authorization/sso/grafana/README.md) now pairs a
+disabled dedicated client with exact provider endpoints. It creates review files
+only; client lifecycle, grants and live provider delivery remain unimplemented.

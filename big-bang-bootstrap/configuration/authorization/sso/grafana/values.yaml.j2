@@ -1,0 +1,40 @@
+# Offline review payload only; no client grants or source selection.
+grafana:
+  enabled: false
+  flux: {suspend: true}
+  values:
+    sso: {enabled: false}
+    upstream:
+      assertNoLeakedSecrets: true
+      envFromSecret: grafana-oidc-client
+      extraConfigmapMounts:
+      - name: identity-ca
+        mountPath: /etc/grafana/identity
+        configMap: grafana-identity-ca
+        readOnly: true
+      grafana.ini:
+        server:
+          root_url: {{ grafana_sso_origin }}
+        auth:
+          disable_login_form: false
+        auth.basic:
+          enabled: true
+        auth.anonymous:
+          enabled: false
+        auth.generic_oauth:
+          enabled: false
+          name: Keycloak
+          client_id: grafana
+          client_secret: $__env{GRAFANA_OIDC_CLIENT_SECRET}
+          scopes: openid profile email
+          auth_url: {{ grafana_sso_issuer }}/protocol/openid-connect/auth
+          token_url: {{ grafana_sso_issuer }}/protocol/openid-connect/token
+          api_url: {{ grafana_sso_issuer }}/protocol/openid-connect/userinfo
+          use_pkce: true
+          tls_skip_verify_insecure: false
+          tls_client_ca: /etc/grafana/identity/ca.crt
+          allow_sign_up: true
+          allow_assign_grafana_admin: true
+          role_attribute_strict: true
+          skip_org_role_sync: false
+          role_attribute_path: "contains(groups[*], '/platform/admins') && 'GrafanaAdmin' || contains(groups[*], '/platform/viewers') && 'Viewer' || contains(groups[*], '/platform/engineers') && 'Viewer'"
