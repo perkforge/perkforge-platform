@@ -166,4 +166,6 @@ Sources: [Grafana OAuth](https://grafana.com/docs/grafana/latest/setup-grafana/c
 
 [Grafana offline preparation](../authorization/sso/grafana/README.md) now pairs a
 disabled dedicated client with exact provider endpoints. It creates review files
-only; client lifecycle, grants and live provider delivery remain unimplemented.
+only. Separately gated [dedicated input delivery](../authorization/sso/grafana/DELIVERY.md)
+delivers immutable Secret/public-CA objects only when explicitly approved without selecting or activating OAuth.
+Role grants, native source selection and live acceptance remain separate gates.
