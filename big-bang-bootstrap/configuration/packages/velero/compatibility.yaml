@@ -1,0 +1,19 @@
+# Public source evidence only; does not authorize adoption, deployment or upgrades.
+bigbang: 3.35.1
+chart: 12.2.1-bb.0
+upstream_chart: 12.2.1
+velero: 1.18.4
+aws_plugin: 1.14.4
+chart_fixture:
+  url: https://repo1.dso.mil/big-bang/product/packages/velero/-/archive/12.2.1-bb.0/velero-12.2.1-bb.0.tar.gz
+  sha256: 9dfeb44e15eceda2e06863135b286e768811ee4da296f976f244057f197f7a0f
+  chart: chart
+kubernetes:
+  expected_upstream_range: 1.18-latest
+  upstream_tested: [1.33.7, 1.34.1, 1.35.0]
+  current_target: 1.36.5
+  current_target_acceptance: unverified
+  source: https://github.com/velero-io/velero/blob/v1.18.4/README.md#velero-compatibility-matrix
+plugin_matrix: https://github.com/velero-io/velero-plugin-for-aws#compatibility
+# 1.19.x/1.15.x is the newer upstream pair, not this platform's package selection.
+# Never override only one image, upgrade shared pins or use the obsolete CSI plugin.

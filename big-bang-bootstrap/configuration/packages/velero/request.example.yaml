@@ -1,0 +1,63 @@
+# Public REFERENCES only. No secrets, tokens, credentials or private endpoints.
+# Both profiles use this same contract. Source preparation requires classes, endpoint,
+# bucket/prefix, region, CA/identity and AWS KMS references. Remaining recovery fields
+# are required only with velero_review_recovery=true; do not invent acceptance evidence.
+velero_request:
+  approved_namespaces: []
+  selected_namespaces: []
+  compatibility_evidence_ref: ''
+  authorization_review_ref: ''
+  storage_acceptance_ref: ''
+  csi_data_movement_acceptance_ref: ''
+  backup_storage_location: ''
+  snapshot_class: ''
+  source_storage_class: ''
+  restore_storage_class: ''
+  endpoint: ''
+  region: ''
+  bucket: ''
+  prefix: ''
+  ca_bundle_ref: ''
+  identity_mode: '' # existing-secret (local) or workload-identity (AWS)
+  identity_ref: ''
+  kms_key_ref: '' # Required for AWS; local uses separate encryption_review_ref.
+  encryption_review_ref: ''
+  schedule_review_ref: '' # Reviewed cron/RPO match, missed-run alerting and concurrency.
+  schedule_cron: '' # Cadence/RPO remains an operator decision, no guessed default.
+  rpo_hours: 0
+  rollback_window_hours: 0
+  last_known_good_protection_ref: ''
+  retention_cleanup_review_ref: ''
+  consistency_plan_ref: '' # Quiesce/checkpoint/freeze, timeout/failure, guaranteed thaw.
+  backup_hooks: [] # Actual Velero hooks.resources, reviewed against the selected apps.
+  restore_hooks: [] # hooks.resources must select the TARGET restore namespace, not source.
+  database_scope: '' # dedicated or shared
+  database_recovery_plan_ref: '' # DB-native selective recovery mandatory for shared DBs.
+  database_version: ''
+  schema_version: ''
+  app_image_digest: ''
+  chart_artifact_digest: ''
+  app_git_commit: ''
+  platform_git_commit: ''
+  enrollment_git_commit: ''
+  flux_suspend_plan_ref: ''
+  operator_suspend_plan_ref: ''
+  reconciliation_resume_plan_ref: ''
+  restore_backup_name: '' # A verified Completed backup with completed DataUploads.
+  restore_target_namespace: '' # Isolated, explicitly approved target, never in-place.
+  approved_restore_namespaces: []
+  restore_capacity_review_ref: '' # Includes quota, temporary volumes, DB and snapshot space.
+  restore_validation_plan_ref: '' # App login/read/write and DB/schema consistency, then cutover.
+  local:
+    dedicated_service_review_ref: '' # Separate from GitLab Garage, no shared keys/buckets.
+    directory_review_ref: '' # Bounded path outside all Longhorn replica/metadata paths.
+    quota_maintenance_review_ref: '' # Current mount is noquota; no changes in this source.
+    enforced_quota_bytes: 0
+    longhorn_reserve_review_ref: ''
+    reconciled_backup_budget_bytes: 0
+    snapshot_restore_headroom_bytes: 0
+    node_affinity_review_ref: '' # Static local PV, worker-2 affinity and Retain.
+  aws:
+    storage_snapshot_mapping_ref: '' # EBS class/zone/encryption and CSI snapshot mapping.
+    bucket_policy_review_ref: '' # Dedicated prefix, least privilege, TLS, no blanket Kopia expiry.
+    identity_kms_policy_review_ref: '' # Platform-only IAM/KMS access, no tenant credentials.

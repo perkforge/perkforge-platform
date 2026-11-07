@@ -1,0 +1,108 @@
+# REVIEW INPUT ONLY: deliberately no apiVersion/kind; kubectl cannot apply this.
+# References record operator review, not machine-verification of referenced evidence.
+status: disabled-review-only
+readiness: unverified
+recovery_fragments_acceptance: unverified
+recovery_path: completed-csi-data-movement-only-no-snapshot-fallback
+recovery_plan_included: {{ velero_review_recovery | to_json }}
+local_quota_maintenance_still_required: {{ (velero_environment == 'local') | to_json }}
+environment: {{ velero_environment }}
+package:
+  bigbang: 3.35.1
+  chart: 12.2.1-bb.0
+  upstream_chart: 12.2.1
+  velero: 1.18.4
+  aws_plugin: 1.14.4
+  kubernetes_1_36_5_acceptance: unverified
+profile:
+{{ selected.profile | to_nice_yaml(indent=2) | indent(2, true) }}
+# One implementation: deployment remains unselected/suspended in both environments.
+candidate_values:
+{{ (lookup('ansible.builtin.file', playbook_dir + '/candidate-values.yaml') | from_yaml) | to_nice_yaml(indent=2) | indent(2, true) }}
+# Intended activation inputs, not a deployed BSL, VSC or chart configuration.
+object_store:
+  provider: aws
+  endpoint: {{ velero_request.endpoint | to_json }}
+  region: {{ velero_request.region | to_json }}
+  bucket: {{ velero_request.bucket | to_json }}
+  prefix: {{ velero_request.prefix | to_json }}
+  tls_verify: true
+  path_style: {{ (velero_environment == 'local') | to_json }}
+  ca_bundle_ref: {{ velero_request.ca_bundle_ref | to_json }}
+  identity_mode: {{ velero_request.identity_mode | to_json }}
+  identity_ref: {{ velero_request.identity_ref | to_json }}
+  kms_key_ref: {{ velero_request.kms_key_ref | to_json }}
+  access: platform-operators-only
+storage_mapping:
+  driver: {{ selected.profile.csi_driver }}
+  source_class: {{ velero_request.source_storage_class | to_json }}
+  restore_class: {{ velero_request.restore_storage_class | to_json }}
+  snapshot_class: {{ velero_request.snapshot_class | to_json }}
+  snapshot_class_owner: platform-foundation
+  snapshot_move_data: true
+  uploader: kopia
+{% if velero_review_recovery %}
+# Spec fragments only. No Backup/Restore object is emitted by preparation.
+backup_annotations:
+  velero.io/csi-volumesnapshot-class_{{ selected.profile.csi_driver }}: {{ velero_request.snapshot_class | to_json }}
+backup_spec:
+  storageLocation: {{ velero_request.backup_storage_location | to_json }}
+  includedNamespaces: {{ velero_request.selected_namespaces | to_json }}
+  includeClusterResources: false
+  excludedResources:
+    - backups.velero.io
+    - restores.velero.io
+    - schedules.velero.io
+    - helmreleases.helm.toolkit.fluxcd.io
+    - kustomizations.kustomize.toolkit.fluxcd.io
+    - gitrepositories.source.toolkit.fluxcd.io
+    - roles.rbac.authorization.k8s.io
+    - rolebindings.rbac.authorization.k8s.io
+    - serviceaccounts
+  snapshotVolumes: true
+  snapshotMoveData: true
+  defaultVolumesToFsBackup: false
+  ttl: '{{ selected.profile.retention_hours }}h0m0s'
+  hooks:
+    resources:
+{{ velero_request.backup_hooks | to_nice_yaml(indent=2) | indent(6, true) }}
+schedule_spec:
+  paused: true
+  useOwnerReferencesInBackup: false
+  skipImmediately: true
+  schedule: {{ velero_request.schedule_cron | to_json }}
+  # A future reviewed Schedule uses backup_spec above as template.
+restore_spec:
+  backupName: {{ velero_request.restore_backup_name | to_json }}
+  includedNamespaces: {{ velero_request.selected_namespaces | to_json }}
+  namespaceMapping:
+    {{ velero_request.selected_namespaces[0] }}: {{ velero_request.restore_target_namespace }}
+  includeClusterResources: false
+  excludedResources:
+    - backups.velero.io
+    - restores.velero.io
+    - schedules.velero.io
+    - helmreleases.helm.toolkit.fluxcd.io
+    - kustomizations.kustomize.toolkit.fluxcd.io
+    - gitrepositories.source.toolkit.fluxcd.io
+    - roles.rbac.authorization.k8s.io
+    - rolebindings.rbac.authorization.k8s.io
+    - serviceaccounts
+  existingResourcePolicy: none
+  restorePVs: true
+  hooks:
+    resources:
+{{ velero_request.restore_hooks | to_nice_yaml(indent=2) | indent(6, true) }}
+recovery_identity:
+  app_image_digest: {{ velero_request.app_image_digest }}
+  chart_artifact_digest: {{ velero_request.chart_artifact_digest }}
+  app_git_commit: {{ velero_request.app_git_commit }}
+  platform_git_commit: {{ velero_request.platform_git_commit }}
+  enrollment_git_commit: {{ velero_request.enrollment_git_commit }}
+  database_scope: {{ velero_request.database_scope }}
+  database_version: {{ velero_request.database_version | to_json }}
+  schema_version: {{ velero_request.schema_version | to_json }}
+{% endif %}
+# The contract carries references only, not copied database or service credentials.
+reviewed_request:
+{{ velero_request | to_nice_yaml(indent=2) | indent(2, true) }}

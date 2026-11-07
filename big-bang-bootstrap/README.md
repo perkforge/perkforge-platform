@@ -41,3 +41,8 @@ tag as runtime input, prepare the paused seed and installer foundations, then
 separately approve seed resume. See [release and seed activation](configuration/ansible/README.md#longhorn-only-release-and-seed-activation).
 
 Flux installation requires the pinned Iron Bank image-pull credential. The supported bootstrap stages its namespace and separately gated Secret delivery before controllers; existing Secrets can be reused without a local credential file. See the protected-input and repeat procedure in [platform operations](configuration/ansible/README.md#repeatable-flux-registry-preparation).
+
+Disabled [Velero recovery preparation](configuration/packages/velero/README.md)
+shares local and future AWS profiles. It selects no package, schedule or live
+operation; copied-byte restore, compatibility, permissions and local quota
+maintenance remain separate acceptance gates.

@@ -1,0 +1,10 @@
+# Future profile, not a provisioned or accepted AWS target.
+profile:
+  retention_hours: 336
+  csi_driver: ebs.csi.aws.com
+  data_engine: ebs-csi
+  volume_filesystem: ext4
+  object_store: aws-s3
+  backing: durable-s3-bucket
+  off_worker_storage_intent: true
+  disaster_recovery_acceptance: unverified
