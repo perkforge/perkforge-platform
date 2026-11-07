@@ -1,0 +1,66 @@
+# Own-client role admins maps to /platform/admins through the fixed mapper prefix.
+- name: Refuse any foreign scope before creating a missing role
+  ansible.builtin.assert:
+    that:
+    - hb_surface.results[4].json | length == 1 or harbor_client_operation == 'prepare'
+    - hb_surface.results[4].json | length == 1 or hb_surface.results[3].json.clientMappings | default({}) | length == 0
+    - hb_surface.results[3].json.clientMappings | default({}) | length == 0 or (hb_surface.results[3].json.clientMappings.keys() | list == ['harbor'] and hb_surface.results[3].json.clientMappings.harbor.id == hb_id)
+- ansible.builtin.uri:
+    url: '{{ hb_api }}/clients/{{ hb_id }}/roles'
+    headers: '{{ hb_headers }}'
+    method: POST
+    body_format: json
+    body: {name: admins, description: harbor-sso-review-v1, composite: false}
+    status_code: 201
+  when: hb_surface.results[4].json | length == 0
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ hb_api }}/clients/{{ hb_id }}/roles?first=0&max=2&briefRepresentation=false'
+    headers: '{{ hb_headers }}'
+  register: hb_roles
+- ansible.builtin.assert:
+    that:
+    - hb_roles.json | length == 1
+    - hb_roles.json[0].name == 'admins'
+    - hb_roles.json[0].description == 'harbor-sso-review-v1'
+    - hb_roles.json[0].containerId == hb_id and hb_roles.json[0].clientRole
+    - not hb_roles.json[0].composite
+    - hb_roles.json[0].id is not search("[\\x00-\\x20\\x7f]")
+    - hb_roles.json[0].id is match('^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$')
+- ansible.builtin.set_fact:
+    hb_role: '{{ hb_roles.json[0] }}'
+- ansible.builtin.uri:
+    url: '{{ hb_api }}/roles-by-id/{{ hb_role.id }}/composites'
+    headers: '{{ hb_headers }}'
+  register: hb_composites
+- ansible.builtin.assert:
+    that: hb_composites.json | length == 0
+- ansible.builtin.uri:
+    url: '{{ hb_api }}/clients/{{ hb_id }}/roles/admins/{{ item }}?first=0&max=2&briefRepresentation=true'
+    headers: '{{ hb_headers }}'
+  loop: [users, groups]
+  register: hb_role_members
+- ansible.builtin.assert:
+    that:
+    - hb_role_members.results[0].json | length == 0
+    - hb_role_members.results[1].json | length <= 1
+    - hb_role_members.results[1].json | length == 0 or (hb_role_members.results[1].json[0].id == harbor_admin_group_uuid and hb_role_members.results[1].json[0].path == '/platform/admins')
+- ansible.builtin.assert:
+    that:
+    - hb_surface.results[3].json.clientMappings | default({}) | length == 1 or harbor_client_operation == 'prepare'
+    - hb_surface.results[3].json.clientMappings | default({}) | length == 0 or hb_surface.results[3].json.clientMappings.harbor.mappings | map(attribute='id') | list == [hb_role.id]
+- ansible.builtin.uri:
+    url: '{{ hb_api }}/clients/{{ hb_id }}/scope-mappings/clients/{{ hb_id }}'
+    headers: '{{ hb_headers }}'
+    method: POST
+    body_format: json
+    body: '{{ [hb_role] }}'
+    status_code: 204
+  when: hb_surface.results[3].json.clientMappings | default({}) | length == 0
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ hb_api }}/clients/{{ hb_id }}/scope-mappings/clients/{{ hb_id }}'
+    headers: '{{ hb_headers }}'
+  register: hb_scope_verified
+- ansible.builtin.assert:
+    that: hb_scope_verified.json | map(attribute='id') | list == [hb_role.id]

@@ -1,0 +1,35 @@
+# Exact existing group only; no group/member/realm-role mutations.
+- ansible.builtin.uri:
+    url: '{{ hb_api }}/groups/{{ harbor_admin_group_uuid }}'
+    headers: '{{ hb_headers }}'
+  register: hb_group
+- ansible.builtin.assert:
+    that:
+    - hb_group.json.id == harbor_admin_group_uuid
+    - hb_group.json.path == '/platform/admins' and hb_group.json.name == 'admins'
+- ansible.builtin.uri:
+    url: '{{ hb_api }}/groups/{{ harbor_admin_group_uuid }}/role-mappings/clients/{{ hb_id }}{{ item }}'
+    headers: '{{ hb_headers }}'
+  loop: ['', /composite]
+  register: hb_group_roles
+- ansible.builtin.assert:
+    that:
+    - hb_group_roles.results[0].json | map(attribute='id') | list == hb_group_roles.results[1].json | map(attribute='id') | list
+    - hb_group_roles.results[0].json | length <= 1
+    - hb_group_roles.results[0].json | length == 0 or hb_group_roles.results[0].json | map(attribute='id') | list == [hb_role.id]
+    - hb_group_roles.results[0].json | length == 1 or harbor_client_operation == 'grant-admin-group'
+- ansible.builtin.uri:
+    url: '{{ hb_api }}/groups/{{ harbor_admin_group_uuid }}/role-mappings/clients/{{ hb_id }}'
+    headers: '{{ hb_headers }}'
+    method: POST
+    body_format: json
+    body: '{{ [hb_role] }}'
+    status_code: 204
+  when: hb_group_roles.results[0].json | length == 0
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ hb_api }}/groups/{{ harbor_admin_group_uuid }}/role-mappings/clients/{{ hb_id }}/composite'
+    headers: '{{ hb_headers }}'
+  register: hb_group_verified
+- ansible.builtin.assert:
+    that: hb_group_verified.json | map(attribute='id') | list == [hb_role.id]
