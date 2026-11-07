@@ -1,0 +1,189 @@
+- name: Bind reviewed HTTPS targets before private access
+  ansible.builtin.assert:
+    that:
+    - harbor_native_origin is match('^https://[a-zA-Z0-9.-]+(:[0-9]+)?$')
+    - harbor_native_issuer is match('^https://[a-zA-Z0-9.-]+(:[0-9]+)?(/auth)?/realms/perkforge$')
+    - (harbor_native_origin | urlsplit('port')) is none or 1 <= (harbor_native_origin | urlsplit('port')) <= 65535
+    - (harbor_native_issuer | urlsplit('port')) is none or 1 <= (harbor_native_issuer | urlsplit('port')) <= 65535
+    - harbor_native_origin == harbor_native_approved_origin
+    - harbor_native_issuer == harbor_native_approved_issuer
+    - "'.invalid' not in harbor_native_origin | lower and '.invalid' not in harbor_native_issuer | lower"
+    - (harbor_native_origin | urlsplit('hostname')) != (harbor_native_issuer | urlsplit('hostname'))
+    - harbor_native_version is match('^v2\.15\.2(-[a-f0-9]+)?$')
+    - harbor_native_operation != 'apply' or harbor_native_apply_approved | bool
+    - not harbor_native_secret_write_approved | bool or harbor_native_operation == 'apply'
+- name: Inspect public CA input
+  ansible.builtin.stat:
+    path: '{{ harbor_native_ca_file }}'
+    follow: false
+  register: harbor_native_ca
+- ansible.builtin.assert:
+    that:
+    - harbor_native_ca.stat.isreg | default(false)
+    - not harbor_native_ca.stat.islnk | default(true)
+- name: Inspect protected file metadata without reading credentials
+  ansible.builtin.stat:
+    path: '{{ item }}'
+    follow: false
+    get_checksum: false
+    get_mime: false
+  loop: "{{ [harbor_native_admin_password_file] + ([harbor_native_client_secret_file] if harbor_native_secret_write_approved | bool else []) }}"
+  register: harbor_native_files
+  no_log: true
+- name: Require owner-only regular credential files
+  ansible.builtin.assert:
+    that:
+    - item.stat.isreg | default(false)
+    - not item.stat.islnk | default(true)
+    - item.stat.mode in ['0400', '0600']
+    - item.stat.pw_name == lookup('env', 'USER')
+    - item.stat.nlink == 1
+    - item.stat.size > 0
+  loop: '{{ harbor_native_files.results }}'
+  no_log: true
+- ansible.builtin.set_fact:
+    harbor_native_password: "{{ lookup('file', harbor_native_admin_password_file, rstrip=false) }}"
+    harbor_native_secret: "{{ lookup('file', harbor_native_client_secret_file, rstrip=false) if harbor_native_secret_write_approved | bool else '' }}"
+  no_log: true
+- name: Reject empty and multiline credentials
+  ansible.builtin.assert:
+    that:
+    - harbor_native_password | length > 0
+    - "'\n' not in harbor_native_password and '\r' not in harbor_native_password"
+    - not harbor_native_secret_write_approved | bool or harbor_native_secret | length > 0
+    - "'\n' not in harbor_native_secret and '\r' not in harbor_native_secret"
+  no_log: true
+- name: Bound verified native API calls
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ harbor_native_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      return_content: true
+      timeout: 30
+      status_code: 200
+  block:
+  - name: Verify exact endpoint and build before transmitting credentials
+    ansible.builtin.uri:
+      url: '{{ harbor_native_origin }}/api/v2.0/systeminfo'
+    register: harbor_native_info
+  - ansible.builtin.assert:
+      that:
+      - harbor_native_info.json.external_url == harbor_native_origin
+      - harbor_native_info.json.harbor_version == harbor_native_version
+  - name: Independently verify built-in local recovery
+    ansible.builtin.include_tasks: native-recovery.yaml
+  - ansible.builtin.uri:
+      url: '{{ harbor_native_origin }}/api/v2.0/configurations'
+      url_username: admin
+      url_password: '{{ harbor_native_password }}'
+      force_basic_auth: true
+    register: harbor_native_before
+    no_log: true
+  - name: Own only reviewed native settings
+    ansible.builtin.set_fact:
+      harbor_native_desired:
+        auth_mode: oidc_auth
+        oidc_name: Keycloak
+        oidc_endpoint: '{{ harbor_native_issuer }}'
+        oidc_client_id: harbor
+        oidc_scope: openid profile email
+        oidc_groups_claim: groups
+        oidc_admin_group: /platform/admins
+        oidc_group_filter: '^/platform/admins$'
+        oidc_verify_cert: true
+        oidc_auto_onboard: false
+        oidc_user_claim: ''
+        oidc_extra_redirect_parms: '{}'
+        oidc_logout: true
+        self_registration: false
+        project_creation_restriction: adminonly
+      harbor_native_delta: {}
+  - name: Refuse unsupported modes and unexpected secret exposure
+    ansible.builtin.assert:
+      that:
+      - harbor_native_before.json.auth_mode.value in ['db_auth', 'oidc_auth']
+      - "'oidc_client_secret' not in harbor_native_before.json"
+    no_log: true
+  - name: Refuse migration with any additional local user including promoted admins
+    when: harbor_native_before.json.auth_mode.value != 'oidc_auth'
+    block:
+    - ansible.builtin.uri:
+        url: '{{ harbor_native_origin }}/api/v2.0/users?page=1&page_size=100'
+        url_username: admin
+        url_password: '{{ harbor_native_password }}'
+        force_basic_auth: true
+      register: harbor_native_users
+      no_log: true
+    - ansible.builtin.assert:
+        that:
+        - harbor_native_before.json.auth_mode.editable == true
+        - harbor_native_users.x_total_count | int == 0
+        - harbor_native_users.json == []
+        - harbor_native_operation != 'apply' or harbor_native_secret_write_approved | bool
+      no_log: true
+  - name: Require schema and editable drift
+    ansible.builtin.assert:
+      that:
+      - item.key in harbor_native_before.json
+      - harbor_native_before.json[item.key].value == item.value or harbor_native_before.json[item.key].editable == true
+    loop: '{{ harbor_native_desired | dict2items }}'
+    no_log: true
+  - name: Build minimal delta preserving unrelated settings
+    ansible.builtin.set_fact:
+      harbor_native_delta: '{{ harbor_native_delta | combine({item.key: item.value}) }}'
+    when: harbor_native_before.json[item.key].value != item.value
+    loop: '{{ harbor_native_desired | dict2items }}'
+    no_log: true
+  - name: Include secret only with separate write approval
+    ansible.builtin.set_fact:
+      harbor_native_delta: "{{ harbor_native_delta | combine({'oidc_client_secret': harbor_native_secret}) }}"
+    when: harbor_native_secret_write_approved | bool
+    no_log: true
+  - name: Apply once without blind retry or rollback
+    ansible.builtin.uri:
+      url: '{{ harbor_native_origin }}/api/v2.0/configurations'
+      url_username: admin
+      url_password: '{{ harbor_native_password }}'
+      force_basic_auth: true
+      method: PUT
+      body_format: json
+      body: '{{ harbor_native_delta }}'
+    when: harbor_native_operation == 'apply' and harbor_native_delta | length > 0
+    changed_when: true
+    no_log: true
+  - ansible.builtin.uri:
+      url: '{{ harbor_native_origin }}/api/v2.0/configurations'
+      url_username: admin
+      url_password: '{{ harbor_native_password }}'
+      force_basic_auth: true
+    register: harbor_native_after
+    no_log: true
+  - name: Verify applied public values
+    ansible.builtin.assert:
+      that: harbor_native_after.json[item.key].value == item.value
+    loop: '{{ harbor_native_desired | dict2items }}'
+    when: harbor_native_operation == 'apply'
+    no_log: true
+  - name: Verify unrelated values are unchanged
+    ansible.builtin.assert:
+      that: harbor_native_after.json[item.key].value == item.value.value
+    loop: '{{ harbor_native_before.json | dict2items }}'
+    when: item.key not in harbor_native_desired
+    no_log: true
+  - ansible.builtin.assert:
+      that: "'oidc_client_secret' not in harbor_native_after.json"
+    no_log: true
+  - name: Independently reauthenticate recovery after native readback
+    ansible.builtin.include_tasks: native-recovery.yaml
+  - ansible.builtin.debug:
+      msg:
+        operation: '{{ harbor_native_operation }}'
+        changed_fields: '{{ harbor_native_delta.keys() | list | sort }}'
+        secret_equality: 'unverifiable: external API omits secrets; fresh OIDC login required'
+        recovery: built-in admin independently authenticated before and after
+        keycloak_client: unchanged; enable requires separate approval
+        admission: Group filters and manual onboarding do not deny unassigned users login.
+        post_logout_redirect: '{{ harbor_native_origin }}/account/sign-in'
