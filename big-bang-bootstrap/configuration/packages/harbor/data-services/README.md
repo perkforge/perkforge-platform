@@ -1,6 +1,6 @@
 # Harbor isolated data candidate
 
-Unselected public source, not a runnable deployment procedure. No cluster root
+Unselected public source; data and app activation are not wired yet. No cluster root
 includes these manifests or the watch patch; Valkey is suspended. Do not apply
 this directory directly or rerun the shared operator's original foundation.
 Harbor, its OIDC client, scanner and CI remain off.
@@ -64,6 +64,31 @@ never be committed, printed or placed in a public fixture cache. Offline renders
 use absent/synthetic Secrets only. PostgreSQL/Valkey certificates, password
 agreement and container trust loading remain unverified.
 
+## Guarded prerequisite procedure
+
+`configuration/ansible/harbor-prerequisites.yaml` defaults to no contact, including
+check mode. After explicit approval it creates only the eight authored namespace,
+installer and namespaced Role/binding objects. It never changes the operator,
+watch list, credentials, workloads, source selection or existing objects.
+
+- Requires a clean exact published-release checkout and matching release evidence.
+- Pins the API, cluster UID, protected kubeconfig and existing operator UID,
+  chart/image, service account, readiness and both retained namespace watches.
+- Validates every existing target before writing anything. Foreign ownership,
+  rule/subject drift, token mounting and terminating objects are refused.
+- Creates and reads back one missing object at a time. A failure or uncertain
+  response stops further writes; keep completed objects and inspect before retry.
+- A repeated approved invocation reuses exact owned objects, preserves their UIDs
+  and makes no changes. There is no patch, adoption, rotation or automatic cleanup.
+
+Use the existing `configuration/ansible/inventory.yaml` with an owner-only extra
+vars file containing the published release evidence/target inputs,
+`harbor_expected_api`, `harbor_expected_operator_uid`,
+`harbor_foundation_scope=harbor-data-foundation-v1` and
+`harbor_foundation_apply=true`. The scope string is a guard, not authorization.
+Keep the current accepted root selection; the procedure does not promote a root.
+Real authority acceptance and operator/data readiness are separate from fixtures.
+
 ## Cumulative capacity gate
 
 Read-only sample on 2026-11-07 at about 14:40 UTC: all three nodes and 15 releases
@@ -91,8 +116,8 @@ backup work without a separate reviewed decision.
 
 ## Remaining sequence and approvals
 
-1. Review/release this inactive source. Add a guarded, create-only prerequisite
-   procedure and private input/CA delivery with exact ownership/refusal tests.
+1. Review/release this inactive source and its guarded prerequisite procedure.
+   Complete private input/CA delivery before any data-stage activation.
 2. Approve the isolated data sizes/resources, Harbor-only CNPG access expansion,
    protected credentials/certificates and exact foundation objects. Then add a
    data-only root based on the latest accepted app stack, preserving all existing

@@ -73,8 +73,8 @@ restore. User owns any eventual temporary credential-cache migration.
 The [data candidate](data-services/README.md) now contains dedicated pinned
 PostgreSQL/Valkey manifests, bounded resource/storage proposals, namespace-only
 foundation, additive watch patch and native connection/placement values. It is
-unselected, Valkey remains paused, and no credential, apply procedure or cluster
-root was added. Read its remaining implementation and approval sequence.
+unselected and Valkey remains paused. The default-off create-only prerequisite
+procedure is separate; no credential or cluster root was added. Read its remaining implementation and approval sequence.
 
 ### Proposed operating boundary
 

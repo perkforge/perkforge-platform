@@ -3,6 +3,7 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: harbor
+  labels: {perkforge.io/owner: harbor-foundation-v1}
 ---
 apiVersion: v1
 kind: ServiceAccount
