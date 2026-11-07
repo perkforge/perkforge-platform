@@ -1,0 +1,33 @@
+- name: Guarded Harbor native OIDC operation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    harbor_native_operation: disabled
+    harbor_native_origin: https://harbor.UNCONFIGURED.invalid
+    harbor_native_approved_origin: UNAPPROVED
+    harbor_native_issuer: https://identity.UNCONFIGURED.invalid/auth/realms/perkforge
+    harbor_native_approved_issuer: UNAPPROVED
+    harbor_native_version: v2.15.2
+    harbor_native_apply_approved: false
+    harbor_native_secret_write_approved: false
+    harbor_native_admin_password_file: /UNCONFIGURED/admin-password
+    harbor_native_client_secret_file: /UNCONFIGURED/client-secret
+    harbor_native_ca_file: /UNCONFIGURED/public-ca.pem
+  tasks:
+  - ansible.builtin.assert:
+      that: harbor_native_operation in ['disabled', 'inspect', 'apply']
+  - ansible.builtin.debug:
+      msg: Default and check mode are offline; no API or protected input access.
+  - name: Bound transient native credentials to this operation
+    block:
+    - ansible.builtin.include_tasks: native-tasks.yaml
+    always:
+    - name: Clear transient native credentials even after failure
+      ansible.builtin.set_fact:
+        harbor_native_password: null
+        harbor_native_secret: null
+        harbor_native_delta: {}
+        cacheable: false
+      no_log: true
+    when: harbor_native_operation != 'disabled' and not ansible_check_mode

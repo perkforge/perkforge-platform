@@ -1,0 +1,12 @@
+# One object at a time: an ambiguous create/readback stops before further writes.
+- ansible.builtin.command:
+    argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', create, -f, '-']
+    stdin: '{{ harbor_creation.item | to_json }}'
+    stdin_add_newline: false
+  changed_when: true
+- ansible.builtin.command:
+    argv: "{{ ['kubectl','--kubeconfig',target_kubeconfig,'--context',target_context,'get',harbor_creation.item.kind,harbor_creation.item.metadata.name,'-o','json'] + (['-n',harbor_creation.item.metadata.namespace] if harbor_creation.item.metadata.namespace is defined else []) }}"
+  changed_when: false
+  register: harbor_created_object
+- ansible.builtin.assert:
+    that: harbor_created_object.stdout | from_json | harbor_foundation_matches(harbor_creation.item)

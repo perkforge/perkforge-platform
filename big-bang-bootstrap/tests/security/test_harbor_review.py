@@ -16,14 +16,14 @@ class HarborReview(unittest.TestCase):
   self.assertEqual(registry['spec']['storageClassName'],'longhorn-dedicated')
   self.assertEqual(registry['spec']['resources']['requests']['storage'],'10Gi')
  def test_all_rendered_crud_with_no_cluster_or_bind_authority(self):
-  rules=next(x for x in self.foundation if x['kind']=='Role')['rules'];mapping={'Secret':('','secrets'),'ConfigMap':('','configmaps'),'Service':('','services'),'PersistentVolumeClaim':('','persistentvolumeclaims'),'Deployment':('apps','deployments')}
+  rules=next(x for x in self.foundation if x['kind']=='Role' and x['metadata']['name']=='harbor-installer')['rules'];mapping={'Secret':('','secrets'),'ConfigMap':('','configmaps'),'Service':('','services'),'PersistentVolumeClaim':('','persistentvolumeclaims'),'Deployment':('apps','deployments')}
   for x in self.objects:
    group,res=mapping[x['kind']]
    for verb in ['get','list','watch','create','update','patch','delete']:self.assertTrue(any(group in r['apiGroups'] and res in r['resources'] and verb in r['verbs'] for r in rules))
   self.assertFalse(any(x['kind'] in ['ClusterRole','ClusterRoleBinding'] for x in self.foundation));self.assertFalse(any('bind' in x['verbs'] or 'escalate' in x['verbs'] for x in rules))
  def test_real_initial_and_upgrade_lookups_without_secret_output(self):
   from fixtures.lookup_server import lookup_server
-  src=Path(os.environ['PREFLIGHT_SOURCES_DIR']);root=build(ROOT/'clusters/local');parent=next(x for x in root if x['kind']=='HelmRelease');outer=helm(src/'bigbang/chart','bigbang','bigbang',ordered_values(root,parent)+[(ROOT/'configuration/packages/harbor/candidate-values.yaml').read_text()],('--set','addons.harbor.enabled=true'));role=next(x for x in self.foundation if x['kind']=='Role')
+  src=Path(os.environ['PREFLIGHT_SOURCES_DIR']);root=build(ROOT/'clusters/local');parent=next(x for x in root if x['kind']=='HelmRelease');outer=helm(src/'bigbang/chart','bigbang','bigbang',ordered_values(root,parent)+[(ROOT/'configuration/packages/harbor/candidate-values.yaml').read_text()],('--set','addons.harbor.enabled=true'));role=next(x for x in self.foundation if x['kind']=='Role' and x['metadata']['name']=='harbor-installer')
   for upgrade in [False,True]:
    with tempfile.TemporaryDirectory() as d,lookup_server(role,secrets={}) as (url,requests):
     p=Path(d);k=p/'kubeconfig';k.write_text(yaml.safe_dump({'apiVersion':'v1','kind':'Config','clusters':[{'name':'synthetic','cluster':{'server':url}}],'users':[{'name':'synthetic','user':{}}],'contexts':[{'name':'synthetic','context':{'cluster':'synthetic','user':'synthetic'}}],'current-context':'synthetic'}));args=[]

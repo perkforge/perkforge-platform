@@ -8,7 +8,8 @@ class QueuedSSO(unittest.TestCase):
   self.assertTrue(files)
   for p in files:
    with self.subTest(file=p.name):
-    d=yaml.safe_load(p.read_text());self.assertFalse(d['enabled']);self.assertTrue(d['review_only']);self.assertFalse(d['live_apply_implemented'])
+    d=yaml.safe_load(p.read_text());self.assertFalse(d['enabled']);self.assertTrue(d['review_only']);self.assertEqual(d['live_apply_implemented'], d.get('application') == 'harbor')
+    if d.get('application') == 'harbor': self.assertEqual(d['guarded_adapter'], '../../authorization/sso/harbor/README.md')
     self.assertTrue(d['recovery']['independent_local_access']);self.assertTrue(d['acceptance']['positive']);self.assertTrue(d['acceptance']['negative']);self.assertTrue(d['acceptance']['rollback'])
     self.assertIn(d['protocol'],['oidc','saml','kubernetes-rbac','machine-only'])
     if d['protocol'] in ['oidc','saml']:

@@ -1,0 +1,55 @@
+# Unselected and suspended. Helm history stays inside Harbor, not shared bigbang Secrets.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: harbor-valkey
+  namespace: bigbang
+spec:
+  interval: 1h
+  url: https://valkey.io/valkey-helm/
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: harbor-valkey
+  namespace: bigbang
+spec:
+  interval: 10m
+  suspend: true
+  releaseName: harbor-valkey
+  targetNamespace: harbor
+  storageNamespace: harbor
+  serviceAccountName: harbor-data-installer
+  chart:
+    spec:
+      chart: valkey
+      version: 0.12.1
+      sourceRef:
+        kind: HelmRepository
+        name: harbor-valkey
+        namespace: bigbang
+  valuesFrom:
+  - kind: ConfigMap
+    name: values-harbor-valkey
+    valuesKey: values.yaml
+  # Preserve explicit null in Helm's desired manifest so upgrading an API-defaulted
+  # RollingUpdate Deployment to Recreate clears the forbidden old strategy fields.
+  postRenderers:
+  - kustomize:
+      patches:
+      - target:
+          kind: Deployment
+          name: harbor-valkey
+        patch: "- op: add\n  path: /spec/strategy/rollingUpdate\n  value: null\n"
+  install:
+    createNamespace: false
+    crds: Skip
+    remediation:
+      retries: 0
+  upgrade:
+    crds: Skip
+    remediation:
+      retries: 0
+  test: {enable: false}
+  uninstall:
+    keepHistory: true

@@ -1,7 +1,8 @@
 # Public API proposal only; no API operation or Secret values.
 enabled: false
 review_only: true
-live_apply_implemented: false
+live_apply_implemented: true
+guarded_adapter: ../../authorization/sso/harbor/README.md
 protocol: oidc
 application: harbor
 keycloak:
@@ -12,7 +13,7 @@ keycloak:
   full_scope_allowed: false
   redirect_uri: https://harbor.UNCONFIGURED.invalid/c/oidc/callback
   claim: groups
-  claim_location: ID token; bounded app-specific claims, not every realm group
+  claim_location: ID token; own-client admins role with /platform/ prefix, not realm groups
 native_configuration:
   auth_mode: oidc_auth
   oidc_name: Keycloak
@@ -23,6 +24,8 @@ native_configuration:
   oidc_admin_group: /platform/admins
   oidc_verify_cert: true
   oidc_auto_onboard: false
+  oidc_logout: true
+  oidc_group_filter: ^/platform/admins$
   project_creation_restriction: adminonly
   self_registration: false
 credential_ref: protected external oidc_client_secret; do not embed in values/config
@@ -51,6 +54,8 @@ recovery:
     mode
 activation_gates:
 - separate reviewed client/app apply wiring
+- exact disabled client UUID and platform-admin group UUID, no tenant grants
+- explicit per-operation approval and independent local admin recovery
 - verify exact native version/schema and no local non-admin users
 - protected client secret and issuer trust
 - project membership/offboarding and unmatched-user behavior reviewed

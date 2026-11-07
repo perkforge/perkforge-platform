@@ -1,0 +1,47 @@
+#!/bin/bash
+# Rendered only by the explicitly approved local Ansible preparation operation.
+set -euo pipefail
+umask 077
+# Exclusive mkdir refuses partial/reused bundles even if this script is rerun.
+mkdir -m 0700 signer delivery
+mkdir -m 0700 delivery/internal
+# This key is LOCAL ONLY. It is not a cluster CA and must never enter a Secret.
+openssl req -x509 -newkey rsa:3072 -nodes -sha256 -days 3650 \
+  -subj '/O=PerkForge Harbor Internal/CN=Harbor Dedicated Internal CA' \
+  -addext 'basicConstraints=critical,CA:TRUE,pathlen:0' \
+  -addext 'keyUsage=critical,keyCertSign,cRLSign' \
+  -keyout signer/ca.key -out delivery/internal/ca.crt
+openssl verify -CAfile delivery/internal/ca.crt delivery/internal/ca.crt
+for service in harbor-core harbor-portal harbor-jobservice harbor-registry harbor-valkey; do
+  directory="delivery/internal/$service"
+  mkdir -m 0700 "$directory"
+  openssl req -new -newkey rsa:3072 -nodes -sha256 \
+    -subj "/O=PerkForge Harbor Internal/CN=$service" \
+    -keyout "$directory/tls.key" -out "$directory/request.csr"
+  cat > "$directory/extensions.cnf" <<EXT
+basicConstraints=critical,CA:FALSE
+keyUsage=critical,digitalSignature,keyEncipherment
+extendedKeyUsage=serverAuth
+subjectAltName=DNS:$service,DNS:$service.harbor.svc,DNS:$service.harbor.svc.cluster.local
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid,issuer
+EXT
+  openssl x509 -req -in "$directory/request.csr" \
+    -CA delivery/internal/ca.crt -CAkey signer/ca.key \
+    -set_serial "0x$(openssl rand -hex 16)" -days 365 -sha256 \
+    -extfile "$directory/extensions.cnf" -out "$directory/tls.crt"
+  for hostname in "$service" "$service.harbor.svc" "$service.harbor.svc.cluster.local"; do
+    openssl verify -x509_strict -CAfile delivery/internal/ca.crt \
+      -purpose sslserver -verify_hostname "$hostname" "$directory/tls.crt"
+  done
+  # Check the complete SAN set, not merely one acceptable matching name.
+  actual_sans=$(openssl x509 -in "$directory/tls.crt" -noout -ext subjectAltName | tail -n +2 | tr -d '[:space:]')
+  test "$actual_sans" = "DNS:$service,DNS:$service.harbor.svc,DNS:$service.harbor.svc.cluster.local"
+  openssl pkey -in "$directory/tls.key" -pubout -out "$directory/key.public"
+  openssl x509 -in "$directory/tls.crt" -pubkey -noout > "$directory/cert.public"
+  cmp "$directory/key.public" "$directory/cert.public"
+  openssl x509 -in "$directory/tls.crt" -checkend 31449600 -noout
+  rm "$directory/request.csr" "$directory/extensions.cnf" "$directory/key.public" "$directory/cert.public"
+done
+# Written only after all five identities pass validation. Do not deliver signer/.
+printf '%s\n' 'harbor-internal-transport-issuance-v1' > READY

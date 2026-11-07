@@ -1,0 +1,20 @@
+# Owner-admin prerequisite for only Harbor transport/network source reconciliation.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: harbor-application-gitops
+  namespace: harbor
+  labels: {perkforge.io/owner: harbor-data-foundation-v1}
+rules:
+- apiGroups: [traefik.io]
+  resources: [serverstransports]
+  verbs: [get, list, watch, create, update, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: harbor-application-gitops
+  namespace: harbor
+  labels: {perkforge.io/owner: harbor-data-foundation-v1}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: harbor-application-gitops}
+subjects: [{kind: ServiceAccount, name: platform-reconciler, namespace: flux-system}]

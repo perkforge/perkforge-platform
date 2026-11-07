@@ -1,14 +1,18 @@
-# Inactive candidate; Helm readiness observations are read-only.
+# Owner-admin prerequisite only; app installer has no cluster authority.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: harbor
+  labels:
+    perkforge.io/owner: harbor-foundation-v1
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: harbor-installer
   namespace: bigbang
+  labels:
+    perkforge.io/owner: harbor-data-foundation-v1
 automountServiceAccountToken: false
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -16,6 +20,8 @@ kind: Role
 metadata:
   name: harbor-installer
   namespace: harbor
+  labels:
+    perkforge.io/owner: harbor-data-foundation-v1
 rules:
 - apiGroups:
   - ''
@@ -72,12 +78,26 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: harbor-installer
   namespace: harbor
+  labels:
+    perkforge.io/owner: harbor-data-foundation-v1
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role

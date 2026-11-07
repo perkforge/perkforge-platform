@@ -1,0 +1,16 @@
+# Existing Traefik CRD; only Harbor backend identity/CA references, no controller edits.
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata: {name: harbor-core-transport, namespace: harbor}
+spec:
+  serverName: harbor-core
+  insecureSkipVerify: false
+  rootCAs: [{secret: harbor-internal-ca}]
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata: {name: harbor-portal-transport, namespace: harbor}
+spec:
+  serverName: harbor-portal
+  insecureSkipVerify: false
+  rootCAs: [{secret: harbor-internal-ca}]
