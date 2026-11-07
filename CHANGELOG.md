@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.3](https://github.com/perkforge/perkforge-platform/compare/v0.29.2...v0.29.3) (2026-11-07)
+
+
+### Bug Fixes
+
+* **harbor:** authenticate native system identity verification ([#263](https://github.com/perkforge/perkforge-platform/issues/263)) ([c476fd3](https://github.com/perkforge/perkforge-platform/commit/c476fd322c3a6612457cb307b12a528a3353f227))
+
 ## [0.29.2](https://github.com/perkforge/perkforge-platform/compare/v0.29.1...v0.29.2) (2026-11-07)
 
 
