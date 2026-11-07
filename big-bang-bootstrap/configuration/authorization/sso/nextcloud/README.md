@@ -6,8 +6,9 @@ with external `nextcloud_sso_origin`, `nextcloud_sso_issuer` and fresh absolute
 `nextcloud_sso_output` writes inert review files only. Existing files cause refusal;
 interrupted output is preserved. No credentials are read, no client/user/role is
 created and no existing app payload changes. The preparation entrypoint does not activate; the separate lifecycle requires operation-specific approval. The dedicated client is disabled, uses code/S256,
-exact index.php callback, one own-client audience, basic subject scope and a
-client-role mapper restricted to `nextcloud_roles`. It has no role grants, broad
+one exact explicitly selected callback, one own-client audience, basic subject scope and a
+client-role mapper restricted to `nextcloud_roles`, and an ID-token-only full-name
+claim. The name is a display label, never the immutable account identifier. It has no role grants, broad
 membership mapper, implicit/password/service-account flow or cross-app claims.
 The existing realm-admin coexistence allowlist remains unchanged: this lifecycle
 uses only direct subject grants and does not add platform-admin group bindings.
@@ -68,6 +69,23 @@ resources cause refusal, not automatic repair. Other applications are untouched.
   grants and changes only those own-client direct roles. It creates no users.
 - activate requires native-ready and `own-client-role-jit-v1` approval, exact
   reviewed role recipients and zero group grants before enabling only this client.
+- callback, with `nextcloud-client-callback-v1` approval and explicit pretty-route
+  input, replaces only the sole same-origin `/index.php/apps/user_oidc/code` URI
+  with the sole `/apps/user_oidc/code` URI. It also accepts an already-correct URI
+  without writing. Unknown, foreign, multiple and wildcard URIs are refused. The
+  entire client record is compared afterward, excluding only the intended redirect
+  change. It tolerates only the known legacy missing name mapper/logout attribute
+  so this correction can precede those separate upgrades; it does not add them.
+- display-name, with `nextcloud-client-display-name-v1` approval, upgrades only an
+  exact legacy two-mapper client by adding `nextcloud-display-name`. It emits `name`
+  in the ID token only, not access tokens, userinfo or introspection. It changes no
+  scopes, redirects, grants or users and is idempotent after the exact third mapper
+  exists. Unknown/mismatched mappers still cause refusal. Select the already reviewed
+  exact callback in the operator inputs; this operation never repairs callback drift.
+- logout-redirect, with `nextcloud-client-logout-redirect-v1` approval, adds only
+  the exact app origin plus `/` when the post-logout attribute is absent. Existing
+  different/wildcard/multiple destinations are refused. It verifies the complete
+  client record is otherwise unchanged; no session is logged out by this operation.
 - inspect verifies ownership, settings, scopes, mappers and roles without mutation.
 - rollback disables only this client, preserving users/roles/data and other apps.
 
@@ -124,7 +142,10 @@ Keycloak role-member/group and scope endpoints follow the
 Use `operator.example.yaml` only as an external input template; every run flag
 and approval remains off/unapproved. Native routing can select only one exact
 indexed or pretty callback path, and the app verifies its generated callback
-against that selection before activation. Never register both as a convenience.
+against that selection before activation. Never register both as a convenience. The physical operator example selects
+`/apps/user_oidc/code`, verified from the browser-facing redirect; the generic
+indexed default is not evidence for this install. Keep client/native inputs equal
+and rerun the browser verifier before activation.
 
 ## Confirmed people and retained recovery
 
@@ -143,3 +164,19 @@ created as part of recording this target. A later separately approved test must
 prove ordinary access and denied admin operations. The current local admin stays
 unchanged as recovery. Existing offline owner/household tests are synthetic and
 are not live evidence for Corey or Jett.
+
+The native provider must map its display name to `name` while retaining `sub` and
+unique UID mapping. Existing accounts receive the readable name on their next SSO
+login. Do not add broad profile/email scopes or rename/link an account to change its
+label. Source changes do not apply the migration; both client and native stages
+need their own explicit approval and verified recovery.
+
+For legacy clients missing both additions, explicitly approve and run `display-name`
+first, then `logout-redirect`. Only the named migration operations tolerate the absent
+logout attribute; normal operations require the complete reviewed contract. Never
+use `+`, `*` or multiple allowed logout destinations.
+
+If correcting the known indexed-to-pretty physical callback, run the independently
+approved `callback` operation first with `nextcloud_sso_callback_path=/apps/user_oidc/code`,
+then the separately approved name/logout operations as needed. No operation selects
+or repairs arbitrary routing; verify the actual browser-facing callback in app Git.
