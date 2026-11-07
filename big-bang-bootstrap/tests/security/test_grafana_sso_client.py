@@ -10,6 +10,7 @@ import tempfile
 import threading
 import unittest
 from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
 import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -26,7 +27,7 @@ class GrafanaClient(unittest.TestCase):
                         '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost',
                         '-keyout', str(self.d / 'key'), '-out', str(self.d / 'ca')],
                        check=True, capture_output=True)
-        self.s = dict(client=None, calls=[], writes=[], roles=[], scope={}, optional=[],
+        self.s = dict(client=None, calls=[], writes=[], toggle_bodies=[], roles=[], scope={}, optional=[],
                       scope_roles=[], users={}, members={}, inherited={}, groups=[], extra_members=[], lost_role=False, lost_enable=False, scopes=['basic', 'profile', 'email'], lost_create=False, secret='fixture-existing-client-secret')
         self.s['mappers'] = yaml.safe_load((SSO / 'client-scopes.yaml').read_text())['sso_expected_client_scopes']
         s = self.s
@@ -110,8 +111,14 @@ class GrafanaClient(unittest.TestCase):
                     return self.reply(204)
                 if self.command == 'PUT' and p == '/clients/gf-id':
                     data = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
-                    if set(data) != {'enabled'}:
+                    if set(data) not in ({'enabled'}, {'enabled','webOrigins'}):
                         return self.reply(400, {})
+                    s['toggle_bodies'].append(copy.deepcopy(data))
+                    # Keycloak 26.8.1 RepresentationToModel: omitted empty origins
+                    # are defaulted from redirect URI origins during an update.
+                    if 'webOrigins' not in data and not s['client']['webOrigins']:
+                        s['client']['webOrigins'] = sorted({urlsplit(u).scheme + '://' + urlsplit(u).netloc
+                                                           for u in s['client']['redirectUris']})
                     s['client'].update(data)
                     return self.reply(503 if s['lost_enable'] else 204)
                 return self.reply(405, {})
@@ -296,6 +303,7 @@ class GrafanaActivation(unittest.TestCase):
         self.assertEqual(self.s['writes'], [('POST',f'/users/{self.admin}/role-mappings/clients/gf-id'),
                                           ('PUT','/clients/gf-id'),('PUT','/clients/gf-id')])
         self.assertNotIn(('GET','/clients/gf-id/client-secret'), self.s['calls'])
+        self.assertEqual(self.s['toggle_bodies'], [{'enabled':True,'webOrigins':[]}, {'enabled':False,'webOrigins':[]}])
 
     def test_unreviewed_or_inherited_grants_block_before_writes(self):
         self.configured()
@@ -348,3 +356,26 @@ class GrafanaActivation(unittest.TestCase):
         self.run_play('rollback', success=False)
         self.assertTrue(self.s['client']['enabled'])
         self.assertEqual(self.s['writes'], [])
+
+    def test_omitted_web_origins_control_reproduces_keycloak_default(self):
+        self.configured()
+        context = ssl.create_default_context(cafile=str(self.d / 'ca'))
+        req = Request(f'https://localhost:{self.server.server_port}/auth/admin/realms/perkforge/clients/gf-id',
+                      data=json.dumps({'enabled':True}).encode(), method='PUT',
+                      headers={'Authorization':'Bearer fixture-operator-token','Content-Type':'application/json'})
+        with urlopen(req,context=context) as response:
+            self.assertEqual(response.status,204)
+        self.assertEqual(self.s['client']['webOrigins'], ['https://grafana.example.test'])
+        self.s['writes'].clear()
+        self.run_play('rollback',success=False)
+        self.assertEqual(self.s['writes'],[])
+
+    def test_origin_drift_not_adopted_before_either_toggle(self):
+        self.configured()
+        self.s['members'][self.admin]=[self.role]
+        for origins in [['https://grafana.example.test'],['https://foreign.test'],['*'],['https://grafana.example.test','https://foreign.test']]:
+            for op,enabled in [('activate',False),('rollback',True)]:
+                self.s['client']['enabled']=enabled
+                self.s['client']['webOrigins']=origins
+                self.run_play(op,extra=self.policy,success=False)
+        self.assertEqual(self.s['writes'],[])

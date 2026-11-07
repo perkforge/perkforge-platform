@@ -142,7 +142,7 @@
     headers: '{{ gf_headers }}'
     method: PUT
     body_format: json
-    body: {enabled: '{{ grafana_client_operation == "activate" }}'}
+    body: {enabled: '{{ grafana_client_operation == "activate" }}', webOrigins: []}
     status_code: 204
   when: grafana_client_operation in ['activate','rollback'] and gf_current.json.enabled != (grafana_client_operation == 'activate')
   changed_when: true
