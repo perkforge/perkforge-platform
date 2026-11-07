@@ -1,5 +1,6 @@
 # Optional small-lab availability tradeoff, never root-selected or enabled here.
-# Preserve vendor requests; two Puma workers exceeded the inherited 3G cap.
+# Preserve other vendor requests; reduce the rarely used home-lab Toolbox reservation.
+# Two Puma workers exceeded the inherited 3G cap.
 # GitLab recommends 4G for two workers: https://docs.gitlab.com/charts/charts/gitlab/webservice/#memory-requestslimits
 addons:
   gitlab:
@@ -13,6 +14,9 @@ addons:
             maxReplicas: 1
             resources:
               limits: {memory: 4G}
+          toolbox:
+            resources:
+              requests: {cpu: "1"}
           gitlab-shell: {minReplicas: 1, maxReplicas: 1}
           sidekiq: {minReplicas: 1, maxReplicas: 1}
           # Longhorn mounts require a registered CSI driver on the consumer node.

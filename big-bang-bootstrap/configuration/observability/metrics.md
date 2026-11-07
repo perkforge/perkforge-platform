@@ -34,6 +34,47 @@ architecture gaps superseded here only where explicitly implemented below.
   writes. Namespace-only trusted traffic and exact operator webhook sources are
   permitted; policies do not claim to constrain host-network node exporters.
 
+## Umbrella ownership and bootstrap boundary
+
+The pinned Big Bang Grafana template otherwise looks up the existing admin Secret
+and copies it into a Flux notification credential before any post-renderer runs.
+The source keeps that reference in the child's native HelmRelease `spec.values`
+(via the package Flux overrides), which Flux merges after `valuesFrom`. The
+umbrella-facing admin reference and fallback fields are empty. No admin Secret
+read or credential copy is needed by the umbrella identity.
+
+The umbrella post-renderer omits only `monitoring`'s `grafana` Alert/Provider,
+`grafana-flux-auth` Secret and `flux-grafana-dashboards` ConfigMap. Notifications
+remain unarmed. The 37 native Grafana ConfigMaps belong to its existing scoped
+installer; the six foundation dashboards remain Ansible-owned. No dashboard API
+provisioner or cross-namespace umbrella grant is added. The synthetic-loopback
+regression runs the real pinned Helm lookup under the unchanged umbrella Role,
+including installed monitoring APIs; it reproduces the old forbidden Secret GET
+and proves the corrected path performs none. Default/current roots and existing
+app manifests remain unchanged. This is offline evidence, not live acceptance.
+
+## Existing registry credential references
+
+The Monitoring and Grafana package-local `values.global.imagePullSecrets` lists
+explicitly reference the existing immutable `monitoring/private-registry` Secret.
+Big Bang's credential helpers emit empty reference lists when registry credentials
+are deliberately absent from Git values. Those lists override package defaults;
+Helm propagates the package global into its dependencies. Secret presence alone
+therefore does not prove any workload can use it.
+
+The pinned limited roots now bind that reference on operator/state-metrics/node
+exporter Pods, the Prometheus CR, admission Jobs and the Grafana Pod. The operator
+propagates the CR reference to its generated Prometheus/reloader StatefulSet.
+No credential values, Secret creation/copy/rotation, registry substitution or new
+RBAC are involved. Existing Secret identity/ownership remains an external input.
+Exact legacy/fixed renders and the native operator generator enforce this contract.
+Actual authenticated pulls and recovery still need separately approved live checks.
+
+The broader non-limited roots also render a blackbox exporter with a separate
+pull-secret input. It is unchanged here and still has an empty effective reference;
+those roots are not accepted for activation. The limited roots explicitly defer
+that exporter and its app probes.
+
 ## Who gets authority
 
 The reviewed Ansible actor applies grants; helm-controller impersonates three
@@ -45,6 +86,24 @@ across namespaces; kube-state-metrics also receives upstream Secret list/watch.
 Those are real sensitive permissions even if exported metrics use metadata.
 They require explicit live approval; do not market them as harmless read-only UI.
 Grafana human admin, runtime sidecar and installer identities remain separate.
+
+The native monitoring chart also emits five metric Services in `kube-system`:
+CoreDNS, controller manager, etcd, kube-proxy and scheduler. The installer needs
+an explicit Service-only Role there; its monitoring-namespace Role cannot cover
+these objects. Creation cannot be name-restricted by Kubernetes, so this remains
+trusted installer access. Read/watch/mutate/delete rights are limited to the five
+exact generated names. Existing DNS/control Services, Secrets, Pods and ConfigMaps
+receive no additional permission. The namespace itself is not relabeled or owned
+by this foundation. The binding targets only `bigbang:monitoring-installer`.
+
+The offline grant audit now follows actual RoleBindings and target namespaces,
+rather than incorrectly treating every namespaced object as a monitoring object.
+Live preflight must still verify authorization. A permitted Service is not proof
+that its target is reachable: the observed RKE2 controller-manager and scheduler
+metrics bind to loopback. Their endpoint/exposure plan requires separate review;
+this Role does not change host bind addresses, firewall, TLS, or running system
+components. Do not proceed through a failed scrape check or relax controls to
+make it pass.
 
 ## Remaining activation gates
 
@@ -139,3 +198,21 @@ turns any tenant admin into server/org admin in every membership. Per-tenant nat
 mapping/apply and lifecycle/revocation wiring are not implemented by this overlay.
 Test fresh MFA and native roles/denials, independent recovery, stale sessions,
 rollback and per-app resources before activation. No new public endpoint is exposed.
+
+The [endpoint and approval plan](metrics-endpoint-plan.md) records the exact new
+Service delegation, existing runtime identities, transport findings and unselected
+limited-scrape alternative. No host maintenance is included or authorized by #208.
+
+The optional [lab Grafana HTTPS UI](grafana-ui/README.md) has a separate root
+and explicit DNS/TLS/network/access preparation. Existing pilot roots do not
+select it; publication or healthy Pods alone does not expose a UI.
+
+Grafana's pinned wrapper defaults to a historical automatic migration for
+pre-9.3.1-bb.2 installs. This platform starts at 13.2.4-bb.0, so package-local
+`autoRollingUpgrade.enabled=false` disables only that obsolete lookup/deployment-
+deletion hook. It does not disable normal Helm upgrades or Flux reconciliation.
+Do not grant the installer cross-namespace HelmRelease access to satisfy this
+unused migration. Regression coverage exercises actual `--is-upgrade` rendering
+against a loopback API with the unchanged installer bounds, plus current/old
+history calibration and selected-root manifest preservation. Install-only
+rendering cannot expose the upgrade-only lookup.

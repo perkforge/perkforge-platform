@@ -1,0 +1,59 @@
+{
+  "clientId": "nextcloud",
+  "enabled": false,
+  "protocol": "openid-connect",
+  "publicClient": false,
+  "clientAuthenticatorType": "client-secret",
+  "standardFlowEnabled": true,
+  "implicitFlowEnabled": false,
+  "directAccessGrantsEnabled": false,
+  "serviceAccountsEnabled": false,
+  "fullScopeAllowed": false,
+  "defaultClientScopes": [
+    "basic"
+  ],
+  "optionalClientScopes": [],
+  "redirectUris": [
+    "https://nextcloud.example.invalid/index.php/apps/user_oidc/code"
+  ],
+  "webOrigins": [],
+  "attributes": {
+    "perkforge-managed": "true",
+    "perkforge-purpose": "nextcloud-sso-review-v1",
+    "pkce.code.challenge.method": "S256",
+    "oauth2.device.authorization.grant.enabled": "false",
+    "oidc.ciba.grant.enabled": "false",
+    "standard.token.exchange.enabled": "false",
+    "token.exchange.grant.enabled": "false"
+  },
+  "protocolMappers": [
+    {
+      "name": "nextcloud-audience",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-audience-mapper",
+      "config": {
+        "included.client.audience": "nextcloud",
+        "id.token.claim": "true",
+        "access.token.claim": "false",
+        "userinfo.token.claim": "false",
+        "introspection.token.claim": "false"
+      }
+    },
+    {
+      "name": "nextcloud-own-roles",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-client-role-mapper",
+      "config": {
+        "usermodel.clientRoleMapping.clientId": "nextcloud",
+        "claim.name": "nextcloud_roles",
+        "jsonType.label": "String",
+        "multivalued": "true",
+        "id.token.claim": "true",
+        "access.token.claim": "false",
+        "userinfo.token.claim": "false",
+        "usermodel.clientRoleMapping.rolePrefix": "",
+        "introspection.token.claim": "false"
+      }
+    }
+  ]
+}

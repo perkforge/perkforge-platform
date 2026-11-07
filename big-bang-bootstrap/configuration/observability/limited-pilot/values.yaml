@@ -1,0 +1,37 @@
+# Optional limited metrics roots only; requires published source and access approval.
+monitoring:
+  values:
+    # Umbrella injects a Headlamp blackbox target; app probes remain deferred.
+    blackboxExporter:
+      enabled: false
+      serviceMonitor:
+        enabled: false
+        targets: []
+    upstream:
+      kubeControllerManager:
+        serviceMonitor: {enabled: false}
+      kubeScheduler:
+        serviceMonitor: {enabled: false}
+      kubeEtcd:
+        serviceMonitor: {enabled: false}
+      kubeProxy:
+        serviceMonitor: {enabled: false}
+      coreDns:
+        serviceMonitor:
+          authorization: null
+      kubelet:
+        serviceMonitor:
+          tlsConfig:
+            insecureSkipVerify: false
+# Runtime log ingestion/query stays unchanged; app/exporter scrape integration is deferred.
+loki:
+  values:
+    monitoring:
+      enabled: false
+      dashboards:
+        enabled: false
+      serviceMonitor:
+        enabled: false
+alloy:
+  values:
+    serviceMonitors: []

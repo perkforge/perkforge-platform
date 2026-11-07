@@ -17,4 +17,9 @@ class ObservabilityReview(unittest.TestCase):
   for name in mapping.values():self.assertTrue(names[name]['spec']['suspend'])
   self.assertFalse(v['monitoring']['values']['upstream']['grafana']['enabled']);self.assertFalse(v['monitoring']['values']['upstream']['alertmanager']['enabled'])
   prom=v['monitoring']['values']['upstream']['prometheus']['prometheusSpec'];self.assertEqual(prom['retention'],'7d');self.assertEqual(prom['retentionSize'],'8GB')
-  graf=v['grafana']['values']['upstream'];self.assertFalse(graf['ingress']['enabled']);self.assertFalse(graf['grafana.ini']['auth.anonymous']['enabled']);self.assertFalse(graf['grafana.ini']['auth.generic_oauth']['enabled']);self.assertEqual(graf['admin']['existingSecret'],'grafana-admin')
+  graf=v['grafana']['values']['upstream'];self.assertFalse(graf['ingress']['enabled']);self.assertFalse(graf['grafana.ini']['auth.anonymous']['enabled']);self.assertFalse(graf['grafana.ini']['auth.generic_oauth']['enabled'])
+  self.assertEqual(graf['admin']['existingSecret'],'')
+  self.assertEqual(graf['adminUser'],'');self.assertEqual(graf['adminPassword'],'')
+  bootstrap={'upstream':{'admin':{'existingSecret':'grafana-admin','userKey':'admin-user','passwordKey':'admin-password'}}}
+  self.assertEqual(v['grafana']['flux']['values'],bootstrap)
+  self.assertEqual(names['grafana']['spec']['values'],bootstrap)

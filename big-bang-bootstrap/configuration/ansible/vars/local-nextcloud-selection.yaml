@@ -1,0 +1,8 @@
+# Accepted LOCAL source/root selection; explicit operator input, never auto-loaded.
+# Release v0.26.0 resolves to 076f38651ae747d31a8269e0e6acfcca412e3047.
+# This is not an activation playbook or permission to replay bootstrap on a live root.
+config_repository: https://github.com/perkforge/perkforge-platform.git
+config_tag: v0.26.0
+gitops_path: ./big-bang-bootstrap/clusters/local-metrics-limited-pilot-ui
+deployment_environment: local
+impact_profile: il2

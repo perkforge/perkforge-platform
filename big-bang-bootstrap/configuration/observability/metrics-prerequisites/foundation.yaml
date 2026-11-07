@@ -564,3 +564,38 @@ subjects:
 - kind: ServiceAccount
   name: prometheus-crds-installer
   namespace: bigbang
+---
+# Native system metric Services only; no authority over existing DNS/control Services.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: monitoring-system-services
+  namespace: kube-system
+rules:
+# Kubernetes cannot restrict create by object name. This is trusted installer access.
+- apiGroups: ['']
+  resources: [services]
+  verbs: [create]
+- apiGroups: ['']
+  resources: [services]
+  verbs: [get, list, watch, update, patch, delete]
+  resourceNames:
+  - monitoring-monitoring-kube-coredns
+  - monitoring-monitoring-kube-kube-controller-manager
+  - monitoring-monitoring-kube-kube-etcd
+  - monitoring-monitoring-kube-kube-proxy
+  - monitoring-monitoring-kube-kube-scheduler
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: monitoring-system-services
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: monitoring-system-services
+subjects:
+- kind: ServiceAccount
+  name: monitoring-installer
+  namespace: bigbang

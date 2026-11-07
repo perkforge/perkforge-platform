@@ -1,5 +1,103 @@
 # Changelog
 
+## [0.26.0](https://github.com/perkforge/perkforge-platform/compare/v0.25.0...v0.26.0) (2026-11-07)
+
+
+### Features
+
+* **nextcloud:** select published SSO enrollment v1.5.0 ([#239](https://github.com/perkforge/perkforge-platform/issues/239)) ([0caba35](https://github.com/perkforge/perkforge-platform/commit/0caba35771f6d5a29e5b6a3444766e7a5b9a1b81))
+
+
+### Bug Fixes
+
+* **ci:** temporarily pause validation until Nextcloud SSO is complete ([#240](https://github.com/perkforge/perkforge-platform/issues/240)) ([dc7ad39](https://github.com/perkforge/perkforge-platform/commit/dc7ad39097848a1c66833492abe10359cb1d0d41))
+* **nextcloud:** select exact local issuer policy through GitOps ([#242](https://github.com/perkforge/perkforge-platform/issues/242)) ([ee3357a](https://github.com/perkforge/perkforge-platform/commit/ee3357a8129ca6212a0c7cedfab9186f8878b780))
+
+## [0.25.0](https://github.com/perkforge/perkforge-platform/compare/v0.24.1...v0.25.0) (2026-11-07)
+
+
+### Features
+
+* **sso:** add gated Nextcloud client and subject lifecycle ([#217](https://github.com/perkforge/perkforge-platform/issues/217)) ([f6b7f97](https://github.com/perkforge/perkforge-platform/commit/f6b7f97de61a2976e25f836b8d7a4e508ddad79e))
+
+## [0.24.1](https://github.com/perkforge/perkforge-platform/compare/v0.24.0...v0.24.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **grafana:** disable inapplicable historical upgrade migration ([#235](https://github.com/perkforge/perkforge-platform/issues/235)) ([1872c70](https://github.com/perkforge/perkforge-platform/commit/1872c70ffd713be9a913760c477c95c267e0d490))
+
+## [0.24.0](https://github.com/perkforge/perkforge-platform/compare/v0.23.5...v0.24.0) (2026-11-07)
+
+
+### Features
+
+* **monitoring:** prepare scoped lab Grafana HTTPS UI ([#232](https://github.com/perkforge/perkforge-platform/issues/232)) ([e18f068](https://github.com/perkforge/perkforge-platform/commit/e18f06802162f3c8fc36d6c8f38fe62f7070ca6f))
+
+## [0.23.5](https://github.com/perkforge/perkforge-platform/compare/v0.23.4...v0.23.5) (2026-11-06)
+
+
+### Bug Fixes
+
+* bind limited metrics workloads to existing registry secret ([#229](https://github.com/perkforge/perkforge-platform/issues/229)) ([a45e786](https://github.com/perkforge/perkforge-platform/commit/a45e786f280dc89aa5d2cc9333da4a1501632e7a))
+
+## [0.23.4](https://github.com/perkforge/perkforge-platform/compare/v0.23.3...v0.23.4) (2026-11-06)
+
+
+### Bug Fixes
+
+* place persistent monitoring consumers on storage workers ([#227](https://github.com/perkforge/perkforge-platform/issues/227)) ([f2741c1](https://github.com/perkforge/perkforge-platform/commit/f2741c112fbda5d15b479acfb6bc0a51e613db18))
+
+## [0.23.3](https://github.com/perkforge/perkforge-platform/compare/v0.23.2...v0.23.3) (2026-11-06)
+
+
+### Bug Fixes
+
+* **metrics:** preserve Grafana bootstrap and dashboard ownership ([#225](https://github.com/perkforge/perkforge-platform/issues/225)) ([0a95f84](https://github.com/perkforge/perkforge-platform/commit/0a95f848cf7f25275ea514400374a23f70d102b8))
+
+## [0.23.2](https://github.com/perkforge/perkforge-platform/compare/v0.23.1...v0.23.2) (2026-11-06)
+
+
+### Bug Fixes
+
+* **gitlab:** suppress unselected discovered ServiceMonitors ([#223](https://github.com/perkforge/perkforge-platform/issues/223)) ([72dd82e](https://github.com/perkforge/perkforge-platform/commit/72dd82eace48797f7642c89be623bcdd77908eb4))
+
+## [0.23.1](https://github.com/perkforge/perkforge-platform/compare/v0.23.0...v0.23.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* **gitlab:** reduce home-lab toolbox CPU reservation ([#220](https://github.com/perkforge/perkforge-platform/issues/220)) ([b75acc9](https://github.com/perkforge/perkforge-platform/commit/b75acc960d91a89b21cd842304ef8bb963f4efbe))
+
+## [0.23.0](https://github.com/perkforge/perkforge-platform/compare/v0.22.2...v0.23.0) (2026-11-06)
+
+
+### Features
+
+* **logging:** prepare backend-only pilot without monitoring runtime ([#211](https://github.com/perkforge/perkforge-platform/issues/211)) ([7cafc38](https://github.com/perkforge/perkforge-platform/commit/7cafc38f472008c7170153a35881049127e800b1))
+* **observability:** carry limited pilot roots onto main ([#216](https://github.com/perkforge/perkforge-platform/issues/216)) ([94ad924](https://github.com/perkforge/perkforge-platform/commit/94ad924a36374e5d00569aa472ea0a93b81439a4))
+
+
+### Bug Fixes
+
+* **monitoring:** scope system metric Service installer access ([db2ac7b](https://github.com/perkforge/perkforge-platform/commit/db2ac7b4bae67be97a7ee0b8590b9b6a192852b3))
+
+## [0.22.2](https://github.com/perkforge/perkforge-platform/compare/v0.22.1...v0.22.2) (2026-11-06)
+
+
+### Bug Fixes
+
+* **nextcloud:** select guarded cron activation enrollment ([84ee100](https://github.com/perkforge/perkforge-platform/commit/84ee10093a1864ff34ac9d97878ca24317a45374))
+* **nextcloud:** select guarded cron activation enrollment ([d36ab3d](https://github.com/perkforge/perkforge-platform/commit/d36ab3dccdf6b4042a19601db4df82cf2930c58a))
+
+## [0.22.1](https://github.com/perkforge/perkforge-platform/compare/v0.22.0...v0.22.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* **nextcloud:** select released disabled cron correction ([12317e4](https://github.com/perkforge/perkforge-platform/commit/12317e4191fa560360ccb0efaad4f13cd47804ec))
+* **nextcloud:** select released disabled cron correction ([5bbc17f](https://github.com/perkforge/perkforge-platform/commit/5bbc17f96e84ca512c3e6c2370cb92f1bb330260))
+
 ## [0.22.0](https://github.com/perkforge/perkforge-platform/compare/v0.21.0...v0.22.0) (2026-11-06)
 
 

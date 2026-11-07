@@ -35,7 +35,7 @@ ansible-playbook -i "$physical_inventory" \
 ```
 
 The private input file contains `lab_dns_maintenance_apply: true`, scope
-`gitlab-dns-records-v1` or `nextcloud-dns-record-v1`, `lab_dns_maintenance_expected_sha256` and the absolute
+`gitlab-dns-records-v1`, `nextcloud-dns-record-v1` or `grafana-dns-record-v1`, `lab_dns_maintenance_expected_sha256` and the absolute
 `lab_dns_maintenance_release_evidence` path. Release evidence identifies the
 repository, stable tag and resolved commit. The checked-out commit must match,
 and the tree must be clean. No password belongs in that file or chat: enter sudo
@@ -66,3 +66,11 @@ This maintenance does not activate an ingress or application. CoreDNS forwarding
 already resolved existing lab/public names during preflight; do not change it
 without separate evidence and approval. Keep the data and app source selections
 as independently approved steps after DNS and certificate verification.
+
+Grafana uses the separate fixed `grafana-dns-record-v1` scope: only
+`grafana.perkforge.home.arpa` at that same reviewed worker-1 ingress address.
+It requires the existing seven records, including Nextcloud, preserves their
+bytes and uses its own `Grafana DNS v1` block. The same checksum, release,
+restart, rollback and explicit approval boundaries apply. This does not activate
+Grafana routing. See the [Grafana UI procedure](../../big-bang-bootstrap/configuration/observability/grafana-ui/README.md)
+for dedicated leaf issuance, Secret delivery, access and route approvals.

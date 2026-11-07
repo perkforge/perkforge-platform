@@ -1,0 +1,53 @@
+- ansible.builtin.assert:
+    that:
+    - nc_subject.keys() | list | sort == ['role','sub']
+    - nc_subject.sub is match('^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$')
+    - nc_subject.role in ['household','owner','absent']
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/users/{{ nc_subject.sub }}'
+    headers: '{{ nc_headers }}'
+  register: nc_user
+- ansible.builtin.assert:
+    that:
+    - nc_user.json.id == nc_subject.sub
+    - nc_subject.role == 'absent' or nc_user.json.enabled
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/users/{{ nc_subject.sub }}/role-mappings/clients/{{ nc_id }}{{ item }}'
+    headers: '{{ nc_headers }}'
+  loop: ['', /composite]
+  register: nc_user_roles
+- name: Refuse inherited or unknown own-client grants; no global group edits
+  ansible.builtin.assert:
+    that:
+    - nc_user_roles.results[0].json | map(attribute='id') | sort == nc_user_roles.results[1].json | map(attribute='id') | sort
+    - nc_user_roles.results[0].json | map(attribute='id') | difference(nc_roles.json | map(attribute='id') | list) | length == 0
+    - nc_user_roles.results[0].json | length <= 1
+- ansible.builtin.set_fact:
+    nc_member_desired: '{{ nc_roles.json | selectattr("name","equalto",nc_subject.role) | list }}'
+- ansible.builtin.assert:
+    that: nc_subject.sub in nextcloud_native_revoked_subjects
+  when: nc_subject.role == 'absent' or (nc_subject.role == 'household' and nc_user_roles.results[0].json | selectattr('name','equalto','owner') | list | length > 0)
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/users/{{ nc_subject.sub }}/role-mappings/clients/{{ nc_id }}'
+    headers: '{{ nc_headers }}'
+    method: DELETE
+    body_format: json
+    body: '{{ nc_user_roles.results[0].json }}'
+    status_code: 204
+  when: nc_user_roles.results[0].json | length > 0 and nc_user_roles.results[0].json | map(attribute='name') | list != nc_member_desired | map(attribute='name') | list
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/users/{{ nc_subject.sub }}/role-mappings/clients/{{ nc_id }}'
+    headers: '{{ nc_headers }}'
+    method: POST
+    body_format: json
+    body: '{{ nc_member_desired }}'
+    status_code: 204
+  when: nc_member_desired | length > 0 and nc_user_roles.results[0].json | map(attribute='name') | list != [nc_subject.role]
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/users/{{ nc_subject.sub }}/role-mappings/clients/{{ nc_id }}/composite'
+    headers: '{{ nc_headers }}'
+  register: nc_member_verified
+- ansible.builtin.assert:
+    that: nc_member_verified.json | map(attribute='id') | sort == nc_member_desired | map(attribute='id') | sort

@@ -1,6 +1,6 @@
 # Opt-in logging implementation candidate — inactive
 
-Implements the pinned #38 candidate after [metrics](metrics.md); the default root still
+Implements the pinned #38 candidate alongside [metrics](metrics.md); the default root still
 selects neither monitoring nor logging. This is not live log or auth acceptance.
 
 ## Optional source stage
@@ -24,6 +24,35 @@ gateway/backend TLS/auth inputs, before selection. Foundation-owned logging/allo
 Namespaces are omitted only from the umbrella render. Failed install/upgrade
 cleanup remains disabled. No public route or human OIDC mapping is enabled.
 
+## Optional backend-first stage
+
+`clusters/local-logging-backend` composes the same Nextcloud enrollment and
+metrics CRD-only foundation, then enables Loki/Alloy without Prometheus or Grafana.
+It preserves every existing rendered package unchanged and the exact reviewed
+Loki/Alloy runtime configurations. It omits only two monitoring-namespace Loki
+dashboard ConfigMaps and two Alloy ServiceMonitors; these are separate monitoring
+integration, not log ingestion/query dependencies. Alloy depends on Loki; no dependency requires the
+held monitoring runtime or its kube-system Service grant. No new RBAC or host/
+network change is introduced by this source option. Existing reviewed logging
+installer/operator/log-reader authority is still required and must be verified.
+
+This can separate backend acceptance from a later monitoring access decision;
+it does not bypass approval or select a live root. Merge/publish a verified release,
+revalidate owned immutable inputs with `gitops_path` set to this exact root, confirm
+live headroom, identities, delegation and current root/source, then obtain any
+required action-time approval before guarded promotion. Keep the already approved
+10Gi/72-hour logging bounds and collect only the opt-in pilot namespace. No human
+access, production namespace collection or Grafana log browsing is enabled here.
+
+For backend acceptance, use only controlled synthetic pilot logs and an owner-local
+authenticated TLS query. Verify ingestion/query, wrong CA/hostname/password and
+spoofed-tenant/direct-backend denials, unopted-namespace isolation and preserved
+existing workloads/claims. Do not place auth values on command lines or print logs
+that could contain credentials. Failure stops progression without cleanup or
+relaxation. A later separately approved Grafana stage must retain this data and
+pass its own datasource, admin-login and isolation checks; this stage is not full
+#38/#39 acceptance.
+
 ## Initial pilot access
 
 The initial pilot is **platform-admin-only**. Keep anonymous access, tenant
@@ -44,10 +73,10 @@ Inspect actual operator-created workloads and collector configuration before
 collecting production logs. Preserve stored logs and existing services on failure;
 do not relax authentication, collection scope or network boundaries to pass tests.
 
-The metrics pilot now composes the merged Nextcloud database-only stage and its
+The metrics pilot composes the merged Nextcloud enrollment and its
 preservation tests compare the exact enrollment objects. A later logging root
-must retain that composition. Live Nextcloud acceptance, published-source checks
-and owner-local CA unlock remain independent gates; a successful offline render
+must retain that composition. Live service preservation, published-source checks
+and verified protected PKI inputs remain independent gates; a successful offline render
 does not select either pilot. No concurrent platform-root promotion is performed.
 
 ## Who does what and why

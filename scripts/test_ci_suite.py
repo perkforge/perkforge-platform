@@ -90,7 +90,7 @@ class AssignmentTests(unittest.TestCase):
             self.assertNotIn('continue-on-error', jobs[name])
             self.assertFalse(any('continue-on-error' in s for s in jobs[name]['steps']))
             self.assertEqual(jobs[name]['env']['KUBECONFIG'], '/dev/null')
-        self.assertEqual(jobs['regressions']['if'], "needs.changes.outputs.full == 'true'")
+        self.assertEqual(jobs['regressions']['if'], '${{ false }}')  # Owner-paused validation.
         commands = '\n'.join(s.get('run', '') for s in jobs['selection']['steps'])
         self.assertIn('ci_suite.py --family platform --shard residual', commands)
         self.assertIn('unittest discover -s evidence/tests', commands)

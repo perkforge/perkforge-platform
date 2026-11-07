@@ -18,6 +18,44 @@ addons:
       upgrade:
         cleanupOnFail: false
         remediation: {retries: 0, remediateLastFailure: false}
+    # CRD discovery alone must not activate unselected app scrape integration.
+    # Preserve workload metrics/annotations and installer authority; remove only these objects.
+    postRenderers:
+    - kustomize:
+        patches:
+        - target:
+            group: monitoring.coreos.com
+            version: v1
+            kind: ServiceMonitor
+            namespace: gitlab
+            name: gitlab-gitaly
+          patch: |-
+            $patch: delete
+            apiVersion: monitoring.coreos.com/v1
+            kind: ServiceMonitor
+            metadata: {name: gitlab-gitaly, namespace: gitlab}
+        - target:
+            group: monitoring.coreos.com
+            version: v1
+            kind: ServiceMonitor
+            namespace: gitlab
+            name: gitlab-webservice
+          patch: |-
+            $patch: delete
+            apiVersion: monitoring.coreos.com/v1
+            kind: ServiceMonitor
+            metadata: {name: gitlab-webservice, namespace: gitlab}
+        - target:
+            group: monitoring.coreos.com
+            version: v1
+            kind: ServiceMonitor
+            namespace: gitlab
+            name: gitlab-webservice-workhorse
+          patch: |-
+            $patch: delete
+            apiVersion: monitoring.coreos.com/v1
+            kind: ServiceMonitor
+            metadata: {name: gitlab-webservice-workhorse, namespace: gitlab}
     values:
       domain: UNCONFIGURED.invalid
       istio: {enabled: false}

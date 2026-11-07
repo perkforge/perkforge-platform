@@ -53,7 +53,7 @@ class ImpactTests(unittest.TestCase):
         self.assertIn('changes',w['jobs']);self.assertIn('docs',w['jobs'])
         for name,key in [('selection','full'),('platform-sso','sso'),('headlamp-prerequisites','headlamp')]:
             job=w['jobs'][name];self.assertEqual(job['needs'],['changes'])
-            self.assertIn(f'needs.changes.outputs.{key}',job['if'])
+            self.assertEqual(job['if'], '${{ false }}')  # Owner-paused validation.
             self.assertEqual(job['env']['KUBECONFIG'],'/dev/null')
         steps=w['jobs']['selection']['steps'];commands='\n'.join(s.get('run','') for s in steps)
         for required in ['ci_suite.py --family platform --shard residual','unittest discover -s evidence/tests','go test -run TestFluxPortalAdmission']:

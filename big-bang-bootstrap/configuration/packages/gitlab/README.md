@@ -11,7 +11,7 @@ Read [the coordinated procedure](coordinated-outcome.md) and
 | Area | Prepared source | Remaining live evidence |
 |---|---|---|
 | GitLab | Big Bang 3.35.1 / package 10.4.2-bb.0 / 19.4.2-ee Free, exact tested webservice digest | Real install, capacity/support, initial recovery and persistence |
-| Lab sizing | One webservice/shell/Sidekiq HPA replica, original container requests retained | Explicit non-HA acceptance, placement, migrations and surge |
+| Lab sizing | One webservice/shell/Sidekiq HPA replica; Toolbox requests 1 CPU with its 2-CPU limit and memory retained | Explicit non-HA acceptance, placement, migrations and surge |
 | Data services | Shared CNPG operator, dedicated PostgreSQL/Valkey, no-discovery Garage | Approved foundation, credentials/TLS, native startup and S3 behavior |
 | PostgreSQL TLS | Supported extraEnv/CA mount with native verify-full, exact CNG transport tests | Real provider CA/SAN, generated application config and database flow |
 | Credentials | Private existing-input assembly, create-only immutable Secret/CA delivery | Separately approved real generation/delivery and rotation plan |
@@ -19,6 +19,22 @@ Read [the coordinated procedure](coordinated-outcome.md) and
 | Native access | Exact UID/provider/subject, bounded private-group grant/revoke | Real tenant/project cases; complete session/token offboarding is separate |
 | Runner | Protected project, paused registration, private token receipt, isolated manager/job identities | Actual registration, CNI/DNAT egress, clone/artifact/deny/drain cases |
 | Backup | Owner-selected encrypted external drive; cron disabled | Drive authorization, capacity, backup and independent restore |
+
+The home-lab Toolbox CPU request is 1 core instead of the package default of 2;
+its 2-core limit permits bursts, and memory remains unchanged. This changes its
+Pod QoS from Guaranteed to Burstable. Later release promotion replaces the Toolbox
+Pod under its Recreate strategy, briefly interrupting Toolbox access. The smaller
+reservation is not evidence of demanding backup/recovery performance.
+
+The pinned GitLab chart treats discovery of `monitoring.coreos.com/v1` as enabling
+monitoring even when `global.monitoring.enabled` is false. The source-owned child
+post-renderer removes only `gitlab-gitaly`, `gitlab-webservice` and
+`gitlab-webservice-workhorse` ServiceMonitors in `gitlab` while app scrape
+integration is deferred. Exporters, Pod annotations and installer permissions stay
+unchanged. Offline regression renders include the installed monitoring APIs and
+exercise the actual umbrella and child post-renderers; a default Helm template
+without those APIs does not reproduce this path. Enabling app scrapes later needs
+a separate source/access review, including removal of these exact deletions.
 
 ## Authored configuration entrypoints
 

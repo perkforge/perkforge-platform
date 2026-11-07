@@ -1,5 +1,6 @@
 """Render staged roots and prove existing workload inputs remain identical."""
 import os
+import copy
 from pathlib import Path
 import unittest
 import re
@@ -10,6 +11,49 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class MetricsStages(unittest.TestCase):
+    def test_optional_limited_roots_preserve_every_other_rendered_package(self):
+        def key(x):
+            return (x['apiVersion'], x['kind'], x['metadata'].get('namespace'), x['metadata']['name'])
+        for stage, baseline in [('local-metrics-limited-pilot', 'local-metrics-pilot'),
+                                ('local-logging-limited-pilot', 'local-logging-pilot')]:
+            with self.subTest(stage=stage):
+                before = {key(x): x for x in build(ROOT / 'clusters' / baseline)}
+                after = {key(x): x for x in build(ROOT / 'clusters' / stage)}
+                self.assertEqual(set(after) - set(before), {('v1', 'ConfigMap', 'bigbang', 'values-metrics-limited-pilot')})
+                for identity, obj in before.items():
+                    if identity == ('helm.toolkit.fluxcd.io/v2', 'HelmRelease', 'bigbang', 'bigbang'):
+                        expected = copy.deepcopy(obj)
+                        expected['spec']['valuesFrom'].append({'kind': 'ConfigMap', 'name': 'values-metrics-limited-pilot', 'valuesKey': 'values.yaml'})
+                        self.assertEqual(after[identity], expected)
+                    else:
+                        self.assertEqual(after[identity], obj)
+                original = {key(x): x for x in self.render(baseline)}
+                limited = {key(x): x for x in self.render(stage)}
+                self.assertEqual(original.keys(), limited.keys())
+                for identity, obj in original.items():
+                    if identity[1:] not in [(kind, 'bigbang', name if kind == 'HelmRelease' else 'bigbang-' + name + '-values') for kind in ['HelmRelease', 'Secret'] for name in ['monitoring', 'loki', 'alloy']]:
+                        self.assertEqual(limited[identity], obj, identity)
+                outer = list(limited.values())
+                hr = next(x for x in outer if x['kind'] == 'HelmRelease' and x['metadata']['name'] == 'monitoring')
+                child = helm(Path(os.environ['PREFLIGHT_SOURCES_DIR']) / 'monitoring/chart', release_name(hr),
+                             hr['spec']['targetNamespace'], child_values(outer, 'monitoring'))
+                self.assertEqual(sum(x['kind'] == 'PrometheusRule' for x in child), 35)
+                monitors = [x for x in child if x['kind'] == 'ServiceMonitor']
+                self.assertEqual(len(monitors), 7)
+                self.assertFalse(any('blackbox' in x['metadata']['name'] for x in child))
+                for monitor in monitors:
+                    for endpoint in monitor['spec']['endpoints']:
+                        self.assertFalse(endpoint.get('tlsConfig', {}).get('insecureSkipVerify', False))
+                        if endpoint.get('scheme', 'http') == 'http':
+                            self.assertFalse(endpoint.get('authorization') or endpoint.get('bearerTokenSecret') or endpoint.get('bearerTokenFile'))
+                if stage == 'local-logging-limited-pilot':
+                    from fixtures.observability import logging_render
+                    for name, (_, expected) in logging_render(ROOT).items():
+                        release = next(x for x in outer if x['kind'] == 'HelmRelease' and x['metadata']['name'] == name)
+                        objects = helm(Path(os.environ['PREFLIGHT_SOURCES_DIR']) / name / 'chart', release_name(release),
+                                       release['spec']['targetNamespace'], child_values(outer, name), ('--include-crds',))
+                        self.assertEqual(objects, expected, name)
+
     def test_all_metrics_stages_preserve_nextcloud_enrollment_objects(self):
         def indexed(stage):
             return {(x['apiVersion'], x['kind'], x['metadata'].get('namespace'), x['metadata']['name']): x

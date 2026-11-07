@@ -1,0 +1,86 @@
+---
+- name: Issue only a dedicated Grafana leaf using the existing approved lab CA
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    grafana_certificate_apply: false
+    grafana_certificate_ca_bundle: /UNCONFIGURED/existing-ca
+    grafana_certificate_expected_ca_fingerprint: UNCONFIGURED
+    grafana_certificate_output_parent: /UNCONFIGURED/private-output
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check mode issues nothing. No new CA, trust installation, cluster access or DNS change.'
+  - when: grafana_certificate_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - grafana_certificate_ca_bundle is match('^/')
+        - grafana_certificate_output_parent is match('^/')
+        - not grafana_certificate_ca_bundle.startswith('/UNCONFIGURED/')
+        - not grafana_certificate_output_parent.startswith('/UNCONFIGURED/')
+        - grafana_certificate_ca_bundle | realpath == grafana_certificate_ca_bundle
+        - grafana_certificate_output_parent | realpath == grafana_certificate_output_parent
+        - grafana_certificate_expected_ca_fingerprint != 'UNCONFIGURED'
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop: ['{{ grafana_certificate_ca_bundle }}', '{{ grafana_certificate_output_parent }}']
+      register: grafana_pki_directories
+    - ansible.builtin.assert:
+        that:
+        - item.stat.isdir | default(false)
+        - not (item.stat.islnk | default(false))
+        - item.stat.mode == '0700'
+        - item.stat.pw_name == lookup('env', 'USER')
+      loop: '{{ grafana_pki_directories.results }}'
+    - ansible.builtin.stat:
+        path: '{{ grafana_certificate_ca_bundle }}/{{ item }}'
+        follow: false
+      loop: [root-ca.crt, root-ca.key.pem]
+      register: grafana_ca_files
+      no_log: true
+    - ansible.builtin.assert:
+        that:
+        - item.stat.isreg | default(false)
+        - not (item.stat.islnk | default(false))
+        - item.stat.pw_name == lookup('env', 'USER')
+        - item.item != 'root-ca.key.pem' or item.stat.mode == '0600'
+      loop: '{{ grafana_ca_files.results }}'
+      no_log: true
+    - ansible.builtin.command:
+        argv: [openssl, x509, -in, '{{ grafana_certificate_ca_bundle }}/root-ca.crt', -noout, -fingerprint, -sha256]
+      register: grafana_ca_fingerprint
+      changed_when: false
+    - ansible.builtin.assert:
+        that: grafana_ca_fingerprint.stdout == grafana_certificate_expected_ca_fingerprint
+    - ansible.builtin.command:
+        argv: [openssl, x509, -in, '{{ grafana_certificate_ca_bundle }}/root-ca.crt', -checkend, '31536000', -noout]
+      changed_when: false
+    - ansible.builtin.pause:
+        prompt: 'Existing lab CA passphrase (local input only)'
+        echo: false
+      register: grafana_ca_passphrase
+      no_log: true
+    - block:
+      - ansible.builtin.tempfile:
+          state: directory
+          path: '{{ grafana_certificate_output_parent }}'
+          prefix: grafana-pki-
+        register: lab_pki_bundle
+      - ansible.builtin.copy:
+          src: '{{ grafana_certificate_ca_bundle }}/root-ca.crt'
+          dest: '{{ lab_pki_bundle.path }}/root-ca.crt'
+          mode: '0644'
+      - ansible.builtin.include_tasks: ../tasks/issue-lab-certificate.yml
+        vars:
+          lab_pki_application: grafana
+          lab_pki_signing_key: '{{ grafana_certificate_ca_bundle }}/root-ca.key.pem'
+          lab_pki_passphrase: {user_input: '{{ grafana_ca_passphrase.user_input }}'}
+      always:
+      - ansible.builtin.set_fact:
+          grafana_ca_passphrase: {}
+          cacheable: false
+        no_log: true
+    - ansible.builtin.debug:
+        msg: 'Dedicated leaf bundle: {{ lab_pki_bundle.path }}. Existing CA key was not copied; no cluster/DNS/trust changes.'

@@ -551,3 +551,11 @@ Publication alone activates neither and does not authorize repeating a prior bat
    Live acceptance, disposable test values and cleanup each need exact approval;
    fixture passes are not deployed evidence. No automatic orchestration advances
    these stages, and Headlamp correction/acceptance remains independently owned.
+
+## Nextcloud (unselected preparation)
+
+[Nextcloud preparation](nextcloud/README.md) renders an independent disabled
+client/provider candidate. Existing lifecycle adapters and coexistence inventory
+remain unchanged. Independent default-off client/native lifecycle adapters now
+provide bounded direct-subject grants, explicit activation and removal; they
+remain outside selection and require action-specific approval.

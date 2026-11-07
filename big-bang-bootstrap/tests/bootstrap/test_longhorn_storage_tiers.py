@@ -134,7 +134,20 @@ class TierTests(unittest.TestCase):
         self.assertEqual(quota['metadata']['namespace'], 'UNCONFIGURED')
         self.assertEqual(quota['spec']['hard']['longhorn-single-excess.storageclass.storage.k8s.io/requests.storage'], '300Gi')
         for p in (ROOT/'clusters').glob('*/kustomization.yaml'):
-            self.assertNotIn('dedicated', p.read_text())
+            self.assert_no_dedicated_configuration(p.read_text())
+
+    def assert_no_dedicated_configuration(self, text):
+        # Comments describe unrelated TLS/key custody; only YAML selects storage.
+        self.assertNotIn('dedicated', yaml.safe_dump(yaml.safe_load(text)))
+
+    def test_root_storage_guard_ignores_comments_but_rejects_selection(self):
+        self.assert_no_dedicated_configuration(
+            '# Prepare dedicated TLS before selection\nresources: [../local]\n')
+        for manifest in (
+                'resources: [../../configuration/packages/longhorn/dedicated]\n',
+                'patches: [{patch: "diskSelector: dedicated-storage"}]\n'):
+            with self.subTest(manifest=manifest), self.assertRaises(AssertionError):
+                self.assert_no_dedicated_configuration(manifest)
 
 
 if __name__ == '__main__': unittest.main()
