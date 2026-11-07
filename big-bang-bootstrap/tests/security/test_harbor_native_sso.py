@@ -129,6 +129,8 @@ class NativeSSO(unittest.TestCase):
         self.assertEqual(result.returncode == 0, success, output)
         self.assertNotIn('SYNTHETIC_ADMIN_PASSWORD', output)
         self.assertNotIn('SYNTHETIC_CLIENT_SECRET', output)
+        if not defaults and not check:
+            self.assertIn('Clear transient native credentials even after failure', output)
         return output
 
     def test_default_and_check_are_offline(self):
@@ -190,6 +192,45 @@ class NativeSSO(unittest.TestCase):
         self.corrupt = True
         self.run_play(success=False)
         self.assertEqual(len(self.writes), 1)
+
+    def test_foreign_oidc_provider_is_not_adopted(self):
+        self.config['auth_mode']['value'] = 'oidc_auth'
+        for key, value in [('oidc_client_id', 'foreign'), ('oidc_endpoint', 'https://foreign.example.test/realms/perkforge')]:
+            original = self.config[key]['value']
+            self.config[key]['value'] = value
+            self.run_play(success=False)
+            self.config[key]['value'] = original
+        self.assertEqual(self.writes, [])
+
+    def test_control_whitespace_and_equivalent_hosts_refused(self):
+        for suffix in ['\n', '\t', ' ', '\x7f']:
+            origin = self.origin + suffix
+            self.run_play({'harbor_native_origin': origin, 'harbor_native_approved_origin': origin}, success=False)
+        issuer = self.origin.replace('localhost', 'LOCALHOST.') + '/auth/realms/perkforge'
+        self.run_play({'harbor_native_issuer': issuer, 'harbor_native_approved_issuer': issuer}, success=False)
+        self.assertEqual(self.calls, [])
+
+    def test_unsafe_parent_and_noncanonical_private_paths_refused(self):
+        parent = self.path / 'unsafe-parent'
+        parent.mkdir(mode=0o755)
+        password = parent / 'password'
+        password.write_text('SYNTHETIC_ADMIN_PASSWORD')
+        password.chmod(0o600)
+        self.run_play({'harbor_native_admin_password_file': str(password)}, success=False)
+        parent.chmod(0o700)
+        alias = self.path / 'parent-alias'
+        alias.symlink_to(parent, target_is_directory=True)
+        self.run_play({'harbor_native_admin_password_file': str(alias / 'password')}, success=False)
+        self.run_play({'harbor_native_admin_password_file': 'relative/password'}, success=False)
+        self.assertEqual(self.calls, [])
+
+    def test_cleanup_is_unconditional_and_noncacheable(self):
+        play = yaml.safe_load((DIR / 'native.yaml').read_text())[0]
+        cleanup = play['tasks'][-1]['always'][0]
+        self.assertTrue(cleanup['no_log'])
+        self.assertEqual(cleanup['ansible.builtin.set_fact'], {
+            'harbor_native_password': None, 'harbor_native_secret': None,
+            'harbor_native_delta': {}, 'cacheable': False})
 
     def test_tls_hostname_mismatch_refused_before_credentials(self):
         origin = self.origin.replace('localhost', '127.0.0.1')

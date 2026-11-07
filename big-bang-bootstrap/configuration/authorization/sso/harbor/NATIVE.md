@@ -33,7 +33,11 @@ ansible-playbook big-bang-bootstrap/configuration/authorization/sso/harbor/nativ
 The exact observed build string may include a hexadecimal build suffix, but must
 be v2.15.2. TLS and the server's `external_url` and build must match before Basic
 authentication is sent. No proxies, redirects, netrc or insecure TLS are used.
-Credential files must be owner-only 0400/0600, regular, single-link files owned
+URLs reject whitespace/control characters and equivalent normalized Harbor/issuer
+hostnames. Existing OIDC mode must already use the exact issuer and client harbor;
+foreign-provider adoption is refused. Credential paths must be absolute canonical
+realpaths with no symlinked parent, inside a 0700 directory owned by the invoking
+numeric UID. Credential files must be owner-only 0400/0600, regular, single-link files owned
 by the invoking user, containing a single value with no trailing newline.
 Never enable Ansible argument dumping/debug callbacks for protected operations.
 
@@ -54,6 +58,8 @@ successful token exchange. It does not falsely report full SSO acceptance.
 
 For a zero-write repeat, omit secret-write approval; the secret file is not read.
 Secret-write approval always causes a write, even if the secret may already match.
+An unconditional always block clears transient password, secret and delta facts
+after success or failure; these facts are never intentionally cached.
 After an interrupted or uncertain write, inspect the actual state before deciding
 whether a separately approved secret rewrite is necessary. There is no automatic
 retry or blind database-auth rollback.

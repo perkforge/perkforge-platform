@@ -19,5 +19,15 @@
       that: harbor_native_operation in ['disabled', 'inspect', 'apply']
   - ansible.builtin.debug:
       msg: Default and check mode are offline; no API or protected input access.
-  - ansible.builtin.include_tasks: native-tasks.yaml
+  - name: Bound transient native credentials to this operation
+    block:
+    - ansible.builtin.include_tasks: native-tasks.yaml
+    always:
+    - name: Clear transient native credentials even after failure
+      ansible.builtin.set_fact:
+        harbor_native_password: null
+        harbor_native_secret: null
+        harbor_native_delta: {}
+        cacheable: false
+      no_log: true
     when: harbor_native_operation != 'disabled' and not ansible_check_mode
