@@ -47,6 +47,8 @@ class NativeSSO(unittest.TestCase):
         self.redirect = False
         self.advertised_origin = None
         self.auth_redirect = False
+        self.config_reads = 0
+        self.readback_change = None
         self.desired = next(task['ansible.builtin.set_fact']['harbor_native_desired']
                             for task in yaml.safe_load((DIR / 'native-tasks.yaml').read_text())[-1]['block']
                             if 'harbor_native_desired' in task.get('ansible.builtin.set_fact', {}))
@@ -54,6 +56,7 @@ class NativeSSO(unittest.TestCase):
         self.config = {k: {'value': v, 'editable': True} for k, v in self.desired.items()}
         self.config['auth_mode']['value'] = 'db_auth'
         self.config['unrelated'] = {'value': 'preserve-me', 'editable': True}
+        self.config['scan_all_policy'] = {}
         owner = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -89,6 +92,9 @@ class NativeSSO(unittest.TestCase):
                     return self.answer({'username': 'admin', 'user_id': 1,
                                         'sysadmin_flag': not owner.bad_recovery})
                 if self.path.endswith('/configurations'):
+                    owner.config_reads += 1
+                    if owner.config_reads == 2 and owner.readback_change:
+                        owner.readback_change(owner.config)
                     return self.answer(owner.config)
                 if self.path.startswith('/api/v2.0/users?'):
                     return self.answer(owner.users, headers={'X-Total-Count': len(owner.users)})
@@ -255,6 +261,40 @@ class NativeSSO(unittest.TestCase):
         self.assertEqual(cleanup['ansible.builtin.set_fact'], {
             'harbor_native_password': None, 'harbor_native_secret': None,
             'harbor_native_delta': {}, 'cacheable': False})
+
+    def test_empty_scan_policy_preserved_without_scanner_write(self):
+        self.run_play({'harbor_native_operation': 'inspect', 'harbor_native_secret_write_approved': False})
+        self.assertEqual(self.config['scan_all_policy'], {})
+        self.assertEqual(self.writes, [])
+        self.config_reads = 0
+        self.run_play()
+        self.assertEqual(self.config['scan_all_policy'], {})
+        self.assertNotIn('scan_all_policy', self.writes[0])
+
+    def test_unrelated_entry_presence_shape_and_metadata_changes_refused(self):
+        changes = [
+            lambda cfg: cfg['scan_all_policy'].update(value=None),
+            lambda cfg: cfg['unrelated'].pop('value'),
+            lambda cfg: cfg['unrelated'].update(value='changed'),
+            lambda cfg: cfg['unrelated'].update(editable=False),
+            lambda cfg: cfg.pop('scan_all_policy'),
+            lambda cfg: cfg.update(unexpected={}),
+            lambda cfg: cfg.update(scan_all_policy=[]),
+        ]
+        for change in changes:
+            self.config['scan_all_policy'] = {}
+            self.config['unrelated'] = {'value': 'preserve-me', 'editable': True}
+            self.config.pop('unexpected', None)
+            self.config_reads = 0
+            self.readback_change = change
+            self.run_play({'harbor_native_operation': 'inspect', 'harbor_native_secret_write_approved': False}, success=False)
+        self.assertEqual(self.writes, [])
+
+    def test_malformed_initial_unrelated_entry_refused_before_write(self):
+        self.config['scan_all_policy'] = []
+        self.run_play(success=False)
+        self.assertEqual(self.writes, [])
+        self.assertEqual(self.config_reads, 1)
 
     def test_tls_hostname_mismatch_refused_before_credentials(self):
         origin = self.origin.replace('localhost', '127.0.0.1')
