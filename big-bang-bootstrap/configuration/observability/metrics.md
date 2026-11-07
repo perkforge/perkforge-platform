@@ -206,3 +206,13 @@ limited-scrape alternative. No host maintenance is included or authorized by #20
 The optional [lab Grafana HTTPS UI](grafana-ui/README.md) has a separate root
 and explicit DNS/TLS/network/access preparation. Existing pilot roots do not
 select it; publication or healthy Pods alone does not expose a UI.
+
+Grafana's pinned wrapper defaults to a historical automatic migration for
+pre-9.3.1-bb.2 installs. This platform starts at 13.2.4-bb.0, so package-local
+`autoRollingUpgrade.enabled=false` disables only that obsolete lookup/deployment-
+deletion hook. It does not disable normal Helm upgrades or Flux reconciliation.
+Do not grant the installer cross-namespace HelmRelease access to satisfy this
+unused migration. Regression coverage exercises actual `--is-upgrade` rendering
+against a loopback API with the unchanged installer bounds, plus current/old
+history calibration and selected-root manifest preservation. Install-only
+rendering cannot expose the upgrade-only lookup.

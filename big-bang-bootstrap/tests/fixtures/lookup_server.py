@@ -28,7 +28,7 @@ def clusterrole_list_allowed(role):
 
 
 @contextmanager
-def lookup_server(role, clusterrole_lookup=False, secrets=None, helmrelease_lookup=False, monitoring_api=False):
+def lookup_server(role, clusterrole_lookup=False, secrets=None, helmrelease_lookup=False, monitoring_api=False, helmreleases=None):
     requests = []
     if secrets is None:
         secrets = {(role['metadata'].get('namespace', ''), 'keycloak-database-existing'): {
@@ -78,12 +78,17 @@ def lookup_server(role, clusterrole_lookup=False, secrets=None, helmrelease_look
 
             elif helmrelease_lookup and path.startswith('/apis/helm.toolkit.fluxcd.io/v2/namespaces/') and '/helmreleases/' in path:
                 namespace = path.split('/')[5]
+                name = path.split('/')[7]
                 allowed = role['metadata']['namespace'] == namespace and any(
                     'helm.toolkit.fluxcd.io' in rule['apiGroups'] and 'helmreleases' in rule['resources']
-                    and 'get' in rule['verbs'] for rule in role['rules'])
-                status = 404 if allowed else 403
-                body = {'apiVersion': 'v1', 'kind': 'Status', 'status': 'Failure',
-                        'reason': 'NotFound' if allowed else 'Forbidden', 'code': status}
+                    and 'get' in rule['verbs']
+                    and (not rule.get('resourceNames') or name in rule['resourceNames']) for rule in role['rules'])
+                item = (helmreleases or {}).get((namespace, name))
+                status = (200 if item else 404) if allowed else 403
+                body = item if status == 200 else {
+                    'apiVersion': 'v1', 'kind': 'Status', 'status': 'Failure',
+                    'reason': 'NotFound' if allowed else 'Forbidden', 'code': status,
+                    'message': 'HelmRelease not found' if allowed else 'HelmRelease GET forbidden by synthetic authorizer'}
             elif clusterrole_lookup and path == '/apis/rbac.authorization.k8s.io/v1':
                 body = {'apiVersion': 'v1', 'kind': 'APIResourceList',
                         'groupVersion': 'rbac.authorization.k8s.io/v1', 'resources': [
