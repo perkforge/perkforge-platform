@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.0](https://github.com/perkforge/perkforge-platform/compare/v0.28.0...v0.29.0) (2026-11-07)
+
+
+### Features
+
+* **harbor:** prepare PostgreSQL, Valkey and SSO rollout ([#251](https://github.com/perkforge/perkforge-platform/issues/251)) ([3ac8f95](https://github.com/perkforge/perkforge-platform/commit/3ac8f95dde9c91d828ee819ac6da8e9552bf044a))
+
 ## [0.28.0](https://github.com/perkforge/perkforge-platform/compare/v0.27.0...v0.28.0) (2026-11-07)
 
 
