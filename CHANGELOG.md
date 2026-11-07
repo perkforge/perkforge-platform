@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.4](https://github.com/perkforge/perkforge-platform/compare/v0.29.3...v0.29.4) (2026-11-07)
+
+
+### Bug Fixes
+
+* **harbor:** preserve empty unrelated configuration entries ([#265](https://github.com/perkforge/perkforge-platform/issues/265)) ([9dc04f3](https://github.com/perkforge/perkforge-platform/commit/9dc04f36dc434171f1be51b50d80b0dcebccb2bb))
+
 ## [0.29.3](https://github.com/perkforge/perkforge-platform/compare/v0.29.2...v0.29.3) (2026-11-07)
 
 
