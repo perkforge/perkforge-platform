@@ -123,6 +123,11 @@
       force_basic_auth: true
     register: harbor_native_before
     no_log: true
+  - name: Require dictionary-shaped configuration entries before mutation
+    ansible.builtin.assert:
+      that: item.value is mapping
+    loop: '{{ harbor_native_before.json | dict2items }}'
+    no_log: true
   - name: Own only reviewed native settings
     ansible.builtin.set_fact:
       harbor_native_desired:
@@ -215,9 +220,13 @@
     loop: '{{ harbor_native_desired | dict2items }}'
     when: harbor_native_operation == 'apply'
     no_log: true
-  - name: Verify unrelated values are unchanged
+  - name: Require unchanged configuration key sets
     ansible.builtin.assert:
-      that: harbor_native_after.json[item.key].value == item.value.value
+      that: harbor_native_after.json.keys() | sort == harbor_native_before.json.keys() | sort
+    no_log: true
+  - name: Verify complete unrelated entries are unchanged
+    ansible.builtin.assert:
+      that: harbor_native_after.json[item.key] == item.value
     loop: '{{ harbor_native_before.json | dict2items }}'
     when: item.key not in harbor_native_desired
     no_log: true

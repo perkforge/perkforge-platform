@@ -52,7 +52,11 @@ requires editable auth_mode, an empty user list and zero X-Total-Count. Harbor
 excludes its built-in administrator from those results. Any additional user,
 including a promoted local administrator, blocks migration. No account is deleted.
 
-`apply` writes only differing owned fields. Initial migration additionally needs
+`apply` writes only differing owned fields. Unrelated configuration entries are
+preserved as complete objects, including native `scan_all_policy: {}`. An omitted
+value is not assigned a default or treated as a secret sentinel. Entry shapes and
+unchanged key sets are checked; unrelated value, presence or metadata drift fails
+closed. This does not enable or configure a scanner. Initial migration additionally needs
 `harbor_native_secret_write_approved: true`, which explicitly authorizes reading
 and submitting the protected client secret. A later secret rotation also requires
 that gate. **Configuration GET omits passwords entirely**: there is no masked
