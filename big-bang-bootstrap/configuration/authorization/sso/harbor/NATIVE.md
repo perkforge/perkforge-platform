@@ -31,8 +31,12 @@ ansible-playbook big-bang-bootstrap/configuration/authorization/sso/harbor/nativ
 ```
 
 The exact observed build string may include a hexadecimal build suffix, but must
-be v2.15.2. TLS and the server's `external_url` and build must match before Basic
-authentication is sent. No proxies, redirects, netrc or insecure TLS are used.
+be v2.15.2. The first systeminfo request checks unauthenticated reachability over
+the exact approved, certificate-verified HTTPS origin. Public systeminfo omits
+`external_url` and `harbor_version` in native v2.15.2. After independent built-in
+admin recovery authentication, a fresh authenticated systeminfo request must
+match the exact external URL and build before any configuration read or write.
+No proxies, redirects, netrc or insecure TLS are used.
 URLs reject whitespace/control characters and equivalent normalized Harbor/issuer
 hostnames. Existing OIDC mode must already use the exact issuer and client harbor;
 foreign-provider adoption is refused. Credential paths must be absolute canonical
@@ -97,6 +101,8 @@ Verified against [Harbor v2.15.2](https://github.com/goharbor/harbor/tree/v2.15.
 
 - `api/v2.0/swagger.yaml`: configurations request/response schema, systeminfo,
   current-user and user-list endpoints.
+- `src/server/v2.0/handler/systeminfo.go`: external URL and build are exposed only
+  to authenticated callers; public reachability is not version verification.
 - `src/controller/config/controller.go`: partial configuration update, password
   omission in ConvertForGet, and authModeCanBeModified requiring zero added users.
 - `src/lib/config/metadata/metadatalist.go`: OIDCClientSecret is PasswordType.

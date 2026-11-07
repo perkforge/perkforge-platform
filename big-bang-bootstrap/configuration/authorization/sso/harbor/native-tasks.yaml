@@ -97,16 +97,25 @@
       timeout: 30
       status_code: 200
   block:
-  - name: Verify exact endpoint and build before transmitting credentials
+  - name: Check unauthenticated reachability over approved verified HTTPS
     ansible.builtin.uri:
       url: '{{ harbor_native_origin }}/api/v2.0/systeminfo'
+  - name: Independently verify built-in local recovery
+    ansible.builtin.include_tasks: native-recovery.yaml
+  - name: Read authenticated system identity before configuration access
+    ansible.builtin.uri:
+      url: '{{ harbor_native_origin }}/api/v2.0/systeminfo'
+      url_username: admin
+      url_password: '{{ harbor_native_password }}'
+      force_basic_auth: true
     register: harbor_native_info
-  - ansible.builtin.assert:
+    no_log: true
+  - name: Verify exact authenticated endpoint and build
+    ansible.builtin.assert:
       that:
       - harbor_native_info.json.external_url == harbor_native_origin
       - harbor_native_info.json.harbor_version == harbor_native_version
-  - name: Independently verify built-in local recovery
-    ansible.builtin.include_tasks: native-recovery.yaml
+    no_log: true
   - ansible.builtin.uri:
       url: '{{ harbor_native_origin }}/api/v2.0/configurations'
       url_username: admin

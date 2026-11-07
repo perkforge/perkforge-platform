@@ -39,11 +39,14 @@ class NativeSSO(unittest.TestCase):
 
     def setUp(self):
         self.calls, self.writes = [], []
+        self.request_hosts = []
         self.version = 'v2.15.2'
         self.users = []
         self.corrupt = False
         self.bad_recovery = False
         self.redirect = False
+        self.advertised_origin = None
+        self.auth_redirect = False
         self.desired = next(task['ansible.builtin.set_fact']['harbor_native_desired']
                             for task in yaml.safe_load((DIR / 'native-tasks.yaml').read_text())[-1]['block']
                             if 'harbor_native_desired' in task.get('ansible.builtin.set_fact', {}))
@@ -67,11 +70,19 @@ class NativeSSO(unittest.TestCase):
 
             def do_GET(self):
                 owner.calls.append((self.path, self.headers.get('Authorization')))
-                if self.path.endswith('/systeminfo'):
-                    if owner.redirect:
-                        return self.answer({}, 302, {'Location': 'https://identity.example.test/'})
-                    return self.answer({'external_url': owner.origin, 'harbor_version': owner.version})
+                owner.request_hosts.append(self.headers.get('Host'))
                 expected = 'Basic ' + base64.b64encode(b'admin:SYNTHETIC_ADMIN_PASSWORD').decode()
+                if self.path.endswith('/systeminfo'):
+                    if owner.redirect or (owner.auth_redirect and self.headers.get('Authorization')):
+                        return self.answer({}, 302, {'Location': 'https://identity.example.test/'})
+                    if not self.headers.get('Authorization'):
+                        return self.answer({'auth_mode': owner.config['auth_mode']['value'],
+                                            'banner_message': '', 'oidc_provider_name': '',
+                                            'primary_auth_mode': False, 'self_registration': False})
+                    if self.headers.get('Authorization') != expected:
+                        return self.answer({}, 401)
+                    return self.answer({'external_url': owner.advertised_origin or owner.origin,
+                                        'harbor_version': owner.version})
                 if self.headers.get('Authorization') != expected:
                     return self.answer({}, 401)
                 if self.path.endswith('/users/current'):
@@ -129,6 +140,7 @@ class NativeSSO(unittest.TestCase):
         self.assertEqual(result.returncode == 0, success, output)
         self.assertNotIn('SYNTHETIC_ADMIN_PASSWORD', output)
         self.assertNotIn('SYNTHETIC_CLIENT_SECRET', output)
+        self.assertTrue(all(host == self.origin.removeprefix('https://') for host in self.request_hosts))
         if not defaults and not check:
             self.assertIn('Clear transient native credentials even after failure', output)
         return output
@@ -147,7 +159,12 @@ class NativeSSO(unittest.TestCase):
                        'harbor_native_client_secret_file': '/missing'})
         self.assertEqual(len(self.writes), 1)
         self.assertEqual(sum(path.endswith('/users/current') for path, _ in self.calls), 4)
-        self.assertTrue(all(auth is None for path, auth in self.calls if path.endswith('/systeminfo')))
+        info_auth = [auth for path, auth in self.calls if path.endswith('/systeminfo')]
+        expected = 'Basic ' + base64.b64encode(b'admin:SYNTHETIC_ADMIN_PASSWORD').decode()
+        self.assertEqual(info_auth, [None, expected, None, expected])
+        self.assertEqual([path for path, _ in self.calls[:4]], [
+            '/api/v2.0/systeminfo', '/api/v2.0/users/current',
+            '/api/v2.0/systeminfo', '/api/v2.0/configurations'])
 
     def test_owned_drift_is_repaired_with_minimal_delta(self):
         self.config['auth_mode']['value'] = 'oidc_auth'
@@ -169,15 +186,22 @@ class NativeSSO(unittest.TestCase):
         self.assertEqual(self.writes, [])
 
     def test_wrong_version_redirect_and_wrong_recovery_refused(self):
-        self.version = 'v2.15.1'
-        self.run_play(success=False)
-        self.assertEqual(len(self.calls), 1)
-        self.version = 'v2.15.2'
-        self.redirect = True
-        self.run_play(success=False)
-        self.redirect = False
-        self.bad_recovery = True
-        self.run_play(success=False)
+        scenarios = [({'version': 'v2.15.1'}, 3), ({'redirect': True}, 1),
+                     ({'bad_recovery': True}, 2), ({'auth_redirect': True}, 3),
+                     ({'advertised_origin': 'https://foreign.example.test'}, 3)]
+        for changes, count in scenarios:
+            self.calls.clear()
+            originals = {key: getattr(self, key) for key in changes}
+            for key, value in changes.items():
+                setattr(self, key, value)
+            self.run_play(success=False)
+            self.assertEqual(len(self.calls), count)
+            self.assertFalse(any(path.endswith('/configurations') for path, _ in self.calls))
+            self.assertIsNone(self.calls[0][1])
+            expected = 'Basic ' + base64.b64encode(b'admin:SYNTHETIC_ADMIN_PASSWORD').decode()
+            self.assertTrue(all(auth == expected for _, auth in self.calls[1:]))
+            for key, value in originals.items():
+                setattr(self, key, value)
         self.assertEqual(self.writes, [])
 
     def test_readonly_drift_and_unexpected_secret_schema_refused(self):
