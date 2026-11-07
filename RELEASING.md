@@ -54,10 +54,30 @@ alone is not cryptographically immutable. Repository release/tag protection or
 immutable-release settings are **not configured by this PR**; any required change
 needs owner approval. Do not grant a broad PAT just to bypass workflow behavior.
 
+## Temporary CI pause for Nextcloud SSO
+
+All platform CI validation is temporarily skipped: change-selection policy,
+documentation, metrics placement, full selection/review-chain checks, all five
+regression shards, both SSO shards, Headlamp prerequisites and release tests.
+Jobs and event triggers remain defined and report skipped, not validated. No
+successful test coverage is implied. Test implementations are retained unchanged.
+
+Source release generation/publication remains enabled on main pushes, including
+its release-tag/source-commit verification. There are no image workflow changes,
+registry/digest promotion bypasses, credential changes or branch-rule changes.
+Runtime acceptance and separately authorized rollout safeguards remain mandatory.
+
+After Nextcloud SSO is complete, restore CI by reverting the commit titled
+`fix(ci): temporarily pause validation until Nextcloud SSO is complete` through
+a reviewed PR. Revert all four changed files together: both workflow files,
+`scripts/test_release_workflow.py` and this document. This restores the original
+job predicates and success-dependent release gate. Do not simply remove the
+false predicates from jobs that previously had change-selection conditions.
+
 ## Events, rights and recovery
 
-The release job requires successful configuration and release tests and only runs
-on a main **push**, using `GITHUB_TOKEN` with contents/PR/issues write (release,
+While the temporary Nextcloud SSO pause below is active, the release job permits
+skipped validation dependencies and only runs on a non-cancelled main **push**, using `GITHUB_TOKEN` with contents/PR/issues write (release,
 release-PR and label operations). All checks have contents read only. No job
 approves/merges PRs. Existing Actions PR-creation settings were observed enabled;
 no setting or credential is changed here.
