@@ -16,7 +16,7 @@ class OptionalEnrollmentTests(unittest.TestCase):
     def test_nextcloud_stage_preserves_packages_except_explicit_operator_watch(self):
         baseline=build(ROOT/'clusters/local-gitlab-runner')
         proposed=build(ROOT/'clusters/local-nextcloud')
-        existing=[x for x in proposed if x['metadata']['name']!='tenant-enrollments']
+        existing=[x for x in proposed if x['metadata']['name'] not in {'tenant-enrollments', 'nextcloud-oidc-issuer'}]
         baseline=copy.deepcopy(baseline)
         expected=next(x for x in baseline if x['kind']=='HelmRelease' and x['metadata']['name']=='platform-cnpg')
         watch='gitlab,tenant-home-nextcloud'
@@ -43,6 +43,26 @@ class OptionalEnrollmentTests(unittest.TestCase):
         self.assertEqual(parent['spec']['serviceAccountName'],'tenant-enrollment-admin')
         self.assertFalse(parent['spec']['prune'])
         self.assertTrue(all(not x['spec']['suspend'] for x in enrolled))
+
+    def test_current_metrics_stage_keeps_nextcloud_and_portal_selections_separate(self):
+        evidence = json.loads((ROOT.parent / 'release-evidence.json').read_text())['dependencies']
+        objects = build(ROOT / 'clusters/local-metrics-limited-pilot-ui')
+        enrolled = [obj for obj in objects if obj['metadata']['name'] == 'tenant-enrollments']
+        self.assertEqual({obj['kind'] for obj in enrolled}, {'GitRepository', 'Kustomization'})
+        source = next(obj for obj in enrolled if obj['kind'] == 'GitRepository')
+        parent = next(obj for obj in enrolled if obj['kind'] == 'Kustomization')
+        release_for(source, evidence['nextcloud-enrollment'])
+        self.assertEqual(parent['spec']['path'], './clusters/local-nextcloud')
+        self.assertEqual(parent['spec']['serviceAccountName'], 'tenant-enrollment-admin')
+        self.assertFalse(parent['spec']['prune'])
+        self.assertTrue(all(not obj['spec']['suspend'] for obj in enrolled))
+        portal = build(ROOT / 'enrollments/local')
+        portal_source = next(obj for obj in portal if obj['kind'] == 'GitRepository')
+        portal_parent = next(obj for obj in portal if obj['kind'] == 'Kustomization')
+        release_for(portal_source, evidence['enrollment'])
+        self.assertEqual(portal_source['spec']['ref'], {'tag': 'v1.0.0'})
+        self.assertEqual(portal_parent['spec']['path'], './clusters/local')
+        self.assertTrue(all(obj['spec']['suspend'] for obj in portal))
 
     def test_default_excludes_enrollment_and_explicit_opt_in_preserves_packages(self):
         original = build(ROOT / 'clusters/local')

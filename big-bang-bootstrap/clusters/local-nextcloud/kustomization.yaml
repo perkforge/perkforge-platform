@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
 - ../local-gitlab-runner
 - ../../enrollments/local-nextcloud
+- ../../configuration/identity/nextcloud/local
 commonAnnotations:
   platform.perkforge.io/cluster: local
   platform.perkforge.io/environment: local

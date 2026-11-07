@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.26.0](https://github.com/perkforge/perkforge-platform/compare/v0.25.0...v0.26.0) (2026-11-07)
+
+
+### Features
+
+* **nextcloud:** select published SSO enrollment v1.5.0 ([#239](https://github.com/perkforge/perkforge-platform/issues/239)) ([0caba35](https://github.com/perkforge/perkforge-platform/commit/0caba35771f6d5a29e5b6a3444766e7a5b9a1b81))
+
+
+### Bug Fixes
+
+* **ci:** temporarily pause validation until Nextcloud SSO is complete ([#240](https://github.com/perkforge/perkforge-platform/issues/240)) ([dc7ad39](https://github.com/perkforge/perkforge-platform/commit/dc7ad39097848a1c66833492abe10359cb1d0d41))
+* **nextcloud:** select exact local issuer policy through GitOps ([#242](https://github.com/perkforge/perkforge-platform/issues/242)) ([ee3357a](https://github.com/perkforge/perkforge-platform/commit/ee3357a8129ca6212a0c7cedfab9186f8878b780))
+
+## [0.25.0](https://github.com/perkforge/perkforge-platform/compare/v0.24.1...v0.25.0) (2026-11-07)
+
+
+### Features
+
+* **sso:** add gated Nextcloud client and subject lifecycle ([#217](https://github.com/perkforge/perkforge-platform/issues/217)) ([f6b7f97](https://github.com/perkforge/perkforge-platform/commit/f6b7f97de61a2976e25f836b8d7a4e508ddad79e))
+
 ## [0.24.1](https://github.com/perkforge/perkforge-platform/compare/v0.24.0...v0.24.1) (2026-11-07)
 
 

@@ -1,0 +1,17 @@
+# Owner-admin prerequisite. Never selected by a Kustomization or applied automatically.
+# Adoption only: missing objects require separately approved operator restoration.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: nextcloud-issuer-writer, namespace: tenant-home-nextcloud}
+rules:
+- apiGroups: [networking.k8s.io]
+  resources: [networkpolicies]
+  resourceNames: [nextcloud-oidc-issuer]
+  verbs: [get, patch, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: nextcloud-issuer-writer, namespace: tenant-home-nextcloud}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: nextcloud-issuer-writer}
+subjects:
+- {kind: ServiceAccount, name: platform-reconciler, namespace: flux-system}

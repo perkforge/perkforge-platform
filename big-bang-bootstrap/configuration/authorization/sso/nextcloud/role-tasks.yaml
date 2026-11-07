@@ -1,0 +1,33 @@
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/clients/{{ nc_id }}/roles/{{ nc_role_name }}'
+    headers: '{{ nc_headers }}'
+    status_code: [200,404]
+  register: nc_role
+- ansible.builtin.assert:
+    that: nc_role.status == 200 or nextcloud_client_operation == 'prepare'
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/clients/{{ nc_id }}/roles'
+    headers: '{{ nc_headers }}'
+    method: POST
+    body_format: json
+    body: {name: '{{ nc_role_name }}', description: nextcloud-sso-review-v1, composite: false}
+    status_code: 201
+  when: nc_role.status == 404
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/clients/{{ nc_id }}/roles/{{ nc_role_name }}'
+    headers: '{{ nc_headers }}'
+  register: nc_role_after
+- ansible.builtin.assert:
+    that:
+    - nc_role_after.json.id is match('^[A-Za-z0-9-]+$')
+    - nc_role_after.json.name == nc_role_name
+    - nc_role_after.json.description == 'nextcloud-sso-review-v1'
+    - nc_role_after.json.containerId == nc_id and nc_role_after.json.clientRole
+    - not nc_role_after.json.composite
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/roles-by-id/{{ nc_role_after.json.id }}/composites'
+    headers: '{{ nc_headers }}'
+  register: nc_edges
+- ansible.builtin.assert:
+    that: nc_edges.json | length == 0

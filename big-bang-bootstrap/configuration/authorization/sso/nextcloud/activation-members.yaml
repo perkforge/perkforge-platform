@@ -1,0 +1,11 @@
+- name: Refuse unreviewed recipients and any group delegation before enabling client
+  ansible.builtin.uri:
+    url: '{{ nc_api }}/clients/{{ nc_id }}/roles/{{ nc_activation_role }}/{{ item }}'
+    headers: '{{ nc_headers }}'
+  loop: ['users?first=0&max=21', 'groups?first=0&max=1']
+  register: nc_recipients
+- ansible.builtin.assert:
+    that:
+    - nc_recipients.results[0].json | length <= 20
+    - nc_recipients.results[1].json | length == 0
+    - nc_recipients.results[0].json | map(attribute='id') | sort == nextcloud_subjects | selectattr('role','equalto',nc_activation_role) | map(attribute='sub') | sort
