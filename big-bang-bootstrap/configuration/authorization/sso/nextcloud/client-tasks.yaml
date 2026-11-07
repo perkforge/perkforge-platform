@@ -58,12 +58,12 @@
 - name: Never adopt a foreign client or silently repair drift
   ansible.builtin.assert:
     that:
-    - nc_current.json.get(item.key) == item.value
+    - nc_current.json.get(item.key) == item.value or (nextcloud_client_operation == 'callback' and item.key == 'redirectUris' and nc_current.json.redirectUris == [nextcloud_sso_origin + '/index.php/apps/user_oidc/code'])
     - nc_current.json.authenticationFlowBindingOverrides | default({}) == {}
   loop: '{{ nc_candidate | dict2items | rejectattr("key","in",["enabled","protocolMappers","attributes","defaultClientScopes","optionalClientScopes"]) | list }}'
 - ansible.builtin.assert:
     that:
-    - nc_current.json.attributes.get(item.key) == item.value or (item.key == 'post.logout.redirect.uris' and nextcloud_client_operation in ['display-name','logout-redirect'] and item.key not in nc_current.json.attributes)
+    - nc_current.json.attributes.get(item.key) == item.value or (item.key == 'post.logout.redirect.uris' and nextcloud_client_operation in ['display-name','logout-redirect','callback'] and item.key not in nc_current.json.attributes)
   loop: '{{ nc_candidate.attributes | dict2items }}'
 - ansible.builtin.assert:
     that: not nc_current.json.enabled
@@ -83,7 +83,7 @@
   ansible.builtin.include_tasks: mapper-contract.yaml
   vars:
     nc_mapper_records: '{{ nc_surface.results[2].json }}'
-    nc_mapper_expected: '{{ (nc_candidate.protocolMappers | rejectattr("name","equalto","nextcloud-display-name") | list) if nextcloud_client_operation == "display-name" and nc_surface.results[2].json | length == 2 else nc_candidate.protocolMappers }}'
+    nc_mapper_expected: '{{ (nc_candidate.protocolMappers | rejectattr("name","equalto","nextcloud-display-name") | list) if nextcloud_client_operation in ["display-name","callback"] and nc_surface.results[2].json | length == 2 else nc_candidate.protocolMappers }}'
 - ansible.builtin.uri:
     url: '{{ nc_api }}/clients/{{ nc_id }}/client-secret'
     headers: '{{ nc_headers }}'
@@ -199,3 +199,23 @@
       that:
       - >-
         nc_logout_verified.json == nc_current.json | combine({'attributes':nc_current.json.attributes | combine({'post.logout.redirect.uris':nextcloud_sso_origin + '/'})})
+- when: nextcloud_client_operation == 'callback'
+  block:
+  - name: Replace only the reviewed indexed callback with the exact pretty route
+    ansible.builtin.uri:
+      url: '{{ nc_api }}/clients/{{ nc_id }}'
+      headers: '{{ nc_headers }}'
+      method: PUT
+      body_format: json
+      body: {redirectUris: '{{ [nextcloud_sso_origin + "/apps/user_oidc/code"] }}'}
+      status_code: 204
+    when: nc_current.json.redirectUris != [nextcloud_sso_origin + '/apps/user_oidc/code']
+    changed_when: true
+  - ansible.builtin.uri:
+      url: '{{ nc_api }}/clients/{{ nc_id }}'
+      headers: '{{ nc_headers }}'
+    register: nc_callback_verified
+  - ansible.builtin.assert:
+      that:
+      - >-
+        nc_callback_verified.json == nc_current.json | combine({'redirectUris':[nextcloud_sso_origin + '/apps/user_oidc/code']})

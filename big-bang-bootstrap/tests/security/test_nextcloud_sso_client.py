@@ -64,6 +64,8 @@ class NextcloudClient(unittest.TestCase):
                     s['roles'].append({**data,'id':'role-'+data['name'],'clientRole':True,'containerId':'nc-id'});return self.reply(201)
                 if p=='/clients/nc-id/scope-mappings/clients/nc-id':s['scope']=data;return self.reply(204)
                 if p=='/clients/nc-id':
+                    if set(data)=={'redirectUris'}:
+                        s['client']['redirectUris']=data['redirectUris'];return self.reply(204)
                     if set(data)=={'attributes'}:
                         s['client']['attributes']=data['attributes'];return self.reply(204)
                     if set(data)!={'clientId','enabled'}:return self.reply(400,{})
@@ -168,4 +170,24 @@ class NextcloudClient(unittest.TestCase):
         for invalid in ['*','+','https://foreign.test/','https://files.example.test/##https://foreign.test/']:
             self.s['client']['attributes']['post.logout.redirect.uris']=invalid
             before=len(self.s['writes']);self.run_play('logout-redirect',success=False)
+            self.assertEqual(len(self.s['writes']),before)
+
+    def test_callback_upgrade_is_exact_and_preserves_legacy_client(self):
+        self.run_play()
+        self.s['client']['protocolMappers'].pop()
+        self.s['client']['attributes'].pop('post.logout.redirect.uris')
+        old=copy.deepcopy(self.s['client']);before=len(self.s['writes'])
+        self.run_play('callback',success=False)
+        extra={'nextcloud_sso_callback_path':'/apps/user_oidc/code'}
+        self.run_play('callback',extra=extra,check=True)
+        self.assertEqual(self.s['client'],old)
+        self.run_play('callback',extra=extra)
+        expected=copy.deepcopy(old);expected['redirectUris']=['https://files.example.test/apps/user_oidc/code']
+        self.assertEqual(self.s['client'],expected)
+        self.assertEqual(self.s['writes'][before:],[('PUT','/clients/nc-id')])
+        self.assertIn('changed=0',self.run_play('callback',extra=extra).stdout)
+        for invalid in [['https://foreign.test/index.php/apps/user_oidc/code'], ['https://files.example.test/*'],
+                        ['https://files.example.test/index.php/apps/user_oidc/code','https://files.example.test/apps/user_oidc/code']]:
+            self.s['client']['redirectUris']=invalid
+            before=len(self.s['writes']);self.run_play('callback',extra=extra,success=False)
             self.assertEqual(len(self.s['writes']),before)

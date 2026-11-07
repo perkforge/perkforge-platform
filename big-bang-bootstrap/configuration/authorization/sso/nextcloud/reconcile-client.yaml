@@ -34,9 +34,10 @@
     block:
     - ansible.builtin.assert:
         that:
-        - nextcloud_client_operation in ['inspect','prepare','activate','rollback','members','display-name','logout-redirect']
+        - nextcloud_client_operation in ['inspect','prepare','activate','rollback','members','display-name','logout-redirect','callback']
         - nextcloud_client_approval == 'nextcloud-client-' + nextcloud_client_operation + '-v1'
         - nextcloud_recovery_verified | bool
+        - nextcloud_client_operation != 'callback' or nextcloud_sso_callback_path == '/apps/user_oidc/code'
         - nextcloud_client_operation != 'activate' or nextcloud_native_ready | bool
         - nextcloud_client_operation not in ['members','activate'] or nextcloud_provisioning_approval == 'own-client-role-jit-v1'
         - nextcloud_sso_callback_path in ['/index.php/apps/user_oidc/code','/apps/user_oidc/code']

@@ -69,6 +69,13 @@ resources cause refusal, not automatic repair. Other applications are untouched.
   grants and changes only those own-client direct roles. It creates no users.
 - activate requires native-ready and `own-client-role-jit-v1` approval, exact
   reviewed role recipients and zero group grants before enabling only this client.
+- callback, with `nextcloud-client-callback-v1` approval and explicit pretty-route
+  input, replaces only the sole same-origin `/index.php/apps/user_oidc/code` URI
+  with the sole `/apps/user_oidc/code` URI. It also accepts an already-correct URI
+  without writing. Unknown, foreign, multiple and wildcard URIs are refused. The
+  entire client record is compared afterward, excluding only the intended redirect
+  change. It tolerates only the known legacy missing name mapper/logout attribute
+  so this correction can precede those separate upgrades; it does not add them.
 - display-name, with `nextcloud-client-display-name-v1` approval, upgrades only an
   exact legacy two-mapper client by adding `nextcloud-display-name`. It emits `name`
   in the ID token only, not access tokens, userinfo or introspection. It changes no
@@ -165,6 +172,11 @@ label. Source changes do not apply the migration; both client and native stages
 need their own explicit approval and verified recovery.
 
 For legacy clients missing both additions, explicitly approve and run `display-name`
-first, then `logout-redirect`. Only those migration operations tolerate the absent
+first, then `logout-redirect`. Only the named migration operations tolerate the absent
 logout attribute; normal operations require the complete reviewed contract. Never
 use `+`, `*` or multiple allowed logout destinations.
+
+If correcting the known indexed-to-pretty physical callback, run the independently
+approved `callback` operation first with `nextcloud_sso_callback_path=/apps/user_oidc/code`,
+then the separately approved name/logout operations as needed. No operation selects
+or repairs arbitrary routing; verify the actual browser-facing callback in app Git.
