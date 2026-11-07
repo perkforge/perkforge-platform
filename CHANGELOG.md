@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.5](https://github.com/perkforge/perkforge-platform/compare/v0.29.4...v0.29.5) (2026-11-07)
+
+
+### Bug Fixes
+
+* **harbor:** preserve empty Keycloak web origins on toggle ([#267](https://github.com/perkforge/perkforge-platform/issues/267)) ([5e0c38e](https://github.com/perkforge/perkforge-platform/commit/5e0c38e0bb0ad146e715d52789ff6fbd49ab5519))
+
 ## [0.29.4](https://github.com/perkforge/perkforge-platform/compare/v0.29.3...v0.29.4) (2026-11-07)
 
 
