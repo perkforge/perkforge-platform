@@ -1,0 +1,170 @@
+# Default-off, create-only Harbor namespace foundation. Never changes the operator/watch.
+- name: Prepare the separately approved Harbor data foundation
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars:
+    harbor_foundation_apply: false
+    harbor_foundation_scope: UNAPPROVED
+    harbor_package_directory: '{{ playbook_dir }}/../packages/harbor'
+    harbor_expected_api: https://UNCONFIGURED.invalid:6443
+    harbor_expected_operator_uid: UNCONFIGURED
+    gitops_path: ./big-bang-bootstrap/clusters/local-metrics-limited-pilot-ui
+  tasks:
+  - name: Require the existing physical local target
+    ansible.builtin.assert:
+      that:
+      - inventory_hostname == 'local' and deployment_environment == 'local'
+      - impact_profile == 'il2' and ansible_play_hosts_all | length == 1
+      - gitops_path == './big-bang-bootstrap/clusters/local-metrics-limited-pilot-ui'
+  - ansible.builtin.debug:
+      msg: 'Default/check mode contacts no API. Explicit apply creates only missing reviewed Harbor namespace grants. No credentials, operator/watch changes, workloads, source promotion or deletion.'
+  - when: harbor_foundation_apply | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - name: Require exact approval scope and protected target inputs
+      ansible.builtin.assert:
+        that:
+        - harbor_foundation_scope == 'harbor-foundation-v1'
+        - harbor_package_directory | realpath == (playbook_dir + '/../packages/harbor') | realpath
+        - harbor_expected_api is match('^https://[A-Za-z0-9.:-]+$')
+        - "'UNCONFIGURED' not in harbor_expected_api"
+        - harbor_expected_operator_uid is match('^[0-9a-f-]{36}$')
+        - target_context != 'UNCONFIGURED' and expected_cluster_uid != 'UNCONFIGURED'
+        - target_kubeconfig != '/UNCONFIGURED/kubeconfig'
+    - ansible.builtin.include_tasks: verify-release.yaml
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', rev-parse, HEAD]
+      changed_when: false
+      register: harbor_foundation_checkout
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', status, --porcelain]
+      changed_when: false
+      register: harbor_foundation_changes
+    - ansible.builtin.assert:
+        that:
+        - harbor_foundation_checkout.stdout == config_release.resolvedCommit
+        - harbor_foundation_changes.stdout | length == 0
+    - ansible.builtin.stat:
+        path: '{{ target_kubeconfig }}'
+        follow: false
+      register: harbor_foundation_kubeconfig
+    - ansible.builtin.assert:
+        that:
+        - target_kubeconfig is match('^/') and target_kubeconfig | realpath == target_kubeconfig
+        - harbor_foundation_kubeconfig.stat.isreg and not (harbor_foundation_kubeconfig.stat.islnk | default(false))
+        - harbor_foundation_kubeconfig.stat.mode == '0600' and harbor_foundation_kubeconfig.stat.pw_name == lookup('env','USER')
+    - ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', config, view, --minify, -o, json]
+      changed_when: false
+      register: harbor_foundation_api
+    - name: Verify the pinned API TLS configuration before any network request
+      ansible.builtin.assert:
+        that:
+        - config['current-context'] == target_context
+        - config.contexts | length == 1 and config.clusters | length == 1
+        - config.contexts[0].name == target_context
+        - config.contexts[0].context.cluster == config.clusters[0].name
+        - endpoint.server == harbor_expected_api
+        - not (endpoint['insecure-skip-tls-verify'] | default(false))
+        - not (endpoint['proxy-url'] | default('')) and not (endpoint['tls-server-name'] | default(''))
+        - (endpoint['certificate-authority-data'] | default('') | length > 0) or (endpoint['certificate-authority'] | default('') | length > 0)
+      vars:
+        config: '{{ harbor_foundation_api.stdout | from_json }}'
+        endpoint: '{{ config.clusters[0].cluster }}'
+    - ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      changed_when: false
+      register: harbor_foundation_cluster
+    - ansible.builtin.assert:
+        that:
+        - harbor_foundation_cluster.stdout == expected_cluster_uid
+    - name: Inspect only the already installed shared operator
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, deployment, platform-cnpg, -n, cnpg-system, -o, json]
+      changed_when: false
+      register: harbor_operator_before
+    - name: Require the accepted operator identity, pin, watches and readiness
+      ansible.builtin.assert:
+        that:
+        - operator.metadata.uid == harbor_expected_operator_uid
+        - operator.metadata.labels['app.kubernetes.io/managed-by'] == 'Helm'
+        - operator.metadata.labels['helm.sh/chart'] == 'cloudnative-pg-0.29.1'
+        - operator.metadata.annotations['meta.helm.sh/release-name'] == 'platform-cnpg'
+        - operator.metadata.annotations['meta.helm.sh/release-namespace'] == 'cnpg-system'
+        - operator.spec.template.spec.serviceAccountName == 'platform-cnpg'
+        - operator.spec.template.spec.containers | length == 1
+        - operator.spec.template.spec.containers[0].name == 'manager'
+        - operator.spec.template.spec.containers[0].image == operator_values.image.repository ~ ':' ~ operator_values.image.tag
+        - operator.spec.replicas == 1 and operator.status.readyReplicas | default(0) == 1
+        - operator.status.observedGeneration == operator.metadata.generation
+        - watch_env | length == 1
+        - watch_env[0].value in ['gitlab,tenant-home-nextcloud', 'gitlab,tenant-home-nextcloud,harbor']
+      vars:
+        operator: '{{ harbor_operator_before.stdout | from_json }}'
+        operator_values: "{{ lookup('file',playbook_dir + '/../packages/cloudnative-pg/values.yaml') | from_yaml }}"
+        watch_env: "{{ operator.spec.template.spec.containers[0].env | selectattr('name','equalto','WATCH_NAMESPACE') | list }}"
+    - ansible.builtin.set_fact:
+        harbor_foundation_documents: []
+        cacheable: false
+    - ansible.builtin.set_fact:
+        harbor_foundation_documents: "{{ harbor_foundation_documents + (lookup('file',harbor_package_directory + '/data-services/prerequisites/' + item) | from_yaml_all | select | list) }}"
+      loop: [installer.yaml, cnpg.yaml]
+    - name: Add only the reviewed application installer and transport grants
+      ansible.builtin.set_fact:
+        harbor_foundation_documents: "{{ harbor_foundation_documents + (lookup('file',harbor_package_directory + '/prerequisites/installer.yaml') | from_yaml_all | select | rejectattr('kind','equalto','Namespace') | list) + (lookup('file',harbor_package_directory + '/prerequisites/gitops.yaml') | from_yaml_all | select | list) }}"
+    - name: Refuse unexpected resource identities or global grants
+      ansible.builtin.assert:
+        that:
+        - harbor_foundation_documents | length == 13
+        - item.kind in ['Namespace','ServiceAccount','Role','RoleBinding']
+        - item.metadata.labels['perkforge.io/owner'] in ['harbor-foundation-v1','harbor-data-foundation-v1']
+        - (item.kind == 'Namespace' and item.metadata.name == 'harbor') or (item.kind == 'ServiceAccount' and item.metadata.name in ['harbor-data-installer','harbor-installer'] and item.metadata.namespace == 'bigbang') or (item.kind in ['Role','RoleBinding'] and item.metadata.name in ['harbor-data-installer','harbor-data-gitops','platform-cnpg-databases','harbor-installer','harbor-application-gitops'] and item.metadata.namespace == 'harbor')
+      loop: '{{ harbor_foundation_documents }}'
+    - name: Inspect all thirteen targets before any create
+      ansible.builtin.command:
+        argv: "{{ ['kubectl','--kubeconfig',target_kubeconfig,'--context',target_context,'get',item.kind,item.metadata.name,'--ignore-not-found','-o','json'] + (['-n',item.metadata.namespace] if item.metadata.namespace is defined else []) }}"
+      loop: '{{ harbor_foundation_documents }}'
+      changed_when: false
+      register: harbor_foundation_before
+    - name: Refuse foreign ownership or configuration without adopting or patching
+      ansible.builtin.assert:
+        that: item.stdout | from_json | harbor_foundation_matches(item.item)
+      loop: '{{ harbor_foundation_before.results }}'
+      when: item.stdout | length > 0
+    - name: Create and verify each missing object, stopping on the first failure
+      ansible.builtin.include_tasks: tasks/harbor-foundation-create.yaml
+      loop: '{{ harbor_foundation_before.results }}'
+      loop_control:
+        loop_var: harbor_creation
+      when: harbor_creation.stdout | length == 0
+    - name: Read back every exact target
+      ansible.builtin.command:
+        argv: "{{ ['kubectl','--kubeconfig',target_kubeconfig,'--context',target_context,'get',item.kind,item.metadata.name,'-o','json'] + (['-n',item.metadata.namespace] if item.metadata.namespace is defined else []) }}"
+      loop: '{{ harbor_foundation_documents }}'
+      changed_when: false
+      register: harbor_foundation_after
+    - name: Verify exact configuration and preserve every preexisting object identity
+      ansible.builtin.assert:
+        that:
+        - item.stdout | from_json | harbor_foundation_matches(item.item)
+        - previous.stdout | length == 0 or (previous.stdout | from_json).metadata.uid == (item.stdout | from_json).metadata.uid
+      vars:
+        previous: '{{ harbor_foundation_before.results[harbor_object_index] }}'
+      loop: '{{ harbor_foundation_after.results }}'
+      loop_control:
+        index_var: harbor_object_index
+    - name: Recheck the untouched shared operator
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, deployment, platform-cnpg, -n, cnpg-system, -o, json]
+      changed_when: false
+      register: harbor_operator_after
+    - name: Preserve the operator identity and exact desired spec
+      ansible.builtin.assert:
+        that:
+        - before.metadata.uid == after.metadata.uid
+        - before.metadata.generation == after.metadata.generation
+        - before.spec == after.spec
+        - after.status.readyReplicas | default(0) == 1
+      vars:
+        before: '{{ harbor_operator_before.stdout | from_json }}'
+        after: '{{ harbor_operator_after.stdout | from_json }}'

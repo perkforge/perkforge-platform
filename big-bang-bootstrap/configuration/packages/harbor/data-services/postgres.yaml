@@ -1,0 +1,28 @@
+# Unselected dedicated Harbor database; protected bootstrap input must preexist.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: harbor-postgres
+  namespace: harbor
+  labels: {perkforge.io/owner: harbor-data-v1}
+spec:
+  instances: 1
+  affinity:
+    nodeSelector: {storage.perkforge.io/worker: 'true'}
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.11@sha256:70664ebcfa1100361b5bdc28bbf06fdbe08db2dc4ad7bd14de33c5e05fe8ea8e
+  enableSuperuserAccess: false
+  storage: {storageClass: longhorn-dedicated, size: 8Gi}
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {cpu: '1', memory: 1Gi}
+  postgresql:
+    pg_hba:
+    - hostnossl all all all reject
+    parameters:
+      max_connections: '100'
+      shared_buffers: 128MB
+  bootstrap:
+    initdb:
+      database: harbor
+      owner: harbor
+      secret: {name: harbor-database}

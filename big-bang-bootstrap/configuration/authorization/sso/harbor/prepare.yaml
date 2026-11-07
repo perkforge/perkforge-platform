@@ -1,0 +1,47 @@
+- name: Render a disabled Harbor client independently of existing app clients
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    harbor_sso_render: false
+    harbor_sso_origin: https://harbor.example.invalid
+    harbor_sso_issuer: https://identity.example.invalid/auth/realms/perkforge
+    harbor_sso_output: /UNCONFIGURED/harbor-sso-review
+  tasks:
+  - name: Require exact independent HTTPS identities
+    ansible.builtin.assert:
+      that:
+      - harbor_sso_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+      - harbor_sso_issuer is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?(/auth)?/realms/perkforge$')
+      - (harbor_sso_origin | urlsplit('port')) is none or 1 <= (harbor_sso_origin | urlsplit('port')) <= 65535
+      - (harbor_sso_issuer | urlsplit('port')) is none or 1 <= (harbor_sso_issuer | urlsplit('port')) <= 65535
+      - >-
+        (harbor_sso_origin | urlsplit('hostname') | lower | regex_replace('\.$', '')) != (harbor_sso_issuer | urlsplit('hostname') | lower | regex_replace('\.$', ''))
+        or ((harbor_sso_origin | urlsplit('port')) or 443) != ((harbor_sso_issuer | urlsplit('port')) or 443)
+  - ansible.builtin.debug:
+      msg: 'Review preparation only; no API, credentials, grants, native activation or existing SSO app changes.'
+  - when: harbor_sso_render | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - harbor_sso_origin is not search("[\\x00-\\x20\\x7f]")
+        - harbor_sso_issuer is not search("[\\x00-\\x20\\x7f]")
+        - harbor_sso_output is match('^/') and not harbor_sso_output.startswith('/UNCONFIGURED/')
+        - (harbor_sso_origin | urlsplit('hostname') | lower | regex_replace('\.$', '')) is not search('\.invalid$')
+        - (harbor_sso_issuer | urlsplit('hostname') | lower | regex_replace('\.$', '')) is not search('\.invalid$')
+    - ansible.builtin.stat:
+        path: '{{ harbor_sso_output }}'
+        follow: false
+      register: destination
+    - ansible.builtin.assert:
+        that: not destination.stat.exists
+        fail_msg: Preserve previous/interrupted output and choose a fresh directory.
+    - ansible.builtin.file:
+        path: '{{ harbor_sso_output }}'
+        state: directory
+        mode: '0700'
+    - ansible.builtin.copy:
+        content: "{{ lookup('file', 'client.json') | from_json | combine({'redirectUris':[harbor_sso_origin + '/c/oidc/callback'], 'attributes':{'post.logout.redirect.uris':harbor_sso_origin + '/account/sign-in'}}, recursive=true) | to_nice_json }}"
+        dest: '{{ harbor_sso_output }}/client.json'
+        mode: '0600'
+        force: false

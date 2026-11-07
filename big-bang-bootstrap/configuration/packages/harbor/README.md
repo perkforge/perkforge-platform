@@ -1,122 +1,205 @@
-# Harbor initial administration — blocked inactive candidate (#25)
+# Harbor: one release, staged activation
 
-Installer accounts live in `bigbang`, alongside their HelmReleases. Target Roles
-bind those exact identities; storageNamespace does not relocate impersonation.
-Installer API token automount is disabled.
+This source combines dedicated PostgreSQL, Valkey, Harbor and Keycloak OIDC.
+**Publication does not deploy it.** Existing roots are unchanged; only the new
+`local-harbor-data` and `local-harbor-app` roots select these additions. Keep CI
+workflows disabled while maintaining and running local checks.
 
-Exact Big Bang3.35.1 package1.19.2-bb.3/app2.15.2 profile and checksummed source
-render23 objects. Disabled/paused, no root inclusion, no prerequisite apply path.
-No live deployment, credential generation or claim that the cumulative stack fits.
+## Scope
 
-Initial admin and all encryption/token-signing/CSRF/job/registry/database/Redis
-material use protected Secret references. Four vendor Secret objects render empty,
-not sample passwords/generated keys. No public source cache contains real values.
-Root/admin password is only part of recovery: preserve Harbor encryption/signing
-material and consistent database plus registry content backups independently.
-Do not overwrite existing stores or assume password replacement resets admin.
+- Big Bang 3.35.1, Harbor package 1.19.2-bb.3 / native 2.15.2; dedicated CNPG
+  PostgreSQL 17.11 and Valkey 7.2.15 using the existing reviewed operator/chart pins.
+- Separate Harbor namespace, data, credentials and PVCs. No reuse or resizing of
+  GitLab/Nextcloud stores, no new operator, no shared application secret access.
+- Existing accepted root is inherited. The only existing operator change adds
+  `harbor` after `gitlab,tenant-home-nextcloud`; do not replace a newer watch list.
+- Five app containers request 500m CPU / 1280Mi. Data requests 350m / 768Mi.
+  Total: **850m / 2048Mi**, plus runtime/init peaks and future workload growth.
+- Registry 10Gi, job logs 1Gi, PostgreSQL 8Gi, Valkey 2Gi. Two-replica Longhorn
+  scheduling adds **42Gi**: 40Gi dedicated disks, 2Gi root disks. Snapshot, backup,
+  restore and growth headroom are additional. This is not a capacity acceptance.
+- Scanner/exporter, robots, CI publishing, tenant project synchronization and
+  offboarding remain outside this pilot. No scanned-image or HA claim.
 
-External PostgreSQL and Redis are deliberately UNCONFIGURED. Bundled dependencies
-are off rather than deploying their vendor example passwords. PostgreSQL verify-full
-is requested. Native `upstream.redis.external.tlsOptions.enable=true` renders
-`rediss` URLs and registry `enableTLS`; `upstream.caBundleSecretName` references
-`harbor-public-ca` key `ca.crt` at the native custom-CA mount in its consumers.
-This is a public CA bundle only, never a signing key.
-The same public-CA Secret is explicitly selected by `caSecretName` for core's
-CA-download volume; leaving it empty with externally supplied service TLS makes
-the pinned chart render an invalid empty Secret volume.
-Actual container trust-store
-loading, verified database/Redis server identities, service endpoints and supported
-versions still need completion and live positive/negative TLS checks before selection.
-ClusterIP service TLS
-references current physical `harbor-service-tls`; no auto self-signed cert, Ingress,
-Istio or Gateway API changes. Backend/internal component transport and network
-policies still need review; ClusterIP does not itself authenticate/isolate traffic.
+## Transport and authority
 
-Core explicitly sets `PGSSLROOTCERT=/harbor_cust_cert/custom-ca.crt` so the
-PostgreSQL driver selects the already mounted public CA, including its schema
-migrator. A custom-CA mount/system trust update alone does not establish this
-database-driver configuration. This follows the pinned [Harbor connection and
-migration source](https://github.com/goharbor/harbor/blob/v2.15.2/src/common/dao/pgsql.go)
-and its [pgx v5.10.0 environment/TLS parser](https://github.com/jackc/pgx/blob/v5.10.0/pgconn/config.go).
-Exact image/runtime positive and wrong-CA/hostname tests remain required.
-The single-core pilot bounds its database pool at 50 open/10 idle connections,
-instead of the chart-rendered 1000/100 defaults (the driver alone defaults to 900/100); this is a ceiling, not a reservation or
-proof of adequate PostgreSQL capacity. Exporter/scanner remain off.
+- External HTTPS origin: `https://harbor.perkforge.home.arpa`.
+- Native Traefik Ingress replaces the bundled nginx path that disables backend
+  certificate verification. Core/portal use HTTPS and namespace-local
+  ServersTransport objects with exact server names and `harbor-internal-ca`.
+- All internal components use dedicated TLS Secrets. A final narrow post-renderer
+  corrects Big Bang's inherited registry Service port 5000 to TLS port 5443.
+- PostgreSQL uses `verify-full`, explicit core
+  `PGSSLROOTCERT=/harbor_cust_cert/custom-ca.crt`, and a 50-open/10-idle pool.
+  Valkey requires TLS plus a dedicated password, with indexes 0/1/2.
+- NetworkPolicy denies ingress by default, admitting only Traefik, the exact
+  Harbor consumers and existing CNPG operator. **Egress is not restricted.**
+  Exact endpoint/CNI-reviewed egress is separate work; do not describe this as
+  complete network isolation. Host-local/CNI behavior still needs live tests.
+- The create-only foundation has 13 objects: Harbor namespace; two installer
+  ServiceAccounts in `bigbang`; five namespace Roles and five bindings. No new
+  ClusterRole, bind/escalate permission or shared `bigbang` Secret-history grant.
+  CNPG's existing namespace authority includes workload/Secret management and
+  Pod exec; adding Harbor is an explicit access expansion.
 
-Registry10Gi uses the accepted `longhorn-dedicated` class (two replicas, Retain,
-expansion enabled) for future image/chart data. Job logs1Gi stay on `longhorn`.
-This inactive source choice changes no existing claim or data. Together they propose22Gi Longhorn scheduled data for two replicas,
-excluding PostgreSQL/Redis, snapshots, backups and headroom. Workload requests and
-actual push/pull/scanning load must join the whole queued-stack budget. No broad
-low-resource tuning is claimed sufficient for this three-node cluster.
+## One-MR rollout order
 
-The selected chart creates no runtime RBAC. Its inactive installer has namespace
-workload/Secret/Helm-history CRUD, no cluster/bind/escalate grants. Actual rendered
-object kinds and initial/upgrade Helm Secret lookups are checked against the existing
-synthetic API model; live authorizer, existing-secret conflicts, upgrade migrations,
-TLS, push/pull authorization, persistence/restore and performance are untested.
+Use one reviewed MR and one immutable published release containing all source.
+The data and app checkpoints are two selections of that same release, not two MRs.
+Do not replay cluster bootstrap or manually override a child against Git values.
 
-**Scanner intentionally deferred, not silently secured:** Trivy is off in this
-initial-access proposal, pending #26/#79 ingestion/scanning design and capacity/
-DB egress policy. No scanned-image or supply-chain-security claim. Approve that
-limited scope or enable a reviewed scanner before exposing a registry workflow.
-SSO/groups/robots/CI publisher tokens and GitLab migration remain later decisions.
-No obsolete direct Harbor installer found to remove; useful auth patterns retained.
+1. **Preflight and preservation.** Verify the clean release checkout and immutable
+   tag/commit. Recheck all nodes/releases, per-worker requested capacity, Longhorn
+   replicas/free space and current watches. Capture pre-Harbor preservation
+   evidence with `scripts/harbor-stage-audit.py --verify --mode snapshot`.
+2. **Foundation and protected inputs.** Obtain the action-time approvals below.
+   Run default-off `configuration/ansible/harbor-prerequisites.yaml` against the
+   exact API/context/cluster/operator identities. It checks every target first,
+   creates only missing owned objects, stops/readbacks per object and refuses
+   adoption, rotation or patching. Prepare and deliver only the data profile.
+3. **Data root.** Conditionally select the published tag and
+   `./big-bang-bootstrap/clusters/local-harbor-data` through the existing owner
+   promotion procedure. Verify exact source artifact/root revision and run the
+   read-only audit in `data` mode and preserve its separate data checkpoint. Test correct password/CA/hostname and rejection
+   of wrong password, wrong CA, wrong hostname, plaintext and other namespaces.
+   Run one explicitly approved bounded persistence test. Preserve existing PVCs.
+4. **Application inputs.** Export only the new CNPG server CA's `ca.crt`, after
+   checking its owning Cluster UID and `status.certificates.serverCASecret`.
+   Never export `ca.key`. Build the public CA bundle with internal and existing
+   issuer/lab roots. Deliver the separate app profile, internal/service TLS and
+   dedicated registry pull input. Preserve all credentials for recovery.
+5. **App root.** Select `./big-bang-bootstrap/clusters/local-harbor-app` at the same
+   release. Verify exact artifact/revision, all deployments/PVCs, installed
+   Traefik CRD schema and actual Service/transport references with the `app`
+   audit. Test public HTTPS, native TLS and independent built-in `admin` login.
+   Ready is not proof of transport, authentication, data integrity or performance.
+6. **Private project boundary.** Harbor's pinned initial SQL seeds project 1,
+   `library`, as **public**. Keep it empty. After checking its exact identity and
+   zero artifacts, obtain approval to make only that project's visibility private,
+   preserving its ID and all other metadata. Read it back. Do not push real data
+   before anonymous/unassigned private-project denial passes; SSO cannot fix this.
+7. **SSO.** Follow the [dedicated client and native adapter](../../authorization/sso/harbor/README.md):
+   create the exact disabled client, configure native OIDC before any non-admin
+   local account, grant its one admin role only to the existing exact
+   `/platform/admins` group, then enable after separate approval/readback. Verify
+   fresh MFA login/logout, named admin, independent local admin recovery, non-admin
+   system-admin denial and unassigned private-project push/pull denial.
+8. **Acceptance.** Approve a disposable private-project image push/pull and
+   persistence test; retain evidence/data until cleanup is approved. Check unchanged
+   existing releases/databases/PVCs after every stage. Do not onboard production
+   data until consistent database + registry + credential backup and isolated
+   restore are demonstrated. Velero design alone is not that evidence.
 
-Before activation: choose data services/capacity, protected input custody, exact
-PKI and network boundaries, approve scoped grants/release selection, then verify
-trusted admin login, authenticated push/pull and denial, retained data and isolated
-restore. User owns any eventual temporary credential-cache migration.
+## Protected-input procedure
 
-## Shortest isolated data-service path — approval still required
+Run with Ansible, OpenSSL, Python `PyYAML`, `cryptography>=43` and `bcrypt` available.
+Use an owned 0700 private directory outside Git and world-writable ancestors;
+all supplied input/output files are canonical, single-link, owned 0600 files.
+Password inputs contain the exact value with **no trailing newline**.
 
-Use dedicated Harbor PostgreSQL and a dedicated TLS/authenticated Valkey instance;
-do not add users/databases to the accepted GitLab/Nextcloud clusters or share their
-credentials/cache. Harbor 2.15.2 [adopted Valkey](https://github.com/goharbor/harbor-helm/releases/tag/v1.19.2),
-so the pinned existing Valkey chart is a candidate for reuse as a separate release,
-not evidence that external TLS/authentication has passed. Keep the single-writer
-Recreate/RWO design and distinct Redis indexes (core 0, jobs 1, registry 2);
-password-only auth uses `REDIS_PASSWORD` from the dedicated `harbor-redis` Secret.
-No Sentinel/cluster or new operator is needed for this pilot.
+- `prepare-transport.yaml`: explicit `harbor_transport_run=true` and
+  `harbor_transport_scope=harbor-internal-transport-issuance-v1`; supply
+  `harbor_transport_output_parent`. Creates a fresh dedicated internal CA and
+  five exact service leaf identities. Deliver only `delivery/internal/` after
+  the bundle has `READY`. `signer/ca.key` stays local and is never an input to
+  Secret assembly. This is fresh issuance, not an implicit renewal/rotation.
+- `prepare-public-certificate.yaml`: explicit `harbor_public_certificate_run=true`,
+  scope `harbor-public-leaf-issuance-v1`, existing CA/output private directories
+  and exact SHA256 fingerprint. Existing `root-ca.key.pem` must remain encrypted
+  PKCS8; unlock only through the local hidden prompt. Only
+  `harbor.perkforge.home.arpa` is issued. Deliver only `delivery/external/`
+  after `READY`; partial failed bundles are retained privately, never reused.
+- `prepare-credentials.yaml`: set profile `data` or `application`,
+  `harbor_credentials_run=true`, matching scope
+  `harbor-<profile>-private-assembly-v1`, `harbor_private_root`,
+  `harbor_credentials_manifest`, exact `harbor_expected_namespace_uid`, and
+  `harbor_credentials_inputs` mapping Secret name → key → protected input path.
+  The [exact contracts](tasks/contracts.yaml) contain four data and 16 app Secrets.
+  This assembles existing values; it does not generate passwords/token signing
+  material, fetch registry credentials or read the cluster. Arrange those exact
+  protected inputs under the separately approved local custody procedure.
+  Encryption `secretKey` is exactly 16 ASCII bytes; `CSRF_KEY` exactly 32.
+  Initial admin is 16–128 ASCII bytes with lowercase/uppercase/digit; Valkey is
+  24–128 URL-safe alphanumeric/underscore/hyphen characters. The registry bcrypt
+  entry must match its password for `harbor_registry_user`; token signing uses
+  a matching RSA key/certificate with digital-signature usage.
+- App assembly also pins the deduplicated public trust bundle with
+  `harbor_public_ca_sha256` and the separately approved
+  `harbor_database_ca_sha256`, `harbor_valkey_ca_sha256`,
+  `harbor_identity_ca_sha256`. Values are lowercase SHA256 DER fingerprints,
+  not the colon-form OpenSSL fingerprint string used for external leaf issuance.
+  Include the internal root; CNPG's public CA is available only after data startup.
+- `deliver-credentials.yaml`: use the same profile/manifest/pins, exact
+  `harbor_delivery_scope=harbor-<profile>-credential-delivery-v1`, explicit
+  `harbor_delivery_run=true`, protected `harbor_kubeconfig`, canonical
+  `harbor_kubectl`, `harbor_context`, expected API/cluster/namespace UIDs. It
+  preflights all targets, dry-runs missing objects, then creates/readbacks one at
+  a time. Existing immutable identical Secrets are reused; any foreign/changed
+  object is refused before writes. No adoption, overwrite or automatic rotation.
 
-Reusing the shared CNPG operator requires an additive Harbor watch/namespace Role
-review that preserves both current watches (`gitlab`, `tenant-home-nextcloud`).
-Do not replace the current watch configuration or rerun provider installation.
-The operator gains management of Harbor database workloads and Secrets; this is
-an action-time access decision. A new namespaced data installer, immutable inputs,
-database/cache certificates and public CA delivery also need reviewed source.
-Database/cache PVC sizes and resource requests remain undecided: count two
-Longhorn replicas plus existing registry/job-log 22Gi, snapshots and headroom
-before selecting them. Small single instances accept downtime and do not provide
-independent backup/restore by themselves.
+Preserve the private manifest and original inputs for a zero-change repeat and
+recovery. Public CA/leaf expiry and later renewal need an explicit reviewed
+rotation plan because delivered inputs are immutable; no renewal automation is
+claimed. Never put private manifests, rendered credential-bearing configuration,
+key material or real operator variables in source, logs or chat.
 
-Publish/apply the approved foundation and empty data-only stage before enabling
-Harbor: verify TLS identities, wrong CA/hostname/password/plaintext denials,
-cross-namespace denial, persistence and unchanged existing claims/services.
-Then approve the scanner-deferred scope, deliver the Harbor-only protected inputs,
-and select an empty platform-admin-only app pilot. Admin access, authenticated
-push/pull/denial and isolated restore remain acceptance gates. No data stage,
-credential, namespace grant, certificate or workload is created by this proposal.
+## Required action-time approval bundle
 
-[Exact package](https://repo1.dso.mil/big-bang/product/packages/harbor/-/tree/1.19.2-bb.3),
-[Harbor chart](https://github.com/goharbor/harbor-helm/tree/v1.19.2),
-[Harbor administration](https://goharbor.io/docs/).
+Confirm the exact target/release/root and the following consequences before running
+any corresponding operation. Approval flags in source are guards, not permission.
 
-## Keycloak OIDC review — native API ownership
+- The 13 foundation objects, CNPG Harbor namespace access/watch and dedicated
+  data/app resource/storage proposal. Existing apps stay unchanged.
+- Local protected credential/key generation, existing-CA leaf signing and the
+  explicit Harbor-only Secret delivery, including the registry credential copy.
+  CA signing keys stay local. No password/token appears in chat, argv or Git.
+- The two conditional GitOps selections and their new workloads, HTTPS route and
+  namespace-only policies/transport grants. Scanner is off and egress unrestricted.
+- Exact empty default `library` project public-to-private change before data use.
+- Dedicated confidential Keycloak client/secret, the admin-group role grant for
+  **current and future** `/platform/admins` members, native Harbor OIDC settings
+  and client enablement. No other realm groups, users, clients or roles change.
+- Separately bounded live data/push-pull/persistence/restore tests and later cleanup.
 
-`sso-review.yaml` records a disabled dedicated client and public Harbor
-configuration payload. Future explicitly approved Ansible configuration owns the
-API settings and protected client-secret delivery; no Helm hook, config-overwrite
-secret literal or live apply is added. Verify the pinned server/schema first.
+OIDC group filtering limits imported groups, not who can sign in. Manual onboarding
+is not login denial. Unmapped realm users may reach onboarding but receive no
+system-admin/private-project permission from this source. Harbor's configuration
+GET omits the client secret, so public readback cannot prove secret equality;
+only a successful real token exchange establishes that acceptance.
 
-Configure OIDC before creating local non-admin users: those users block mode
-migration. Keep and test the built-in local admin. Groups must be in the **ID
-token**; the OIDC group filter does not restrict login. Only the explicit platform
-admin group proposes system administration. Tenant admin/developer/viewer map to
-own private project Admin/Developer/Guest, with membership/offboarding still
-unimplemented. Project creation is admin-only; no public-project or unassigned-user
-access claim is made. Rollback must preserve images/projects/robots and recovery,
-not blindly switch authentication modes or assume issued tokens are revoked.
+## Checks and failure handling
 
-[Harbor OIDC](https://goharbor.io/docs/2.15.0/administration/configure-authentication/oidc-auth/),
-[system settings](https://goharbor.io/docs/2.15.0/install-config/configure-system-settings-cli/).
+- `test_harbor_review.py`, `test_harbor_data.py`, `test_harbor_activation.py` render
+  pinned charts, apply every Flux post-renderer and compare existing resources.
+- `test_harbor_foundation.py` runs real Ansible against isolated CLI fixtures,
+  including wrong target/ownership, zero-change repeat and partial/uncertain writes.
+- Native/client SSO tests run real Ansible against disposable HTTPS services.
+- `test_harbor_stage.py` checks read-only exact-release, runtime-schema, readiness
+  and UID/spec-preservation refusals, including the data-to-app checkpoint. The audit reads no Kubernetes Secrets,
+  performs no exec, and never declares TLS/login/push-pull/restore acceptance.
+- No offline pass substitutes for physical TLS/CNI, image pull, browser/MFA,
+  migrations, load, persistence or restore tests. CI skipping is not a pass.
+
+For the audit, supply canonical owner-only 0600 kubeconfig/evidence files in owned
+0700 directories, exact `--context`, `--expected-api`, `--expected-cluster-uid`,
+`--baseline`; data/app modes also require `--expected-namespace-uid`, `--release`
+and `--commit`, plus `--data-checkpoint`. Data mode writes a new protected
+checkpoint only after its checks pass, or verifies an identical existing one.
+App mode requires that checkpoint and preserves the database, Valkey release and
+two data PVC identities/specs; it cannot capture its own replacement checkpoint.
+Snapshot creates a new evidence file and never overwrites it.
+Without `--verify`, it reads no files and contacts no APIs.
+
+Stop on any mismatch. Inspect uncertain outcomes before retrying. Preserve created
+objects and UIDs; do not delete/recreate, rotate credentials, reset failed releases
+or roll back database migrations automatically. To contain SSO, the guarded client
+`disable` operation stops new logins but does not revoke issued Harbor sessions,
+CLI secrets or robots. Never blindly switch back to database auth. Suspend only
+an explicitly approved exact reconciler/release if needed; suspension leaves data
+and workloads intact. Returning to the old prune-false root does not uninstall
+Harbor or remove the new operator watch.
+
+[Data/foundation details](data-services/README.md) ·
+[Native OIDC contract](../../authorization/sso/harbor/NATIVE.md) ·
+[Harbor 2.15.2 default project](https://github.com/goharbor/harbor/blob/v2.15.2/make/migrations/postgresql/0001_initial_schema.up.sql) ·
+[Harbor pgx configuration](https://github.com/goharbor/harbor/blob/v2.15.2/src/common/dao/pgsql.go)

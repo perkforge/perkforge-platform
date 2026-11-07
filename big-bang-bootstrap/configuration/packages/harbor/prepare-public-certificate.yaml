@@ -1,0 +1,110 @@
+---
+- name: Issue only the external Harbor leaf using the existing approved lab CA
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    harbor_public_certificate_run: false
+    harbor_public_certificate_scope: UNAPPROVED
+    harbor_public_certificate_ca_bundle: /UNCONFIGURED/existing-ca
+    harbor_public_certificate_expected_ca_fingerprint: UNCONFIGURED
+    harbor_public_certificate_output_parent: /UNCONFIGURED/private-output
+  tasks:
+  - ansible.builtin.debug:
+      msg: >-
+        Default/check mode reads no private material and issues nothing. Human approval
+        is required before enabling harbor_public_certificate_run with scope
+        harbor-public-leaf-issuance-v1. Only harbor.perkforge.home.arpa is issued.
+        No CA creation, cluster access, trust installation, DNS or delivery operation.
+  - when: harbor_public_certificate_run | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - harbor_public_certificate_scope == 'harbor-public-leaf-issuance-v1'
+        - harbor_public_certificate_expected_ca_fingerprint is match('^sha256 Fingerprint=([A-F0-9]{2}:){31}[A-F0-9]{2}$')
+        - item is match('^/')
+        - not item.startswith('/UNCONFIGURED/')
+        - item | realpath == item
+      loop: ['{{ harbor_public_certificate_ca_bundle }}', '{{ harbor_public_certificate_output_parent }}']
+    - ansible.builtin.command:
+        argv: [id, -u]
+      register: harbor_public_uid
+      changed_when: false
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+        get_checksum: false
+      loop: ['{{ harbor_public_certificate_ca_bundle }}', '{{ harbor_public_certificate_output_parent }}']
+      register: harbor_public_directories
+    - ansible.builtin.assert:
+        that:
+        - item.stat.isdir | default(false)
+        - not (item.stat.islnk | default(false))
+        - item.stat.mode == '0700'
+        - item.stat.uid == harbor_public_uid.stdout | int
+      loop: '{{ harbor_public_directories.results }}'
+    - ansible.builtin.stat:
+        path: '{{ harbor_public_certificate_ca_bundle }}/{{ item }}'
+        follow: false
+        get_checksum: false
+      loop: [root-ca.crt, root-ca.key.pem]
+      register: harbor_public_ca_files
+      no_log: true
+    - ansible.builtin.assert:
+        that:
+        - item.stat.isreg | default(false)
+        - not (item.stat.islnk | default(false))
+        - item.stat.uid == harbor_public_uid.stdout | int
+        - item.item != 'root-ca.key.pem' or item.stat.mode == '0600'
+      loop: '{{ harbor_public_ca_files.results }}'
+      no_log: true
+    - ansible.builtin.command:
+        argv: [openssl, x509, -in, '{{ harbor_public_certificate_ca_bundle }}/root-ca.crt', -noout, -fingerprint, -sha256]
+      register: harbor_public_ca_fingerprint
+      changed_when: false
+    - ansible.builtin.assert:
+        that: harbor_public_ca_fingerprint.stdout == harbor_public_certificate_expected_ca_fingerprint
+    - ansible.builtin.command:
+        argv: [openssl, x509, -in, '{{ harbor_public_certificate_ca_bundle }}/root-ca.crt', -checkend, '31536000', -noout]
+      changed_when: false
+    - name: Require an encrypted PKCS8 existing signing key
+      ansible.builtin.command:
+        argv: [grep, -Fxq, --, '-----BEGIN ENCRYPTED PRIVATE KEY-----', '{{ harbor_public_certificate_ca_bundle }}/root-ca.key.pem']
+      changed_when: false
+      no_log: true
+    - ansible.builtin.pause:
+        prompt: 'Existing lab CA passphrase (local input only)'
+        echo: false
+      register: harbor_public_ca_passphrase
+      no_log: true
+    - block:
+      - ansible.builtin.tempfile:
+          state: directory
+          path: '{{ harbor_public_certificate_output_parent }}'
+          prefix: harbor-public-leaf-
+        register: harbor_public_bundle
+      - ansible.builtin.template:
+          src: templates/harbor-public-certificate.sh.j2
+          dest: '{{ harbor_public_bundle.path }}/prepare.sh'
+          mode: '0600'
+      - name: Sign only the external Harbor leaf and verify all public output
+        ansible.builtin.command:
+          argv: [bash, '{{ harbor_public_bundle.path }}/prepare.sh', '{{ harbor_public_certificate_ca_bundle }}']
+          chdir: '{{ harbor_public_bundle.path }}'
+          stdin: '{{ harbor_public_ca_passphrase.user_input }}'
+        no_log: true
+      always:
+      - ansible.builtin.set_fact:
+          harbor_public_ca_passphrase: {}
+          cacheable: false
+        no_log: true
+      - ansible.builtin.file:
+          path: '{{ harbor_public_bundle.path }}/prepare.sh'
+          state: absent
+        when: harbor_public_bundle.path is defined
+    - ansible.builtin.debug:
+        msg: >-
+          Verified public-leaf bundle: {{ harbor_public_bundle.path }}.
+          Only delivery/external contains ca.crt, tls.crt and tls.key. Require READY
+          before using any output. Existing lab CA key was not copied. Partial
+          failed output is retained privately for inspection and must never be reused.

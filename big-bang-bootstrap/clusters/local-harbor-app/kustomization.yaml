@@ -1,0 +1,48 @@
+# Future explicit stage; never selected by publication alone.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-harbor-data
+- ../../configuration/packages/harbor
+- ../../configuration/packages/harbor/application
+commonAnnotations:
+  platform.perkforge.io/cluster: local
+  platform.perkforge.io/environment: local
+  platform.perkforge.io/profile: il2
+patches:
+- target:
+    group: helm.toolkit.fluxcd.io
+    version: v2
+    kind: HelmRelease
+    name: bigbang
+    namespace: bigbang
+  patch: |
+    - op: add
+      path: /spec/valuesFrom/-
+      value:
+        kind: ConfigMap
+        name: values-harbor-candidate
+        valuesKey: values.yaml
+    - op: add
+      path: /spec/valuesFrom/-
+      value:
+        kind: ConfigMap
+        name: values-harbor-data
+        valuesKey: values.yaml
+    - op: add
+      path: /spec/valuesFrom/-
+      value:
+        kind: ConfigMap
+        name: values-harbor-application
+        valuesKey: values.yaml
+    - op: add
+      path: /spec/postRenderers/0/kustomize/patches/-
+      value:
+        target:
+          kind: Namespace
+          name: harbor
+        patch: |
+          $patch: delete
+          apiVersion: v1
+          kind: Namespace
+          metadata: {name: harbor}

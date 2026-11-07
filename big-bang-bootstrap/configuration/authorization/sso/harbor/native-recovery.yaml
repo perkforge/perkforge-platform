@@ -1,0 +1,14 @@
+- ansible.builtin.uri:
+    url: '{{ harbor_native_origin }}/api/v2.0/users/current'
+    url_username: admin
+    url_password: '{{ harbor_native_password }}'
+    force_basic_auth: true
+  register: harbor_native_recovery
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - harbor_native_recovery.json.username == 'admin'
+    - harbor_native_recovery.json.user_id == 1
+    - harbor_native_recovery.json.sysadmin_flag == true
+    - not harbor_native_recovery.json.oidc_user_meta | default({})
+  no_log: true

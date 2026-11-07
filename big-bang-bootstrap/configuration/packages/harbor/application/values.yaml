@@ -1,0 +1,57 @@
+# Future selected app stage only. Dedicated protected inputs must already exist.
+addons:
+  harbor:
+    enabled: true
+    dependsOn:
+    - name: harbor-valkey
+      namespace: bigbang
+    flux:
+      suspend: false
+      install: {disableWait: false, remediation: {retries: 0, remediateLastFailure: false}}
+      upgrade: {disableWait: false, cleanupOnFail: false, remediation: {retries: 0, remediateLastFailure: false}}
+    # Big Bang's inherited registry patch hardcodes plaintext port 5000.
+    # Restore the native TLS service port after that patch, without changing its peers.
+    postRenderers:
+    - kustomize:
+        patches:
+        - target: {kind: Service, name: harbor-registry}
+          patch: |-
+            - op: replace
+              path: /spec/ports/0
+              value: {name: https-registry, port: 5443, targetPort: 5443}
+    values:
+      domain: perkforge.home.arpa
+      upstream:
+        externalURL: https://harbor.perkforge.home.arpa
+        imagePullSecrets: [{name: private-registry}]
+        # Global platform monitoring must not silently activate this pilot exporter.
+        metrics: {enabled: false, serviceMonitor: {enabled: false}}
+        expose:
+          type: ingress
+          ingress:
+            className: traefik
+            hosts: {core: harbor.perkforge.home.arpa}
+            annotations:
+              ingress.kubernetes.io/ssl-redirect: null
+              ingress.kubernetes.io/proxy-body-size: null
+              nginx.ingress.kubernetes.io/ssl-redirect: null
+              nginx.ingress.kubernetes.io/proxy-body-size: null
+              traefik.ingress.kubernetes.io/router.entrypoints: websecure
+              traefik.ingress.kubernetes.io/router.tls: 'true'
+        # Native ingress avoids nginx's built-in proxy_ssl_verify=off.
+        core:
+          serviceAnnotations:
+            traefik.ingress.kubernetes.io/service.serversscheme: https
+            traefik.ingress.kubernetes.io/service.serverstransport: harbor-harbor-core-transport@kubernetescrd
+        portal:
+          serviceAnnotations:
+            traefik.ingress.kubernetes.io/service.serversscheme: https
+            traefik.ingress.kubernetes.io/service.serverstransport: harbor-harbor-portal-transport@kubernetescrd
+        internalTLS:
+          enabled: true
+          strong_ssl_ciphers: true
+          certSource: secret
+          core: {secretName: harbor-core-tls}
+          jobservice: {secretName: harbor-jobservice-tls}
+          registry: {secretName: harbor-registry-tls}
+          portal: {secretName: harbor-portal-tls}

@@ -1,0 +1,108 @@
+- name: Reconcile only the independently owned Harbor client
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [../client-scopes.yaml]
+  vars:
+    harbor_client_run: false
+    harbor_client_operation: inspect
+    harbor_client_approval: UNAPPROVED
+    harbor_recovery_verified: false
+    harbor_client_uuid: UNCONFIGURED
+    harbor_client_expected_enabled: false
+    harbor_admin_group_uuid: UNCONFIGURED
+    harbor_native_verified: false
+    harbor_admin_grant_approval: UNAPPROVED
+    harbor_sso_origin: https://harbor.example.invalid
+    harbor_sso_issuer: https://identity.example.invalid/auth/realms/perkforge
+    harbor_operator_token_file: /UNCONFIGURED/operator-token
+    harbor_client_secret_file: /UNCONFIGURED/client-secret
+    harbor_ca_file: /UNCONFIGURED/public-ca.pem
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ harbor_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      unredirected_headers: [Authorization]
+      timeout: 20
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check contact no APIs or private files. Explicit prepare, inspect, admin-group grant, activate or disable only; no token issuance or Kubernetes delivery.'
+  - when: harbor_client_run | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - harbor_client_operation in ['inspect', 'prepare', 'grant-admin-group', 'activate', 'disable']
+        - harbor_client_approval == 'harbor-client-' + harbor_client_operation + '-v1'
+        - harbor_recovery_verified | bool
+        - harbor_client_expected_enabled is boolean
+        - harbor_client_uuid is not search("[\\x00-\\x20\\x7f]")
+        - harbor_admin_group_uuid is not search("[\\x00-\\x20\\x7f]")
+        - harbor_client_operation not in ['prepare','grant-admin-group'] or not harbor_client_expected_enabled
+        - harbor_client_operation == 'prepare' or harbor_client_uuid is match('^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$')
+        - harbor_client_operation not in ['grant-admin-group','activate'] or harbor_admin_group_uuid is match('^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$')
+        - harbor_client_operation not in ['grant-admin-group','activate'] or harbor_admin_grant_approval == 'harbor-platform-admin-group-v1'
+        - harbor_client_operation != 'activate' or harbor_native_verified | bool
+        - harbor_sso_origin is not search("[\\x00-\\x20\\x7f]")
+        - harbor_sso_issuer is not search("[\\x00-\\x20\\x7f]")
+        - harbor_sso_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - harbor_sso_issuer is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?(/auth)?/realms/perkforge$')
+        - (harbor_sso_origin | urlsplit('port')) is none or 1 <= (harbor_sso_origin | urlsplit('port')) <= 65535
+        - (harbor_sso_issuer | urlsplit('port')) is none or 1 <= (harbor_sso_issuer | urlsplit('port')) <= 65535
+        - (harbor_sso_origin | urlsplit('hostname') | lower | regex_replace('\.$', '')) is not search('\.invalid$')
+        - (harbor_sso_issuer | urlsplit('hostname') | lower | regex_replace('\.$', '')) is not search('\.invalid$')
+        - >-
+          (harbor_sso_origin | urlsplit('hostname') | lower | regex_replace('\.$', '')) != (harbor_sso_issuer | urlsplit('hostname') | lower | regex_replace('\.$', ''))
+          or ((harbor_sso_origin | urlsplit('port')) or 443) != ((harbor_sso_issuer | urlsplit('port')) or 443)
+    - no_log: true
+      block:
+      - ansible.builtin.command: {argv: [id, -u]}
+        register: hb_operator_uid
+        changed_when: false
+      - ansible.builtin.stat:
+          path: '{{ item }}'
+          follow: false
+          get_checksum: false
+          get_mime: false
+        loop: '{{ [harbor_operator_token_file, harbor_ca_file] + ([harbor_client_secret_file] if harbor_client_operation == "prepare" else []) }}'
+        register: hb_files
+      - ansible.builtin.assert:
+          that:
+          - item.item is match('^/') and item.item | realpath == item.item
+          - item.stat.isreg | default(false)
+          - not (item.stat.islnk | default(false))
+          - item.stat.size > 0
+          - item.item == harbor_ca_file or item.stat.nlink == 1
+          - item.item == harbor_ca_file or (item.stat.mode == '0600' and item.stat.uid == (hb_operator_uid.stdout | int))
+        loop: '{{ hb_files.results }}'
+      - ansible.builtin.stat:
+          path: '{{ item | dirname }}'
+          follow: false
+          get_checksum: false
+          get_mime: false
+        loop: '{{ [harbor_operator_token_file] + ([harbor_client_secret_file] if harbor_client_operation == "prepare" else []) }}'
+        register: hb_private_parents
+      - ansible.builtin.assert:
+          that:
+          - item.stat.isdir | default(false)
+          - not (item.stat.islnk | default(false))
+          - item.stat.mode == '0700'
+          - item.stat.uid == (hb_operator_uid.stdout | int)
+        loop: '{{ hb_private_parents.results }}'
+      - ansible.builtin.set_fact:
+          hb_api: '{{ harbor_sso_issuer | regex_replace("/realms/perkforge$", "/admin/realms/perkforge") }}'
+          hb_headers: {Authorization: 'Bearer {{ lookup("file", harbor_operator_token_file) | trim }}'}
+          hb_candidate: '{{ lookup("file","client.json") | from_json | combine({"redirectUris":[harbor_sso_origin + "/c/oidc/callback"], "attributes":{"post.logout.redirect.uris":harbor_sso_origin + "/account/sign-in"}}, recursive=true) }}'
+      - ansible.builtin.include_tasks: client-tasks.yaml
+      always:
+      - ansible.builtin.set_fact:
+          hb_headers: {}
+          hb_secret: ''
+          hb_credential: {}
+          cacheable: false
+        no_log: true
+
+    - ansible.builtin.debug:
+        msg: 'Verified Harbor client UUID={{ hb_id }}; operation={{ harbor_client_operation }}. No claim of browser login, MFA, project isolation or session revocation.'

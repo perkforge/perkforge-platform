@@ -1,0 +1,62 @@
+{
+  "clientId": "harbor",
+  "enabled": false,
+  "protocol": "openid-connect",
+  "publicClient": false,
+  "clientAuthenticatorType": "client-secret",
+  "standardFlowEnabled": true,
+  "implicitFlowEnabled": false,
+  "directAccessGrantsEnabled": false,
+  "serviceAccountsEnabled": false,
+  "fullScopeAllowed": false,
+  "defaultClientScopes": [
+    "basic",
+    "profile",
+    "email"
+  ],
+  "optionalClientScopes": [],
+  "redirectUris": [
+    "https://harbor.example.invalid/c/oidc/callback"
+  ],
+  "webOrigins": [],
+  "attributes": {
+    "perkforge-managed": "true",
+    "perkforge-purpose": "harbor-sso-review-v1",
+    "pkce.code.challenge.method": "S256",
+    "oauth2.device.authorization.grant.enabled": "false",
+    "oidc.ciba.grant.enabled": "false",
+    "standard.token.exchange.enabled": "false",
+    "token.exchange.grant.enabled": "false",
+    "post.logout.redirect.uris": "https://harbor.example.invalid/account/sign-in"
+  },
+  "protocolMappers": [
+    {
+      "name": "harbor-audience",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-audience-mapper",
+      "config": {
+        "included.client.audience": "harbor",
+        "id.token.claim": "true",
+        "access.token.claim": "false",
+        "userinfo.token.claim": "false",
+        "introspection.token.claim": "false"
+      }
+    },
+    {
+      "name": "harbor-own-roles",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-client-role-mapper",
+      "config": {
+        "usermodel.clientRoleMapping.clientId": "harbor",
+        "claim.name": "groups",
+        "jsonType.label": "String",
+        "multivalued": "true",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "userinfo.token.claim": "true",
+        "usermodel.clientRoleMapping.rolePrefix": "/platform/",
+        "introspection.token.claim": "false"
+      }
+    }
+  ]
+}

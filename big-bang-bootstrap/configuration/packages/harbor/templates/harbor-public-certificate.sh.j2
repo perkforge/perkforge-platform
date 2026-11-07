@@ -1,0 +1,34 @@
+#!/bin/bash
+set -euo pipefail
+umask 077
+ca_bundle=$1
+mkdir -m 0700 delivery
+mkdir -m 0700 delivery/external
+cd delivery/external
+cp "$ca_bundle/root-ca.crt" ca.crt
+chmod 0600 ca.crt
+openssl req -new -newkey rsa:3072 -nodes -sha256 \
+  -subj '/O=PerkForge Home Lab/CN=harbor.perkforge.home.arpa' \
+  -keyout tls.key -out request.csr
+cat > extensions.cnf <<'EXT'
+basicConstraints=critical,CA:FALSE
+keyUsage=critical,digitalSignature,keyEncipherment
+extendedKeyUsage=serverAuth
+subjectAltName=DNS:harbor.perkforge.home.arpa
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid,issuer
+EXT
+# Passphrase arrives via stdin from the local hidden Ansible prompt, never argv.
+openssl x509 -req -in request.csr -CA ca.crt -CAkey "$ca_bundle/root-ca.key.pem" \
+  -passin stdin -set_serial "0x$(openssl rand -hex 16)" -days 365 -sha256 \
+  -extfile extensions.cnf -out tls.crt
+openssl verify -x509_strict -CAfile ca.crt -purpose sslserver \
+  -verify_hostname harbor.perkforge.home.arpa tls.crt
+actual_sans=$(openssl x509 -in tls.crt -noout -ext subjectAltName | tail -n +2 | tr -d '[:space:]')
+test "$actual_sans" = 'DNS:harbor.perkforge.home.arpa'
+openssl pkey -in tls.key -pubout -out key.public
+openssl x509 -in tls.crt -pubkey -noout > cert.public
+cmp key.public cert.public
+openssl x509 -in tls.crt -checkend 31449600 -noout
+rm request.csr extensions.cnf key.public cert.public
+printf '%s\n' 'harbor-public-leaf-issuance-v1' > ../../READY

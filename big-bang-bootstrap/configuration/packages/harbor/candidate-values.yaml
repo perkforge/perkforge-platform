@@ -1,4 +1,4 @@
-# Blocked, inactive profile. No root valuesFrom or prerequisite apply path.
+# Inactive base profile; only the explicit local-harbor-app root overrides it.
 addons:
   harbor:
     enabled: false

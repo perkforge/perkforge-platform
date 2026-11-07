@@ -1,0 +1,15 @@
+# Public references only. Supply actual protected input paths outside Git.
+harbor_client_run: false
+harbor_client_operation: inspect
+harbor_client_approval: UNAPPROVED
+harbor_recovery_verified: false
+harbor_client_uuid: UNCONFIGURED
+harbor_client_expected_enabled: false
+harbor_admin_group_uuid: UNCONFIGURED
+harbor_admin_grant_approval: UNAPPROVED
+harbor_native_verified: false
+harbor_sso_origin: https://harbor.example.invalid
+harbor_sso_issuer: https://identity.example.invalid/auth/realms/perkforge
+harbor_operator_token_file: /UNCONFIGURED/operator-token
+harbor_client_secret_file: /UNCONFIGURED/client-secret
+harbor_ca_file: /UNCONFIGURED/public-ca.pem

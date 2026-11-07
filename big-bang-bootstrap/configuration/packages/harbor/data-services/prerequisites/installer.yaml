@@ -1,0 +1,69 @@
+# No cluster grants, bind/escalate, or access to shared bigbang Secret history.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: harbor
+  labels: {perkforge.io/owner: harbor-foundation-v1}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: harbor-data-installer
+  namespace: bigbang
+  labels: {perkforge.io/owner: harbor-data-foundation-v1}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: harbor-data-installer
+  namespace: harbor
+  labels: {perkforge.io/owner: harbor-data-foundation-v1}
+rules:
+- apiGroups: ['']
+  resources: [serviceaccounts, configmaps, persistentvolumeclaims, services, secrets]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [apps]
+  resources: [deployments]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: ['']
+  resources: [pods]
+  verbs: [get, list, watch]
+- apiGroups: [apps]
+  resources: [replicasets]
+  verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: harbor-data-installer
+  namespace: harbor
+  labels: {perkforge.io/owner: harbor-data-foundation-v1}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: harbor-data-installer}
+subjects: [{kind: ServiceAccount, name: harbor-data-installer, namespace: bigbang}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: harbor-data-gitops
+  namespace: harbor
+  labels: {perkforge.io/owner: harbor-data-foundation-v1}
+rules:
+- apiGroups: [postgresql.cnpg.io]
+  resources: [clusters]
+  verbs: [get, list, watch, create, update, patch]
+- apiGroups: [networking.k8s.io]
+  resources: [networkpolicies]
+  verbs: [get, list, watch, create, update, patch]
+- apiGroups: ['']
+  resources: [pods]
+  verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: harbor-data-gitops
+  namespace: harbor
+  labels: {perkforge.io/owner: harbor-data-foundation-v1}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: harbor-data-gitops}
+subjects: [{kind: ServiceAccount, name: platform-reconciler, namespace: flux-system}]
