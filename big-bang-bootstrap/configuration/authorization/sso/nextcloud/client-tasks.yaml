@@ -1,0 +1,166 @@
+- ansible.builtin.uri:
+    url: '{{ nc_api }}'
+    headers: '{{ nc_headers }}'
+  register: nc_realm
+- ansible.builtin.assert:
+    that:
+    - nc_realm.json.realm == 'perkforge' and nc_realm.json.enabled
+    - nc_realm.json.attributes['perkforge-managed'] == 'true'
+    - nc_realm.json.attributes['perkforge-purpose'] == 'realm-foundation-v1'
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/client-scopes'
+    headers: '{{ nc_headers }}'
+  register: nc_scopes
+- ansible.builtin.assert:
+    that: nc_scopes.json | selectattr('name','equalto','basic') | list | length == 1
+- ansible.builtin.include_tasks: ../tasks/client-scope.yaml
+  vars:
+    sso_client_api: '{{ nc_api }}'
+    sso_client_headers: '{{ nc_headers }}'
+    sso_scope: '{{ nc_scopes.json | selectattr("name","equalto","basic") | first }}'
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/clients?clientId=nextcloud'
+    headers: '{{ nc_headers }}'
+  register: nc_lookup
+- ansible.builtin.assert:
+    that:
+    - nc_lookup.json | length <= 1
+    - nc_lookup.json | length == 1 or nextcloud_client_operation == 'prepare'
+- ansible.builtin.set_fact:
+    nc_secret: '{{ lookup("file",nextcloud_client_secret_file) | trim }}'
+  when: nextcloud_client_operation != 'rollback'
+- ansible.builtin.assert:
+    that: nc_secret | length >= 24
+  when: nextcloud_client_operation != 'rollback'
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/clients'
+    headers: '{{ nc_headers }}'
+    method: POST
+    body_format: json
+    body: '{{ nc_candidate | combine({"secret":nc_secret}) }}'
+    status_code: 201
+  when: nc_lookup.json | length == 0
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/clients?clientId=nextcloud'
+    headers: '{{ nc_headers }}'
+  register: nc_lookup_after
+- ansible.builtin.assert:
+    that:
+    - nc_lookup_after.json | length == 1
+    - nc_lookup_after.json[0].id is match('^[A-Za-z0-9-]+$')
+- ansible.builtin.set_fact:
+    nc_id: '{{ nc_lookup_after.json[0].id }}'
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/clients/{{ nc_id }}'
+    headers: '{{ nc_headers }}'
+  register: nc_current
+- name: Never adopt a foreign client or silently repair drift
+  ansible.builtin.assert:
+    that:
+    - nc_current.json.get(item.key) == item.value
+    - nc_current.json.authenticationFlowBindingOverrides | default({}) == {}
+  loop: '{{ nc_candidate | dict2items | rejectattr("key","in",["enabled","protocolMappers","attributes","defaultClientScopes","optionalClientScopes"]) | list }}'
+- ansible.builtin.assert:
+    that: nc_current.json.attributes.get(item.key) == item.value
+  loop: '{{ nc_candidate.attributes | dict2items }}'
+- ansible.builtin.assert:
+    that: not nc_current.json.enabled
+  when: nextcloud_client_operation == 'prepare'
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/clients/{{ nc_id }}/{{ item }}'
+    headers: '{{ nc_headers }}'
+  loop: [default-client-scopes, optional-client-scopes, protocol-mappers/models, scope-mappings]
+  register: nc_surface
+- ansible.builtin.assert:
+    that:
+    - nc_surface.results[0].json | map(attribute='name') | list == ['basic']
+    - nc_surface.results[1].json | length == 0
+    - nc_surface.results[2].json | length == 2
+    - nc_surface.results[2].json | map(attribute='name') | sort == nc_candidate.protocolMappers | map(attribute='name') | sort
+    - nc_surface.results[3].json.realmMappings | default([]) | length == 0
+    - nc_surface.results[3].json.clientMappings | default({}) | dict2items | rejectattr('key','equalto','nextcloud') | list | length == 0
+- ansible.builtin.assert:
+    that:
+    - actual.protocol == item.protocol
+    - actual.protocolMapper == item.protocolMapper
+    - normalized == item.config
+  vars:
+    actual: '{{ nc_surface.results[2].json | selectattr("name","equalto",item.name) | first }}'
+    normalized: '{{ ({"usermodel.clientRoleMapping.rolePrefix":""} | combine(actual.config)) if item.name == "nextcloud-own-roles" else actual.config }}'
+  loop: '{{ nc_candidate.protocolMappers }}'
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/clients/{{ nc_id }}/client-secret'
+    headers: '{{ nc_headers }}'
+  register: nc_credential
+  when: nextcloud_client_operation != 'rollback'
+- ansible.builtin.assert:
+    that: nc_credential.json.value == nc_secret
+  when: nextcloud_client_operation != 'rollback'
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/clients/{{ nc_id }}/roles?first=0&max=3&briefRepresentation=false'
+    headers: '{{ nc_headers }}'
+  register: nc_pre_roles
+- ansible.builtin.assert:
+    that:
+    - nc_pre_roles.json | length <= 2
+    - nc_pre_roles.json | map(attribute='name') | difference(['household','owner']) | length == 0
+- ansible.builtin.assert:
+    that:
+    - item.description == 'nextcloud-sso-review-v1'
+    - item.clientRole and item.containerId == nc_id and not item.composite
+  loop: '{{ nc_pre_roles.json }}'
+- ansible.builtin.include_tasks: role-tasks.yaml
+  loop: [household, owner]
+  loop_control: {loop_var: nc_role_name}
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/clients/{{ nc_id }}/roles?first=0&max=3&briefRepresentation=false'
+    headers: '{{ nc_headers }}'
+  register: nc_roles
+- ansible.builtin.assert:
+    that:
+    - nc_roles.json | length == 2
+    - nc_roles.json | map(attribute='name') | sort == ['household','owner']
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/clients/{{ nc_id }}/scope-mappings/clients/{{ nc_id }}'
+    headers: '{{ nc_headers }}'
+  register: nc_scope_roles
+- ansible.builtin.assert:
+    that: nc_scope_roles.json | map(attribute='id') | difference(nc_roles.json | map(attribute='id') | list) | length == 0
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/clients/{{ nc_id }}/scope-mappings/clients/{{ nc_id }}'
+    headers: '{{ nc_headers }}'
+    method: POST
+    body_format: json
+    body: '{{ nc_roles.json }}'
+    status_code: 204
+  when: nextcloud_client_operation == 'prepare' and nc_scope_roles.json | length != 2
+  changed_when: true
+- ansible.builtin.assert:
+    that: nc_scope_roles.json | length == 2
+  when: nextcloud_client_operation != 'prepare'
+- ansible.builtin.include_tasks: member-tasks.yaml
+  loop: '{{ nextcloud_subjects }}'
+  loop_control: {loop_var: nc_subject}
+  when: nextcloud_client_operation == 'members'
+- ansible.builtin.include_tasks: activation-members.yaml
+  loop: [household, owner]
+  loop_control: {loop_var: nc_activation_role}
+  when: nextcloud_client_operation == 'activate'
+- name: Enable or disable only this owned client; never alter grants on other apps
+  ansible.builtin.uri:
+    url: '{{ nc_api }}/clients/{{ nc_id }}'
+    headers: '{{ nc_headers }}'
+    method: PUT
+    body_format: json
+    body: '{{ {"clientId":"nextcloud","enabled":nextcloud_client_operation == "activate"} }}'
+    status_code: 204
+  when: nextcloud_client_operation in ['activate','rollback'] and nc_current.json.enabled != (nextcloud_client_operation == 'activate')
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ nc_api }}/clients/{{ nc_id }}'
+    headers: '{{ nc_headers }}'
+  register: nc_verified
+- ansible.builtin.assert:
+    that: nc_verified.json.enabled == (nextcloud_client_operation == 'activate')
+  when: nextcloud_client_operation in ['activate','rollback']
