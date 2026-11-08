@@ -1,0 +1,44 @@
+{
+  "clientId": "mattermost",
+  "enabled": false,
+  "protocol": "openid-connect",
+  "publicClient": false,
+  "clientAuthenticatorType": "client-secret",
+  "standardFlowEnabled": true,
+  "implicitFlowEnabled": false,
+  "directAccessGrantsEnabled": false,
+  "serviceAccountsEnabled": false,
+  "fullScopeAllowed": false,
+  "defaultClientScopes": [
+    "basic",
+    "profile",
+    "email"
+  ],
+  "optionalClientScopes": [],
+  "redirectUris": [
+    "https://mattermost.example.invalid/signup/openid/complete"
+  ],
+  "webOrigins": [],
+  "attributes": {
+    "perkforge-managed": "true",
+    "perkforge-purpose": "mattermost-sso-review-v1",
+    "oauth2.device.authorization.grant.enabled": "false",
+    "oidc.ciba.grant.enabled": "false",
+    "standard.token.exchange.enabled": "false",
+    "token.exchange.grant.enabled": "false"
+  },
+  "protocolMappers": [
+    {
+      "name": "mattermost-audience",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-audience-mapper",
+      "config": {
+        "included.client.audience": "mattermost",
+        "id.token.claim": "true",
+        "access.token.claim": "false",
+        "userinfo.token.claim": "false",
+        "introspection.token.claim": "false"
+      }
+    }
+  ]
+}

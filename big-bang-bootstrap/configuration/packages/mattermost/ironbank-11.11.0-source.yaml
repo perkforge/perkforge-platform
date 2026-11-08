@@ -1,0 +1,36 @@
+apiVersion: v1
+
+name: opensource/mattermost/mattermost
+
+tags:
+- 11.11.0
+
+args:
+  BASE_IMAGE: redhat/ubi/ubi9-minimal
+  BASE_TAG: "9.8"
+
+labels:
+  org.opencontainers.image.title: mattermost
+  org.opencontainers.image.description: Mattermost is an open source, private cloud, Slack-alternative.
+  org.opencontainers.image.licenses: Apache-2.0
+  org.opencontainers.image.url: https://mattermost.com
+  org.opencontainers.image.vendor: Iron Bank
+  org.opencontainers.image.version: 11.11.0
+
+resources:
+- filename: mattermost.tar.gz
+  url: https://releases.mattermost.com/11.11.0/mattermost-11.11.0-linux-amd64.tar.gz
+  validation:
+    type: sha256
+    value: 03dfa47063849fe9e799c9523c56c74ec19852948e6fc42d9fc3e10cc5d95bc9
+- filename: mattermost.arm64.tar.gz
+  url: https://releases.mattermost.com/11.11.0/mattermost-11.11.0-linux-arm64.tar.gz
+  validation:
+    type: sha256
+    value: 0c94559688899555a7e01773b446f9c98123e66f0965f8acafc4678a0123a2cf
+
+maintainers:
+- name: "Jeff Weatherford"
+  email: "AFLCMC.HNCX.Helpdesk@us.af.mil"
+  username: "jweatherford"
+  cht_member: true

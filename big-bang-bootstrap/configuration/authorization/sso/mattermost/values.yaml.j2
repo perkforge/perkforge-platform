@@ -1,0 +1,26 @@
+# Entry planning target; verify exact image is Enterprise/Entry, not Team Edition.
+# Optional, unselected overlay. No license key, user creation or client grant.
+addons:
+  mattermost:
+    enabled: false
+    flux: {suspend: true}
+    values:
+      ingress: {enabled: false, host: '{{ mattermost_sso_origin | regex_replace("^https://", "") }}'}
+      sso: {enabled: false}
+      enterprise: {enabled: false, existingSecret: '', license: ''}
+      volumes:
+      - name: identity-ca
+        configMap: {name: mattermost-identity-ca}
+      volumeMounts:
+      - {name: identity-ca, mountPath: /etc/mattermost-identity-ca, readOnly: true}
+      existingSecretEnvs:
+      - {name: SSL_CERT_FILE, value: /etc/mattermost-identity-ca/ca.crt}
+      - {name: MM_GITLABSETTINGS_ENABLE, value: 'false'}
+      - {name: MM_OPENIDSETTINGS_ENABLE, value: 'true'}
+      - {name: MM_OPENIDSETTINGS_ID, value: mattermost}
+      - name: MM_OPENIDSETTINGS_SECRET
+        valueFrom:
+          secretKeyRef: {name: mattermost-oidc-client, key: client-secret}
+      - name: MM_OPENIDSETTINGS_DISCOVERYENDPOINT
+        value: {{ mattermost_sso_issuer }}/.well-known/openid-configuration
+      - {name: MM_SERVICESETTINGS_ENABLEUSERCREATION, value: 'false'}

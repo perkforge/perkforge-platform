@@ -1,0 +1,46 @@
+# Inactive profile; versions inherited exclusively from the selected Big Bang release.
+# No root selection; licensing/operator trust and live acceptance remain gated.
+addons:
+  mattermostOperator:
+    enabled: false
+    flux:
+      suspend: true
+      serviceAccountName: mattermost-operator-installer
+      storageNamespace: mattermost-operator
+      install: {createNamespace: false, remediation: {retries: 0}}
+      upgrade: {remediation: {retries: 0}}
+    values:
+      imagePullSecrets: [{name: private-registry}]
+      istio: {enabled: false}
+      networkPolicies: {enabled: false}
+  mattermost:
+    enabled: false
+    flux:
+      suspend: true
+      serviceAccountName: mattermost-installer
+      storageNamespace: mattermost
+      install: {createNamespace: false, remediation: {retries: 0}}
+      upgrade: {remediation: {retries: 0}}
+    values:
+      global:
+        imagePullSecrets: [{name: private-registry}]
+      waitJob: {enableImagePullSecrets: true}
+      domain: UNCONFIGURED.invalid
+      istio: {enabled: false}
+      ingress: {enabled: false, host: chat.UNCONFIGURED.invalid}
+      monitoring: {enabled: false}
+      networkPolicies: {enabled: false}
+      sso: {enabled: false}
+      bbtests: {enabled: false}
+      enterprise: {enabled: false, existingSecret: '', license: ''}
+      postgresql: {install: false, auth: {password: null}}
+      minio: {install: false}
+      elasticsearch: {enabled: false}
+      database: {secret: mattermost-database}
+      fileStore:
+        secret: mattermost-filestore
+        url: UNCONFIGURED-object-store.invalid
+        bucket: mattermost
+      resources:
+        requests: {cpu: 2, memory: 4Gi}
+        limits: {cpu: 2, memory: 4Gi}

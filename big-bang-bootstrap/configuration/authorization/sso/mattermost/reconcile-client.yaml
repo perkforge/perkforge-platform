@@ -1,0 +1,91 @@
+- name: Reconcile only the owned Mattermost client without changing users, roles or memberships
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [../client-scopes.yaml]
+  vars:
+    mattermost_client_run: false
+    mattermost_client_operation: inspect
+    mattermost_client_approval: UNAPPROVED
+    mattermost_recovery_verified: false
+    mattermost_native_ready: false
+    mattermost_edition_verified: false
+    mattermost_linking_verified: false
+    mattermost_sso_origin: https://mattermost.example.invalid
+    mattermost_sso_issuer: https://identity.example.invalid/auth/realms/perkforge
+    mattermost_operator_token_file: /UNCONFIGURED/operator-token
+    mattermost_client_secret_file: /UNCONFIGURED/client-secret
+    mattermost_ca_file: /UNCONFIGURED/public-ca.pem
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ mattermost_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      unredirected_headers: [Authorization]
+      timeout: 20
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check contact no APIs or private files. Live operations require separate approval. No token issuance, secret generation, group edits or Kubernetes delivery.'
+  - when: mattermost_client_run | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - mattermost_client_operation in ['inspect', 'prepare', 'activate', 'rollback']
+        - mattermost_client_approval == 'mattermost-client-' + mattermost_client_operation + '-v1'
+        - mattermost_recovery_verified | bool
+        - mattermost_client_operation != 'activate' or (mattermost_native_ready | bool and mattermost_edition_verified | bool and mattermost_linking_verified | bool)
+        - mattermost_sso_origin is not search("[\\x00-\\x20\\x7f]")
+        - mattermost_sso_issuer is not search("[\\x00-\\x20\\x7f]")
+        - mattermost_sso_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - mattermost_sso_issuer is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?(/auth)?/realms/perkforge$')
+        - (mattermost_sso_origin | urlsplit('port')) is none or 1 <= (mattermost_sso_origin | urlsplit('port')) <= 65535
+        - (mattermost_sso_issuer | urlsplit('port')) is none or 1 <= (mattermost_sso_issuer | urlsplit('port')) <= 65535
+        - (mattermost_sso_origin | urlsplit('hostname') | lower | regex_replace('\.$', '')) is not search('\.invalid$')
+        - (mattermost_sso_issuer | urlsplit('hostname') | lower | regex_replace('\.$', '')) is not search('\.invalid$')
+        - >-
+          (mattermost_sso_origin | urlsplit('hostname') | lower | regex_replace('\.$', '')) != (mattermost_sso_issuer | urlsplit('hostname') | lower | regex_replace('\.$', ''))
+          or ((mattermost_sso_origin | urlsplit('port')) or 443) != ((mattermost_sso_issuer | urlsplit('port')) or 443)
+    - no_log: true
+      block:
+      - ansible.builtin.command: {argv: [id, -u]}
+        register: mm_operator_uid
+        changed_when: false
+      - ansible.builtin.stat:
+          path: '{{ item }}'
+          follow: false
+        loop: '{{ [mattermost_operator_token_file, mattermost_ca_file] + ([mattermost_client_secret_file] if mattermost_client_operation == "prepare" else []) }}'
+        register: mm_files
+      - ansible.builtin.assert:
+          that:
+          - item.item is match('^/') and item.item | realpath == item.item
+          - item.stat.isreg | default(false)
+          - not (item.stat.islnk | default(false))
+          - item.stat.size > 0
+          - item.item == mattermost_ca_file or (item.stat.mode == '0600' and item.stat.uid == (mm_operator_uid.stdout | int))
+        loop: '{{ mm_files.results }}'
+      - ansible.builtin.stat:
+          path: '{{ item | dirname }}'
+          follow: false
+        loop: '{{ [mattermost_operator_token_file] + ([mattermost_client_secret_file] if mattermost_client_operation == "prepare" else []) }}'
+        register: mm_private_parents
+      - ansible.builtin.assert:
+          that:
+          - item.stat.isdir | default(false)
+          - not (item.stat.islnk | default(false))
+          - item.stat.mode == '0700'
+          - item.stat.uid == (mm_operator_uid.stdout | int)
+        loop: '{{ mm_private_parents.results }}'
+      - ansible.builtin.set_fact:
+          mm_api: '{{ mattermost_sso_issuer | regex_replace("/realms/perkforge$", "/admin/realms/perkforge") }}'
+          mm_headers: {Authorization: 'Bearer {{ lookup("file", mattermost_operator_token_file) | trim }}'}
+          mm_candidate: '{{ lookup("file","client.json") | from_json | combine({"redirectUris":[mattermost_sso_origin + "/signup/openid/complete"]}) }}'
+      - ansible.builtin.include_tasks: client-tasks.yaml
+      always:
+      - ansible.builtin.set_fact:
+          mm_headers: {}
+          mm_secret: ''
+          mm_credential: {}
+          cacheable: false
+        no_log: true

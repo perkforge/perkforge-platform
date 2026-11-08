@@ -69,3 +69,12 @@ garage-source:
   url: https://git.deuxfleurs.fr/Deuxfleurs/garage/archive/v2.2.0.tar.gz
   sha256: e68b05d4358008e8b29a0ac235f73e3a12d97d9c6388c330b87282db774c04dc
   chart: script/helm/garage
+
+mattermost:
+  url: https://repo1.dso.mil/big-bang/product/packages/mattermost/-/archive/11.11.0-bb.0/mattermost-11.11.0-bb.0.tar.gz
+  sha256: 64f12edfbe571a07d50d1267ba37e9790657bdd49a9f5bd9abc4e657a798a758
+  chart: chart
+mattermost-operator:
+  url: https://repo1.dso.mil/big-bang/product/packages/mattermost-operator/-/archive/1.25.9-bb.1/mattermost-operator-1.25.9-bb.1.tar.gz
+  sha256: 733a0acaf98e575e8c1286b2a8481af650aa17243b550ce53a2685df5ba78000
+  chart: chart
