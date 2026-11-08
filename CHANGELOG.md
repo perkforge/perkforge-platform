@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.5](https://github.com/perkforge/perkforge-platform/compare/v0.33.4...v0.33.5) (2026-11-08)
+
+
+### Bug Fixes
+
+* **velero:** retain related PV backup metadata ([#301](https://github.com/perkforge/perkforge-platform/issues/301)) ([2073ce8](https://github.com/perkforge/perkforge-platform/commit/2073ce8152d4e2925ab551c3a5443397044d5384))
+
 ## [0.33.4](https://github.com/perkforge/perkforge-platform/compare/v0.33.3...v0.33.4) (2026-11-08)
 
 
