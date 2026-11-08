@@ -67,6 +67,24 @@ cluster-wide discovery, arbitrary resource coverage or restores beyond the
 approved target require a separate reviewed policy/configuration change. The
 PVC informer grant alone neither selects namespaces nor enables those backups.
 
+## Writable repository configuration
+
+The supported upstream `configuration.extraEnvVars` sets `HOME=/scratch` for
+server and node-agent. Pinned Velero writes repository configuration under
+`$HOME/udmrepo`; the image default otherwise targets the read-only root. Existing
+`/scratch` emptyDirs stay writable without disabling the server's
+`readOnlyRootFilesystem`; the agent's existing security context is unchanged.
+CSI movers inherit agent environment/mounts; maintenance Jobs inherit the server's.
+No durable credentials are moved or new volume permissions granted. Velero's
+optional CLI settings path also follows HOME (`/scratch/.config/velero`); AWS
+credentials retain their explicit `/credentials/cloud` path.
+
+Scratch is disposable, not the Garage backup store. Agent/mover scratch remains
+capped at 1Gi; the server retains the chart's existing emptyDir. Kopia's default
+cache budget is larger than the small-test scratch cap, so this baseline is not
+a capacity promise for tenant-sized backups. Measure temporary usage and review
+cache/resource limits before expanding beyond the 8MiB acceptance payload.
+
 ## Private transport and trust boundary
 
 The store is a ClusterIP Service on HTTPS 443, targeting a non-root, read-only
