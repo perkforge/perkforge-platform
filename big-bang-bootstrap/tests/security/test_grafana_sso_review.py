@@ -19,6 +19,8 @@ class GrafanaSSO(unittest.TestCase):
   u=c['grafana']['values']['upstream'];a=u['grafana.ini']['auth.generic_oauth']
   self.assertTrue(a['role_attribute_strict']);self.assertFalse(a['tls_skip_verify_insecure']);self.assertFalse(u['grafana.ini']['auth.anonymous']['enabled'])
   self.assertIn("contains(groups[*], '/platform/admins') && 'GrafanaAdmin'",a['role_attribute_path'])
+  self.assertEqual(a['role_attribute_path'], "contains(groups[*], '/platform/admins') && 'GrafanaAdmin'")
+  self.assertFalse(u['grafana.ini']['auth']['oauth_allow_insecure_email_lookup']);self.assertFalse(a['auto_login'])
   self.assertNotIn('/tenants/',a['role_attribute_path']);self.assertFalse(a['role_attribute_path'].endswith("|| 'Viewer'"))
   self.assertNotIn('org_mapping',a);self.assertFalse(u['grafana.ini']['auth']['disable_login_form'])
 if __name__=='__main__':unittest.main()

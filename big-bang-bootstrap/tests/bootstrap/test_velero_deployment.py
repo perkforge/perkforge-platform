@@ -148,9 +148,9 @@ class VeleroDeployment(unittest.TestCase):
             binary=path/'kubectl';binary.write_text((ROOT/'tests/fixtures/velero_kubectl.py').read_text());binary.chmod(0o700)
             state=path/'state.json';state.write_text(json.dumps({'target_commit':'a'*40,
                 'HelmRelease|bigbang|harbor':{'kind':'HelmRelease','metadata':{'name':'harbor','namespace':'bigbang','generation':2},'spec':{},'status':{'observedGeneration':2,'conditions':[{'type':'Ready','status':'True'}]}},
-                'GitRepository|flux-system|cluster-config':{'kind':'GitRepository','metadata':{'uid':'source-uid','name':'cluster-config','namespace':'flux-system','resourceVersion':'1'},'spec':{'url':'https://github.com/perkforge/perkforge-platform.git','ref':{'tag':'v1.0.0'},'interval':'1m'},'status':{'artifact':{'revision':'v1.0.0@sha1:4b6677fab7533b1f602564e5f4915ba37d619e75'}}},
-                'Kustomization|flux-system|cluster-root':{'kind':'Kustomization','metadata':{'uid':'root-uid','name':'cluster-root','namespace':'flux-system','resourceVersion':'1'},'spec':{'sourceRef':{'kind':'GitRepository','name':'cluster-config'},'path':'./big-bang-bootstrap/clusters/local-harbor-app','serviceAccountName':'platform-reconciler','prune':False,'interval':'1m'}}}))
-            values={'vk':[str(binary)],'velero_state_dir':str(path),'velero_root_name':'cluster-root','velero_previous_tag':'v1.0.0','velero_release_tag':'v1.0.1','velero_release_commit':'a'*40,'velero_previous_path':'./big-bang-bootstrap/clusters/local-harbor-app'}
+                'GitRepository|flux-system|cluster-config':{'kind':'GitRepository','metadata':{'uid':'source-uid','name':'cluster-config','namespace':'flux-system','resourceVersion':'1'},'spec':{'url':'https://github.com/perkforge/perkforge-platform.git','ref':{'tag':'v1.0.0'},'interval':'1m'},'status':{'artifact':{'revision':'v1.0.0@sha1:d95371627179fa090d935043619fd994e05b1437'}}},
+                'Kustomization|flux-system|cluster-root':{'kind':'Kustomization','metadata':{'uid':'root-uid','name':'cluster-root','namespace':'flux-system','resourceVersion':'1'},'spec':{'sourceRef':{'kind':'GitRepository','name':'cluster-config'},'path':'./big-bang-bootstrap/clusters/local-grafana-sso','serviceAccountName':'platform-reconciler','prune':False,'interval':'1m'}}}))
+            values={'vk':[str(binary)],'velero_state_dir':str(path),'velero_root_name':'cluster-root','velero_previous_tag':'v1.0.0','velero_release_tag':'v1.0.1','velero_release_commit':'a'*40,'velero_previous_path':'./big-bang-bootstrap/clusters/local-grafana-sso'}
             harness=package/'fixture.yaml';harness.write_text(yaml.safe_dump([{'hosts':'localhost','connection':'local','gather_facts':False,'vars':values,'tasks':[{'ansible.builtin.include_tasks':'deployment/read-selectors.yaml'},{'ansible.builtin.include_tasks':'deployment/promote.yaml'}]}]))
             env={**os.environ,'VELERO_FAKE_STATE':str(state),'ANSIBLE_LOCAL_TEMP':str(path/'ansible')};command=['ansible-playbook','-i','localhost,',str(harness)]
             original=json.loads(state.read_text())
@@ -203,7 +203,7 @@ class VeleroDeployment(unittest.TestCase):
             if not os.environ.get('VELERO_CHART_SOURCE') or not os.environ.get('PREFLIGHT_SOURCES_DIR') or not shutil.which('helm'):
                 self.skipTest('native Ansible passed; exact Helm comparison requires pinned fixture inputs')
             from fixtures.render_helpers import helm,build,ordered_values,child_values
-            base=build(ROOT/'clusters/local-harbor-app');release=next(x for x in base if x['kind']=='HelmRelease' and x['metadata']['name']=='bigbang')
+            base=build(ROOT/'clusters/local-grafana-sso');release=next(x for x in base if x['kind']=='HelmRelease' and x['metadata']['name']=='bigbang')
             bigbang=Path(os.environ['PREFLIGHT_SOURCES_DIR'])/'bigbang/chart'
             vals=ordered_values(base,release);old=helm(bigbang,'bigbang','bigbang',vals);new=helm(bigbang,'bigbang','bigbang',vals+[runtime['data']['velero.yaml']])
             key=lambda x:(x['kind'],x['metadata'].get('namespace',''),x['metadata']['name'])
@@ -363,7 +363,7 @@ class VeleroDeployment(unittest.TestCase):
         def render(name):
             return list(yaml.safe_load_all(subprocess.check_output(['kubectl','kustomize',str(ROOT/'clusters'/name)],text=True)))
         key=lambda x:(x['kind'],x['metadata'].get('namespace',''),x['metadata']['name'])
-        old={key(x):x for x in render('local-harbor-app')}
+        old={key(x):x for x in render('local-grafana-sso')}
         new={key(x):x for x in render('local-velero')}
         self.assertEqual(set(new)-set(old),{('HelmRelease','bigbang','velero-store')})
         for k,v in old.items():

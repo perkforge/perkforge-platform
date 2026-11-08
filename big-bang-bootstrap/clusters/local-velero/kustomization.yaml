@@ -2,7 +2,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-- ../local-harbor-app
+- ../local-grafana-sso
 - ../../configuration/packages/velero/runtime
 patches:
 - target: {group: helm.toolkit.fluxcd.io, version: v2, kind: HelmRelease, name: bigbang, namespace: bigbang}

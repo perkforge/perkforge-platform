@@ -1,10 +1,22 @@
 # Current operator handoff
 
-## Harbor candidate is blocked
+## Grafana SSO candidate awaits policy and live approval
 
-[Harbor review](big-bang-bootstrap/configuration/packages/harbor/README.md) adds a
-rendered disabled profile with protected Secret references, no generated values.
-External data services, TLS/network/capacity and explicit scanner scope need review.
+[One cohesive source candidate](big-bang-bootstrap/configuration/authorization/sso/grafana/README.md)
+adds explicit-subject admin-only client roles, gated activation/rollback and an
+optional native stage preserving Harbor and monitoring. No new client credential,
+role/grant, delivery, deployment or live login is performed by this work.
+Owner confirmation of the narrower admin-only policy and action-specific
+credential/access/deployment approvals remain gates. CI stays paused; offline
+fixtures do not establish physical login, recovery or existing-session denial.
+
+## Harbor jobservice correction awaits review
+
+Published v0.29.1's worker-only startup fix is live. Core, independent local
+admin recovery and the private, empty `library` project are verified. The
+[jobservice PostgreSQL correction](big-bang-bootstrap/configuration/packages/harbor/README.md#native-jobservice-database-dependency)
+awaits a reviewed release and scoped network approval. DNS, SSO, push/pull and
+restore acceptance remain pending.
 
 
 ## Inactive alert/validation preparation

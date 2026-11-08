@@ -31,8 +31,12 @@ ansible-playbook big-bang-bootstrap/configuration/authorization/sso/harbor/nativ
 ```
 
 The exact observed build string may include a hexadecimal build suffix, but must
-be v2.15.2. TLS and the server's `external_url` and build must match before Basic
-authentication is sent. No proxies, redirects, netrc or insecure TLS are used.
+be v2.15.2. The first systeminfo request checks unauthenticated reachability over
+the exact approved, certificate-verified HTTPS origin. Public systeminfo omits
+`external_url` and `harbor_version` in native v2.15.2. After independent built-in
+admin recovery authentication, a fresh authenticated systeminfo request must
+match the exact external URL and build before any configuration read or write.
+No proxies, redirects, netrc or insecure TLS are used.
 URLs reject whitespace/control characters and equivalent normalized Harbor/issuer
 hostnames. Existing OIDC mode must already use the exact issuer and client harbor;
 foreign-provider adoption is refused. Credential paths must be absolute canonical
@@ -48,7 +52,11 @@ requires editable auth_mode, an empty user list and zero X-Total-Count. Harbor
 excludes its built-in administrator from those results. Any additional user,
 including a promoted local administrator, blocks migration. No account is deleted.
 
-`apply` writes only differing owned fields. Initial migration additionally needs
+`apply` writes only differing owned fields. Unrelated configuration entries are
+preserved as complete objects, including native `scan_all_policy: {}`. An omitted
+value is not assigned a default or treated as a secret sentinel. Entry shapes and
+unchanged key sets are checked; unrelated value, presence or metadata drift fails
+closed. This does not enable or configure a scanner. Initial migration additionally needs
 `harbor_native_secret_write_approved: true`, which explicitly authorizes reading
 and submitting the protected client secret. A later secret rotation also requires
 that gate. **Configuration GET omits passwords entirely**: there is no masked
@@ -97,6 +105,8 @@ Verified against [Harbor v2.15.2](https://github.com/goharbor/harbor/tree/v2.15.
 
 - `api/v2.0/swagger.yaml`: configurations request/response schema, systeminfo,
   current-user and user-list endpoints.
+- `src/server/v2.0/handler/systeminfo.go`: external URL and build are exposed only
+  to authenticated callers; public reachability is not version verification.
 - `src/controller/config/controller.go`: partial configuration update, password
   omission in ConvertForGet, and authModeCanBeModified requiring zero added users.
 - `src/lib/config/metadata/metadatalist.go`: OIDCClientSecret is PasswordType.

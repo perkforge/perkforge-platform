@@ -15,6 +15,7 @@ spec:
   ingress:
   - from:
     - podSelector: {matchLabels: {app: harbor, release: harbor, component: core}}
+    - podSelector: {matchLabels: {app: harbor, release: harbor, component: jobservice}}
     ports: [{protocol: TCP, port: 5432}]
   - from:
     - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: cnpg-system}}

@@ -76,16 +76,26 @@ def _ca_bundle(pem):
     return certs
 
 
-def _key_pair(data):
+def _key_pair(data, token_signing=False):
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
     certs = _certs(data['tls.crt'])
-    if not re.fullmatch(r'\s*-----BEGIN (RSA PRIVATE KEY|PRIVATE KEY)-----\s+[A-Za-z0-9+/=\s]+-----END \1-----\s*', data['tls.key']):
+    match = re.fullmatch(r'\s*-----BEGIN (RSA PRIVATE KEY|PRIVATE KEY)-----\s+([A-Za-z0-9+/=\s]+)-----END \1-----\s*', data['tls.key'])
+    if not match:
         raise ValueError('Exactly one unencrypted private key PEM required')
     key = serialization.load_pem_private_key(data['tls.key'].encode(), password=None)
     # Harbor token signing is RS256; all network leaves use the reviewed RSA baseline.
     if not isinstance(key, rsa.RSAPrivateKey) or key.key_size < 2048:
         raise ValueError('RSA key of at least 2048 bits required')
+    if token_signing:
+        # Harbor 2.15.2 derives JWT kid through libtrust aabc10ec26b7, whose
+        # RSA parser requires the PKCS#1 label AND DER, not PKCS#8 PRIVATE KEY.
+        # Do not apply this restriction to the independent network TLS keys.
+        der = base64.b64decode(re.sub(r'\s+', '', match[2]), validate=True)
+        if match[1] != 'RSA PRIVATE KEY' or der != key.private_bytes(
+                serialization.Encoding.DER, serialization.PrivateFormat.TraditionalOpenSSL,
+                serialization.NoEncryption()):
+            raise ValueError('Harbor token signing requires unencrypted PKCS#1 RSA PRIVATE KEY')
     public = lambda k: k.public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
     if public(key.public_key()) != public(certs[0].public_key()):
         raise ValueError('Certificate and key do not match')
@@ -146,7 +156,7 @@ def _values(items, profile, pins, database_pin, valkey_pin, identity_pin):
     import bcrypt
     if not bcrypt.checkpw(credentials['REGISTRY_PASSWD'].encode(), htpasswd.split(':', 1)[1].encode()):
         return False
-    token = _key_pair(d['harbor-token-signing'])
+    token = _key_pair(d['harbor-token-signing-pkcs1-v1'], token_signing=True)
     if len(token) != 1:
         return False
     try:

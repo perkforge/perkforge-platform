@@ -34,8 +34,20 @@ def pem(cert):
     return cert.public_bytes(serialization.Encoding.PEM).decode()
 
 
-def keypem(key):
-    return key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+def keypem(key, format=serialization.PrivateFormat.PKCS8):
+    return key.private_bytes(serialization.Encoding.PEM, format, serialization.NoEncryption()).decode()
+
+
+def token_pair():
+    key = rsa.generate_private_key(public_exponent=65537, key_size=3072)
+    now = datetime.now(timezone.utc)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'Synthetic Harbor token signing')])
+    cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
+            .serial_number(x509.random_serial_number()).not_valid_before(now-timedelta(days=1))
+            .not_valid_after(now+timedelta(days=7))
+            .add_extension(x509.KeyUsage(True, False, False, False, False, False, False, False, False), critical=True)
+            .sign(key, hashes.SHA256()))
+    return {'tls.crt':pem(cert),'tls.key':keypem(key, serialization.PrivateFormat.TraditionalOpenSSL)}
 
 
 def certificates(extra_san=None, expired=False):
@@ -79,7 +91,7 @@ def manifest(profile, ca, cert, key):
         values['harbor-encryption-key']['secretKey'] = 'SyntheticKey1234'
         values['harbor-xsrf']['CSRF_KEY'] = 'SyntheticXsrfKey1234567890123456'
         values['harbor-registry-credentials'] = {'REGISTRY_PASSWD':PASSWORD, 'REGISTRY_HTPASSWD':'harbor_registry_user:' + bcrypt.hashpw(PASSWORD.encode(), bcrypt.gensalt(rounds=4)).decode()}
-        values['harbor-token-signing'] = {'tls.crt':cert['core'],'tls.key':key}
+        values['harbor-token-signing-pkcs1-v1'] = token_pair()
         for part in ('core','jobservice','registry','portal'):
             values['harbor-' + part + '-tls'] = {'ca.crt':ca,'tls.crt':cert[part],'tls.key':key}
         values['harbor-service-tls'] = {'tls.crt':cert['service'],'tls.key':key}
@@ -178,7 +190,7 @@ class GuardValidation(unittest.TestCase):
             return m
         for m in [changed('harbor-encryption-key','secretKey','é'*16),
                   changed('harbor-registry-credentials','REGISTRY_PASSWD','wrong-synthetic-password'),
-                  changed('harbor-token-signing','tls.key',keypem(rsa.generate_private_key(public_exponent=65537,key_size=2048))),
+                  changed('harbor-token-signing-pkcs1-v1','tls.key',keypem(rsa.generate_private_key(public_exponent=65537,key_size=2048),serialization.PrivateFormat.TraditionalOpenSSL)),
                   changed('private-registry','.dockerconfigjson','{"auths":{"foreign.invalid":{"auth":"dTpw"}}}'),
                   changed('harbor-public-ca','ca.crt',self.ca+self.ca),
                   changed('harbor-public-ca','ca.crt',self.ca+self.key)]:
@@ -194,6 +206,27 @@ class GuardValidation(unittest.TestCase):
             next(i for i in bad['items'] if i['metadata']['name']=='harbor-initial-admin')['stringData']['HARBOR_ADMIN_PASSWORD']=value
             self.assertFalse(self.valid(bad,'application'))
         self.assertTrue(self.valid(self.app,'application'))
+
+    def test_token_requires_real_pkcs1_but_tls_keeps_pkcs8(self):
+        token = next(i['stringData'] for i in self.app['items'] if i['metadata']['name']=='harbor-token-signing-pkcs1-v1')
+        key = serialization.load_pem_private_key(token['tls.key'].encode(), password=None)
+        pkcs8 = keypem(key)
+        encrypted = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                      serialization.BestAvailableEncryption(b'synthetic-only')).decode()
+        # Same RSA key/certificate, incompatible native encoding. Relabelling is
+        # not conversion: PKCS#8 DER under a PKCS#1 header must also fail closed.
+        for value in (pkcs8, pkcs8.replace('PRIVATE KEY','RSA PRIVATE KEY'), encrypted,
+                      token['tls.key']+token['tls.key'], 'not-a-key'):
+            bad=copy.deepcopy(self.app)
+            next(i['stringData'] for i in bad['items'] if i['metadata']['name']=='harbor-token-signing-pkcs1-v1')['tls.key']=value
+            self.assertFalse(self.valid(bad,'application'))
+        cert=guard._key_pair(token, token_signing=True)[0]
+        self.assertEqual(cert.public_key().public_numbers(),key.public_key().public_numbers())
+        self.assertTrue(self.valid(self.app,'application'))
+        for obj in self.app['items']:
+            if obj['type']=='kubernetes.io/tls':
+                self.assertIn('BEGIN PRIVATE KEY',obj['stringData']['tls.key'])
+                guard._key_pair(obj['stringData'])
 
     def test_xsrf_requires_exactly_32_ascii_bytes(self):
         # https://github.com/goharbor/harbor/blob/v2.15.2/src/server/middleware/csrf/csrf.go#L69-L79
@@ -275,6 +308,7 @@ class RealAnsibleCredentials(unittest.TestCase):
         output=result.stdout+result.stderr
         self.assertNotIn(PASSWORD,output)
         self.assertNotIn('BEGIN PRIVATE KEY',output)
+        self.assertNotIn('BEGIN RSA PRIVATE KEY',output)
         self.assertEqual(result.returncode==0,success,output)
         return output
     def deliver(self,**kwargs):
@@ -327,6 +361,46 @@ class RealAnsibleCredentials(unittest.TestCase):
         self.assertIn('changed=0',output)
         self.assertFalse(any(e[0] in ('create','dryrun') for e in self.events()[count:]))
         self.assertEqual(json.loads((self.root/'state.json').read_text())['objects'],before)
+
+    def test_versioned_signer_retains_old_secret_and_all_other_targets(self):
+        old=copy.deepcopy(self.app)
+        token=next(i for i in old['items'] if i['metadata']['name']=='harbor-token-signing-pkcs1-v1')
+        token['metadata']['name']='harbor-token-signing'
+        key=serialization.load_pem_private_key(token['stringData']['tls.key'].encode(),password=None)
+        token['stringData']['tls.key']=keypem(key)
+        self.state['objects']={i['metadata']['name']:api_object(i) for i in old['items']}
+        self.save_state(); before=copy.deepcopy(self.state['objects'])
+        self.write(self.manifest,json.dumps(self.app)); self.vars['harbor_credentials_profile']='application'
+        args={'harbor_delivery_run':True,'harbor_delivery_scope':'harbor-application-credential-delivery-v1'}
+        self.run_play('deliver-credentials.yaml',args)
+        after=json.loads((self.root/'state.json').read_text())['objects']
+        self.assertEqual({k:after[k] for k in before},before)
+        self.assertEqual([e for e in self.events() if e[0]=='create'],[['create','harbor-token-signing-pkcs1-v1']])
+        self.assertEqual(after['harbor-token-signing']['data']['tls.crt'],after['harbor-token-signing-pkcs1-v1']['data']['tls.crt'])
+        count=len(self.events())
+        self.assertIn('changed=0',self.run_play('deliver-credentials.yaml',args))
+        self.assertFalse(any(e[0] in ('create','dryrun') for e in self.events()[count:]))
+        self.assertEqual(json.loads((self.root/'state.json').read_text())['objects'],after)
+
+    def test_pkcs8_signer_fails_before_assembly_output_or_api(self):
+        bad=copy.deepcopy(self.app)
+        token=next(i['stringData'] for i in bad['items'] if i['metadata']['name']=='harbor-token-signing-pkcs1-v1')
+        token['tls.key']=keypem(serialization.load_pem_private_key(token['tls.key'].encode(),password=None))
+        self.write(self.manifest,json.dumps(bad)); self.vars['harbor_credentials_profile']='application'
+        self.run_play('deliver-credentials.yaml',{'harbor_delivery_run':True,'harbor_delivery_scope':'harbor-application-credential-delivery-v1'},success=False)
+        self.assertEqual(self.events(),[])
+        inputs={}
+        for obj in bad['items']:
+            inputs[obj['metadata']['name']]={}
+            for key,value in obj['stringData'].items():
+                p=self.root/(obj['metadata']['name']+'-'+key.replace('/','_'))
+                self.write(p,value); inputs[obj['metadata']['name']][key]=str(p)
+        out=self.root/'invalid-assembly.json'
+        self.run_play('prepare-credentials.yaml',{'harbor_credentials_run':True,
+            'harbor_credentials_scope':'harbor-application-private-assembly-v1',
+            'harbor_credentials_inputs':inputs,'harbor_credentials_manifest':str(out)},success=False)
+        self.assertFalse(out.exists())
+        self.assertEqual(self.events(),[])
 
     def test_actual_cluster_and_namespace_uid_mismatch_stop_before_secrets(self):
         self.state['cluster']='wrong-cluster-0001'; self.save_state()

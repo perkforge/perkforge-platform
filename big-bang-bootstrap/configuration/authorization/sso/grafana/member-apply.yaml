@@ -1,0 +1,15 @@
+- ansible.builtin.uri:
+    url: '{{ gf_api }}/users/{{ gf_member_plan.sub }}/role-mappings/clients/{{ gf_id }}'
+    headers: '{{ gf_headers }}'
+    method: '{{ "POST" if gf_member_plan.desired | length > 0 else "DELETE" }}'
+    body_format: json
+    body: '{{ gf_member_plan.desired if gf_member_plan.desired | length > 0 else gf_member_plan.current }}'
+    status_code: 204
+  when: gf_member_plan.needs_change
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ gf_api }}/users/{{ gf_member_plan.sub }}/role-mappings/clients/{{ gf_id }}/composite'
+    headers: '{{ gf_headers }}'
+  register: gf_member_verified
+- ansible.builtin.assert:
+    that: gf_member_verified.json | map(attribute='id') | sort == gf_member_plan.desired | map(attribute='id') | sort

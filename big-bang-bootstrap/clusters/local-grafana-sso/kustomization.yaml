@@ -1,0 +1,25 @@
+# Explicit opt-in only. Revert selection to local-harbor-app for native OAuth off.
+# Client disable and existing-session withdrawal are separate approved operations.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-harbor-app
+- ../../configuration/observability/grafana-sso
+commonAnnotations:
+  platform.perkforge.io/cluster: local
+  platform.perkforge.io/environment: local
+  platform.perkforge.io/profile: il2
+patches:
+- target:
+    group: helm.toolkit.fluxcd.io
+    version: v2
+    kind: HelmRelease
+    name: bigbang
+    namespace: bigbang
+  patch: |-
+    - op: add
+      path: /spec/valuesFrom/-
+      value:
+        kind: ConfigMap
+        name: values-grafana-sso
+        valuesKey: values.yaml

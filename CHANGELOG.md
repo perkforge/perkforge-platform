@@ -1,5 +1,70 @@
 # Changelog
 
+## [0.31.2](https://github.com/perkforge/perkforge-platform/compare/v0.31.1...v0.31.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* **grafana:** preserve empty web origins on client toggle ([#275](https://github.com/perkforge/perkforge-platform/issues/275)) ([1ff07af](https://github.com/perkforge/perkforge-platform/commit/1ff07af875c34ce26cbf3527b75038b54d183bef))
+
+## [0.31.1](https://github.com/perkforge/perkforge-platform/compare/v0.31.0...v0.31.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **harbor:** use native PKCS1 token signing identities ([#272](https://github.com/perkforge/perkforge-platform/issues/272)) ([2144071](https://github.com/perkforge/perkforge-platform/commit/214407134bd801abb064bb919b564b4c0280ec39))
+
+## [0.31.0](https://github.com/perkforge/perkforge-platform/compare/v0.30.0...v0.31.0) (2026-11-07)
+
+
+### Features
+
+* **grafana:** prepare cohesive gated SSO activation ([#270](https://github.com/perkforge/perkforge-platform/issues/270)) ([b0c4641](https://github.com/perkforge/perkforge-platform/commit/b0c4641e84f65642cb500cdd5712fc59d71972b6))
+
+## [0.30.0](https://github.com/perkforge/perkforge-platform/compare/v0.29.5...v0.30.0) (2026-11-07)
+
+
+### Features
+
+* **grafana:** guard dedicated OAuth input delivery ([#253](https://github.com/perkforge/perkforge-platform/issues/253)) ([b5820cf](https://github.com/perkforge/perkforge-platform/commit/b5820cfdfb9090c9335925ad0ca9a47d941336c9))
+* **grafana:** prepare bounded disabled client lifecycle ([#252](https://github.com/perkforge/perkforge-platform/issues/252)) ([489bbc6](https://github.com/perkforge/perkforge-platform/commit/489bbc6acdccf8bba10e99c5617670520a950ea1))
+
+## [0.29.5](https://github.com/perkforge/perkforge-platform/compare/v0.29.4...v0.29.5) (2026-11-07)
+
+
+### Bug Fixes
+
+* **harbor:** preserve empty Keycloak web origins on toggle ([#267](https://github.com/perkforge/perkforge-platform/issues/267)) ([5e0c38e](https://github.com/perkforge/perkforge-platform/commit/5e0c38e0bb0ad146e715d52789ff6fbd49ab5519))
+
+## [0.29.4](https://github.com/perkforge/perkforge-platform/compare/v0.29.3...v0.29.4) (2026-11-07)
+
+
+### Bug Fixes
+
+* **harbor:** preserve empty unrelated configuration entries ([#265](https://github.com/perkforge/perkforge-platform/issues/265)) ([9dc04f3](https://github.com/perkforge/perkforge-platform/commit/9dc04f36dc434171f1be51b50d80b0dcebccb2bb))
+
+## [0.29.3](https://github.com/perkforge/perkforge-platform/compare/v0.29.2...v0.29.3) (2026-11-07)
+
+
+### Bug Fixes
+
+* **harbor:** authenticate native system identity verification ([#263](https://github.com/perkforge/perkforge-platform/issues/263)) ([c476fd3](https://github.com/perkforge/perkforge-platform/commit/c476fd322c3a6612457cb307b12a528a3353f227))
+
+## [0.29.2](https://github.com/perkforge/perkforge-platform/compare/v0.29.1...v0.29.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* **harbor:** allow jobservice PostgreSQL initialization ([#261](https://github.com/perkforge/perkforge-platform/issues/261)) ([3d28773](https://github.com/perkforge/perkforge-platform/commit/3d28773332ab1161eff67b0b2e473c099c3b306c))
+
+## [0.29.1](https://github.com/perkforge/perkforge-platform/compare/v0.29.0...v0.29.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **harbor:** repair startup, worker placement and DNS ([#260](https://github.com/perkforge/perkforge-platform/issues/260)) ([2251451](https://github.com/perkforge/perkforge-platform/commit/22514513de100b339761bd001bd32f1ca4c0b06d))
+* **harbor:** verify approved CNPG config checksum delta ([#258](https://github.com/perkforge/perkforge-platform/issues/258)) ([7dacd3b](https://github.com/perkforge/perkforge-platform/commit/7dacd3b4baea8e76adef73e7f988a0d532dfb136))
+
 ## [0.29.0](https://github.com/perkforge/perkforge-platform/compare/v0.28.0...v0.29.0) (2026-11-07)
 
 

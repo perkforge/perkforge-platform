@@ -172,9 +172,10 @@ repair, destructive restore or release of traffic is part of this installer.
    storage inventory host in the `velero_storage` group. Keep receipts in
    a separate existing 0700 owner directory. Do not put physical IDs or keys in Git.
 3. Verify the current composition. The compiled base in `deployment/base.yaml` is
-   `local-harbor-app` at commit
-   `4b6677fab7533b1f602564e5f4915ba37d619e75`, preserving Harbor data/app resources and its inherited
-   metrics/Grafana composition. Harbor must finish functional acceptance first;
+   `local-grafana-sso` at commit
+   `d95371627179fa090d935043619fd994e05b1437`, preserving Harbor data/app resources and the active
+   Grafana SSO overlay. The operator source includes v0.31.2 fixes; the accepted
+   runtime base remains v0.31.1. Harbor must finish functional acceptance first;
    merely selecting its root is not acceptance. The preflight requires Harbor
    Ready at its current generation, which still does not prove SSO/push/pull.
    The live source artifact must match that compiled base commit, even when its

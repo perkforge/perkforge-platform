@@ -10,6 +10,7 @@ import tempfile
 import threading
 import unittest
 from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
 import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -34,7 +35,7 @@ class HarborClient(unittest.TestCase):
                         '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost',
                         '-keyout', str(self.d / 'key'), '-out', str(self.d / 'ca')],
                        check=True, capture_output=True)
-        self.s = dict(client=None, calls=[], writes=[], roles=[], scope={}, optional=[],
+        self.s = dict(client=None, calls=[], writes=[], updates=[], roles=[], scope={}, optional=[],
                       scopes=['basic', 'profile', 'email'], lost_create=False, group_roles=[], role_users=[], role_groups=[], composites=[],
                       group_path='/platform/admins', inherited=[], secret='fixture-existing-client-secret')
         self.s['mappers'] = yaml.safe_load((SSO / 'client-scopes.yaml').read_text())['sso_expected_client_scopes']
@@ -115,8 +116,15 @@ class HarborClient(unittest.TestCase):
                     s['role_groups'] = [dict(id=GROUP, name='admins', path='/platform/admins')]
                     return self.reply(204)
                 if self.command == 'PUT' and p == '/clients/' + CLIENT:
-                    if set(data) != {'enabled'}:
+                    if not set(data) <= {'enabled', 'webOrigins'}:
                         return self.reply(400)
+                    s['updates'].append(copy.deepcopy(data))
+                    # Keycloak 26.8.1 RepresentationToModel.defaultWebOrigins:
+                    # omission derives origins from redirects when current set is empty.
+                    if 'webOrigins' not in data and not s['client'].get('webOrigins'):
+                        s['client']['webOrigins'] = sorted({
+                            urlsplit(uri).scheme + '://' + urlsplit(uri).netloc
+                            for uri in s['client']['redirectUris'] if uri.startswith('http')})
                     s['client'].update(data)
                     return self.reply(204)
                 return self.reply(405, {})
@@ -257,12 +265,32 @@ class HarborClient(unittest.TestCase):
         before = copy.deepcopy(self.s['client'])
         self.run_play('activate', extra=approval | dict(harbor_native_verified=True))
         self.assertTrue(self.s['client']['enabled'])
+        self.assertEqual(self.s['client']['webOrigins'], [])
         self.assertIn('changed=0', self.run_play('activate', extra=approval | dict(harbor_native_verified=True, harbor_client_expected_enabled=True)).stdout)
         self.run_play('disable', extra=dict(harbor_client_expected_enabled=True))
         self.assertEqual(self.s['client'], before)
         self.assertEqual(self.s['group_roles'], [role()])
+        self.assertEqual(self.s['updates'], [dict(enabled=True, webOrigins=[]),
+                                              dict(enabled=False, webOrigins=[])])
         self.assertEqual(self.s['writes'], [('POST', '/groups/' + GROUP + '/role-mappings/clients/' + CLIENT),
                                           ('PUT', '/clients/' + CLIENT), ('PUT', '/clients/' + CLIENT)])
+
+    def test_fixture_reproduces_omitted_web_origins_default(self):
+        self.seed()
+        request = Request(f'https://localhost:{self.server.server_port}/auth/admin/realms/perkforge/clients/{CLIENT}',
+                          data=json.dumps({'enabled': True}).encode(), method='PUT',
+                          headers={'Content-Type': 'application/json', 'Authorization': 'Bearer fixture-operator-token'})
+        with urlopen(request, context=ssl.create_default_context(cafile=str(self.d / 'ca'))) as response:
+            self.assertEqual(response.status, 204)
+        self.assertEqual(self.s['client']['webOrigins'], ['https://harbor.example.test'])
+
+    def test_origin_drift_is_never_adopted_or_repaired(self):
+        self.seed()
+        for origins in [['https://harbor.example.test'], ['https://foreign.example.test'],
+                        ['*'], ['https://harbor.example.test', 'https://foreign.example.test']]:
+            self.s['client']['webOrigins'] = origins
+            self.run_play('disable', success=False)
+        self.assertEqual(self.s['writes'], [])
 
     def test_foreign_grants_scope_group_and_uuid_never_mutate(self):
         self.seed()

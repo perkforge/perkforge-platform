@@ -97,22 +97,36 @@
       timeout: 30
       status_code: 200
   block:
-  - name: Verify exact endpoint and build before transmitting credentials
+  - name: Check unauthenticated reachability over approved verified HTTPS
     ansible.builtin.uri:
       url: '{{ harbor_native_origin }}/api/v2.0/systeminfo'
+  - name: Independently verify built-in local recovery
+    ansible.builtin.include_tasks: native-recovery.yaml
+  - name: Read authenticated system identity before configuration access
+    ansible.builtin.uri:
+      url: '{{ harbor_native_origin }}/api/v2.0/systeminfo'
+      url_username: admin
+      url_password: '{{ harbor_native_password }}'
+      force_basic_auth: true
     register: harbor_native_info
-  - ansible.builtin.assert:
+    no_log: true
+  - name: Verify exact authenticated endpoint and build
+    ansible.builtin.assert:
       that:
       - harbor_native_info.json.external_url == harbor_native_origin
       - harbor_native_info.json.harbor_version == harbor_native_version
-  - name: Independently verify built-in local recovery
-    ansible.builtin.include_tasks: native-recovery.yaml
+    no_log: true
   - ansible.builtin.uri:
       url: '{{ harbor_native_origin }}/api/v2.0/configurations'
       url_username: admin
       url_password: '{{ harbor_native_password }}'
       force_basic_auth: true
     register: harbor_native_before
+    no_log: true
+  - name: Require dictionary-shaped configuration entries before mutation
+    ansible.builtin.assert:
+      that: item.value is mapping
+    loop: '{{ harbor_native_before.json | dict2items }}'
     no_log: true
   - name: Own only reviewed native settings
     ansible.builtin.set_fact:
@@ -206,9 +220,13 @@
     loop: '{{ harbor_native_desired | dict2items }}'
     when: harbor_native_operation == 'apply'
     no_log: true
-  - name: Verify unrelated values are unchanged
+  - name: Require unchanged configuration key sets
     ansible.builtin.assert:
-      that: harbor_native_after.json[item.key].value == item.value.value
+      that: harbor_native_after.json.keys() | sort == harbor_native_before.json.keys() | sort
+    no_log: true
+  - name: Verify complete unrelated entries are unchanged
+    ansible.builtin.assert:
+      that: harbor_native_after.json[item.key] == item.value
     loop: '{{ harbor_native_before.json | dict2items }}'
     when: item.key not in harbor_native_desired
     no_log: true

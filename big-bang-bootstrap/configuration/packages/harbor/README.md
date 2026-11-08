@@ -15,6 +15,16 @@ workflows disabled while maintaining and running local checks.
   `harbor` after `gitlab,tenant-home-nextcloud`; do not replace a newer watch list.
 - Five app containers request 500m CPU / 1280Mi. Data requests 350m / 768Mi.
   Total: **850m / 2048Mi**, plus runtime/init peaks and future workload growth.
+- All Harbor application and data Pods require `storage.perkforge.io/worker=true`;
+  init containers share their Pod's placement. Core/portal add 200m CPU / 512Mi
+  to worker requests when moving off the control plane. Before acceptance, check
+  the label exists only on workers and every Harbor Pod is on one of those nodes.
+  The four application Deployments also require absence of both control-plane
+  and master role labels, with no control-plane tolerations. Existing database/cache
+  selectors and accepted data specs remain unchanged; their worker-only guarantee
+  depends on correct node labels. The acceptance audit rejects worker-labelled
+  control-plane nodes and misplaced Pods. It cannot prevent an administrator from
+  later changing labels or scheduling policies.
 - Registry 10Gi, job logs 1Gi, PostgreSQL 8Gi, Valkey 2Gi. Two-replica Longhorn
   scheduling adds **42Gi**: 40Gi dedicated disks, 2Gi root disks. Snapshot, backup,
   restore and growth headroom are additional. This is not a capacity acceptance.
@@ -29,8 +39,18 @@ workflows disabled while maintaining and running local checks.
   ServersTransport objects with exact server names and `harbor-internal-ca`.
 - All internal components use dedicated TLS Secrets. A final narrow post-renderer
   corrects Big Bang's inherited registry Service port 5000 to TLS port 5443.
-- PostgreSQL uses `verify-full`, explicit core
-  `PGSSLROOTCERT=/harbor_cust_cert/custom-ca.crt`, and a 50-open/10-idle pool.
+- Iron Bank core/jobservice startup appends internal/custom CAs to the UBI trust
+  bundle. Each uses its own same-digest, non-root init to copy existing image roots
+  into a 4Mi `emptyDir`; only `/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem`
+  is overlaid for the unchanged entrypoint. The init refuses a missing, empty or
+  differently resolved bundle. UID 10000, existing application requests and all
+  security restrictions remain unchanged; the init requests 20m/32Mi, below the
+  application's requests. Secret inputs stay read-only. No root init, capability,
+  broad filesystem permission change or TLS-verification bypass is used.
+- PostgreSQL uses `verify-full` and explicit core/jobservice
+  `PGSSLROOTCERT=/harbor_cust_cert/custom-ca.crt`. Each process has a
+  20-open/5-idle pool: 40 open/10 idle with one replica each, leaving room within
+  the dedicated database's 100 connections. Reassess before scaling or load growth.
   Valkey requires TLS plus a dedicated password, with indexes 0/1/2.
 - NetworkPolicy denies ingress by default, admitting only Traefik, the exact
   Harbor consumers and existing CNPG operator. **Egress is not restricted.**
@@ -42,6 +62,31 @@ workflows disabled while maintaining and running local checks.
   CNPG's existing namespace authority includes workload/Secret management and
   Pod exec; adding Harbor is an explicit access expansion.
 
+### Native jobservice database dependency
+
+Harbor 2.15.2 jobservice directly connects to PostgreSQL during startup, before
+starting its Redis worker pool. The immutable source chain is
+[main/job context](https://github.com/goharbor/harbor/blob/a97e7b835d1364e2cc11fd706a15171a5c9d5d77/src/jobservice/job/impl/context.go#L67-L105)
+→ [configuration mapping](https://github.com/goharbor/harbor/blob/a97e7b835d1364e2cc11fd706a15171a5c9d5d77/src/pkg/config/manager.go#L159-L176)
+→ [DAO/pgx registration](https://github.com/goharbor/harbor/blob/a97e7b835d1364e2cc11fd706a15171a5c9d5d77/src/common/dao/pgsql.go#L81-L110).
+The [REST manager](https://github.com/goharbor/harbor/blob/a97e7b835d1364e2cc11fd706a15171a5c9d5d77/src/pkg/config/rest/manager.go#L28-L54)
+uses existing `JOBSERVICE_SECRET` and core's HTTPS `/api/v2.0/internalconfig`
+to obtain the dedicated DB configuration, including credentials, `verify-full`
+and pool limits. Do not add a separate DB Secret mount, role or credential copy.
+
+The retained `harbor-postgres-from-core` policy identity now admits exact core
+and jobservice Pods in `harbor` to only TCP 5432. Its operator rule is unchanged.
+Existing policies already cover core/registry TLS and Valkey 6379; no other
+ingress or egress expansion is needed by this startup path.
+
+The build revision above is the parent of release-tag commit
+`080b0220574cc853ae1e2946ce7a5610ba855757`; only `.buildbaselog` differs.
+Both pin [pgx v5.10.0](https://github.com/goharbor/harbor/blob/a97e7b835d1364e2cc11fd706a15171a5c9d5d77/src/go.mod#L89),
+whose [TLS configuration](https://github.com/jackc/pgx/blob/7293fb11125be0373a92f716683f2d494f6fd4b0/pgconn/config.go#L776-L963)
+honors `PGSSLROOTCERT`. Explicit selection uses the already mounted approved
+public bundle instead of depending on ambient system roots. These are source
+contracts, not proof of image contents or live DB/TLS/CNI acceptance.
+
 ## One-MR rollout order
 
 Use one reviewed MR and one immutable published release containing all source.
@@ -52,6 +97,11 @@ Do not replay cluster bootstrap or manually override a child against Git values.
    tag/commit. Recheck all nodes/releases, per-worker requested capacity, Longhorn
    replicas/free space and current watches. Capture pre-Harbor preservation
    evidence with `scripts/harbor-stage-audit.py --verify --mode snapshot`.
+   The [record-only DNS procedure](../../../../infrastructure/ansible/DNS-MAINTENANCE.md)
+   adds only `harbor.perkforge.home.arpa` with `harbor-dns-record-v1`, preserving
+   all eight prior names. Its source belongs in this review, but the DNS write and
+   one service restart require separate network-change approval and the operator's
+   hidden sudo prompt. Keep it default-off until the release/base hash is reviewed.
 2. **Foundation and protected inputs.** Obtain the action-time approvals below.
    Run default-off `configuration/ansible/harbor-prerequisites.yaml` against the
    exact API/context/cluster/operator identities. It checks every target first,
@@ -97,6 +147,10 @@ Use an owned 0700 private directory outside Git and world-writable ancestors;
 all supplied input/output files are canonical, single-link, owned 0600 files.
 Password inputs contain the exact value with **no trailing newline**.
 
+- `prepare-token-signing.yaml`: [portable new-cluster issuance and same-key
+  recovery](TOKEN-SIGNING.md). Produces a fresh protected RSA3072 PKCS#1 key and
+  matching certificate only after explicit issuance approval. Repeats refuse an
+  existing output bundle rather than silently generating a replacement identity.
 - `prepare-transport.yaml`: explicit `harbor_transport_run=true` and
   `harbor_transport_scope=harbor-internal-transport-issuance-v1`; supply
   `harbor_transport_output_parent`. Creates a fresh dedicated internal CA and
@@ -115,14 +169,16 @@ Password inputs contain the exact value with **no trailing newline**.
   `harbor_credentials_manifest`, exact `harbor_expected_namespace_uid`, and
   `harbor_credentials_inputs` mapping Secret name → key → protected input path.
   The [exact contracts](tasks/contracts.yaml) contain four data and 16 app Secrets.
-  This assembles existing values; it does not generate passwords/token signing
-  material, fetch registry credentials or read the cluster. Arrange those exact
-  protected inputs under the separately approved local custody procedure.
+  This assembles existing values; it does not generate passwords, fetch registry
+  credentials or read the cluster. Feed token-signing inputs from the separately
+  approved producer; arrange the other inputs under their local custody procedure.
   Encryption `secretKey` is exactly 16 ASCII bytes; `CSRF_KEY` exactly 32.
   Initial admin is 16–128 ASCII bytes with lowercase/uppercase/digit; Valkey is
   24–128 URL-safe alphanumeric/underscore/hyphen characters. The registry bcrypt
   entry must match its password for `harbor_registry_user`; token signing uses
-  a matching RSA key/certificate with digital-signature usage.
+  a matching RSA key/certificate with digital-signature usage. Its key must be
+  unencrypted PKCS#1 `RSA PRIVATE KEY`; PKCS#8 `PRIVATE KEY` is rejected before
+  assembly/delivery. Network TLS key encoding support is unchanged.
 - App assembly also pins the deduplicated public trust bundle with
   `harbor_public_ca_sha256` and the separately approved
   `harbor_database_ca_sha256`, `harbor_valkey_ca_sha256`,
@@ -155,6 +211,8 @@ any corresponding operation. Approval flags in source are guards, not permission
   CA signing keys stay local. No password/token appears in chat, argv or Git.
 - The two conditional GitOps selections and their new workloads, HTTPS route and
   namespace-only policies/transport grants. Scanner is off and egress unrestricted.
+- Harbor-only DNS maintenance and one DNS-service restart, separately approved
+  against the reviewed existing configuration checksum; no client resolver changes.
 - Exact empty default `library` project public-to-private change before data use.
 - Dedicated confidential Keycloak client/secret, the admin-group role grant for
   **current and future** `/platform/admins` members, native Harbor OIDC settings
@@ -171,6 +229,19 @@ only a successful real token exchange establishes that acceptance.
 
 - `test_harbor_review.py`, `test_harbor_data.py`, `test_harbor_activation.py` render
   pinned charts, apply every Flux post-renderer and compare existing resources.
+- `test_harbor_pgx_tls.py` uses pinned native pgx 5.10.0 with synthetic roots and
+  in-memory TLS, checking matching CA/hostname, wrong CA/hostname, invalid/missing
+  roots and no plaintext fallback. See the [fixture instructions](../../../tests/fixtures/README.md).
+  This does not start Harbor or PostgreSQL and is not database-auth acceptance.
+- `test_harbor_image_startup.py` checks immutable Iron Bank 2.15.2 source hashes
+  and runs its unchanged startup scripts as UID 10000/GID 1000 in rootless,
+  network-isolated bubblewrap with synthetic certificates and sentinel binaries.
+  It reproduces the unwritable-bundle failure, proves preserved/added roots and
+  rejects wrong trust paths. A missing bubblewrap is reported as skipped, not a
+  pass. This is not an image or Harbor-binary integration test. Before promotion,
+  verify the selected image digests' actual trust-file layout and permissions;
+  matching source version alone does not prove those image contents. The init
+  guard remains fail-closed if an image layout differs.
 - `test_harbor_foundation.py` runs real Ansible against isolated CLI fixtures,
   including wrong target/ownership, zero-change repeat and partial/uncertain writes.
 - Native/client SSO tests run real Ansible against disposable HTTPS services.
@@ -187,6 +258,11 @@ and `--commit`, plus `--data-checkpoint`. Data mode writes a new protected
 checkpoint only after its checks pass, or verifies an identical existing one.
 App mode requires that checkpoint and preserves the database, Valkey release and
 two data PVC identities/specs; it cannot capture its own replacement checkpoint.
+When an app-only correction uses a newer reviewed release, explicitly supply both
+`--data-release` and `--data-commit` for the original accepted data checkpoint.
+The current `--release`/`--commit` must still match the live source/root exactly.
+Without the paired data options, the audit requires the same release for both
+stages. Never edit or recapture the original checkpoint to make a correction pass.
 Snapshot creates a new evidence file and never overwrites it.
 Without `--verify`, it reads no files and contacts no APIs.
 

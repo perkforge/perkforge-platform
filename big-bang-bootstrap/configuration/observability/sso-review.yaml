@@ -1,7 +1,8 @@
 # Nondeployable identity review; not Helm values or a realm import.
 enabled: false
 review_only: true
-live_apply_implemented: false
+live_apply_implemented: true # default-off, separately approved operations; not live acceptance
+guarded_adapter: ../authorization/sso/grafana/README.md
 protocol: oidc
 application: grafana
 keycloak:
@@ -18,9 +19,9 @@ keycloak:
   claim_source: bounded own-client role mappings; never every realm group
 mappings:
   tenant_global_admin: false
-  platform_admin: explicit Grafana server admin after approval
-  platform_engineer: Viewer initially; direct editing pending review
-  platform_viewer: Viewer
+  platform_admin: explicitly approved own-client admin role and exact subject UUID; server admin
+  platform_engineer: denied in admin-only initial rollout
+  platform_viewer: denied in admin-only initial rollout
   tenant_roles: disabled until org/datasource isolation and per-tenant tests
 transport:
   verify_tls: true
@@ -31,16 +32,17 @@ recovery:
   custody: protected external credential reference; test before SSO and rollback
 activation_gates:
 - separate reviewed client/app apply wiring
+- owner confirmation of explicit-subject admin-only policy and action-specific live approvals
 - TLS and private client Secret delivery
 - data-source/org boundaries
 - fresh MFA and native role tests
 acceptance:
   positive:
-  - platform admin and explicit viewer login
+  - explicitly granted platform admin login
   negative:
   - unmapped group denied
   - cross-tenant data denied
-  - engineer cannot become server admin
+  - engineer and viewer denied; realm group alone does not authorize
   rollback:
   - disable only owned provider/client mapping
   - local recovery works

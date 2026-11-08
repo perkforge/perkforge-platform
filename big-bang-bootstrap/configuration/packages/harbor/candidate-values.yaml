@@ -36,7 +36,7 @@ addons:
         existingSecretSecretKey: harbor-encryption-key
         core:
           existingSecret: harbor-core-auth
-          secretName: harbor-token-signing
+          secretName: harbor-token-signing-pkcs1-v1
           existingXsrfSecret: harbor-xsrf
           extraEnvVars:
           - name: PGSSLROOTCERT
@@ -44,15 +44,19 @@ addons:
         jobservice:
           existingSecret: harbor-jobservice-auth
           existingSecretKey: JOBSERVICE_SECRET
+          extraEnvVars:
+          - name: PGSSLROOTCERT
+            value: /harbor_cust_cert/custom-ca.crt
         registry:
           existingSecret: harbor-registry-auth
           existingSecretKey: REGISTRY_HTTP_SECRET
           credentials: {existingSecret: harbor-registry-credentials, password: null}
         database:
           type: external
-          # Bound the native 900-connection pool for the single-core home-lab pilot.
-          maxOpenConns: 50
-          maxIdleConns: 10
+          # Core and jobservice each create this pool: 40 open / 10 idle total
+          # at one replica each, leaving room within the dedicated DB's 100.
+          maxOpenConns: 20
+          maxIdleConns: 5
           internal: {password: null}
           external:
             host: UNCONFIGURED-postgresql.invalid
