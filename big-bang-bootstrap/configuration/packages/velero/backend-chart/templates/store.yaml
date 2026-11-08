@@ -22,17 +22,49 @@ data:
     bootstrap_peers = []
     [s3_api]
     s3_region = {{ .Values.region | quote }}
-    api_bind_addr = "[::]:3900"
+    api_bind_addr = "127.0.0.1:3900"
     [admin]
     api_bind_addr = "127.0.0.1:3903"
     admin_token_file = "/runtime/adminToken"
+  nginx.conf: |
+    worker_processes 1;
+    pid /tmp/nginx.pid;
+    error_log /dev/stderr warn;
+    events { worker_connections 256; }
+    http {
+      access_log off;
+      client_body_temp_path /tmp/client-body;
+      proxy_temp_path /tmp/proxy;
+      fastcgi_temp_path /tmp/fastcgi;
+      uwsgi_temp_path /tmp/uwsgi;
+      scgi_temp_path /tmp/scgi;
+      server {
+        listen 8443 ssl;
+        server_name velero-store.velero-store.svc.cluster.local;
+        ssl_certificate /etc/velero-tls/tls.crt;
+        ssl_certificate_key /etc/velero-tls/tls.key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        client_max_body_size 0;
+        location / {
+          proxy_pass http://127.0.0.1:3900;
+          proxy_http_version 1.1;
+          proxy_set_header Host $http_host;
+          proxy_set_header Connection "";
+          proxy_request_buffering off;
+          proxy_buffering off;
+          proxy_read_timeout 3600s;
+          proxy_send_timeout 3600s;
+        }
+      }
+    }
 ---
 apiVersion: v1
 kind: Service
 metadata: {name: velero-store, namespace: velero-store}
 spec:
+  type: ClusterIP
   selector: {app: velero-store}
-  ports: [{name: s3, port: 3900, targetPort: 3900}]
+  ports: [{name: https, port: 443, targetPort: https}]
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -67,60 +99,44 @@ spec:
         args: [-c, /etc/garage/garage.toml, server]
         securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
         resources: {requests: {cpu: 500m, memory: 1Gi}, limits: {cpu: '1', memory: 2Gi}}
-        ports: [{name: s3, containerPort: 3900}]
-        readinessProbe: {tcpSocket: {port: s3}, initialDelaySeconds: 10, periodSeconds: 10}
+        readinessProbe: {exec: {command: [/garage, -c, /etc/garage/garage.toml, status]}, initialDelaySeconds: 10, periodSeconds: 10}
         volumeMounts:
         - {name: config, mountPath: /etc/garage, readOnly: true}
         - {name: runtime, mountPath: /runtime, readOnly: true}
         - {name: data, mountPath: /data}
+      - name: tls
+        image: docker.io/library/nginx:1.31.6-alpine@sha256:0530961ff0592b58c10f767535cc0abdfccf9e389ff7cc90f87320c1bc7e8506
+        command: [/usr/sbin/nginx]
+        args: [-c, /etc/garage/nginx.conf, -g, 'daemon off;']
+        securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+        resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {cpu: 250m, memory: 128Mi}}
+        ports: [{name: https, containerPort: 8443}]
+        readinessProbe: {tcpSocket: {port: https}, initialDelaySeconds: 2, periodSeconds: 10}
+        volumeMounts:
+        - {name: config, mountPath: /etc/garage, readOnly: true}
+        - {name: tls, mountPath: /etc/velero-tls, readOnly: true}
+        - {name: proxy-tmp, mountPath: /tmp}
       volumes:
       - {name: config, configMap: {name: velero-store}}
+      - {name: tls, secret: {secretName: velero-store-tls, defaultMode: 288}}
+      - {name: proxy-tmp, emptyDir: {sizeLimit: 16Mi}}
       - {name: protected, secret: {secretName: velero-store-private, defaultMode: 288}}
       - {name: runtime, emptyDir: {medium: Memory, sizeLimit: 64Ki}}
       - name: data
         persistentVolumeClaim:
           claimName: {{ required "foundation claimName is required" .Values.claimName | quote }}
 ---
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: velero-store
-  namespace: velero-store
-  annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.middlewares: velero-store-velero-store-clients@kubernetescrd
-    traefik.ingress.kubernetes.io/router.tls: 'true'
-spec:
-  ingressClassName: traefik
-  tls:
-  - hosts: [{{ required "a dedicated HTTPS host is required" .Values.host | quote }}]
-    secretName: velero-store-tls
-  rules:
-  - host: {{ required "a dedicated HTTPS host is required" .Values.host | quote }}
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend: {service: {name: velero-store, port: {name: s3}}}
----
+# Trust the platform-only velero namespace, including dynamic mover/maintenance Pods.
+# Tenant users must never receive Pod creation or exec access in this namespace.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: {name: velero-store-isolation, namespace: velero-store}
 spec:
-  podSelector: {}
+  podSelector: {matchLabels: {app: velero-store}}
   policyTypes: [Ingress, Egress]
   ingress:
   - from:
-    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
-      podSelector: {matchLabels: {app.kubernetes.io/name: rke2-traefik}}
-    ports: [{protocol: TCP, port: 3900}]
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: velero}}
+      podSelector: {}
+    ports: [{protocol: TCP, port: 8443}]
   egress: []
-
----
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata: {name: velero-store-clients, namespace: velero-store}
-spec:
-  ipAllowList:
-    sourceRange:
-{{ required "exact platform clientCIDRs are required" .Values.clientCIDRs | toYaml | indent 4 }}

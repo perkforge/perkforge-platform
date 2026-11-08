@@ -12,13 +12,12 @@ velero_release_commit: ''
 velero_data_nodes: []
 # Illustrative configurable PoC size, not allocated capacity or accepted retention.
 velero_store_storage_class: longhorn
-velero_store_size: 20Gi
-velero_store_hostname: '' # Dedicated trusted HTTPS endpoint, never GitLab Garage.
+velero_store_size: 5Gi
+# Certificate DNS SAN must cover velero-store.velero-store.svc.cluster.local.
+# No lab DNS, ingress address, host alias or source-IP allowlist is required.
 velero_store_bucket: ''
 velero_store_prefix: ''
 velero_api_cidrs: []
-velero_store_client_cidrs: [] # Exact platform sources observed by Traefik.
-velero_store_cidrs: []
 velero_api_port: 6443
 velero_backup_ttl: 48h
 velero_schedule_cron: '' # Explicit five-field cadence; empty means no Schedule.

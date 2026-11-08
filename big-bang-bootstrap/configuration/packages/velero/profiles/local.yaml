@@ -4,7 +4,7 @@ profile:
   csi_driver: driver.longhorn.io
   object_store: dedicated-garage
   backing: longhorn-pvc
-  pvc_size_example: 20Gi
+  pvc_size_example: 5Gi
   independent_failure_domain: false
   schedule_cron: '' # Operator-selected cadence; never infer an RPO from retention.
   schedule_paused: true

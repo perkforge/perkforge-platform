@@ -1,0 +1,55 @@
+{
+  "observed_utc": "2026-11-08T03:27:32.837882+00:00",
+  "scope": "Isolated loopback-only native components; synthetic credentials/data; no Kubernetes or tenant operations",
+  "proxy_image": "docker.io/library/nginx:1.31.6-alpine@sha256:0530961ff0592b58c10f767535cc0abdfccf9e389ff7cc90f87320c1bc7e8506",
+  "proxy_config_sha256": "83e2d77ead8cb5c14cbb17357b6370d786f9d22e82bb027af64448865aecbf48",
+  "proxy_config_source": "Rendered backend-chart ConfigMap from velero-private-tls working tree",
+  "garage_image": "docker.io/dxflrs/garage:v2.5.0@sha256:23b16d34e0348d9aca9b960a7429a7e6d494974b5288bfb8f6c3ab856895f71e",
+  "security": {
+    "uid": 1000,
+    "read_only_rootfs": true,
+    "capabilities_dropped": "ALL",
+    "no_new_privileges": true,
+    "proxy_tmpfs_limit": "16Mi",
+    "garage_s3_loopback_only": true,
+    "host_published_tls_only": "127.0.0.1:44390 -> 8443"
+  },
+  "aws_plugin": {
+    "version": "1.14.4",
+    "source_files_archive_identical": true,
+    "module_graph_unchanged": true,
+    "passed": [
+      "CRC32 default",
+      "4KiB and11MiB multipart PUT/HEAD/GET SHA256",
+      "object list and prefixes",
+      "signed URL generation",
+      "delete",
+      "wrong CA denial",
+      "wrong hostname denial",
+      "wrong key denial",
+      "other bucket denial"
+    ]
+  },
+  "kopia": {
+    "fork": "github.com/project-velero/kopia@d946b1e75197",
+    "payload_bytes": 17825792,
+    "passed": [
+      "encrypted repository initialize/upload",
+      "wrong CA/hostname/key/bucket denial",
+      "Garage+proxy restart",
+      "independent fresh-cache restore SHA256",
+      "full SafetyFull maintenance",
+      "second fresh-cache restore SHA256"
+    ]
+  },
+  "plain_http_tls_port_status": 400,
+  "fix_verified": "All Nginx temp directories set under bounded /tmp; initial readonly fastcgi_temp startup failure corrected",
+  "cleanup": "Both owned containers stopped and removed; synthetic files retained privately",
+  "limitations": [
+    "No Kubernetes NetworkPolicy enforcement or tenant-denial proof",
+    "Synthetic certificate SAN localhost, rather than service DNS; same rendered proxy config used",
+    "No live CSI DataUpload/DataDownload acceptance",
+    "No full plugin gRPC/Iron Bank runtime execution",
+    "No real tenant/database recovery, power-loss or capacity acceptance"
+  ]
+}

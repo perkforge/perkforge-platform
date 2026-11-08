@@ -8,13 +8,10 @@
     - 0 < velero_data_nodes | length <= 2
     - velero_data_nodes | unique | list | length == velero_data_nodes | length
     - velero_api_cidrs | velero_exact_hosts
-    - velero_store_cidrs | velero_exact_hosts
     - velero_api_port in [443,6443]
-    - velero_store_hostname is match('^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$')
-    - not (velero_store_hostname is search('(?i)(gitlab|example|invalid|unconfigured)'))
+    - velero_store_hostname == 'velero-store.velero-store.svc.cluster.local'
     - velero_store_bucket is match('^[a-z0-9][a-z0-9-]{2,62}$')
     - velero_store_prefix is match('^[a-z0-9][a-z0-9/_-]+$')
-    - velero_store_client_cidrs | velero_exact_hosts
     - velero_store_storage_class is match('^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$')
     - velero_store_size is match('^[1-9][0-9]*Gi$')
     - velero_backup_ttl is match('^[1-9][0-9]*h$')

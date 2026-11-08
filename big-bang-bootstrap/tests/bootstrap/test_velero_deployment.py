@@ -1,6 +1,7 @@
 """Offline contracts for the opt-in local rollout. No live or native S3 acceptance claim."""
 from copy import deepcopy
 import importlib.util
+import hashlib
 import json
 import os
 import shutil
@@ -95,9 +96,9 @@ class VeleroDeployment(unittest.TestCase):
             shutil.copytree(PACKAGE,package,ignore=shutil.ignore_patterns('__pycache__'))
             ca=path/'public-ca';ca.write_text('SYNTHETIC PUBLIC CA')
             values={'velero_runtime_enabled':True,'velero_kubelet_root':'/var/lib/kubelet','velero_data_nodes':['worker-fixture'],
-                    'velero_store_hostname':'backups.internal','velero_store_bucket':'backups','velero_store_prefix':'cluster/fixture',
-                    'velero_store_storage_class':'longhorn','velero_store_size':'20Gi',
-                    'velero_store_client_cidrs':['192.0.2.6/32'],'velero_api_cidrs':['192.0.2.4/32'],'velero_store_cidrs':['192.0.2.5/32'],'velero_api_port':6443,
+                    'velero_store_bucket':'backups','velero_store_prefix':'cluster/fixture',
+                    'velero_store_storage_class':'longhorn','velero_store_size':'5Gi',
+                    'velero_api_cidrs':['192.0.2.4/32'],'velero_api_port':6443,
                     'velero_secret_files':{'ca_cert':str(ca)}}
             play=[{'hosts':'localhost','connection':'local','gather_facts':False,'vars':{**yaml.safe_load((PACKAGE/'deployment/defaults.yaml').read_text()),**values},'tasks':[
                 {'ansible.builtin.include_tasks':'deployment/runtime-values.yaml'},
@@ -115,12 +116,13 @@ class VeleroDeployment(unittest.TestCase):
             self.assertFalse(any(x['kind']=='PersistentVolume' for x in objects))
             claim=next(x for x in objects if x['kind']=='PersistentVolumeClaim' and x['metadata']['name']=='velero-store')
             self.assertEqual(claim['spec']['storageClassName'],'longhorn')
-            self.assertEqual(claim['spec']['resources']['requests']['storage'],'20Gi')
+            self.assertEqual(claim['spec']['resources']['requests']['storage'],'5Gi')
             self.assertNotIn('volumeName',claim['spec'])
             addon=yaml.safe_load(runtime['data']['velero.yaml'])['addons']['velero'];self.assertTrue(addon['enabled'])
             self.assertEqual(addon['flux']['storageNamespace'],'velero')
             location=addon['values']['upstream']['configuration']['backupStorageLocation'][0]
             self.assertEqual(location['config']['insecureSkipTLSVerify'],'false');self.assertNotIn('checksumAlgorithm',location['config'])
+            self.assertEqual(location['config']['s3Url'],'https://velero-store.velero-store.svc.cluster.local')
             self.assertEqual(addon['values']['upstream']['schedules'],{})
             if not os.environ.get('VELERO_CHART_SOURCE') or not os.environ.get('PREFLIGHT_SOURCES_DIR') or not shutil.which('helm'):
                 self.skipTest('native Ansible passed; exact Helm comparison requires pinned fixture inputs')
@@ -139,6 +141,7 @@ class VeleroDeployment(unittest.TestCase):
             self.assertFalse(any('hostPath' in volume for volume in ds['spec']['template']['spec']['volumes']))
             self.assertIn('--node-agent-configmap=velero-node-agent',ds['spec']['template']['spec']['containers'][0]['args'])
             store=helm(PACKAGE/'backend-chart','velero-store','velero-store',[runtime['data']['backend.yaml']])
+            self.assert_private_route(objects,store)
             self.assertFalse(any(x['kind'] in ('PersistentVolume','PersistentVolumeClaim','Secret','ClusterRole','ClusterRoleBinding') for x in store))
             cfg=next(x for x in store if x['kind']=='ConfigMap')['data']['garage.toml']
             for setting in ('db_engine = "sqlite"','metadata_fsync = true','data_fsync = true','metadata_auto_snapshot_interval = "1h"','metadata_snapshots_dir = "/data/meta-snapshots"'):self.assertIn(setting,cfg)
@@ -147,6 +150,54 @@ class VeleroDeployment(unittest.TestCase):
             self.assertEqual(sts['spec']['template']['spec']['securityContext']['fsGroupChangePolicy'],'OnRootMismatch')
             self.assertEqual(sts['spec']['template']['spec']['containers'][0]['image'],'docker.io/dxflrs/garage:v2.5.0@sha256:23b16d34e0348d9aca9b960a7429a7e6d494974b5288bfb8f6c3ab856895f71e')
 
+    def assert_private_route(self, foundation, store):
+        self.assertFalse(any(x['kind'] in ('Ingress','Middleware') for x in store))
+        self.assertNotIn('middlewares.traefik.io',(PACKAGE/'deployment/crds.yaml').read_text())
+        service=next(x for x in store if x['kind']=='Service')
+        self.assertEqual(service['spec']['type'],'ClusterIP')
+        self.assertEqual(service['spec']['ports'],[{'name':'https','port':443,'targetPort':'https'}])
+        config=next(x for x in store if x['kind']=='ConfigMap')['data']
+        evidence=json.loads((ROOT/'tests/fixtures/velero_native/private_tls_evidence.json').read_text())
+        self.assertEqual(hashlib.sha256(config['nginx.conf'].encode()).hexdigest(),evidence['proxy_config_sha256'])
+        self.assertTrue(evidence['security']['read_only_rootfs'])
+        self.assertEqual(evidence['plain_http_tls_port_status'],400)
+        self.assertIn('api_bind_addr = "127.0.0.1:3900"',config['garage.toml'])
+        self.assertIn('api_bind_addr = "127.0.0.1:3903"',config['garage.toml'])
+        for required in ('listen 8443 ssl;','server_name velero-store.velero-store.svc.cluster.local;',
+                         'ssl_protocols TLSv1.2 TLSv1.3;','proxy_pass http://127.0.0.1:3900;',
+                         'proxy_set_header Host $http_host;','proxy_http_version 1.1;',
+                         'proxy_request_buffering off;','proxy_buffering off;','client_max_body_size 0;',
+                         'client_body_temp_path /tmp/client-body;','proxy_temp_path /tmp/proxy;',
+                         'fastcgi_temp_path /tmp/fastcgi;','uwsgi_temp_path /tmp/uwsgi;','scgi_temp_path /tmp/scgi;'):
+            self.assertIn(required,config['nginx.conf'])
+        pod=next(x for x in store if x['kind']=='StatefulSet')['spec']['template']['spec']
+        self.assertFalse(pod.get('hostNetwork',False))
+        tls=next(x for x in pod['containers'] if x['name']=='tls')
+        self.assertRegex(tls['image'],r'^docker.io/library/nginx:1\.31\.6-alpine@sha256:[0-9a-f]{64}$')
+        self.assertEqual(tls['image'],evidence['proxy_image'])
+        self.assertEqual(tls['ports'],[{'name':'https','containerPort':8443}])
+        self.assertTrue(tls['securityContext']['readOnlyRootFilesystem'])
+        self.assertFalse(tls['securityContext']['allowPrivilegeEscalation'])
+        self.assertEqual(tls['securityContext']['capabilities']['drop'],['ALL'])
+        self.assertTrue(pod['securityContext']['runAsNonRoot'])
+        self.assertTrue(next(x for x in tls['volumeMounts'] if x['name']=='tls')['readOnly'])
+        policy=next(x for x in store if x['kind']=='NetworkPolicy')['spec']
+        self.assertEqual(policy['policyTypes'],['Ingress','Egress'])
+        self.assertEqual(policy['egress'],[])
+        self.assertEqual(policy['ingress'],[{'from':[{'namespaceSelector':{'matchLabels':{'kubernetes.io/metadata.name':'velero'}},'podSelector':{}}],'ports':[{'protocol':'TCP','port':8443}]}])
+        # Kubernetes ANDs namespace/pod selectors within this one peer; do not split them into OR peers.
+        peer=policy['ingress'][0]['from'][0]
+        def selected(namespace,labels):
+            return namespace==peer['namespaceSelector']['matchLabels']['kubernetes.io/metadata.name'] and all(labels.get(k)==v for k,v in peer['podSelector'].get('matchLabels',{}).items())
+        for labels in ({'app.kubernetes.io/name':'velero'},{'velero.io/data-upload-name':'dynamic'}, {'velero.io/repo-name':'maintenance'},{}):
+            self.assertTrue(selected('velero',labels))
+            self.assertFalse(selected('tenant-home-portal',labels))
+            self.assertFalse(selected('kube-system',labels))
+        egress=next(x for x in foundation if x['kind']=='NetworkPolicy' and x['metadata']['namespace']=='velero')['spec']['egress']
+        expected={'to':[{'namespaceSelector':{'matchLabels':{'kubernetes.io/metadata.name':'velero-store'}},'podSelector':{'matchLabels':{'app':'velero-store'}}}],'ports':[{'protocol':'TCP','port':8443}]}
+        self.assertIn(expected,egress)
+        self.assertEqual(len(egress),3) # DNS, API, and the private store only.
+
     def test_native_schedule_render_preserves_scope_retention_and_pause(self):
         for paused, ttl in ((True, '48h'), (False, '72h')):
             with self.subTest(paused=paused, ttl=ttl), tempfile.TemporaryDirectory() as directory:
@@ -154,8 +205,8 @@ class VeleroDeployment(unittest.TestCase):
                 shutil.copytree(PACKAGE,package,ignore=shutil.ignore_patterns('__pycache__'))
                 ca=path/'ca';ca.write_text('SYNTHETIC PUBLIC CA')
                 values={'velero_runtime_enabled':True,'velero_data_nodes':['worker-fixture'],
-                        'velero_store_hostname':'backups.internal','velero_store_bucket':'backups','velero_store_prefix':'cluster/fixture',
-                        'velero_store_client_cidrs':['192.0.2.6/32'],'velero_secret_files':{'ca_cert':str(ca)},
+                        'velero_store_bucket':'backups','velero_store_prefix':'cluster/fixture',
+                        'velero_secret_files':{'ca_cert':str(ca)},
                         'velero_schedule_cron':'0 */6 * * *','velero_schedule_namespaces':['velero-poc-app'],
                         'velero_schedule_paused':paused,'velero_backup_ttl':ttl}
                 harness=package/'fixture.yaml'
@@ -238,12 +289,13 @@ class VeleroDeployment(unittest.TestCase):
     def test_invalid_schedule_inputs_fail_before_api_or_release_lookup(self):
         valid={'velero_install_apply':True,'velero_install_scope':'velero-foundation-v1',
             'velero_release_tag':'v1.0.0','velero_release_commit':'a'*40,'velero_data_nodes':['worker-fixture'],
-            'velero_api_cidrs':['192.0.2.4/32'],'velero_store_cidrs':['192.0.2.5/32'],
-            'velero_store_hostname':'backups.internal','velero_store_bucket':'backups','velero_store_prefix':'cluster/fixture',
-            'velero_store_client_cidrs':['192.0.2.6/32'],'velero_schedule_cron':'0 */6 * * *','velero_schedule_namespaces':['poc-app']}
+            'velero_api_cidrs':['192.0.2.4/32'],
+            'velero_store_bucket':'backups','velero_store_prefix':'cluster/fixture',
+            'velero_schedule_cron':'0 */6 * * *','velero_schedule_namespaces':['poc-app']}
         for bad in ({'velero_schedule_namespaces':[]},{'velero_schedule_namespaces':['*']},
                     {'velero_schedule_namespaces':['poc-app','poc-app']},{'velero_backup_ttl':'0h'},
-                    {'velero_schedule_paused':'false'},{'velero_schedule_cron':'99 * * * *'}):
+                    {'velero_schedule_paused':'false'},{'velero_schedule_cron':'99 * * * *'},
+                    {'velero_store_hostname':'shared-ingress.internal'}):
             with self.subTest(bad=bad),tempfile.TemporaryDirectory() as directory:
                 path=Path(directory);binary=path/'bin';binary.mkdir();marker=path/'unexpected'
                 for name in ('kubectl','git','curl','ssh'):
