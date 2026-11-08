@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.1](https://github.com/perkforge/perkforge-platform/compare/v0.32.0...v0.32.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **velero:** keep local object storage HTTPS cluster-private ([#280](https://github.com/perkforge/perkforge-platform/issues/280)) ([6df592d](https://github.com/perkforge/perkforge-platform/commit/6df592d4f91f8182e83822540de35d4183f606e3))
+
 ## [0.32.0](https://github.com/perkforge/perkforge-platform/compare/v0.31.3...v0.32.0) (2026-11-08)
 
 
