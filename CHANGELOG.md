@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.3](https://github.com/perkforge/perkforge-platform/compare/v0.32.2...v0.32.3) (2026-11-08)
+
+
+### Bug Fixes
+
+* **velero:** assemble empty schedules and native credentials ([#285](https://github.com/perkforge/perkforge-platform/issues/285)) ([0b0ff83](https://github.com/perkforge/perkforge-platform/commit/0b0ff838ecd648e550717c572b308464d0ed696b))
+
 ## [0.32.2](https://github.com/perkforge/perkforge-platform/compare/v0.32.1...v0.32.2) (2026-11-08)
 
 
