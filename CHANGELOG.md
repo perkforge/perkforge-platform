@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.1](https://github.com/perkforge/perkforge-platform/compare/v0.33.0...v0.33.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **velero:** qualify backup APIs and scope binding discovery ([#293](https://github.com/perkforge/perkforge-platform/issues/293)) ([2d261b1](https://github.com/perkforge/perkforge-platform/commit/2d261b1ce3e43d18849994c8b8a4aa14fcfbdfd6))
+
 ## [0.33.0](https://github.com/perkforge/perkforge-platform/compare/v0.32.4...v0.33.0) (2026-11-08)
 
 
