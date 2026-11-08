@@ -491,6 +491,22 @@ class VeleroDeployment(unittest.TestCase):
             if edit=='partial':r['status']['phase']='PartiallyFailed'
             with self.subTest(edit=edit):self.assertFalse(guard.copied_transfers(r,[d],[s],[t],[u]))
 
+    def test_pvc_cache_grant_is_list_watch_only(self):
+        source=(PACKAGE/'templates/foundation.yaml.j2').read_text()
+        objects=[o for o in yaml.safe_load_all(source[source.index('# Pinned node-agent'):source.index('# Runtime global')]) if o]
+        role,binding=objects
+        self.assertEqual(role['kind'],'ClusterRole')
+        self.assertEqual(role['metadata'],{'name':'velero-pvc-cache'})
+        self.assertEqual(role['rules'],[{'apiGroups':[''],'resources':['persistentvolumeclaims'],'verbs':['list','watch']}])
+        self.assertEqual(binding['kind'],'ClusterRoleBinding')
+        self.assertEqual(binding['roleRef'],{'apiGroup':'rbac.authorization.k8s.io','kind':'ClusterRole','name':'velero-pvc-cache'})
+        self.assertEqual(binding['subjects'],[{'kind':'ServiceAccount','name':'velero-server','namespace':'velero'}])
+        rule=role['rules'][0]
+        for verb in ('get','create','update','patch','delete','deletecollection'):
+            self.assertNotIn(verb,rule['verbs'])
+        for resource in ('secrets','pods','persistentvolumes','*'):
+            self.assertNotIn(resource,rule['resources'])
+
     def test_optional_node_agent_probe_is_named_get_only(self):
         source=(PACKAGE/'templates/foundation.yaml.j2').read_text()
         runtime=source[source.index('# Runtime global'):source.index('{% for name')]
