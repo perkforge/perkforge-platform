@@ -220,7 +220,7 @@ class VeleroDeployment(unittest.TestCase):
             cfg=next(x for x in store if x['kind']=='ConfigMap')['data']['garage.toml']
             for setting in ('db_engine = "sqlite"','metadata_fsync = true','data_fsync = true','metadata_auto_snapshot_interval = "1h"','metadata_snapshots_dir = "/data/meta-snapshots"'):self.assertIn(setting,cfg)
             sts=next(x for x in store if x['kind']=='StatefulSet');self.assertFalse(sts['spec']['template']['spec']['automountServiceAccountToken'])
-            self.assertEqual(sts['spec']['template']['spec']['nodeSelector'],{'kubernetes.io/arch':'amd64'})
+            self.assertEqual(sts['spec']['template']['spec']['nodeSelector'],{'kubernetes.io/arch':'amd64','storage.perkforge.io/worker':'true'})
             self.assertEqual(sts['spec']['template']['spec']['securityContext']['fsGroupChangePolicy'],'OnRootMismatch')
             self.assertEqual(sts['spec']['template']['spec']['containers'][0]['image'],'docker.io/dxflrs/garage:v2.5.0@sha256:23b16d34e0348d9aca9b960a7429a7e6d494974b5288bfb8f6c3ab856895f71e')
 
@@ -246,6 +246,9 @@ class VeleroDeployment(unittest.TestCase):
             self.assertIn(required,config['nginx.conf'])
         pod=next(x for x in store if x['kind']=='StatefulSet')['spec']['template']['spec']
         self.assertFalse(pod.get('hostNetwork',False))
+        self.assertEqual(pod['nodeSelector'],{'kubernetes.io/arch':'amd64','storage.perkforge.io/worker':'true'})
+        self.assertNotIn('nodeName',pod)
+        self.assertFalse(pod.get('tolerations',[]))
         tls=next(x for x in pod['containers'] if x['name']=='tls')
         self.assertRegex(tls['image'],r'^docker.io/library/nginx:1\.31\.6-alpine@sha256:[0-9a-f]{64}$')
         self.assertEqual(tls['image'],evidence['proxy_image'])
