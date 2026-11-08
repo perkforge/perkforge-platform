@@ -126,7 +126,8 @@ grafana:
           cpu: 100m
           memory: 256Mi
         limits:
-          memory: 512Mi
+          # Mitigate repeated OOMs without changing the scheduling request.
+          memory: 1Gi
       ingress:
         enabled: false
       grafana.ini:
