@@ -102,6 +102,22 @@ metadata: {name: velero-runtime}
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: velero-runtime}
 subjects: [{kind: ServiceAccount, name: velero-server, namespace: velero}]
 ---
+# Pinned maintenance reads the server Deployment through its namespace cache.
+# The cached GET initializes LIST/WATCH; a resourceNames GET cannot satisfy it.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: velero-maintenance-cache, namespace: velero}
+rules:
+- apiGroups: [apps]
+  resources: [deployments]
+  verbs: [list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: velero-maintenance-cache, namespace: velero}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: velero-maintenance-cache}
+subjects: [{kind: ServiceAccount, name: velero-server, namespace: velero}]
+---
 # Pinned1.18.4 readiness checks the optional Windows DaemonSet even on Linux.
 # Allow only this named GET so an absent object returns NotFound, not Forbidden.
 apiVersion: rbac.authorization.k8s.io/v1
