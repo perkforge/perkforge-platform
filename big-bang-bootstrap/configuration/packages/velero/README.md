@@ -41,6 +41,32 @@ separate and needs its own acceptance. No live protection is claimed by this MR.
   configurable. A blank cron emits no Schedule. A configured Schedule is paused
   by default and requires explicit approval to unpause.
 
+## Backup selection and API visibility
+
+Local backups remain explicitly limited to the disposable test namespace; Portal
+is a later opt-in. This selection is separate from API cache visibility. Pinned
+Velero 1.18.4's [node-agent cache](https://github.com/velero-io/velero/blob/v1.18.4/pkg/cmd/cli/nodeagent/server.go#L183-L212)
+has no supported PVC namespace restriction. Its [CSI source-PVC read](https://github.com/velero-io/velero/blob/v1.18.4/pkg/controller/data_upload_controller.go#L920-L940)
+starts an all-namespace informer. A namespace Role cannot satisfy that request.
+
+The separate `velero-pvc-cache` ClusterRole grants only `list` and `watch` of
+PVCs cluster-wide. Responses contain **full PVC API objects: metadata, spec and
+status**, including names, annotations, storage requests/classes and bindings.
+They do not contain volume file contents. This grant adds no `get`, writes,
+Secret access or volume-content access. The pinned chart uses `velero-server`
+for both server and node-agent Pods, so both share this visibility. Adding this
+grant to an existing installation requires explicit approval. Big Bang's app
+and plugin pins remain unchanged.
+
+For another PaaS installation, expanding backup coverage is a deliberate opt-in:
+add explicitly approved namespaces to `velero_schedule_namespaces`, review their
+scoped CSI/RBAC access and store capacity, then approve the cadence and unpause.
+To cover the whole cluster, enumerate all intended namespaces; this baseline
+rejects `*` and does not automatically include future namespaces. Automatic
+cluster-wide discovery, arbitrary resource coverage or restores beyond the
+approved target require a separate reviewed policy/configuration change. The
+PVC informer grant alone neither selects namespaces nor enables those backups.
+
 ## Private transport and trust boundary
 
 The store is a ClusterIP Service on HTTPS 443, targeting a non-root, read-only
