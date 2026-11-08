@@ -34,7 +34,10 @@ separate and needs its own acceptance. No live protection is claimed by this MR.
   requires explicit approval. Explicit scheduled namespaces get read
   access plus CSI snapshot actions.
   The native schedule uses an explicit core/app resource list, not arbitrary
-  operator CRDs or RBAC. No pods/exec grant is needed for this baseline. Restore
+  operator CRDs or RBAC. Backup cluster-resource selection stays automatic: with
+  explicit namespaces, only PVC-related PV metadata is included, not direct
+  cluster-wide PV enumeration. Restore cluster-resource selection remains off.
+  No pods/exec grant is needed for this baseline. Restore
   write grants exist only in the disposable exercise's target namespace.
 - Local retention defaults to 48h; [AWS defaults](profiles/aws.yaml) use 336h.
   Retention is not cadence or RPO. Cron, namespaces, retention and capacity remain

@@ -79,7 +79,8 @@
         includedResources:
         - pods
         - persistentvolumeclaims
-        includeClusterResources: false
+        - persistentvolumes
+        # Auto mode permits only related PV metadata for the explicit source namespace.
         snapshotVolumes: true
         snapshotMoveData: true
         defaultVolumesToFsBackup: false
