@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.2](https://github.com/perkforge/perkforge-platform/compare/v0.33.1...v0.33.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* **velero:** scope native action readiness reads ([#295](https://github.com/perkforge/perkforge-platform/issues/295)) ([080ccad](https://github.com/perkforge/perkforge-platform/commit/080ccade61263efc33729e3eb3f56f568e506870))
+
 ## [0.33.1](https://github.com/perkforge/perkforge-platform/compare/v0.33.0...v0.33.1) (2026-11-08)
 
 
