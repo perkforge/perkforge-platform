@@ -1,0 +1,5 @@
+# Dedicated ordinary Longhorn PVC supplied by foundation; not independent DR.
+host: ''
+region: garage
+claimName: velero-store
+clientCIDRs: [] # Exact reviewed source addresses as Traefik actually observes them.

@@ -1,0 +1,36 @@
+# Operator-local inputs, mode 0600. Defaults/check mode make no API calls.
+velero_install_apply: false
+velero_install_scope: '' # velero-foundation-v1 only with explicit approval.
+velero_kubectl: /usr/local/bin/kubectl
+velero_kubeconfig: ''
+velero_context: ''
+velero_api: ''
+velero_cluster_uid: ''
+velero_state_dir: '' # Existing owner-only 0700 directory.
+velero_release_tag: ''
+velero_release_commit: ''
+velero_data_nodes: []
+# Illustrative configurable PoC size, not allocated capacity or accepted retention.
+velero_store_storage_class: longhorn
+velero_store_size: 20Gi
+velero_store_hostname: '' # Dedicated trusted HTTPS endpoint, never GitLab Garage.
+velero_store_bucket: ''
+velero_store_prefix: ''
+velero_api_cidrs: []
+velero_store_client_cidrs: [] # Exact platform sources observed by Traefik.
+velero_store_cidrs: []
+velero_api_port: 6443
+velero_backup_ttl: 48h
+velero_schedule_cron: '' # Explicit five-field cadence; empty means no Schedule.
+velero_schedule_namespaces: [] # Explicit read grants; never all namespaces.
+velero_schedule_paused: true # Explicit approval to set false after acceptance.
+velero_secret_files:
+  rpc: ''
+  admin: ''
+  access_key: ''
+  secret_key: ''
+  repository_password: ''
+  tls_cert: ''
+  tls_key: ''
+  ca_cert: ''
+  registry: ''

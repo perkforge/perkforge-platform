@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: velero-runtime-values
+  namespace: bigbang
+  labels: {perkforge.io/owner: velero-platform-v1}
+data:
+  backend.yaml: |
+    host: {{ velero_store_hostname | to_json }}
+    clientCIDRs: {{ velero_store_client_cidrs | to_json }}
+    region: garage
+    claimName: velero-store
+  velero.yaml: |
+{{ velero_runtime_values | to_nice_yaml(indent=2) | indent(4, true) }}

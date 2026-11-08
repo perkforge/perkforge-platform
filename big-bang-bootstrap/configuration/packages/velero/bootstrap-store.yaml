@@ -1,0 +1,135 @@
+# Default-off owner-local bootstrap through an already established loopback forward.
+- name: Bootstrap the dedicated Garage store without adoption or destructive repair
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    velero_garage_run: false
+    velero_garage_scope: UNAPPROVED
+    velero_garage_url: http://127.0.0.1:UNCONFIGURED
+    velero_garage_node: UNCONFIGURED
+    velero_garage_allow_first_layout: false
+    velero_garage_admin_file: /UNCONFIGURED/admin-token
+    velero_garage_key_id_file: /UNCONFIGURED/access-key
+    velero_garage_key_secret_file: /UNCONFIGURED/secret-key
+    velero_garage_state_directory: /UNCONFIGURED/private-state
+    velero_garage_buckets: ['{{ velero_store_bucket }}']
+    velero_store_bucket: ''
+    velero_store_capacity_bytes: 0
+    velero_garage_expected_role:
+      id: '{{ velero_garage_node }}'
+      zone: velero-local
+      capacity: '{{ velero_store_capacity_bytes }}'
+      tags: [perkforge-velero-data-v1]
+    velero_garage_permissions: {read: true, write: true, owner: false}
+  module_defaults:
+    ansible.builtin.uri:
+      headers: {Authorization: 'Bearer {{ velero_garage_admin }}'}
+      use_proxy: false
+      use_netrc: false
+      unredirected_headers: [Authorization]
+      follow_redirects: none
+      timeout: 15
+      return_content: true
+      status_code: 200
+      body_format: json
+  tasks:
+  - ansible.builtin.assert:
+      that: velero_garage_run is boolean
+  - ansible.builtin.debug:
+      msg: 'Default/check mode contacts no API. Explicit scope only: initial layout, one supplied key and one bucket; no deletion, rotation, repair, backup or port-forward creation.'
+  - when: velero_garage_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - velero_garage_scope == 'velero-garage-init-v1'
+        - velero_garage_url is match('^http://127[.]0[.]0[.]1:[1-9][0-9]{3,4}$')
+        - velero_garage_url.split(':')[-1] | int >= 1024 and velero_garage_url.split(':')[-1] | int <= 65535
+        - velero_garage_node is match('^[a-f0-9]{64}$')
+        - velero_store_bucket is match('^[a-z0-9][a-z0-9-]{2,62}$')
+        - velero_store_capacity_bytes is integer and velero_store_capacity_bytes > 0
+        - velero_garage_buckets == [velero_store_bucket]
+        - velero_garage_permissions == {'read':true,'write':true,'owner':false}
+        - velero_garage_expected_role == {'id':velero_garage_node,'zone':'velero-local','capacity':velero_store_capacity_bytes,'tags':['perkforge-velero-data-v1']}
+        - velero_garage_allow_first_layout is boolean
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop: '{{ [velero_garage_admin_file,velero_garage_key_id_file,velero_garage_key_secret_file,velero_garage_state_directory] }}'
+      register: velero_garage_files
+    - ansible.builtin.assert:
+        that:
+        - item.item is match('^/') and item.item | realpath == item.item
+        - not (item.stat.islnk | default(false))
+        - item.stat.pw_name == lookup('env','USER')
+      loop: '{{ velero_garage_files.results }}'
+    - ansible.builtin.assert:
+        that:
+        - item.stat.isreg and item.stat.mode == '0600'
+      loop: '{{ velero_garage_files.results[:3] }}'
+    - ansible.builtin.assert:
+        that:
+        - velero_garage_files.results[3].stat.isdir and velero_garage_files.results[3].stat.mode == '0700'
+    - ansible.builtin.set_fact:
+        velero_garage_admin: "{{ lookup('file',velero_garage_admin_file) | trim }}"
+        velero_garage_key_id: "{{ lookup('file',velero_garage_key_id_file) | trim }}"
+        velero_garage_key_secret: "{{ lookup('file',velero_garage_key_secret_file) | trim }}"
+        velero_garage_ready: false
+        velero_garage_changes: 0
+        cacheable: false
+    - ansible.builtin.assert:
+        that:
+        - velero_garage_admin is match('^[A-Za-z0-9_-]{16,256}$')
+        - velero_garage_key_id is match('^GK[a-fA-F0-9]{24}$')
+        - velero_garage_key_secret is match('^[a-fA-F0-9]{64}$')
+    - ansible.builtin.command:
+        argv: [mkdir, -m, '0700', '{{ velero_garage_state_directory }}/garage-bootstrap.lock']
+      register: velero_garage_lock
+      changed_when: false
+    - block:
+      - ansible.builtin.stat:
+          path: '{{ velero_garage_state_directory }}/garage-bootstrap.json'
+          follow: false
+        register: velero_garage_saved
+      - ansible.builtin.assert:
+          that:
+          - velero_garage_saved.stat.isreg and not (velero_garage_saved.stat.islnk | default(false))
+          - velero_garage_saved.stat.pw_name == lookup('env','USER') and velero_garage_saved.stat.mode == '0600'
+        when: velero_garage_saved.stat.exists
+      - ansible.builtin.set_fact:
+          velero_garage_fingerprint: "{{ [velero_garage_node,velero_garage_key_id,velero_garage_key_secret] | to_json | hash('sha256') }}"
+          cacheable: false
+      - ansible.builtin.set_fact:
+          velero_garage_receipt: "{{ lookup('file',velero_garage_state_directory + '/garage-bootstrap.json') | from_json if velero_garage_saved.stat.exists else {'scope':'velero-garage-init-v1','fingerprint':velero_garage_fingerprint,'pending':none,'key_imported':false,'buckets':{}} }}"
+          cacheable: false
+      - ansible.builtin.assert:
+          that:
+          - velero_garage_receipt.keys() | sort == ['buckets','fingerprint','key_imported','pending','scope']
+          - velero_garage_receipt.scope == 'velero-garage-init-v1'
+          - velero_garage_receipt.fingerprint == velero_garage_fingerprint
+          - velero_garage_receipt.pending == none
+      - ansible.builtin.include_tasks: deployment/garage-step.yaml
+        loop: '{{ range(0,20) | list }}'
+        loop_control: {loop_var: velero_garage_iteration}
+        when: not velero_garage_ready | bool
+      - ansible.builtin.assert:
+          that: velero_garage_ready | bool
+      always:
+      - ansible.builtin.command:
+          argv: [rmdir, '{{ velero_garage_state_directory }}/garage-bootstrap.lock']
+        changed_when: false
+    always:
+    - ansible.builtin.set_fact:
+        velero_garage_admin: ''
+        velero_garage_key_secret: ''
+        velero_garage_body: {}
+        velero_garage_mutation: {}
+        velero_garage_key: {}
+        cacheable: false
+      no_log: true
+  - ansible.builtin.debug:
+      msg:
+        ready: '{{ velero_garage_ready | default(false) }}'
+        scoped_changes: '{{ velero_garage_changes | default(0) }}'
+        backup_verified: false

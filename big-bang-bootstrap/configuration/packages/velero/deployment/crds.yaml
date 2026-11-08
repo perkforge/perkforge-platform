@@ -1,0 +1,43 @@
+- name: Require the existing CSI APIs, never install a second snapshot controller
+  ansible.builtin.command:
+    argv: '{{ vk + ["get", "crd", item, "-o", "jsonpath={.status.conditions[?(@.type==\"Established\")].status}"] }}'
+  loop: [volumesnapshots.snapshot.storage.k8s.io, volumesnapshotcontents.snapshot.storage.k8s.io, volumesnapshotclasses.snapshot.storage.k8s.io, middlewares.traefik.io]
+  changed_when: false
+  register: snapshot_apis
+- ansible.builtin.assert:
+    that: item.stdout == 'True'
+  loop: '{{ snapshot_apis.results }}'
+- ansible.builtin.file:
+    path: '{{ velero_state_dir }}/chart-cache'
+    state: directory
+    mode: '0700'
+- ansible.builtin.get_url:
+    url: https://repo1.dso.mil/big-bang/product/packages/velero/-/archive/12.2.1-bb.0/velero-12.2.1-bb.0.tar.gz
+    dest: '{{ velero_state_dir }}/chart-cache/velero.tgz'
+    checksum: sha256:9dfeb44e15eceda2e06863135b286e768811ee4da296f976f244057f197f7a0f
+    mode: '0600'
+- ansible.builtin.unarchive:
+    src: '{{ velero_state_dir }}/chart-cache/velero.tgz'
+    dest: '{{ velero_state_dir }}/chart-cache'
+    extra_opts: [--strip-components=1]
+- ansible.builtin.unarchive:
+    src: '{{ velero_state_dir }}/chart-cache/chart/charts/velero-12.2.1.tgz'
+    dest: '{{ velero_state_dir }}/chart-cache'
+- ansible.builtin.set_fact:
+    owned_objects: []
+    cacheable: false
+- ansible.builtin.set_fact:
+    owned_objects: '{{ owned_objects + [crd | combine({"metadata":crd.metadata | combine({"labels":(crd.metadata.labels | default({})) | combine({"perkforge.io/owner":"velero-platform-v1"})})})] }}'
+  vars:
+    crd: '{{ lookup("file",item) | from_yaml }}'
+  loop: '{{ query("fileglob", velero_state_dir + "/chart-cache/velero/crds/*.yaml") }}'
+- ansible.builtin.assert:
+    that:
+      - owned_objects | length == 13
+      - owned_objects | map(attribute='kind') | unique | list == ['CustomResourceDefinition']
+      - owned_objects | map(attribute='spec.group') | unique | list == ['velero.io']
+- ansible.builtin.include_tasks: create-owned.yaml
+- ansible.builtin.command:
+    argv: '{{ vk + ["wait", "--for=condition=Established", "crd/" + item.metadata.name, "--timeout=60s"] }}'
+  loop: '{{ owned_objects }}'
+  changed_when: false

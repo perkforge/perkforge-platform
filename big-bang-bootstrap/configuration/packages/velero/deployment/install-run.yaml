@@ -1,0 +1,91 @@
+# Loaded only after explicit apply, never in check mode.
+- ansible.builtin.assert:
+    that:
+    - velero_install_scope == 'velero-foundation-v1'
+    - velero_release_tag is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+    - velero_release_commit is match('^[0-9a-f]{40}$')
+    - velero_data_nodes is sequence and velero_data_nodes is not string
+    - 0 < velero_data_nodes | length <= 2
+    - velero_data_nodes | unique | list | length == velero_data_nodes | length
+    - velero_api_cidrs | velero_exact_hosts
+    - velero_store_cidrs | velero_exact_hosts
+    - velero_api_port in [443,6443]
+    - velero_store_hostname is match('^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$')
+    - not (velero_store_hostname is search('(?i)(gitlab|example|invalid|unconfigured)'))
+    - velero_store_bucket is match('^[a-z0-9][a-z0-9-]{2,62}$')
+    - velero_store_prefix is match('^[a-z0-9][a-z0-9/_-]+$')
+    - velero_store_client_cidrs | velero_exact_hosts
+    - velero_store_storage_class is match('^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$')
+    - velero_store_size is match('^[1-9][0-9]*Gi$')
+    - velero_backup_ttl is match('^[1-9][0-9]*h$')
+    - velero_schedule_paused is boolean
+    - velero_schedule_namespaces is sequence and velero_schedule_namespaces is not string
+    - velero_schedule_cron | length == 0 or velero_schedule_namespaces | length > 0
+    - velero_schedule_namespaces | unique | list | length == velero_schedule_namespaces | length
+- ansible.builtin.assert:
+    that:
+    - item is match('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')
+    - item not in ['default','kube-system','kube-public','kube-node-lease','bigbang','velero','velero-store','longhorn-system','flux-system']
+  loop: '{{ velero_schedule_namespaces }}'
+- name: Validate the actual DNS endpoint and prefix before any API access
+  ansible.builtin.command:
+    argv:
+    - python3
+    - '{{ playbook_dir }}/verify-inputs.py'
+    stdin: '{{ {"endpoint":"https://" + velero_store_hostname,"prefix":velero_store_prefix,"cron":velero_schedule_cron if velero_schedule_cron else none} | to_json
+      }}'
+  changed_when: false
+- ansible.builtin.command:
+    argv:
+    - git
+    - -C
+    - '{{ playbook_dir }}/../../../..'
+    - rev-parse
+    - HEAD
+  changed_when: false
+  register: local_head
+- ansible.builtin.command:
+    argv:
+    - git
+    - -C
+    - '{{ playbook_dir }}/../../../..'
+    - status
+    - --porcelain
+  changed_when: false
+  register: local_changes
+- ansible.builtin.assert:
+    that:
+    - local_head.stdout == velero_release_commit
+    - local_changes.stdout | length == 0
+- ansible.builtin.command:
+    argv:
+    - bash
+    - '{{ playbook_dir }}/../../../../scripts/verify-release-ref.sh'
+    - perkforge/perkforge-platform
+    - '{{ velero_release_tag }}'
+    - '{{ velero_release_commit }}'
+  changed_when: false
+- ansible.builtin.include_tasks: deployment/context.yaml
+- name: Verify the selected ordinary Longhorn storage class
+  ansible.builtin.command:
+    argv: '{{ vk + ["get", "storageclass", velero_store_storage_class, "-o", "json"] }}'
+  changed_when: false
+  register: velero_store_class
+- ansible.builtin.assert:
+    that: (velero_store_class.stdout | from_json).provisioner == 'driver.longhorn.io'
+- ansible.builtin.include_tasks: deployment/crds.yaml
+- ansible.builtin.set_fact:
+    owned_objects: []
+    velero_namespaces: '{{ velero_schedule_namespaces }}'
+    velero_write_namespaces: []
+- ansible.builtin.set_fact:
+    owned_objects: '{{ owned_objects + [item | combine({"metadata":item.metadata | combine({"labels":(item.metadata.labels | default({})) | combine({"perkforge.io/owner":"velero-platform-v1"})})})] }}'
+  loop: '{{ (lookup("template", "templates/foundation.yaml.j2") + "\n---\n" + lookup("template", "templates/namespace-access.yaml.j2")) | from_yaml_all | select | list }}'
+- ansible.builtin.include_tasks: deployment/create-owned.yaml
+- ansible.builtin.include_tasks: deployment/credentials.yaml
+- ansible.builtin.include_tasks: deployment/runtime-values.yaml
+  vars:
+    velero_runtime_enabled: true
+- ansible.builtin.include_tasks: deployment/update-runtime.yaml
+- ansible.builtin.debug:
+    msg: Foundation and values prepared. Select the reviewed local-velero root through normal GitOps, bootstrap the new Garage bucket, then run the isolated exercise. No source selection is performed here. A configured schedule is reconciled to the explicitly approved paused setting.

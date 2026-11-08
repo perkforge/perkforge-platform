@@ -1,0 +1,11 @@
+velero_install_apply: false
+velero_install_scope: ''
+velero_kubectl: /usr/local/bin/kubectl
+velero_api_port: 6443
+# Illustrative local PoC defaults, not allocated capacity or a retention guarantee.
+velero_store_storage_class: longhorn
+velero_store_size: 20Gi
+velero_backup_ttl: 48h
+velero_schedule_cron: ''
+velero_schedule_namespaces: []
+velero_schedule_paused: true

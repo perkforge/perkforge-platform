@@ -1,0 +1,45 @@
+{% for namespace in [velero_exercise_source, velero_exercise_target] %}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ namespace }}
+  labels: {pod-security.kubernetes.io/enforce: restricted}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata: {name: velero-exercise, namespace: {{ namespace }}}
+spec:
+  hard: {requests.storage: 1Gi, persistentvolumeclaims: '1', pods: '3', requests.cpu: '1', requests.memory: 1Gi, limits.cpu: '2', limits.memory: 2Gi}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: isolated, namespace: {{ namespace }}}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress], ingress: [], egress: []}
+---
+{% endfor %}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: payload, namespace: {{ velero_exercise_source }}}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ velero_exercise_storage_class | to_json }}
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: payload, namespace: {{ velero_exercise_source }}}
+spec:
+  automountServiceAccountToken: false
+  restartPolicy: Always
+  nodeSelector: {kubernetes.io/hostname: {{ velero_exercise_node | to_json }}}
+  securityContext: {runAsUser: 1000, runAsGroup: 1000, runAsNonRoot: true, fsGroup: 1000, seccompProfile: {type: RuntimeDefault}}
+  containers:
+  - name: payload
+    image: docker.io/library/busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4
+    command: [sh, -ec]
+    args: ['if [ ! -f /payload/bytes ]; then dd if=/dev/urandom of=/payload/bytes bs=4096 count=2048; sync; fi; sleep 86400']
+    securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+    resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {cpu: 100m, memory: 32Mi}}
+    volumeMounts: [{name: payload, mountPath: /payload}]
+    readinessProbe: {exec: {command: [test, -s, /payload/bytes]}, periodSeconds: 5}
+  volumes: [{name: payload, persistentVolumeClaim: {claimName: payload}}]

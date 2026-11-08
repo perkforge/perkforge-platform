@@ -1,0 +1,205 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: velero
+  labels: {pod-security.kubernetes.io/enforce: baseline, pod-security.kubernetes.io/warn: restricted, pod-security.kubernetes.io/audit: restricted}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: velero-store
+  labels: {pod-security.kubernetes.io/enforce: restricted}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: velero-store, namespace: velero-store}
+spec:
+  accessModes: [ReadWriteOnce]
+  volumeMode: Filesystem
+  storageClassName: {{ velero_store_storage_class | default('longhorn') | to_json }}
+  resources: {requests: {storage: {{ velero_store_size | default('20Gi') | to_json }}}}
+---
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: velero-longhorn-snap
+  labels: {velero.io/csi-volumesnapshot-class: 'true'}
+driver: driver.longhorn.io
+deletionPolicy: Delete
+parameters: {type: snap}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: velero-server, namespace: velero}
+automountServiceAccountToken: true
+imagePullSecrets: [{name: private-registry}]
+---
+# Runtime global access is limited to infrastructure needed by CSI data movement.
+# Node-agent's exact1.18 informer lists Pods across namespaces using a node selector.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: velero-runtime}
+rules:
+- apiGroups: ['']
+  resources: [nodes, namespaces, pods, events]
+  verbs: [get, list, watch]
+- apiGroups: ['']
+  resources: [persistentvolumes]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [storage.k8s.io]
+  resources: [storageclasses, csidrivers, csinodes, volumeattachments]
+  verbs: [get, list, watch]
+- apiGroups: [snapshot.storage.k8s.io]
+  resources: [volumesnapshotclasses]
+  verbs: [get, list, watch]
+- apiGroups: [snapshot.storage.k8s.io]
+  resources: [volumesnapshotcontents]
+  verbs: [get, list, watch, create, update, patch, delete]
+# Exact1.18 node-agent uses all-namespace LIST with namespace field selectors.
+# Kubernetes RBAC does not treat those selectors as namespace authorization.
+- apiGroups: [velero.io]
+  resources: [backuprepositories, backups, backupstoragelocations, datadownloads, datauploads, deletebackuprequests, downloadrequests, podvolumebackups, podvolumerestores, restores, schedules, serverstatusrequests, volumesnapshotlocations]
+  verbs: [get, list, watch]
+- apiGroups: [apiextensions.k8s.io]
+  resources: [customresourcedefinitions]
+  verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: velero-runtime}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: velero-runtime}
+subjects: [{kind: ServiceAccount, name: velero-server, namespace: velero}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: velero-controller, namespace: velero}
+rules:
+# Exact1.18 CSI exposer reads node-agent's Pod template to create mover Pods.
+- apiGroups: [apps]
+  resources: [daemonsets]
+  resourceNames: [node-agent]
+  verbs: [get]
+- apiGroups: [velero.io]
+  resources: ['*']
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: ['']
+  resources: [pods, persistentvolumeclaims, configmaps, events]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: ['']
+  resources: [secrets, serviceaccounts]
+  verbs: [get, list, watch]
+- apiGroups: [batch]
+  resources: [jobs]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [coordination.k8s.io]
+  resources: [leases]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [snapshot.storage.k8s.io]
+  resources: [volumesnapshots]
+  verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: velero-controller, namespace: velero}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: velero-controller}
+subjects: [{kind: ServiceAccount, name: velero-server, namespace: velero}]
+{% for name, namespace in [('velero-installer', 'velero'), ('velero-store-installer', 'velero-store')] %}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: {{ name }}, namespace: bigbang}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: {{ name }}, namespace: {{ namespace }}}
+rules:
+- apiGroups: ['']
+  resources: [secrets, configmaps, services, serviceaccounts]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [apps]
+  resources: [deployments, daemonsets, statefulsets]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [networking.k8s.io]
+  resources: [networkpolicies, ingresses]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: ['']
+  resources: [pods]
+  verbs: [get, list, watch]
+- apiGroups: [apps]
+  resources: [replicasets]
+  verbs: [get, list, watch]
+{% if namespace == 'velero-store' %}
+- apiGroups: [traefik.io]
+  resources: [middlewares]
+  verbs: [get, list, watch, create, update, patch, delete]
+{% endif %}
+{% if namespace == 'velero' %}
+- apiGroups: [velero.io]
+  resources: [backupstoragelocations, schedules]
+  verbs: [get, list, watch, create, update, patch, delete]
+{% endif %}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: {{ name }}, namespace: {{ namespace }}}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: {{ name }}}
+subjects: [{kind: ServiceAccount, name: {{ name }}, namespace: bigbang}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: {{ name }}-values, namespace: bigbang}
+rules:
+- apiGroups: ['']
+  resources: [configmaps]
+  resourceNames: [velero-runtime-values]
+  verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: {{ name }}-values, namespace: bigbang}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: {{ name }}-values}
+subjects: [{kind: ServiceAccount, name: {{ name }}, namespace: bigbang}]
+{% endfor %}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: velero-platform-only, namespace: velero}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+  - to:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+      podSelector: {matchLabels: {k8s-app: kube-dns}}
+    ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+  - to:
+{% for cidr in velero_api_cidrs %}
+    - ipBlock: {cidr: {{ cidr | to_json }}}
+{% endfor %}
+    ports: [{protocol: TCP, port: {{ velero_api_port }}}]
+  - to:
+{% for cidr in velero_store_cidrs %}
+    - ipBlock: {cidr: {{ cidr | to_json }}}
+{% endfor %}
+    ports: [{protocol: TCP, port: 443}]
+
+---
+# This bounds the pilot workload; measure actual large-volume resource needs before cadence activation.
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: velero-node-agent, namespace: velero}
+data:
+  config.json: |
+    {"loadConcurrency":{"globalConfig":1,"prepareQueueLength":1},
+     "loadAffinity":[{"nodeSelector":{"matchExpressions":[{"key":"kubernetes.io/hostname","operator":"In","values":{{ velero_data_nodes | to_json }}}]}}],
+     "podResources":{"cpuRequest":"100m","cpuLimit":"1","memoryRequest":"256Mi","memoryLimit":"1Gi","ephemeralStorageRequest":"128Mi","ephemeralStorageLimit":"1Gi"}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: velero-maintenance, namespace: velero}
+data:
+  global: |
+    {"loadAffinity":[{"nodeSelector":{"matchExpressions":[{"key":"kubernetes.io/hostname","operator":"In","values":{{ velero_data_nodes | to_json }}}]}}],
+     "keepLatestMaintenanceJobs":2,"podResources":{"cpuRequest":"100m","cpuLimit":"1","memoryRequest":"256Mi","memoryLimit":"1Gi","ephemeralStorageRequest":"128Mi","ephemeralStorageLimit":"1Gi"}}

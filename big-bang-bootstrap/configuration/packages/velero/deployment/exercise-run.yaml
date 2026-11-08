@@ -1,0 +1,204 @@
+# Loaded only after the explicit apply boolean and never in check mode.
+- ansible.builtin.assert:
+    that:
+    - velero_exercise_scope == 'velero-disposable-copy-v1'
+    - velero_exercise_id is match('^[a-z0-9]{6,20}$')
+    - velero_exercise_source == 'velero-check-' + velero_exercise_id + '-source'
+    - velero_exercise_target == 'velero-check-' + velero_exercise_id + '-target'
+    - velero_exercise_node | length > 0
+    - velero_exercise_storage_class | length > 0
+- ansible.builtin.include_tasks: deployment/context.yaml
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "namespace", item, "--ignore-not-found", "-o", "name"] }}'
+  loop:
+  - '{{ velero_exercise_source }}'
+  - '{{ velero_exercise_target }}'
+  register: namespaces_before
+  changed_when: false
+- ansible.builtin.assert:
+    that: item.stdout == ''
+  loop: '{{ namespaces_before.results }}'
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "storageclass", velero_exercise_storage_class, "-o", "json"] }}'
+  register: storage_class
+  changed_when: false
+- ansible.builtin.assert:
+    that:
+    - (storage_class.stdout | from_json).provisioner == 'driver.longhorn.io'
+    - (storage_class.stdout | from_json).parameters.dataEngine | default('v1') == 'v1'
+    - (storage_class.stdout | from_json).parameters.fsType | default('ext4') == 'ext4'
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "schedules", "-n", "velero", "-o", "json"] }}'
+  register: schedules_before
+  changed_when: false
+- ansible.builtin.assert:
+    that: item.spec.paused | default(false)
+  loop: '{{ (schedules_before.stdout | from_json)["items"] }}'
+- ansible.builtin.set_fact:
+    owned_objects: []
+    velero_namespaces:
+    - '{{ velero_exercise_source }}'
+    - '{{ velero_exercise_target }}'
+    velero_write_namespaces:
+    - '{{ velero_exercise_target }}'
+- ansible.builtin.set_fact:
+    owned_objects: '{{ owned_objects + [item | combine({"metadata":item.metadata | combine({"labels":(item.metadata.labels
+      | default({})) | combine({"perkforge.io/owner":"velero-platform-v1"})})})] }}'
+  loop: '{{ (lookup("template","templates/exercise.yaml.j2") | from_yaml_all | select | list) + (lookup("template","templates/namespace-access.yaml.j2")
+    | from_yaml_all | select | list) }}'
+- ansible.builtin.include_tasks: deployment/create-owned.yaml
+- ansible.builtin.command:
+    argv: '{{ vk + ["wait", "pod/payload", "-n", velero_exercise_source, "--for=condition=Ready", "--timeout=300s"]
+      }}'
+  changed_when: false
+- ansible.builtin.command:
+    argv: '{{ vk + ["exec", "-n", velero_exercise_source, "payload", "-c", "payload", "--", "sha256sum", "/payload/bytes"]
+      }}'
+  changed_when: false
+  register: source_hash
+- ansible.builtin.assert:
+    that: source_hash.stdout is match('^[0-9a-f]{64}  /payload/bytes$')
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "pvc", "payload", "-n", velero_exercise_source, "-o", "json"] }}'
+  changed_when: false
+  register: source_pvc
+- ansible.builtin.set_fact:
+    owned_objects:
+    - apiVersion: velero.io/v1
+      kind: Backup
+      metadata:
+        name: copy-{{ velero_exercise_id }}
+        namespace: velero
+        labels:
+          perkforge.io/owner: velero-platform-v1
+        annotations:
+          velero.io/csi-volumesnapshot-class_driver.longhorn.io: velero-longhorn-snap
+      spec:
+        includedNamespaces:
+        - '{{ velero_exercise_source }}'
+        includedResources:
+        - pods
+        - persistentvolumeclaims
+        includeClusterResources: false
+        snapshotVolumes: true
+        snapshotMoveData: true
+        defaultVolumesToFsBackup: false
+        storageLocation: local
+        ttl: 48h0m0s
+        itemOperationTimeout: 30m0s
+        csiSnapshotTimeout: 10m0s
+- ansible.builtin.include_tasks: deployment/create-owned.yaml
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "backup", "copy-" + velero_exercise_id, "-n", "velero", "-o", "json"] }}'
+  changed_when: false
+  register: backup_result
+  until: (backup_result.stdout | from_json).status.phase | default('') in ['Completed','PartiallyFailed','Failed','FailedValidation']
+  retries: 360
+  delay: 5
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "datauploads", "-n", "velero", "-l", "velero.io/backup-uid=" + (backup_result.stdout
+      | from_json).metadata.uid, "-o", "json"] }}'
+  changed_when: false
+  register: uploads
+- ansible.builtin.copy:
+    dest: '{{ velero_state_dir }}/exercise-{{ velero_exercise_id }}-backup.json'
+    content: '{{ {"backup":backup_result.stdout | from_json,"uploads":uploads.stdout | from_json,"source_pvc":source_pvc.stdout
+      | from_json,"sha256":source_hash.stdout} | to_nice_json }}'
+    mode: '0600'
+    force: false
+- ansible.builtin.assert:
+    that: backup_result.stdout | from_json | velero_copied_transfers((uploads.stdout | from_json)["items"], [source_pvc.stdout
+      | from_json])
+- name: Reopen the repository by gracefully restarting only the dedicated backend Pod
+  ansible.builtin.command:
+    argv: '{{ vk + ["get", "pod", "velero-store-0", "-n", "velero-store", "-o", "json"] }}'
+  changed_when: false
+  register: store_before
+- ansible.builtin.assert:
+    that:
+    - (store_before.stdout | from_json).metadata.labels.app == 'velero-store'
+    - (store_before.stdout | from_json).metadata.ownerReferences[0].kind == 'StatefulSet'
+    - (store_before.stdout | from_json).metadata.ownerReferences[0].name == 'velero-store'
+- ansible.builtin.command:
+    argv: '{{ vk + ["delete", "pod", "velero-store-0", "-n", "velero-store", "--wait=true", "--timeout=180s"] }}'
+  changed_when: true
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "pod", "velero-store-0", "-n", "velero-store", "-o", "json"] }}'
+  changed_when: false
+  register: store_after
+  until: store_after.rc == 0 and (store_after.stdout | from_json).metadata.uid != (store_before.stdout | from_json).metadata.uid
+  retries: 60
+  delay: 5
+- ansible.builtin.command:
+    argv: '{{ vk + ["wait", "pod/velero-store-0", "-n", "velero-store", "--for=condition=Ready", "--timeout=300s"]
+      }}'
+  changed_when: false
+- ansible.builtin.set_fact:
+    owned_objects:
+    - apiVersion: velero.io/v1
+      kind: Restore
+      metadata:
+        name: copy-{{ velero_exercise_id }}
+        namespace: velero
+        labels:
+          perkforge.io/owner: velero-platform-v1
+      spec:
+        backupName: copy-{{ velero_exercise_id }}
+        includedNamespaces:
+        - '{{ velero_exercise_source }}'
+        includedResources:
+        - pods
+        - persistentvolumeclaims
+        includeClusterResources: false
+        namespaceMapping: '{{ {velero_exercise_source:velero_exercise_target} }}'
+        restorePVs: true
+        existingResourcePolicy: none
+        itemOperationTimeout: 30m0s
+- ansible.builtin.include_tasks: deployment/create-owned.yaml
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "restore", "copy-" + velero_exercise_id, "-n", "velero", "-o", "json"] }}'
+  changed_when: false
+  register: restore_result
+  until: (restore_result.stdout | from_json).status.phase | default('') in ['Completed','PartiallyFailed','Failed','FailedValidation']
+  retries: 360
+  delay: 5
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "datadownloads", "-n", "velero", "-l", "velero.io/restore-uid=" + (restore_result.stdout
+      | from_json).metadata.uid, "-o", "json"] }}'
+  changed_when: false
+  register: downloads
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "pvc", "payload", "-n", velero_exercise_target, "-o", "json"] }}'
+  changed_when: false
+  register: target_pvc
+- ansible.builtin.copy:
+    dest: '{{ velero_state_dir }}/exercise-{{ velero_exercise_id }}-restore.json'
+    content: '{{ {"restore":restore_result.stdout | from_json,"downloads":downloads.stdout | from_json,"target_pvc":target_pvc.stdout
+      | from_json,"store_before_uid":(store_before.stdout | from_json).metadata.uid,"store_after_uid":(store_after.stdout
+      | from_json).metadata.uid} | to_nice_json }}'
+    mode: '0600'
+    force: false
+- ansible.builtin.assert:
+    that: restore_result.stdout | from_json | velero_copied_transfers((downloads.stdout | from_json)["items"], [source_pvc.stdout
+      | from_json], [target_pvc.stdout | from_json], (uploads.stdout | from_json)["items"])
+- ansible.builtin.command:
+    argv: '{{ vk + ["wait", "pod/payload", "-n", velero_exercise_target, "--for=condition=Ready", "--timeout=300s"]
+      }}'
+  changed_when: false
+- ansible.builtin.command:
+    argv: '{{ vk + ["exec", "-n", velero_exercise_target, "payload", "-c", "payload", "--", "sha256sum", "/payload/bytes"]
+      }}'
+  changed_when: false
+  register: restored_hash
+- ansible.builtin.assert:
+    that: restored_hash.stdout == source_hash.stdout
+- ansible.builtin.copy:
+    dest: '{{ velero_state_dir }}/exercise-{{ velero_exercise_id }}-result.json'
+    content: '{{ {"copied_byte_roundtrip":true,"sha256":restored_hash.stdout,"application_recovery_verified":false,"schedules_activated":false}
+      | to_nice_json }}'
+    mode: '0600'
+    force: false
+- ansible.builtin.debug:
+    msg: Native copied-byte roundtrip passed, including backend restart and a fresh target PVC. This does not establish
+      application/database recovery. Resources and evidence are retained for explicit cleanup; schedules remain
+      paused.

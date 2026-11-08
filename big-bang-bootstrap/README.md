@@ -41,3 +41,9 @@ tag as runtime input, prepare the paused seed and installer foundations, then
 separately approve seed resume. See [release and seed activation](configuration/ansible/README.md#longhorn-only-release-and-seed-activation).
 
 Flux installation requires the pinned Iron Bank image-pull credential. The supported bootstrap stages its namespace and separately gated Secret delivery before controllers; existing Secrets can be reused without a local credential file. See the protected-input and repeat procedure in [platform operations](configuration/ansible/README.md#repeatable-flux-registry-preparation).
+
+The default-off [Velero local baseline](configuration/packages/velero/README.md)
+adds a dedicated small Longhorn-backed Garage instance, configurable scheduled
+backups and an isolated copied-data exercise. It preserves the existing Grafana/
+Harbor composition. This local PoC is not independent disaster recovery; AWS
+values remain configurable. No host quota or reservation changes are required.

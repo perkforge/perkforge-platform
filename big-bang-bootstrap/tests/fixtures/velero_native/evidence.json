@@ -1,0 +1,101 @@
+{
+  "observed_utc": "2026-11-07T16:57:28.482062+00:00",
+  "scope": "Disposable loopback component tests only; no Kubernetes or tenant connections",
+  "garage": {
+    "version": "2.5.0",
+    "image": "docker.io/dxflrs/garage:v2.5.0@sha256:23b16d34e0348d9aca9b960a7429a7e6d494974b5288bfb8f6c3ab856895f71e",
+    "platform": "linux/amd64",
+    "config_digest": "sha256:68df85bcfe7a4a9ca02dd1ec649ebd59aaceab924bd3fecf44e2fd7ec493eb9c",
+    "nonroot_readonly_capabilities_dropped": true,
+    "retained_directory_restart": true,
+    "transport": "Verified TLS on loopback proxy, HTTP to loopback-bound container port",
+    "metadata_engine": "sqlite",
+    "metadata_fsync": true,
+    "data_fsync": true,
+    "metadata_auto_snapshot_interval": "1h",
+    "metadata_snapshots_directory": "dedicated directory in the synthetic data tree; production source places it inside the project quota",
+    "native_manual_snapshot_calls": 3,
+    "retained_native_metadata_snapshots": 2,
+    "automatic_snapshot_worker_present": true
+  },
+  "aws_plugin": {
+    "version": "1.14.4",
+    "source_archive_sha256": "5cceac5778eaf8c0e2bda011ddee3e0578175edad7b6e28d2bcfc4a2bc406f4f",
+    "implementation": "Unmodified object_store.go/config.go/helpers.go compiled directly with exact plugin module graph",
+    "checksum_algorithm": "default CRC32",
+    "payload_sizes_bytes": [
+      4096,
+      11534336
+    ],
+    "passed": [
+      "put",
+      "multipart put",
+      "head",
+      "get SHA256",
+      "list",
+      "common prefixes",
+      "presigned URL generation",
+      "delete",
+      "wrong CA denial",
+      "wrong hostname denial",
+      "wrong credentials denial",
+      "other existing bucket denial"
+    ]
+  },
+  "kopia": {
+    "fork": "github.com/project-velero/kopia",
+    "version": "v0.0.0-20251230033609-d946b1e75197",
+    "sum": "h1:iGkfuELGvFCqW+zcrhf2GsOwNH1nWYBsC69IOc57KJk=",
+    "dependency_graph": "Unmodified Velero1.18.4 go.mod and go.sum",
+    "s3_client": "github.com/minio/minio-go/v7 v7.0.97",
+    "payload_size_bytes": 17825792,
+    "payload_sha256": "49c4bf0c6aa872a5255fa266378db1e442a435fa92d4ccf735a5103bc653df1a",
+    "passed": [
+      "encrypted repository initialize",
+      "snapshot upload and manifest",
+      "close and Garage restart",
+      "fresh-config/fresh-cache reopen",
+      "full-depth restore SHA256",
+      "full maintenance SafetyFull",
+      "second independent restore SHA256",
+      "wrong CA denial",
+      "wrong hostname denial",
+      "wrong credentials denial",
+      "other existing bucket denial",
+      "normal snapshot manifest deletion",
+      "full maintenance SafetyFull after deletion"
+    ]
+  },
+  "limitations": [
+    "No Kubernetes CSI DataUpload/DataDownload or installed Velero validation",
+    "No production TLS/CNI/private routing or quota enforcement acceptance",
+    "No real tenant, database consistency or functional service restore",
+    "No claim of immediate physical reclaim after TTL/maintenance",
+    "No full AWS plugin gRPC or Iron Bank image execution",
+    "No shared GitLab instance changes",
+    "Hourly timer was configured and worker observed, but not waited for",
+    "Native manual snapshot retention was tested; corrupted-metadata or forced-power-loss recovery was not",
+    "Metadata snapshots share the same disk failure domain; no WORM/object-lock claim",
+    "Interruption/multipart-abort cleanup, incremental-growth load testing and long-term capacity behavior were not exercised"
+  ],
+  "references": [
+    "https://garagehq.deuxfleurs.fr/_releases.html",
+    "https://garagehq.deuxfleurs.fr/documentation/reference-manual/configuration/",
+    "https://garagehq.deuxfleurs.fr/documentation/reference-manual/known-issues/"
+  ],
+  "native_bootstrap": {
+    "implementation": "Unmodified bootstrap-store.yaml and strict Garage 2.5.0 verifier from this change",
+    "passed": [
+      "fresh one-node layout stage/apply",
+      "one supplied synthetic key import",
+      "one dedicated bucket create",
+      "bucket read/write grant without owner/createBucket",
+      "native readback verification",
+      "repeat with scoped_changes=0 and Ansible changed=0"
+    ],
+    "first_scoped_changes": 5,
+    "repeat_changes": 0,
+    "fixture_stopped": true,
+    "metadata_engine": "sqlite"
+  }
+}

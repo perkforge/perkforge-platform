@@ -1,0 +1,12 @@
+# Default and check modes contact no API. Normal reviewed GitOps owns activation.
+- name: Prepare the local Velero foundation and configured runtime values
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+  - deployment/defaults.yaml
+  tasks:
+  - ansible.builtin.assert:
+      that: velero_install_apply is boolean
+  - ansible.builtin.include_tasks: deployment/install-run.yaml
+    when: velero_install_apply and not ansible_check_mode

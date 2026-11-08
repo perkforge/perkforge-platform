@@ -1,0 +1,45 @@
+- ansible.builtin.uri:
+    url: '{{ velero_garage_url }}/v2/GetClusterStatus'
+  register: velero_garage_status
+- ansible.builtin.uri:
+    url: '{{ velero_garage_url }}/v2/GetClusterLayout'
+  register: velero_garage_layout
+- ansible.builtin.set_fact:
+    velero_garage_layout_phase: '{{ velero_garage_status.json | velero_garage_layout_verdict(velero_garage_layout.json,velero_garage_node,velero_garage_expected_role) }}'
+- ansible.builtin.stat:
+    path: '{{ velero_garage_state_directory }}/garage-bootstrap.json'
+    follow: false
+  register: velero_garage_ownership_receipt
+- ansible.builtin.assert:
+    that:
+    - velero_garage_ownership_receipt.stat.isreg | default(false)
+    - not (velero_garage_ownership_receipt.stat.islnk | default(false))
+    - velero_garage_ownership_receipt.stat.mode == '0600'
+    - velero_garage_ownership_receipt.stat.pw_name == lookup('env','USER')
+  # A ready or staged layout needs a durable ownership receipt. The first
+  # pending intent is saved before staging; matching foreign state is not adopted.
+  when: velero_garage_layout_phase != 'stage'
+- when: velero_garage_layout_phase == 'ready'
+  block:
+  - ansible.builtin.uri:
+      url: '{{ velero_garage_url }}/v2/ListKeys'
+    register: velero_garage_keys
+  - ansible.builtin.uri:
+      url: '{{ velero_garage_url }}/v2/ListBuckets'
+    register: velero_garage_listing
+  - ansible.builtin.assert:
+      that:
+      - velero_garage_listing.json | length == velero_garage_receipt.buckets | length
+      - velero_garage_listing.json | map(attribute='id') | sort == velero_garage_receipt.buckets.values() | sort
+  - ansible.builtin.uri:
+      url: '{{ velero_garage_url }}/v2/GetKeyInfo?id={{ velero_garage_key_id }}'
+    register: velero_garage_key
+    when: velero_garage_keys.json | length > 0
+  - ansible.builtin.uri:
+      url: '{{ velero_garage_url }}/v2/GetBucketInfo?id={{ velero_garage_bucket_id }}'
+    loop: '{{ velero_garage_receipt.buckets.values() | list }}'
+    loop_control: {loop_var: velero_garage_bucket_id}
+    register: velero_garage_infos
+- ansible.builtin.set_fact:
+    velero_garage_verdict: "{{ velero_garage_status.json | velero_garage_verdict(velero_garage_layout.json,(velero_garage_keys.json if velero_garage_layout_phase == 'ready' else none),(velero_garage_key.json | default({}) if velero_garage_layout_phase == 'ready' else {}),(velero_garage_infos.results | map(attribute='json') | list if velero_garage_layout_phase == 'ready' else []),velero_garage_receipt,velero_garage_node,velero_garage_key_id,velero_garage_expected_role,velero_garage_buckets) }}"
+    cacheable: false

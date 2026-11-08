@@ -1,0 +1,58 @@
+# PARTIAL, NON-RUNNABLE AWS values example. Not selected by any local root.
+# This is not a ready-to-use overlay for deployment/install-values.yaml: that
+# file contains local-cluster dependencies which a reviewed AWS foundation must
+# replace or explicitly supply before rendering, activation or acceptance:
+# - Replace server/node-agent storage.perkforge.io/worker selectors and any
+#   hostname affinity with reviewed AWS worker placement.
+# - Supply authorized registry credentials/imagePullSecrets or replace the
+#   inherited private-registry references; no local credential reuse.
+# - Supply or replace velero-node-agent and velero-maintenance ConfigMaps and
+#   their argument references, including AWS placement/resource configuration.
+# - Replace the local postrenderer which deletes csi-volumesnapshotclass with
+#   reviewed EBS CSI VolumeSnapshotClass ownership, mapping and encryption.
+# - Supply scoped AWS RBAC/CRDs/service accounts and annotate the existing server
+#   service account for workload identity (the inherited chart create=false).
+# - Replace every empty setting below; review IAM/KMS, egress, snapshot/restore
+#   zones, resource sizing and app consistency; then approve activation.
+# Do not deploy the local Garage/Longhorn foundation in AWS.
+addons:
+  velero:
+    enabled: false
+    values:
+      upstream:
+        credentials:
+          useSecret: false
+          existingSecret: ''
+        # The scoped foundation owns the existing service account (create=false).
+        # Apply its approved workload-identity annotation in that AWS foundation;
+        # values annotations alone do not change an existing service account.
+        configuration:
+          defaultBackupTTL: 336h
+          defaultSnapshotMoveData: true
+          backupStorageLocation:
+          - name: aws
+            provider: aws
+            bucket: ''
+            prefix: ''
+            default: true
+            accessMode: ReadWrite
+            config:
+              region: ''
+              kmsKeyId: ''
+          volumeSnapshotLocation: []
+        # Operator supplies cron and approved namespaces; initially paused.
+        schedules:
+          aws-backup:
+            schedule: ''
+            paused: true
+            useOwnerReferencesInBackup: false
+            template:
+              includedNamespaces: []
+              includeClusterResources: false
+              storageLocation: aws
+              ttl: 336h
+              snapshotVolumes: true
+              snapshotMoveData: true
+              defaultVolumesToFsBackup: false
+# EBS CSI VolumeSnapshotClass, zone/volume encryption and trusted network egress
+# belong to the reviewed AWS target. Do not deploy local Garage or Longhorn objects.
