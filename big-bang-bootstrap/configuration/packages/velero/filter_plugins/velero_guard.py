@@ -19,7 +19,7 @@ def quantity(value):
 
 def subset(actual, desired):
     if isinstance(desired, dict):
-        return isinstance(actual, dict) and all(k in actual and (quantity(actual[k]) == quantity(v) if k == 'storage' and not isinstance(v, (dict,list)) else subset(actual[k], v)) for k, v in desired.items())
+        return isinstance(actual, dict) and all(k in actual and (quantity(actual[k]) == quantity(v) if k == 'storage' and not isinstance(v, (dict,list,bool)) else subset(actual[k], v)) for k, v in desired.items())
     if isinstance(desired, list):
         return isinstance(actual, list) and len(actual) == len(desired) and all(subset(a, b) for a, b in zip(actual, desired))
     return actual == desired
@@ -28,6 +28,15 @@ def subset(actual, desired):
 def _owned_matches(actual, desired):
     if actual.get('metadata', {}).get('labels', {}).get('perkforge.io/owner') != OWNER:
         return False
+    if desired.get('kind') == 'NetworkPolicy':
+        # Kubernetes omits empty deny-rule arrays. Preserve exact policy semantics.
+        policy = dict(actual.get('spec', {}))
+        for direction in ('ingress', 'egress'):
+            if desired.get('spec', {}).get(direction) == []:
+                policy.setdefault(direction, [])
+        if policy != desired.get('spec'):
+            return False
+        actual = {**actual, 'spec': policy}
     for key in desired:
         if key != 'metadata' and not subset(actual.get(key), desired[key]):
             return False

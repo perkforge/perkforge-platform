@@ -1,11 +1,13 @@
 - name: Require the existing CSI APIs, never install a second snapshot controller
   ansible.builtin.command:
-    argv: '{{ vk + ["get", "crd", item, "-o", "jsonpath={.status.conditions[?(@.type==\"Established\")].status}"] }}'
+    argv: '{{ vk + ["get", "crd", item, "-o", "json"] }}'
   loop: [volumesnapshots.snapshot.storage.k8s.io, volumesnapshotcontents.snapshot.storage.k8s.io, volumesnapshotclasses.snapshot.storage.k8s.io]
   changed_when: false
   register: snapshot_apis
 - ansible.builtin.assert:
-    that: item.stdout == 'True'
+    that:
+      - (item.stdout | from_json).metadata.name == item.item
+      - (item.stdout | from_json).status.conditions | default([]) | selectattr('type','equalto','Established') | selectattr('status','equalto','True') | list | length == 1
   loop: '{{ snapshot_apis.results }}'
 - ansible.builtin.file:
     path: '{{ velero_state_dir }}/chart-cache'
