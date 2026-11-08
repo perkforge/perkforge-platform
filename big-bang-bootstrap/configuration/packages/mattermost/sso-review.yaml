@@ -1,12 +1,15 @@
 # Source review only; not live settings, realm import or license activation.
 enabled: false
 review_only: true
-live_apply_implemented: false
+live_apply_implemented: false # Native Mattermost user/linking/membership executor remains absent.
+client_apply_implemented: true
+protected_input_delivery_implemented: true
+public_values_renderer: ../../authorization/sso/mattermost/prepare.yaml
 protocol: oidc
 application: mattermost
 planning_edition: Entry, free mode of Enterprise Edition; no purchase
-pinned_chart: 12.0.1-bb.2
-pinned_image_version: 12.0.1
+pinned_chart: 11.11.0-bb.0
+pinned_image_version: 11.11.0
 edition_verified: false
 source_edition_verified: true
 source_edition: Enterprise binary, free Entry mode
@@ -34,7 +37,7 @@ limitations:
 - Source manifest selects Enterprise binary; runtime Entry/OIDC feature availability and license terms still require verification
 - OIDC login does not synchronize tenant team/channel roles by itself
 - v12.1 claim/ABAC features and delegated granular system-admin roles are not assumed
-  for 12.0.1 Entry
+  for 11.11.0 Entry
 - Entry has a 10000-channel-message visible history cap and no HA/compliance features
 - new-person provisioning/linking/offboarding is unimplemented; user creation stays
   disabled
@@ -46,7 +49,7 @@ recovery:
   independent_local_access: true
   custody: initial local System Admin established before SSO; external protected custody
 activation_gates:
-- separate reviewed client/app apply wiring
+- separately approve default-off client/input delivery; native app linking remains manual and unverified
 - exact Entry-compatible image and no paid license assumption
 - owner-reviewed linking/provisioning with signup closed
 - tenant team/channel membership and removal tests

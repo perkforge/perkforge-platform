@@ -1,11 +1,8 @@
-# Blocked inactive profile; no root selection. Licensing/operator trust unresolved.
+# Inactive profile; versions inherited exclusively from the selected Big Bang release.
+# No root selection; licensing/operator trust and live acceptance remain gated.
 addons:
   mattermostOperator:
     enabled: false
-    git:
-      repo: https://repo1.dso.mil/big-bang/product/packages/mattermost-operator.git
-      path: ./chart
-      tag: 1.25.9-bb.4
     flux:
       suspend: true
       serviceAccountName: mattermost-operator-installer
@@ -13,17 +10,11 @@ addons:
       install: {createNamespace: false, remediation: {retries: 0}}
       upgrade: {remediation: {retries: 0}}
     values:
-      bb-common:
-        istio: {enabled: false}
-        networkPolicies: {enabled: false}
+      imagePullSecrets: [{name: private-registry}]
+      istio: {enabled: false}
+      networkPolicies: {enabled: false}
   mattermost:
     enabled: false
-    # External fileStore Secret below; suppress legacy umbrella bundled MinIO defaults.
-    objectStorage: null
-    git:
-      repo: https://repo1.dso.mil/big-bang/product/packages/mattermost.git
-      path: ./chart
-      tag: 12.0.1-bb.2
     flux:
       suspend: true
       serviceAccountName: mattermost-installer
@@ -32,17 +23,18 @@ addons:
       upgrade: {remediation: {retries: 0}}
     values:
       global:
-        domain: UNCONFIGURED.invalid
         imagePullSecrets: [{name: private-registry}]
-      bb-common:
-        istio: {enabled: false}
-        networkPolicies: {enabled: false}
+      waitJob: {enableImagePullSecrets: true}
+      domain: UNCONFIGURED.invalid
+      istio: {enabled: false}
       ingress: {enabled: false, host: chat.UNCONFIGURED.invalid}
       monitoring: {enabled: false}
+      networkPolicies: {enabled: false}
       sso: {enabled: false}
       bbtests: {enabled: false}
       enterprise: {enabled: false, existingSecret: '', license: ''}
       postgresql: {install: false, auth: {password: null}}
+      minio: {install: false}
       elasticsearch: {enabled: false}
       database: {secret: mattermost-database}
       fileStore:

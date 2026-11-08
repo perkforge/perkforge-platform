@@ -1,8 +1,8 @@
 # Mattermost Entry: source evidence, runtime acceptance pending
 
-The current Big Bang package `12.0.1-bb.2` selects Iron Bank Mattermost `12.0.1`.
-The [immutable build manifest](https://repo1.dso.mil/dsop/opensource/mattermost/mattermost/-/blob/a119147cd04982c52d2625d1396cce5f163d2b32/hardening_manifest.yaml)
-is retained as `ironbank-12.0.1-source.yaml`. Its vendor archive is the Enterprise
+The current Big Bang package `11.11.0-bb.0` selects Iron Bank Mattermost `11.11.0`.
+The [immutable build manifest](https://repo1.dso.mil/dsop/opensource/mattermost/mattermost/-/blob/58877c06636a6fd0e3e3e8ae18ba90bb4761826b/hardening_manifest.yaml)
+is retained as `ironbank-11.11.0-source.yaml`. Its vendor archive is the Enterprise
 binary distribution (`mattermost-`, not `mattermost-team-`). The SHA256 is tested
 against that source record; no image pull, digest inspection or runtime test ran.
 
@@ -17,9 +17,10 @@ Before activation:
 - Review the [Enterprise license](https://mattermost.com/enterprise-edition-license/)
   and intended use. Free availability is not a production/PaaS entitlement.
 - Verify image digest, current security advisories and the selected release's
-  supported upgrade path. The Iron Bank source already has a 12.0.2 manifest at
-  review time, while the newest Big Bang package still selects 12.0.1. Latest
-  package is not a claim of latest vendor patch or vulnerability-free software.
+  supported upgrade path. Vendor security patches postdate 11.11.0. This MR deliberately inherits the
+  selected Big Bang release rather than overriding its app versions. Review
+  that security exposure before activation; release alignment does not prove
+  vulnerability-free software. Any exception needs an explicit decision.
 - Verify actual Entry/OIDC availability without a trial; retain independent local
   recovery. Review message-history and user limits rather than assuming paid HA,
   compliance, delegated administration or v12.1 ABAC capabilities.

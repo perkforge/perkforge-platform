@@ -1,0 +1,190 @@
+- name: Deliver only Mattermost's dedicated immutable OAuth input and public identity CA
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    mattermost_delivery_run: false
+    mattermost_delivery_approval: UNAPPROVED
+    mattermost_kubectl: /usr/local/bin/kubectl
+    mattermost_kubeconfig: /UNCONFIGURED/kubeconfig
+    mattermost_context: UNCONFIGURED
+    mattermost_expected_api: https://UNCONFIGURED.invalid:6443
+    mattermost_expected_cluster_uid: UNCONFIGURED
+    mattermost_expected_mattermost_uid: UNCONFIGURED
+    mattermost_client_secret_file: /UNCONFIGURED/client-secret
+    mattermost_ca_file: /UNCONFIGURED/public-ca.pem
+    mattermost_expected_ca_sha256: UNCONFIGURED
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check reads no private files or APIs. Dedicated Mattermost input delivery only; no activation, client creation, grants, registry/admin Secret changes or restart.'
+  - when: mattermost_delivery_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - mattermost_delivery_approval == 'mattermost-sso-input-delivery-v1'
+        - mattermost_context != 'UNCONFIGURED'
+        - mattermost_context is not search("[\\x00-\\x20\\x7f]")
+        - mattermost_expected_api is not search("[\\x00-\\x20\\x7f]")
+        - mattermost_kubectl is match('^/')
+        - mattermost_expected_api is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - (mattermost_expected_api | urlsplit('hostname') | lower | regex_replace('\.$', '')) is not search('\.invalid$')
+        - mattermost_expected_cluster_uid is match('^[a-f0-9-]{36}$')
+        - mattermost_expected_mattermost_uid is match('^[a-f0-9-]{36}$')
+        - mattermost_expected_ca_sha256 is match('^[a-f0-9]{64}$')
+        - mattermost_expected_cluster_uid is not search("[\\x00-\\x20\\x7f]")
+        - mattermost_expected_mattermost_uid is not search("[\\x00-\\x20\\x7f]")
+        - mattermost_expected_ca_sha256 is not search("[\\x00-\\x20\\x7f]")
+    - ansible.builtin.command: {argv: [id, -u]}
+      register: mm_operator_uid
+      changed_when: false
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+        checksum_algorithm: sha256
+      loop: '{{ [mattermost_kubeconfig, mattermost_client_secret_file, mattermost_ca_file] }}'
+      register: mm_delivery_files
+    - ansible.builtin.assert:
+        that:
+        - item.item is match('^/') and item.item | realpath == item.item
+        - item.stat.isreg | default(false)
+        - not (item.stat.islnk | default(false))
+        - item.stat.size > 0
+        - item.item == mattermost_ca_file or (item.stat.mode == '0600' and item.stat.uid == (mm_operator_uid.stdout | int))
+        - item.item != mattermost_ca_file or item.stat.checksum == mattermost_expected_ca_sha256
+      loop: '{{ mm_delivery_files.results }}'
+    - ansible.builtin.stat:
+        path: '{{ item | dirname }}'
+        follow: false
+      loop: '{{ [mattermost_kubeconfig, mattermost_client_secret_file] }}'
+      register: mm_private_parents
+    - ansible.builtin.assert:
+        that:
+        - item.stat.isdir | default(false)
+        - not (item.stat.islnk | default(false))
+        - item.stat.mode == '0700'
+        - item.stat.uid == (mm_operator_uid.stdout | int)
+      loop: '{{ mm_private_parents.results }}'
+    - ansible.builtin.set_fact:
+        mm_delivery_ca: '{{ lookup("file", mattermost_ca_file) }}'
+        mm_delivery_secret: '{{ lookup("file", mattermost_client_secret_file) | trim }}'
+        mm_delivery_argv: ['{{ mattermost_kubectl }}', --kubeconfig, '{{ mattermost_kubeconfig }}', --context, '{{ mattermost_context }}', --request-timeout=20s]
+        cacheable: false
+    - ansible.builtin.assert:
+        that:
+        - mm_delivery_secret | length >= 24
+        - mm_delivery_ca | regex_findall('-----BEGIN CERTIFICATE-----') | length == 1
+        - mm_delivery_ca | regex_findall('-----END CERTIFICATE-----') | length == 1
+        - mm_delivery_ca is match('^-----BEGIN CERTIFICATE-----')
+        - mm_delivery_ca is search('-----END CERTIFICATE-----$')
+        - "'PRIVATE KEY' not in mm_delivery_ca"
+    - ansible.builtin.command:
+        argv: [openssl, x509, -noout, -checkend, '86400', -ext, basicConstraints]
+        stdin: '{{ mm_delivery_ca }}'
+      register: mm_delivery_ca_check
+      changed_when: false
+    - ansible.builtin.assert:
+        that: "'CA:TRUE' in mm_delivery_ca_check.stdout"
+    - ansible.builtin.command:
+        argv: '{{ mm_delivery_argv + ["config", "view", "--minify", "-o", "json"] }}'
+      register: mm_delivery_config
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (mm_delivery_config.stdout | from_json).clusters | length == 1
+        - (mm_delivery_config.stdout | from_json).clusters[0].cluster.server == mattermost_expected_api
+        - not ((mm_delivery_config.stdout | from_json).clusters[0].cluster.get('insecure-skip-tls-verify', false))
+        - not ((mm_delivery_config.stdout | from_json).clusters[0].cluster.get('proxy-url', ''))
+    - ansible.builtin.command:
+        argv: '{{ mm_delivery_argv + ["get", "namespace", item.name, "-o", "jsonpath={.metadata.uid}"] }}'
+      loop:
+      - {name: kube-system, uid: '{{ mattermost_expected_cluster_uid }}'}
+      - {name: mattermost, uid: '{{ mattermost_expected_mattermost_uid }}'}
+      register: mm_delivery_namespaces
+      changed_when: false
+    - ansible.builtin.assert:
+        that: item.stdout == item.item.uid
+      loop: '{{ mm_delivery_namespaces.results }}'
+    - ansible.builtin.set_fact:
+        mm_delivery_objects:
+        - apiVersion: v1
+          kind: Secret
+          metadata:
+            name: mattermost-oidc-client
+            namespace: mattermost
+            labels: {perkforge.io/owner: mattermost-sso-v1}
+          type: Opaque
+          immutable: true
+          data: {client-secret: '{{ mm_delivery_secret | b64encode }}'}
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: mattermost-identity-ca
+            namespace: mattermost
+            labels: {perkforge.io/owner: mattermost-sso-v1}
+          immutable: true
+          data: {ca.crt: '{{ mm_delivery_ca }}'}
+        cacheable: false
+    - ansible.builtin.command:
+        argv: '{{ mm_delivery_argv + ["get", item.kind, item.metadata.name, "-n", "mattermost", "--ignore-not-found", "-o", "json"] }}'
+      loop: '{{ mm_delivery_objects }}'
+      register: mm_delivery_before
+      changed_when: false
+    - name: Refuse collisions or implicit rotation before creating either object
+      ansible.builtin.assert:
+        that:
+        - current.kind == item.item.kind and current.apiVersion == 'v1'
+        - current.metadata.name == item.item.metadata.name and current.metadata.namespace == 'mattermost'
+        - current.metadata.labels == item.item.metadata.labels
+        - current.metadata.ownerReferences | default([]) | length == 0
+        - not current.metadata.get("deletionTimestamp")
+        - current.immutable | default(false)
+        - current.data == item.item.data
+        - current.binaryData | default({}) | length == 0
+        - current.get('type') == item.item.get('type')
+      vars:
+        current: '{{ item.stdout | from_json }}'
+      loop: '{{ mm_delivery_before.results }}'
+      when: item.stdout | length > 0
+    - name: Validate all absent objects with server dry-run before either create
+      ansible.builtin.command:
+        argv: '{{ mm_delivery_argv + ["create", "--dry-run=server", "-f", "-"] }}'
+        stdin: '{{ item.item | to_json }}'
+      loop: '{{ mm_delivery_before.results }}'
+      when: item.stdout | length == 0
+      changed_when: false
+    - ansible.builtin.command:
+        argv: '{{ mm_delivery_argv + ["create", "-f", "-"] }}'
+        stdin: '{{ item.item | to_json }}'
+      loop: '{{ mm_delivery_before.results }}'
+      when: item.stdout | length == 0
+    - ansible.builtin.command:
+        argv: '{{ mm_delivery_argv + ["get", item.kind, item.metadata.name, "-n", "mattermost", "-o", "json"] }}'
+      loop: '{{ mm_delivery_objects }}'
+      register: mm_delivery_after
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - current.kind == item.item.kind and current.apiVersion == 'v1'
+        - current.metadata.name == item.item.metadata.name and current.metadata.namespace == 'mattermost'
+        - current.metadata.labels == item.item.metadata.labels
+        - current.metadata.ownerReferences | default([]) | length == 0
+        - not current.metadata.get("deletionTimestamp")
+        - current.immutable
+        - current.data == item.item.data
+        - current.binaryData | default({}) | length == 0
+        - current.get('type') == item.item.get('type')
+      vars:
+        current: '{{ item.stdout | from_json }}'
+      loop: '{{ mm_delivery_after.results }}'
+    always:
+    - ansible.builtin.set_fact:
+        mm_delivery_secret: ''
+        mm_delivery_ca: ''
+        mm_delivery_objects: []
+        mm_delivery_before: {}
+        mm_delivery_after: {}
+        mm_delivery_files: {}
+        mm_delivery_config: {}
+        cacheable: false
+      no_log: true

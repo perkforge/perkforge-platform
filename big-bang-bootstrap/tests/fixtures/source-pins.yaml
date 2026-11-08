@@ -71,10 +71,10 @@ garage-source:
   chart: script/helm/garage
 
 mattermost:
-  url: https://repo1.dso.mil/big-bang/product/packages/mattermost/-/archive/12.0.1-bb.2/mattermost-12.0.1-bb.2.tar.gz
-  sha256: a50eeb1fb46b7d82e385be037e8a2d82346a371249e1c6b7597064d3bc0b9e5e
+  url: https://repo1.dso.mil/big-bang/product/packages/mattermost/-/archive/11.11.0-bb.0/mattermost-11.11.0-bb.0.tar.gz
+  sha256: 64f12edfbe571a07d50d1267ba37e9790657bdd49a9f5bd9abc4e657a798a758
   chart: chart
 mattermost-operator:
-  url: https://repo1.dso.mil/big-bang/product/packages/mattermost-operator/-/archive/1.25.9-bb.4/mattermost-operator-1.25.9-bb.4.tar.gz
-  sha256: d37670e2d52d15451c53056d1cee5be9b58ff642725ac420c8731f3cc14e03fa
+  url: https://repo1.dso.mil/big-bang/product/packages/mattermost-operator/-/archive/1.25.9-bb.1/mattermost-operator-1.25.9-bb.1.tar.gz
+  sha256: 733a0acaf98e575e8c1286b2a8481af650aa17243b550ce53a2685df5ba78000
   chart: chart

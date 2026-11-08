@@ -1,0 +1,23 @@
+# Public operator inputs only. No approval is implied by this example.
+mattermost_sso_origin: https://mattermost.UNCONFIGURED.invalid
+mattermost_sso_issuer: https://identity.UNCONFIGURED.invalid/auth/realms/perkforge
+mattermost_sso_render: false
+mattermost_sso_output: /UNCONFIGURED/mattermost-sso-review
+mattermost_client_run: false
+mattermost_client_operation: inspect
+mattermost_client_approval: UNAPPROVED
+mattermost_recovery_verified: false
+mattermost_native_ready: false
+mattermost_edition_verified: false
+mattermost_linking_verified: false
+mattermost_operator_token_file: /UNCONFIGURED/operator-token
+mattermost_client_secret_file: /UNCONFIGURED/client-secret
+mattermost_ca_file: /UNCONFIGURED/public-ca.pem
+mattermost_delivery_run: false
+mattermost_delivery_approval: UNAPPROVED
+mattermost_kubeconfig: /UNCONFIGURED/kubeconfig
+mattermost_context: UNCONFIGURED
+mattermost_expected_api: https://UNCONFIGURED.invalid:6443
+mattermost_expected_cluster_uid: UNCONFIGURED
+mattermost_expected_mattermost_uid: UNCONFIGURED
+mattermost_expected_ca_sha256: UNCONFIGURED

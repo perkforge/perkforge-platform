@@ -10,7 +10,7 @@ class MattermostReview(unittest.TestCase):
   c=yaml.safe_load((ROOT/'configuration/packages/mattermost/candidate-values.yaml').read_text())['addons'];self.assertTrue(all(not x['enabled'] and x['flux']['suspend'] for x in c.values()));ds=self.render['mattermost'][1];cr=next(x for x in ds if x['kind']=='Mattermost');self.assertNotIn('licenseSecret',cr['spec']);self.assertFalse(cr['spec']['ingress']['enabled']);self.assertEqual(cr['spec']['database']['external']['secret'],'mattermost-database')
   for x in ds:
    if x['kind']=='Secret':self.assertEqual(set(x.get('stringData',{})),{'MM_SERVICESETTINGS_SITEURL','MM_GITLABSETTINGS_SCOPE'});self.assertFalse(x.get('data'))
-  self.assertEqual(len(self.render['mattermost-operator'][1]),10);self.assertEqual(sum(x['kind']=='CustomResourceDefinition' for x in self.render['mattermost-operator'][1]),3)
+  self.assertEqual(len(self.render['mattermost-operator'][1]),8);self.assertEqual(sum(x['kind']=='CustomResourceDefinition' for x in self.render['mattermost-operator'][1]),3)
  def test_every_rendered_object_role_ref_and_escalation_is_explicit(self):
   mapping={'Mattermost':('installation.mattermost.com','mattermosts'),'Secret':('','secrets'),'ConfigMap':('','configmaps'),'Service':('','services'),'ServiceAccount':('','serviceaccounts'),'Job':('batch','jobs'),'NetworkPolicy':('networking.k8s.io','networkpolicies'),'Role':('rbac.authorization.k8s.io','roles'),'RoleBinding':('rbac.authorization.k8s.io','rolebindings'),'Deployment':('apps','deployments'),'ClusterRole':('rbac.authorization.k8s.io','clusterroles'),'ClusterRoleBinding':('rbac.authorization.k8s.io','clusterrolebindings'),'CustomResourceDefinition':('apiextensions.k8s.io','customresourcedefinitions')}
   for package,(hr,ds) in self.render.items():
@@ -34,18 +34,26 @@ class MattermostReview(unittest.TestCase):
    for group,res in [('', 'pods'),('apps','replicasets')]:self.assertTrue(any(group in r['apiGroups'] and res in r['resources'] and set(['get','list','watch']).issubset(r['verbs']) and not set(['create','patch','update','delete']).intersection(r['verbs']) for r in role['rules']))
    subjects=[q for x in self.foundation if x['kind'].endswith('RoleBinding') for q in x['subjects'] if q['name']==name];self.assertTrue(subjects);self.assertTrue(all(q['namespace']==namespace for q in subjects))
 
- def test_native_values_and_current_pins_reach_real_child_charts(self):
-  c=yaml.safe_load((ROOT/'configuration/packages/mattermost/candidate-values.yaml').read_text())['addons']
-  self.assertIsNone(c['mattermost']['objectStorage'])
-  self.assertNotIn('minio',c['mattermost']['values'])
-  self.assertEqual(c['mattermost']['git']['tag'],'12.0.1-bb.2')
-  self.assertEqual(c['mattermostOperator']['git']['tag'],'1.25.9-bb.4')
+ def test_versions_match_selected_bigbang_release_without_exceptions(self):
+  import os
+  upstream=yaml.safe_load((Path(os.environ['PREFLIGHT_SOURCES_DIR'])/'bigbang/chart/values.yaml').read_text())['addons']
+  candidate=yaml.safe_load((ROOT/'configuration/packages/mattermost/candidate-values.yaml').read_text())['addons']
   for key in ('mattermost','mattermostOperator'):
-   self.assertFalse(c[key]['values']['bb-common']['istio']['enabled'])
-   self.assertFalse(c[key]['values']['bb-common']['networkPolicies']['enabled'])
+   self.assertNotIn('git',candidate[key])
+   self.assertNotIn('helmRepo',candidate[key])
+   name={'mattermostOperator':'mattermost-operator'}.get(key,key)
+   chart=yaml.safe_load((Path(os.environ['PREFLIGHT_SOURCES_DIR'])/name/'chart/Chart.yaml').read_text())
+   self.assertEqual(chart['version'],upstream[key]['git']['tag'])
   cr=next(x for x in self.render['mattermost'][1] if x['kind']=='Mattermost')
-  self.assertEqual(cr['spec']['version'],'12.0.1')
-  self.assertEqual(cr['spec']['imagePullSecrets'],[{'name':'private-registry'}])
+  self.assertEqual(cr['spec']['version'],'11.11.0')
+  self.assertFalse(any('mattermost' in x['metadata']['name'] for x in build(ROOT/'clusters/local')))
+
+ def test_registry_references_reach_app_operator_and_wait_hook(self):
+  refs=[{'name':'private-registry'}]
+  cr=next(x for x in self.render['mattermost'][1] if x['kind']=='Mattermost')
+  self.assertEqual(cr['spec']['imagePullSecrets'],refs)
+  for _,ds in self.render.values():
+   for obj in ds:
+    if obj['kind'] in ('Deployment','Job'):
+     self.assertEqual(obj['spec']['template']['spec']['imagePullSecrets'],refs)
   self.assertFalse(any(x['kind'] in ('StatefulSet','PersistentVolumeClaim') for _,ds in self.render.values() for x in ds))
-  root=build(ROOT/'clusters/local')
-  self.assertFalse(any('mattermost' in x['metadata']['name'] for x in root))
