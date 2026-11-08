@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.6](https://github.com/perkforge/perkforge-platform/compare/v0.33.5...v0.33.6) (2026-11-08)
+
+
+### Bug Fixes
+
+* **velero:** permit scoped maintenance cache reads ([#303](https://github.com/perkforge/perkforge-platform/issues/303)) ([d21b207](https://github.com/perkforge/perkforge-platform/commit/d21b20748e9e7f8b668f900fa78332589b53f6d2))
+
 ## [0.33.5](https://github.com/perkforge/perkforge-platform/compare/v0.33.4...v0.33.5) (2026-11-08)
 
 
