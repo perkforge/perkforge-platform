@@ -99,7 +99,7 @@ spec:
         command: [/garage]
         args: [-c, /etc/garage/garage.toml, server]
         securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
-        resources: {requests: {cpu: 500m, memory: 1Gi}, limits: {cpu: '1', memory: 2Gi}}
+        resources: {requests: {cpu: 100m, memory: 1Gi}, limits: {cpu: '1', memory: 2Gi}}
         readinessProbe: {exec: {command: [/garage, -c, /etc/garage/garage.toml, status]}, initialDelaySeconds: 10, periodSeconds: 10}
         volumeMounts:
         - {name: config, mountPath: /etc/garage, readOnly: true}
