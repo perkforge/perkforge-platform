@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.4](https://github.com/perkforge/perkforge-platform/compare/v0.32.3...v0.32.4) (2026-11-08)
+
+
+### Bug Fixes
+
+* **velero:** place Garage on Longhorn worker nodes ([#287](https://github.com/perkforge/perkforge-platform/issues/287)) ([dbf9264](https://github.com/perkforge/perkforge-platform/commit/dbf92646d3aeb41b0bab4c90af2a3c09a5e76c43))
+
 ## [0.32.3](https://github.com/perkforge/perkforge-platform/compare/v0.32.2...v0.32.3) (2026-11-08)
 
 
