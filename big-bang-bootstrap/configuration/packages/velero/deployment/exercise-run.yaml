@@ -89,7 +89,7 @@
         csiSnapshotTimeout: 10m0s
 - ansible.builtin.include_tasks: deployment/create-owned.yaml
 - ansible.builtin.command:
-    argv: '{{ vk + ["get", "backup", "copy-" + velero_exercise_id, "-n", "velero", "-o", "json"] }}'
+    argv: '{{ vk + ["get", "backups.velero.io", "copy-" + velero_exercise_id, "-n", "velero", "-o", "json"] }}'
   changed_when: false
   register: backup_result
   until: (backup_result.stdout | from_json).status.phase | default('') in ['Completed','PartiallyFailed','Failed','FailedValidation']
@@ -156,7 +156,7 @@
         itemOperationTimeout: 30m0s
 - ansible.builtin.include_tasks: deployment/create-owned.yaml
 - ansible.builtin.command:
-    argv: '{{ vk + ["get", "restore", "copy-" + velero_exercise_id, "-n", "velero", "-o", "json"] }}'
+    argv: '{{ vk + ["get", "restores.velero.io", "copy-" + velero_exercise_id, "-n", "velero", "-o", "json"] }}'
   changed_when: false
   register: restore_result
   until: (restore_result.stdout | from_json).status.phase | default('') in ['Completed','PartiallyFailed','Failed','FailedValidation']

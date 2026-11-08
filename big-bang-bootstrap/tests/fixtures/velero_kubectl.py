@@ -59,6 +59,10 @@ if args[:3]==['delete','pod','velero-store-0']:
     pod=state[key('Pod','velero-store-0','velero-store')];pod['metadata']['uid']='store-reopened';output('deleted')
 if args[0]!='get':raise SystemExit('unexpected mutation: '+str(args))
 resource=args[1]
+if resource.lower() in ('backup','backups','restore','restores'):
+    raise SystemExit('ambiguous resource resolves outside velero.io')
+qualified={'backups.velero.io':'Backup','restores.velero.io':'Restore'}
+resource=qualified.get(resource,resource.split('.')[0])
 name=args[2] if len(args)>2 and not args[2].startswith('-') else None
 if resource=='namespace' and name=='kube-system':output('cluster-fixture-uid')
 if resource=='storageclass':output({'provisioner':'driver.longhorn.io','parameters':{'dataEngine':'v1','fsType':'ext4'}})

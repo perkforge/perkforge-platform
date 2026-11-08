@@ -245,6 +245,11 @@ class VeleroDeployment(unittest.TestCase):
                          'fastcgi_temp_path /tmp/fastcgi;','uwsgi_temp_path /tmp/uwsgi;','scgi_temp_path /tmp/scgi;'):
             self.assertIn(required,config['nginx.conf'])
         pod=next(x for x in store if x['kind']=='StatefulSet')['spec']['template']['spec']
+        discovery=next(x for x in foundation if x['kind']=='ClusterRole' and x['metadata']['name']=='velero-binding-discovery')
+        self.assertEqual(discovery['rules'],[{'apiGroups':['rbac.authorization.k8s.io'],'resources':['clusterrolebindings'],'verbs':['list']}])
+        binding=next(x for x in foundation if x['kind']=='ClusterRoleBinding' and x['metadata']['name']=='velero-binding-discovery')
+        self.assertEqual(binding['subjects'],[{'kind':'ServiceAccount','name':'velero-server','namespace':'velero'}])
+        self.assertEqual(binding['roleRef'],{'apiGroup':'rbac.authorization.k8s.io','kind':'ClusterRole','name':'velero-binding-discovery'})
         self.assertFalse(pod.get('hostNetwork',False))
         self.assertEqual(pod['nodeSelector'],{'kubernetes.io/arch':'amd64','storage.perkforge.io/worker':'true'})
         self.assertNotIn('nodeName',pod)

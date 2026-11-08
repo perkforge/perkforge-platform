@@ -34,6 +34,22 @@ metadata: {name: velero-server, namespace: velero}
 automountServiceAccountToken: true
 imagePullSecrets: [{name: private-registry}]
 ---
+# Pinned Velero service-account action initialization lists bindings before filtering resources.
+# Read-only dependency only: no clusterrole reads, RBAC writes, or tenant grants.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: velero-binding-discovery}
+rules:
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [clusterrolebindings]
+  verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: velero-binding-discovery}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: velero-binding-discovery}
+subjects: [{kind: ServiceAccount, name: velero-server, namespace: velero}]
+---
 # Runtime global access is limited to infrastructure needed by CSI data movement.
 # Node-agent's exact1.18 informer lists Pods across namespaces using a node selector.
 apiVersion: rbac.authorization.k8s.io/v1
