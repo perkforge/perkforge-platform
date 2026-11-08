@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.2](https://github.com/perkforge/perkforge-platform/compare/v0.32.1...v0.32.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* **velero:** handle native CRD and policy API shapes ([#282](https://github.com/perkforge/perkforge-platform/issues/282)) ([9e296c0](https://github.com/perkforge/perkforge-platform/commit/9e296c08917eb2d8a848dfd37f73daf29833806c))
+
 ## [0.32.1](https://github.com/perkforge/perkforge-platform/compare/v0.32.0...v0.32.1) (2026-11-08)
 
 
