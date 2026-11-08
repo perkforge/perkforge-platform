@@ -324,7 +324,9 @@ class VeleroDeployment(unittest.TestCase):
                 self.assertEqual(schedule['schedule'],'0 */6 * * *')
                 self.assertEqual(schedule['paused'],paused)
                 self.assertEqual(schedule['template']['includedNamespaces'],['velero-poc-app'])
-                self.assertFalse(schedule['template']['includeClusterResources'])
+                self.assertNotIn('includeClusterResources',schedule['template'])
+                self.assertIn('persistentvolumes',schedule['template']['includedResources'])
+                self.assertNotIn('*',schedule['template']['includedResources'])
                 self.assertTrue(schedule['template']['snapshotMoveData'])
                 self.assertEqual(schedule['template']['ttl'],ttl)
                 self.assertFalse(schedule['useOwnerReferencesInBackup'])
@@ -496,7 +498,7 @@ class VeleroDeployment(unittest.TestCase):
             if edit=='duplicate':transfers.append(deepcopy(u))
             if edit=='missing':transfers=[]
             with self.subTest(edit=edit):self.assertFalse(guard.copied_transfers(b,transfers,[s]))
-        for edit in ('uid','volume','snapshot','namespace','bound','partial'):
+        for edit in ('uid','volume','snapshot','namespace','bound','partial','warning'):
             b,r,s,t,u,d=transfer_fixture()
             if edit=='uid':t['metadata']['uid']=s['metadata']['uid']
             if edit=='volume':t['spec']['volumeName']=s['spec']['volumeName']
@@ -504,7 +506,22 @@ class VeleroDeployment(unittest.TestCase):
             if edit=='namespace':d['spec']['targetVolume']['namespace']='source'
             if edit=='bound':t['status']['phase']='Pending'
             if edit=='partial':r['status']['phase']='PartiallyFailed'
+            if edit=='warning':r['status']['warnings']=1
             with self.subTest(edit=edit):self.assertFalse(guard.copied_transfers(r,[d],[s],[t],[u]))
+
+    def test_exercise_backup_allows_related_pv_without_cluster_enumeration(self):
+        tasks=yaml.safe_load((PACKAGE/'deployment/exercise-run.yaml').read_text())
+        ops=[o for task in tasks for o in task.get('ansible.builtin.set_fact',{}).get('owned_objects',[]) if isinstance(o,dict) and o.get('kind') in ('Backup','Restore')]
+        backup=next(o['spec'] for o in ops if o['kind']=='Backup')
+        restore=next(o['spec'] for o in ops if o['kind']=='Restore')
+        # Pinned auto semantics skip direct cluster enumeration for explicit namespaces;
+        # PVC related-item processing can still include its bound PV metadata.
+        self.assertNotIn('includeClusterResources',backup)
+        self.assertEqual(backup['includedNamespaces'],['{{ velero_exercise_source }}'])
+        self.assertEqual(backup['includedResources'],['pods','persistentvolumeclaims','persistentvolumes'])
+        self.assertFalse(restore['includeClusterResources'])
+        self.assertEqual(restore['includedResources'],['pods','persistentvolumeclaims'])
+        self.assertEqual(restore['existingResourcePolicy'],'none')
 
     def test_pvc_cache_grant_is_list_watch_only(self):
         source=(PACKAGE/'templates/foundation.yaml.j2').read_text()

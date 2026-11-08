@@ -28,6 +28,9 @@ def insert(obj):
         obj['status']={'phase':'Completed','errors':0,'warnings':0}
     if obj['kind']=='Restore':
         b=state[key('Backup',obj['spec']['backupName'],'velero')]
+        # Match the pinned PVC restore action's missing-related-PV warning.
+        if b['spec'].get('includeClusterResources') is False or 'persistentvolumes' not in b['spec']['includedResources']:
+            obj['status']['warnings']=1
         for source,target in obj['spec']['namespaceMapping'].items():
             for resource in list(state.values()):
                 if isinstance(resource,dict) and resource.get('kind') in ('Pod','PersistentVolumeClaim') and resource.get('metadata',{}).get('namespace')==source:
