@@ -1,6 +1,6 @@
 # All objects are inspected before the first write; existing objects are never adopted or patched.
 - ansible.builtin.command:
-    argv: '{{ vk + ["get", item.kind, item.metadata.name, "--ignore-not-found", "-o", "json"] + (["-n", item.metadata.namespace] if item.metadata.namespace is defined else []) }}'
+    argv: '{{ vk + ["get", item.kind + ("." + item.apiVersion.split("/")[0] if "/" in item.apiVersion else ""), item.metadata.name, "--ignore-not-found", "-o", "json"] + (["-n", item.metadata.namespace] if item.metadata.namespace is defined else []) }}'
   loop: '{{ owned_objects }}'
   changed_when: false
   register: owned_before
@@ -20,7 +20,7 @@
   changed_when: true
   no_log: '{{ owned_secret | default(false) }}'
 - ansible.builtin.command:
-    argv: '{{ vk + ["get", item.kind, item.metadata.name, "-o", "json"] + (["-n", item.metadata.namespace] if item.metadata.namespace is defined else []) }}'
+    argv: '{{ vk + ["get", item.kind + ("." + item.apiVersion.split("/")[0] if "/" in item.apiVersion else ""), item.metadata.name, "-o", "json"] + (["-n", item.metadata.namespace] if item.metadata.namespace is defined else []) }}'
   loop: '{{ owned_objects }}'
   changed_when: false
   register: owned_after

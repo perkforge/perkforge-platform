@@ -20,7 +20,13 @@ separate and needs its own acceptance. No live protection is claimed by this MR.
   Garage's configured object capacity must leave room in this PVC for SQLite,
   WAL, transient metadata snapshots and growth. Measure usage before expanding.
 - Platform-operated scoped access. No tenant Velero credential or broad namespace
-  grants. Explicit scheduled namespaces get read access plus CSI snapshot actions.
+  grants. Pinned Velero action initialization also needs cluster-wide `list` of
+  ClusterRoleBindings before namespace/resource filtering. A separate server
+  service-account grant supplies only that read dependency, with no RBAC writes
+  or ClusterRole reads. Adding this grant to an existing installation requires
+  explicit approval. Backup/Restore reads use their Velero API group to avoid
+  collisions with Longhorn resources. Explicit scheduled namespaces get read
+  access plus CSI snapshot actions.
   The native schedule uses an explicit core/app resource list, not arbitrary
   operator CRDs or RBAC. No pods/exec grant is needed for this baseline. Restore
   write grants exist only in the disposable exercise's target namespace.
