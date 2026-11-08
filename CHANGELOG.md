@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.3](https://github.com/perkforge/perkforge-platform/compare/v0.33.2...v0.33.3) (2026-11-08)
+
+
+### Bug Fixes
+
+* **velero:** allow pinned PVC cache discovery ([#297](https://github.com/perkforge/perkforge-platform/issues/297)) ([8ced351](https://github.com/perkforge/perkforge-platform/commit/8ced351935b44267e43cdd468c58d8ecfd8adf58))
+
 ## [0.33.2](https://github.com/perkforge/perkforge-platform/compare/v0.33.1...v0.33.2) (2026-11-08)
 
 
