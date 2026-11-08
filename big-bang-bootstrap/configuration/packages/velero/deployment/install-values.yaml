@@ -76,6 +76,10 @@ addons:
         nodeSelector:
           storage.perkforge.io/worker: 'true'
         configuration:
+          # Kopia uses $HOME/udmrepo; retain the read-only root filesystem.
+          extraEnvVars:
+          - name: HOME
+            value: /scratch
           features: EnableCSI
           uploaderType: kopia
           defaultSnapshotMoveData: true

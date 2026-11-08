@@ -214,6 +214,21 @@ class VeleroDeployment(unittest.TestCase):
             ds=next(x for x in vendor if x['kind']=='DaemonSet');self.assertEqual(ds['spec']['template']['spec']['serviceAccountName'],'velero-server')
             self.assertFalse(any('hostPath' in volume for volume in ds['spec']['template']['spec']['volumes']))
             self.assertIn('--node-agent-configmap=velero-node-agent',ds['spec']['template']['spec']['containers'][0]['args'])
+            baseline=helm(Path(os.environ['VELERO_CHART_SOURCE'])/'chart','velero','velero',child_values(new,'velero')+[yaml.safe_dump({'upstream':{'configuration':{'extraEnvVars':[]}}})],[arg for kind in ('VolumeSnapshot','VolumeSnapshotClass','VolumeSnapshotContent') for arg in ('--api-versions','snapshot.storage.k8s.io/v1/'+kind)])
+            # Pinned mover inherits the agent template; maintenance inherits the server.
+            for kind in ('Deployment','DaemonSet'):
+                pod=next(x for x in vendor if x['kind']==kind)['spec']['template']['spec']
+                container=pod['containers'][0]
+                self.assertEqual([e for e in container['env'] if e['name']=='HOME'],[{'name':'HOME','value':'/scratch'}])
+                self.assertIn({'name':'scratch','mountPath':'/scratch'},container['volumeMounts'])
+                scratch=next(v for v in pod['volumes'] if v['name']=='scratch')
+                self.assertIn('emptyDir',scratch)
+                before=next(x for x in baseline if x['kind']==kind)['spec']['template']['spec']
+                self.assertEqual(container['securityContext'],before['containers'][0]['securityContext'])
+                self.assertEqual(pod.get('securityContext'),before.get('securityContext'))
+                if kind=='Deployment':self.assertTrue(container['securityContext']['readOnlyRootFilesystem'])
+                self.assertIn(':v1.18.4',container['image'])
+                if kind=='DaemonSet':self.assertEqual(scratch['emptyDir']['sizeLimit'],'1Gi')
             store=helm(PACKAGE/'backend-chart','velero-store','velero-store',[runtime['data']['backend.yaml']])
             self.assert_private_route(objects,store)
             self.assertFalse(any(x['kind'] in ('PersistentVolume','PersistentVolumeClaim','Secret','ClusterRole','ClusterRoleBinding') for x in store))
