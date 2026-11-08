@@ -491,6 +491,34 @@ class VeleroDeployment(unittest.TestCase):
             if edit=='partial':r['status']['phase']='PartiallyFailed'
             with self.subTest(edit=edit):self.assertFalse(guard.copied_transfers(r,[d],[s],[t],[u]))
 
+    def test_optional_node_agent_probe_is_named_get_only(self):
+        source=(PACKAGE/'templates/foundation.yaml.j2').read_text()
+        runtime=source[source.index('# Runtime global'):source.index('{% for name')]
+        objects=list(yaml.safe_load_all(runtime))
+        probe=next(o for o in objects if o['kind']=='Role' and o['metadata']['name']=='velero-action-reads')
+        self.assertEqual(probe['metadata']['namespace'],'velero')
+        self.assertEqual(probe['rules'],[{'apiGroups':['apps'],'resources':['daemonsets'],
+            'resourceNames':['node-agent-windows'],'verbs':['get']},{'apiGroups':['apps'],'resources':['deployments'],'resourceNames':['velero'],'verbs':['get']}])
+        binding=next(o for o in objects if o['kind']=='RoleBinding' and o['metadata']['name']==probe['metadata']['name'])
+        self.assertEqual(binding['metadata']['namespace'],'velero')
+        self.assertEqual(binding['roleRef'],{'apiGroup':'rbac.authorization.k8s.io','kind':'Role','name':probe['metadata']['name']})
+        self.assertEqual(binding['subjects'],[{'kind':'ServiceAccount','name':'velero-server','namespace':'velero'}])
+        controller=next(o for o in objects if o['kind']=='Role' and o['metadata']['name']=='velero-controller')
+        rules=controller['rules']+probe['rules']
+        def allowed(verb,name,namespace='velero',resource='daemonsets'):
+            return namespace=='velero' and any('apps' in r['apiGroups'] and resource in r['resources']
+                and verb in r['verbs'] and name in r.get('resourceNames',[]) for r in rules)
+        # Pinned IsReady probes both names before evaluating Linux readiness.
+        self.assertTrue(allowed('get','node-agent'))
+        self.assertTrue(allowed('get','node-agent-windows'))
+        self.assertTrue(allowed('get','velero',resource='deployments'))
+        self.assertFalse(allowed('get','other',resource='deployments'))
+        self.assertFalse(allowed('list','velero',resource='deployments'))
+        self.assertFalse(allowed('patch','velero',resource='deployments'))
+        for verb,name,namespace in [('list','node-agent-windows','velero'),('get','other','velero'),
+                ('patch','node-agent-windows','velero'),('get','node-agent-windows','other')]:
+            self.assertFalse(allowed(verb,name,namespace))
+
     def test_runtime_rbac_has_no_global_secret_or_rbac_writes(self):
         # Template portions before the installer loop are valid YAML without expansion
         source=(PACKAGE/'templates/foundation.yaml.j2').read_text()

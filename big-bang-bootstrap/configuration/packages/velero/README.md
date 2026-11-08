@@ -25,7 +25,13 @@ separate and needs its own acceptance. No live protection is claimed by this MR.
   service-account grant supplies only that read dependency, with no RBAC writes
   or ClusterRole reads. Adding this grant to an existing installation requires
   explicit approval. Backup/Restore reads use their Velero API group to avoid
-  collisions with Longhorn resources. Explicit scheduled namespaces get read
+  collisions with Longhorn resources. The pinned readiness check probes both Linux
+  and optional Windows node-agent names. A separate namespaced grant permits
+  only GET of DaemonSet `velero/node-agent-windows`, allowing NotFound on Linux,
+  and Deployment `velero/velero`, whose image the restore action reads during
+  initialization. It neither deploys Windows agents nor permits other workload
+  reads or writes. Live addition
+  requires explicit approval. Explicit scheduled namespaces get read
   access plus CSI snapshot actions.
   The native schedule uses an explicit core/app resource list, not arbitrary
   operator CRDs or RBAC. No pods/exec grant is needed for this baseline. Restore

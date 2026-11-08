@@ -86,6 +86,28 @@ metadata: {name: velero-runtime}
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: velero-runtime}
 subjects: [{kind: ServiceAccount, name: velero-server, namespace: velero}]
 ---
+# Pinned1.18.4 readiness checks the optional Windows DaemonSet even on Linux.
+# Allow only this named GET so an absent object returns NotFound, not Forbidden.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: velero-action-reads, namespace: velero}
+rules:
+- apiGroups: [apps]
+  resources: [daemonsets]
+  resourceNames: [node-agent-windows]
+  verbs: [get]
+# Restore action initialization reads the pinned server image from its Deployment.
+- apiGroups: [apps]
+  resources: [deployments]
+  resourceNames: [velero]
+  verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: velero-action-reads, namespace: velero}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: velero-action-reads}
+subjects: [{kind: ServiceAccount, name: velero-server, namespace: velero}]
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata: {name: velero-controller, namespace: velero}
