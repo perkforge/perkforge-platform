@@ -1,7 +1,7 @@
 - name: Require the existing CSI APIs, never install a second snapshot controller
   ansible.builtin.command:
     argv: '{{ vk + ["get", "crd", item, "-o", "jsonpath={.status.conditions[?(@.type==\"Established\")].status}"] }}'
-  loop: [volumesnapshots.snapshot.storage.k8s.io, volumesnapshotcontents.snapshot.storage.k8s.io, volumesnapshotclasses.snapshot.storage.k8s.io, middlewares.traefik.io]
+  loop: [volumesnapshots.snapshot.storage.k8s.io, volumesnapshotcontents.snapshot.storage.k8s.io, volumesnapshotclasses.snapshot.storage.k8s.io]
   changed_when: false
   register: snapshot_apis
 - ansible.builtin.assert:

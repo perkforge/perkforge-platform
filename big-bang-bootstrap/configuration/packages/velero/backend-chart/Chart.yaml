@@ -1,6 +1,6 @@
 apiVersion: v2
 name: perkforge-velero-store
-version: 0.1.0
+version: 0.1.1
 appVersion: 2.5.0
 description: Dedicated single-node local backup object store; never the GitLab instance
 type: application

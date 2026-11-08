@@ -17,7 +17,7 @@ spec:
   accessModes: [ReadWriteOnce]
   volumeMode: Filesystem
   storageClassName: {{ velero_store_storage_class | default('longhorn') | to_json }}
-  resources: {requests: {storage: {{ velero_store_size | default('20Gi') | to_json }}}}
+  resources: {requests: {storage: {{ velero_store_size | default('5Gi') | to_json }}}}
 ---
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
@@ -121,7 +121,7 @@ rules:
   resources: [deployments, daemonsets, statefulsets]
   verbs: [get, list, watch, create, update, patch, delete]
 - apiGroups: [networking.k8s.io]
-  resources: [networkpolicies, ingresses]
+  resources: [networkpolicies]
   verbs: [get, list, watch, create, update, patch, delete]
 - apiGroups: ['']
   resources: [pods]
@@ -129,11 +129,6 @@ rules:
 - apiGroups: [apps]
   resources: [replicasets]
   verbs: [get, list, watch]
-{% if namespace == 'velero-store' %}
-- apiGroups: [traefik.io]
-  resources: [middlewares]
-  verbs: [get, list, watch, create, update, patch, delete]
-{% endif %}
 {% if namespace == 'velero' %}
 - apiGroups: [velero.io]
   resources: [backupstoragelocations, schedules]
@@ -180,10 +175,10 @@ spec:
 {% endfor %}
     ports: [{protocol: TCP, port: {{ velero_api_port }}}]
   - to:
-{% for cidr in velero_store_cidrs %}
-    - ipBlock: {cidr: {{ cidr | to_json }}}
-{% endfor %}
-    ports: [{protocol: TCP, port: 443}]
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: velero-store}}
+      podSelector: {matchLabels: {app: velero-store}}
+    # CNI enforces this against the destination Pod after Service DNAT.
+    ports: [{protocol: TCP, port: 8443}]
 
 ---
 # This bounds the pilot workload; measure actual large-volume resource needs before cadence activation.
