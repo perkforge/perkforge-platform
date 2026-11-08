@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.2](https://github.com/perkforge/perkforge-platform/compare/v0.31.1...v0.31.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* **grafana:** preserve empty web origins on client toggle ([#275](https://github.com/perkforge/perkforge-platform/issues/275)) ([1ff07af](https://github.com/perkforge/perkforge-platform/commit/1ff07af875c34ce26cbf3527b75038b54d183bef))
+
 ## [0.31.1](https://github.com/perkforge/perkforge-platform/compare/v0.31.0...v0.31.1) (2026-11-07)
 
 
