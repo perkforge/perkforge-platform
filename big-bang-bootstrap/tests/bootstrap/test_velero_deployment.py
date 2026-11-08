@@ -90,6 +90,80 @@ class VeleroDeployment(unittest.TestCase):
 
 
 
+    def test_native_install_remaining_path_create_and_repeat(self):
+        import base64
+        import configparser
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory);package=path/'velero'
+            shutil.copytree(PACKAGE,package,ignore=shutil.ignore_patterns('__pycache__'))
+            binary=path/'kubectl';binary.write_text((ROOT/'tests/fixtures/velero_kubectl.py').read_text());binary.chmod(0o700)
+            state=path/'state.json';state.write_text('{}');private=path/'private';private.mkdir(mode=0o700)
+            files={name:str(private/name) for name in ['access_key','admin','ca_cert','registry','repository_password','rpc','secret_key','tls_cert','tls_key']}
+            contents={'access_key':'GK'+'a'*24,'admin':'a'*32,'registry':json.dumps({'auths':{}}),
+                      'repository_password':'b'*32,'rpc':'c'*64,'secret_key':'d'*64}
+            for name,content in contents.items():Path(files[name]).write_text(content)
+            cert=subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','2',
+                '-subj','/CN=velero-store.velero-store.svc.cluster.local','-addext',
+                'subjectAltName=DNS:velero-store.velero-store.svc.cluster.local',
+                '-keyout',files['tls_key'],'-out',files['tls_cert']],capture_output=True,text=True)
+            self.assertEqual(cert.returncode,0,cert.stderr)
+            Path(files['ca_cert']).write_text(Path(files['tls_cert']).read_text())
+            for file in files.values():Path(file).chmod(0o600)
+            values={**yaml.safe_load((PACKAGE/'deployment/defaults.yaml').read_text()),
+                'velero_schedule_namespaces':[], 'velero_data_nodes':['worker-fixture'],
+                'velero_api_cidrs':['192.0.2.4/32'],'velero_kubelet_root':'/var/lib/kubelet',
+                'velero_store_bucket':'backups','velero_store_prefix':'cluster/fixture',
+                'velero_secret_files':files,'vk':[str(binary)]}
+            tasks=yaml.safe_load((PACKAGE/'deployment/install-run.yaml').read_text())
+            start=next(i for i,t in enumerate(tasks) if t.get('ansible.builtin.set_fact',{}).get('velero_write_namespaces')==[])
+            harness=package/'fixture.yaml';harness.write_text(yaml.safe_dump([{
+                'hosts':'localhost','connection':'local','gather_facts':False,'vars':values,'tasks':tasks[start:]}]))
+            for repeat in (False,True):
+                result=subprocess.run(['ansible-playbook','-i','localhost,',str(harness)],text=True,capture_output=True,timeout=90,
+                    env={**os.environ,'VELERO_FAKE_STATE':str(state),'ANSIBLE_LOCAL_TEMP':str(path/'ansible'),'KUBECONFIG':'/dev/null'})
+                self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                if repeat:self.assertIn('changed=0',result.stdout)
+            objects=json.loads(state.read_text())
+            secrets=[o for o in objects.values() if o.get('kind')=='Secret']
+            self.assertEqual(len(secrets),5);self.assertTrue(all(o['immutable'] for o in secrets))
+            cloud=base64.b64decode(objects['Secret|velero|velero-cloud-credentials']['data']['cloud']).decode()
+            config=configparser.ConfigParser();config.read_string(cloud)
+            self.assertEqual(config['default']['aws_access_key_id'],contents['access_key'])
+            self.assertEqual(config['default']['aws_secret_access_key'],contents['secret_key'])
+            runtime=objects['ConfigMap|bigbang|velero-runtime-values']
+            upstream=yaml.safe_load(runtime['data']['velero.yaml'])['addons']['velero']['values']['upstream']
+            self.assertEqual(upstream['schedules'],{})
+
+    def test_native_install_assembly_with_empty_and_selected_namespaces(self):
+        tasks=yaml.safe_load((PACKAGE/'deployment/install-run.yaml').read_text())
+        assembly=next(t for t in tasks if 'templates/foundation.yaml.j2' in t.get('loop',''))
+        for namespaces in ([], ['tenant-fixture'], ['tenant-one','tenant-two']):
+            with self.subTest(namespaces=namespaces), tempfile.TemporaryDirectory() as directory:
+                path=Path(directory);package=path/'velero'
+                shutil.copytree(PACKAGE,package,ignore=shutil.ignore_patterns('__pycache__'))
+                values={**yaml.safe_load((PACKAGE/'deployment/defaults.yaml').read_text()),
+                        'velero_namespaces':namespaces,'velero_write_namespaces':[], 'owned_objects':[],
+                        'velero_data_nodes':['worker-fixture'],'velero_api_cidrs':['192.0.2.4/32'],
+                        'velero_kubelet_root':'/var/lib/kubelet'}
+                harness=package/'fixture.yaml'
+                harness.write_text(yaml.safe_dump([{'hosts':'localhost','connection':'local','gather_facts':False,
+                    'vars':values,'tasks':[assembly,{'ansible.builtin.copy':{'dest':str(path/'objects.json'),
+                        'content':'{{ owned_objects | to_json }}'}}]}]))
+                result=subprocess.run(['ansible-playbook','-i','localhost,',str(harness)],text=True,capture_output=True,timeout=30,
+                    env={**os.environ,'ANSIBLE_LOCAL_TEMP':str(path/'ansible'),'KUBECONFIG':'/dev/null'})
+                self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                objects=json.loads((path/'objects.json').read_text())
+                roles=[o for o in objects if o['kind']=='Role' and o['metadata']['name']=='velero-selected-resources']
+                bindings=[o for o in objects if o['kind']=='RoleBinding' and o['metadata']['name']=='velero-selected-resources']
+                self.assertEqual({o['metadata']['namespace'] for o in roles},set(namespaces))
+                self.assertEqual(len(bindings),len(namespaces))
+                self.assertTrue(all(o['metadata']['labels']['perkforge.io/owner']=='velero-platform-v1' for o in objects))
+                self.assertEqual(len([o for o in objects if o['kind']=='PersistentVolumeClaim']),1)
+                for role in roles:
+                    for rule in role['rules']:
+                        if rule['apiGroups']!=['snapshot.storage.k8s.io']:
+                            self.assertEqual(rule['verbs'],['get','list','watch'])
+
     def test_native_runtime_values_and_foundation_render(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory); package=path/'velero'

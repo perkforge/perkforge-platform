@@ -77,7 +77,7 @@
     velero_write_namespaces: []
 - ansible.builtin.set_fact:
     owned_objects: '{{ owned_objects + [item | combine({"metadata":item.metadata | combine({"labels":(item.metadata.labels | default({})) | combine({"perkforge.io/owner":"velero-platform-v1"})})})] }}'
-  loop: '{{ (lookup("template", "templates/foundation.yaml.j2") + "\n---\n" + lookup("template", "templates/namespace-access.yaml.j2")) | from_yaml_all | select | list }}'
+  loop: '{{ (lookup("template", "templates/foundation.yaml.j2") | from_yaml_all | select | list) + (lookup("template", "templates/namespace-access.yaml.j2") | default("", true) | from_yaml_all | select | list) }}'
 - ansible.builtin.include_tasks: deployment/create-owned.yaml
 - ansible.builtin.include_tasks: deployment/credentials.yaml
 - ansible.builtin.include_tasks: deployment/runtime-values.yaml
