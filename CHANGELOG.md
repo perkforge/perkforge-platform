@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.4](https://github.com/perkforge/perkforge-platform/compare/v0.33.3...v0.33.4) (2026-11-08)
+
+
+### Bug Fixes
+
+* **velero:** use writable repository home ([#299](https://github.com/perkforge/perkforge-platform/issues/299)) ([ba2a9bf](https://github.com/perkforge/perkforge-platform/commit/ba2a9bf1c59e409f1ffd647b1f3387a15776e392))
+
 ## [0.33.3](https://github.com/perkforge/perkforge-platform/compare/v0.33.2...v0.33.3) (2026-11-08)
 
 
