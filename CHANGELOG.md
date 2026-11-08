@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.33.0](https://github.com/perkforge/perkforge-platform/compare/v0.32.4...v0.33.0) (2026-11-08)
+
+
+### Features
+
+* **mattermost:** inherit Big Bang versions and prepare Keycloak SSO ([#116](https://github.com/perkforge/perkforge-platform/issues/116)) ([041e1e7](https://github.com/perkforge/perkforge-platform/commit/041e1e7c43a3112bb2f75f491a83681c71a1d65a))
+
+
+### Bug Fixes
+
+* **velero:** size Garage CPU request for local PoC ([#289](https://github.com/perkforge/perkforge-platform/issues/289)) ([7ae34fd](https://github.com/perkforge/perkforge-platform/commit/7ae34fdc9a4d319b37b2997b65681c723cb1e2e1))
+
 ## [0.32.4](https://github.com/perkforge/perkforge-platform/compare/v0.32.3...v0.32.4) (2026-11-08)
 
 
