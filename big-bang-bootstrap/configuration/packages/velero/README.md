@@ -70,6 +70,21 @@ cluster-wide discovery, arbitrary resource coverage or restores beyond the
 approved target require a separate reviewed policy/configuration change. The
 PVC informer grant alone neither selects namespaces nor enables those backups.
 
+## Repository maintenance cache
+
+Pinned maintenance reads the server Deployment through the controller cache.
+The existing named GET is insufficient: this cache initializes Deployment LIST
+and WATCH within `velero`. The separate `velero-maintenance-cache` Role/Binding
+adds only those two verbs in that namespace, to the shared server/node-agent
+service account. It exposes full Deployment objects, including pod templates,
+inline environment values and Secret references, but does not retrieve referenced
+Secret values. It adds no GET, workload writes or access to other namespaces.
+The pinned server hardcodes a namespace cache without a configurable exact-name
+selector. Existing scoped roles cover the other maintenance cache types (Jobs,
+Pods, ConfigMaps, BackupRepositories, BackupStorageLocations and credential
+Secrets); this change does not expand those grants. Live addition requires
+explicit approval and a reviewed release.
+
 ## Writable repository configuration
 
 The supported upstream `configuration.extraEnvVars` sets `HOME=/scratch` for

@@ -539,6 +539,25 @@ class VeleroDeployment(unittest.TestCase):
         for resource in ('secrets','pods','persistentvolumes','*'):
             self.assertNotIn(resource,rule['resources'])
 
+    def test_maintenance_cache_is_namespace_deployment_list_watch_only(self):
+        source=(PACKAGE/'templates/foundation.yaml.j2').read_text()
+        objects=[o for o in yaml.safe_load_all(source[source.index('# Pinned maintenance'):source.index('# Pinned1.18.4 readiness')]) if o]
+        role,binding=objects
+        self.assertEqual(role['kind'],'Role')
+        self.assertEqual(role['metadata'],{'name':'velero-maintenance-cache','namespace':'velero'})
+        self.assertEqual(role['rules'],[{'apiGroups':['apps'],'resources':['deployments'],'verbs':['list','watch']}])
+        self.assertEqual(binding['kind'],'RoleBinding')
+        self.assertEqual(binding['metadata'],role['metadata'])
+        self.assertEqual(binding['roleRef'],{'apiGroup':'rbac.authorization.k8s.io','kind':'Role','name':'velero-maintenance-cache'})
+        self.assertEqual(binding['subjects'],[{'kind':'ServiceAccount','name':'velero-server','namespace':'velero'}])
+        def allowed(verb,resource,namespace):
+            return namespace==role['metadata']['namespace'] and any(verb in r['verbs'] and resource in r['resources'] for r in role['rules'])
+        for verb in ('list','watch'):self.assertTrue(allowed(verb,'deployments','velero'))
+        for verb,resource,namespace in [('get','deployments','velero'),('patch','deployments','velero'),
+                ('create','deployments','velero'),('delete','deployments','velero'),('list','secrets','velero'),
+                ('list','daemonsets','velero'),('list','deployments','other'),('watch','deployments','other')]:
+            self.assertFalse(allowed(verb,resource,namespace))
+
     def test_optional_node_agent_probe_is_named_get_only(self):
         source=(PACKAGE/'templates/foundation.yaml.j2').read_text()
         runtime=source[source.index('# Runtime global'):source.index('{% for name')]
