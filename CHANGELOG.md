@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.0](https://github.com/perkforge/perkforge-platform/compare/v0.31.3...v0.32.0) (2026-11-08)
+
+
+### Features
+
+* **velero:** add local baseline and configurable backups ([#255](https://github.com/perkforge/perkforge-platform/issues/255)) ([ec83a2c](https://github.com/perkforge/perkforge-platform/commit/ec83a2c7ac9457be7d8fcccfaf4a7345d3bbca50))
+
 ## [0.31.3](https://github.com/perkforge/perkforge-platform/compare/v0.31.2...v0.31.3) (2026-11-08)
 
 
