@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.3](https://github.com/perkforge/perkforge-platform/compare/v0.31.2...v0.31.3) (2026-11-08)
+
+
+### Bug Fixes
+
+* **grafana:** provide memory headroom after repeated OOMs ([#277](https://github.com/perkforge/perkforge-platform/issues/277)) ([172ec94](https://github.com/perkforge/perkforge-platform/commit/172ec94f7709b7b46b2499390e785d701a1830ba))
+
 ## [0.31.2](https://github.com/perkforge/perkforge-platform/compare/v0.31.1...v0.31.2) (2026-11-07)
 
 
