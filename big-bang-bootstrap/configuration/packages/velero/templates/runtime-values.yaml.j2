@@ -10,6 +10,5 @@ data:
     clientCIDRs: {{ velero_store_client_cidrs | to_json }}
     region: garage
     claimName: velero-store
-    storageNode: {{ velero_storage_node | to_json }}
   velero.yaml: |
 {{ velero_runtime_values | to_nice_yaml(indent=2) | indent(4, true) }}

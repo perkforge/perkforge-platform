@@ -1,14 +1,10 @@
-# Proposed local upgrade recovery, not independent disaster recovery.
+# Local usage/testing only. Ordinary Longhorn-backed Garage is not independent DR.
 profile:
   retention_hours: 48
   csi_driver: driver.longhorn.io
-  data_engine: v1
-  volume_filesystem: ext4
-  object_store: separate-s3-compatible-service
-  backing: quota-bounded-directory-static-local-pv
-  storage_node: worker-2
-  reclaim_policy: Retain
-  filesystem: xfs
-  # Observed 2026-11-07: one existing filesystem, mounted with noquota.
-  observed_project_quota_enabled: false
+  object_store: dedicated-garage
+  backing: longhorn-pvc
+  pvc_size_example: 20Gi
   independent_failure_domain: false
+  schedule_cron: '' # Operator-selected cadence; never infer an RPO from retention.
+  schedule_paused: true

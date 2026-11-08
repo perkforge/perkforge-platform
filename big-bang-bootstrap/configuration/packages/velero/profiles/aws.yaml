@@ -1,10 +1,13 @@
-# Future profile, not a provisioned or accepted AWS target.
+# Configurable real-world AWS starting points, not a provisioned/accepted target.
 profile:
   retention_hours: 336
   csi_driver: ebs.csi.aws.com
-  data_engine: ebs-csi
-  volume_filesystem: ext4
   object_store: aws-s3
-  backing: durable-s3-bucket
-  off_worker_storage_intent: true
-  disaster_recovery_acceptance: unverified
+  backing: existing-s3-bucket
+  schedule_cron: ''
+  schedule_paused: true
+  identity: workload-identity
+  encryption: operator-selected-kms-key
+# Configure native Velero values for region/bucket/prefix, workload identity,
+# trusted CA if needed, EBS snapshot-class/zone mapping, resource sizing and TTL.
+# Do not deploy the local Garage chart/PVC in AWS or reuse local credentials.

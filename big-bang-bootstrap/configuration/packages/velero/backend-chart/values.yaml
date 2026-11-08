@@ -1,6 +1,5 @@
-# No capacity or backing-path defaults. Owner-admin foundation supplies the claim.
+# Dedicated ordinary Longhorn PVC supplied by foundation; not independent DR.
 host: ''
 region: garage
 claimName: velero-store
-storageNode: ''
 clientCIDRs: [] # Exact reviewed source addresses as Traefik actually observes them.

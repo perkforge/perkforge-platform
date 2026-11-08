@@ -11,31 +11,13 @@ metadata:
   labels: {pod-security.kubernetes.io/enforce: restricted}
 ---
 apiVersion: v1
-kind: PersistentVolume
-metadata: {name: velero-store}
-spec:
-  capacity: {storage: '{{ velero_quota_bytes }}'}
-  volumeMode: Filesystem
-  accessModes: [ReadWriteOnce]
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ''
-  local: {path: {{ velero_storage_path | to_json }}}
-  claimRef: {namespace: velero-store, name: velero-store}
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-      - matchExpressions:
-        - {key: kubernetes.io/hostname, operator: In, values: [{{ velero_storage_node | to_json }}]}
----
-apiVersion: v1
 kind: PersistentVolumeClaim
 metadata: {name: velero-store, namespace: velero-store}
 spec:
   accessModes: [ReadWriteOnce]
   volumeMode: Filesystem
-  storageClassName: ''
-  volumeName: velero-store
-  resources: {requests: {storage: '{{ velero_quota_bytes }}'}}
+  storageClassName: {{ velero_store_storage_class | default('longhorn') | to_json }}
+  resources: {requests: {storage: {{ velero_store_size | default('20Gi') | to_json }}}}
 ---
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
@@ -154,7 +136,7 @@ rules:
 {% endif %}
 {% if namespace == 'velero' %}
 - apiGroups: [velero.io]
-  resources: [backupstoragelocations]
+  resources: [backupstoragelocations, schedules]
   verbs: [get, list, watch, create, update, patch, delete]
 {% endif %}
 ---

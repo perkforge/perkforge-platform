@@ -1,0 +1,33 @@
+# Only the explicitly approved runtime data is configurable; never adopt another owner.
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "configmap", "velero-runtime-values", "-n", "bigbang", "--ignore-not-found", "-o", "json"] }}'
+  changed_when: false
+  register: runtime_before
+- ansible.builtin.assert:
+    that:
+    - (runtime_before.stdout | from_json).metadata.labels['perkforge.io/owner'] == 'velero-platform-v1'
+    - (runtime_before.stdout | from_json).data.keys() | sort == ['backend.yaml','velero.yaml']
+  when: runtime_before.stdout | length > 0
+- ansible.builtin.command:
+    argv: '{{ vk + ["create", "-f", "-"] }}'
+    stdin: '{{ velero_desired_runtime | to_json }}'
+  when: runtime_before.stdout | length == 0
+  changed_when: true
+- ansible.builtin.command:
+    argv: '{{ vk + ["patch", "configmap", "velero-runtime-values", "-n", "bigbang", "--type=json", "-p", patch | to_json] }}'
+  vars:
+    patch:
+    - op: test
+      path: /metadata/resourceVersion
+      value: '{{ (runtime_before.stdout | from_json).metadata.resourceVersion }}'
+    - op: replace
+      path: /data
+      value: '{{ velero_desired_runtime.data }}'
+  when: runtime_before.stdout | length > 0 and (runtime_before.stdout | from_json).data != velero_desired_runtime.data
+  changed_when: true
+- ansible.builtin.command:
+    argv: '{{ vk + ["get", "configmap", "velero-runtime-values", "-n", "bigbang", "-o", "json"] }}'
+  changed_when: false
+  register: runtime_after
+- ansible.builtin.assert:
+    that: runtime_after.stdout | from_json | velero_owned_matches(velero_desired_runtime)

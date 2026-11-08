@@ -10,9 +10,6 @@ rules:
 - apiGroups: ['']
   resources: [services, endpoints]
   verbs: [get, list, watch]
-- apiGroups: ['']
-  resources: [pods/exec]
-  verbs: [get, create]
 - apiGroups: [apps]
   resources: [deployments, statefulsets, daemonsets, replicasets, controllerrevisions]
   verbs: {{ (["get","list","watch","create","update","patch","delete"] if namespace in velero_write_namespaces else ["get","list","watch"]) | to_json }}

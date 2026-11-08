@@ -56,69 +56,6 @@ def exact_hosts(values):
         return False
 
 
-def storage_safe(mount, project, enforcement, quota, node, settings, longhorn_mount, disk_identity, inputs):
-    try:
-        data = inputs['velero_store_capacity_bytes']
-        metadata = inputs['velero_metadata_budget_bytes']
-        if type(data) is not int or type(metadata) is not int or min(data, metadata) <= 0:
-            return False
-        if data + metadata > inputs['velero_quota_bytes']:
-            return False
-        fs, = mount['filesystems']
-        options = fs['options'].split(',')
-        if fs['fstype'] != 'xfs' or 'noquota' in options or not {'prjquota', 'pquota'} & set(options):
-            return False
-        if fs['target'] != inputs['velero_storage_mount'] or fs['uuid'] != inputs['velero_storage_uuid']:
-            return False
-        lhfs, = longhorn_mount['filesystems']
-        if any(lhfs.get(k) != fs.get(k) for k in ('uuid', 'source', 'target', 'fstype')):
-            return False
-        path = inputs['velero_storage_path']
-        if not path.startswith(fs['target'].rstrip('/') + '/'):
-            return False
-        relative = path[len(fs['target'].rstrip('/')) + 1:]
-        # Dedicated direct child, never a replica, metadata, engine or existing disk subtree.
-        if not re.fullmatch(r'velero-backups[-a-z0-9]*', relative):
-            return False
-        for candidate in node['spec']['disks'].values():
-            root = candidate['path'].rstrip('/')
-            if root != fs['target'].rstrip('/') and (path == root or path.startswith(root + '/')):
-                return False
-        flags = int(re.search(r'fsxattr.xflags\s*=\s*(0x[0-9a-fA-F]+)', project).group(1), 16)
-        project_id = int(re.search(r'fsxattr.projid\s*=\s*(\d+)', project).group(1))
-        if project_id != inputs['velero_project_id'] or not flags & 0x200:
-            return False
-        state = enforcement.split('Project quota state', 1)[1]
-        if not re.search(r'Accounting:\s+ON', state) or not re.search(r'Enforcement:\s+ON', state):
-            return False
-        rows = [line.split() for line in quota.splitlines() if line.lstrip().startswith('#' + str(project_id) + ' ')]
-        row, = rows
-        hard = int(row[3]) * 1024
-        used = int(row[1]) * 1024
-        if hard != inputs['velero_quota_bytes'] or used >= hard:
-            return False
-        disk = node['spec']['disks'][inputs['velero_longhorn_disk_name']]
-        if disk['path'] != inputs['velero_longhorn_disk_path'] or not disk['allowScheduling']:
-            return False
-        if path == disk['path'] or path.startswith(disk['path'].rstrip('/') + '/replicas/'):
-            return False
-        status = node['status']['diskStatus'][inputs['velero_longhorn_disk_name']]
-        if status['diskUUID'] != disk_identity['diskUUID'] or not status['diskUUID']:
-            return False
-        capacity = min(int(fs['size']), int(status['storageMaximum']))
-        if int(status['storageScheduled']) > capacity - int(disk['storageReserved']):
-            return False
-        config = {x['metadata']['name']: int(x['value']) for x in settings['items']}
-        if config['storage-over-provisioning-percentage'] != 100 or config['storage-minimal-available-percentage'] < 25:
-            return False
-        floor = int(fs['size']) * config['storage-minimal-available-percentage'] // 100
-        required = hard + inputs['velero_restore_headroom_bytes'] + floor
-        # Reserved capacity includes both backup allocation and original minimum-free safety.
-        return disk['storageReserved'] >= required and int(fs['avail']) >= required - used
-    except (KeyError, TypeError, ValueError, AttributeError, IndexError):
-        return False
-
-
 def copied_transfers(operation, transfers, source_pvcs, target_pvcs=None, uploads=None):
     """Reject name/count-only success: exact operation/PVC UIDs and copied repository snapshots."""
     try:
@@ -175,45 +112,7 @@ def copied_transfers(operation, transfers, source_pvcs, target_pvcs=None, upload
         return False
 
 
-def safe_hooks(hooks, namespace, restore):
-    try:
-        if not isinstance(hooks, list) or not hooks:
-            return False
-        for hook in hooks:
-            if hook['includedNamespaces'] != [namespace] or not hook.get('labelSelector'):
-                return False
-            groups = ['postHooks'] if restore else ['pre', 'post']
-            for group in groups:
-                if not hook.get(group):
-                    return False
-                for action in hook[group]:
-                    execute = action['exec']
-                    if execute['onError'] != 'Fail' or not execute['container'] or not execute['command']:
-                        return False
-                    if not all(isinstance(x, str) and x for x in execute['command']):
-                        return False
-                    if not execute.get('execTimeout' if restore else 'timeout'):
-                        return False
-        return True
-    except (KeyError, TypeError):
-        return False
-
-
-def selector_specs_match(saved, source, root):
-    try:
-        for key, current, allowed in [('source', source, {'ref'}), ('root', root, {'path','suspend'})]:
-            old = saved[key]
-            if any(old['metadata'][k] != current['metadata'][k] for k in ('uid','name','namespace')):
-                return False
-            if {k:v for k,v in old['spec'].items() if k not in allowed} != {k:v for k,v in current['spec'].items() if k not in allowed}:
-                return False
-        return True
-    except (KeyError, TypeError):
-        return False
-
-
 class FilterModule:
     def filters(self):
         return {'velero_owned_matches': owned_matches, 'velero_exact_hosts': exact_hosts,
-                'velero_storage_safe': storage_safe, 'velero_copied_transfers': copied_transfers,
-                'velero_safe_hooks': safe_hooks, 'velero_selector_specs_match': selector_specs_match}
+                'velero_copied_transfers': copied_transfers}

@@ -42,9 +42,8 @@ separately approve seed resume. See [release and seed activation](configuration/
 
 Flux installation requires the pinned Iron Bank image-pull credential. The supported bootstrap stages its namespace and separately gated Secret delivery before controllers; existing Secrets can be reused without a local credential file. See the protected-input and repeat procedure in [platform operations](configuration/ansible/README.md#repeatable-flux-registry-preparation).
 
-The default-off [Velero rollout and recovery](configuration/packages/velero/README.md)
-consolidates local installation, a separate bounded Garage store and isolated
-copied-data restore, with a future AWS design. Existing roots remain unchanged.
-Pinned Garage 2.5/exact-client component tests pass. Approved host quota/capacity
-maintenance, private routing and native cluster acceptance still gate deployment;
-schedules remain paused.
+The default-off [Velero local baseline](configuration/packages/velero/README.md)
+adds a dedicated small Longhorn-backed Garage instance, configurable scheduled
+backups and an isolated copied-data exercise. It preserves the existing Grafana/
+Harbor composition. This local PoC is not independent disaster recovery; AWS
+values remain configurable. No host quota or reservation changes are required.

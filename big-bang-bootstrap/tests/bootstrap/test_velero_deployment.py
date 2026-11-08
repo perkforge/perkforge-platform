@@ -17,21 +17,6 @@ guard = importlib.util.module_from_spec(spec); spec.loader.exec_module(guard)
 Gi = 1024 ** 3
 
 
-def storage_fixture():
-    fs = {'filesystems': [{'fstype':'xfs','options':'rw,prjquota','target':'/disk','uuid':'fixture-uuid',
-                          'source':'/dev/fixture','size':1000*Gi,'avail':990*Gi}]}
-    project = 'fsxattr.xflags = 0x200\nfsxattr.projid = 42\n'
-    enforcement = 'Project quota state\nAccounting: ON\nEnforcement: ON\n'
-    quota = f'#42 0 0 {100*Gi//1024} 0 0\n'
-    node = {'spec': {'disks': {'one': {'path':'/disk','allowScheduling':True,'storageReserved':400*Gi}}},
-            'status':{'diskStatus':{'one':{'storageMaximum':1000*Gi,'storageScheduled':100*Gi,'diskUUID':'disk-id'}}}}
-    settings = {'items': [{'metadata':{'name':'storage-over-provisioning-percentage'},'value':'100'},
-                          {'metadata':{'name':'storage-minimal-available-percentage'},'value':'25'}]}
-    inputs = {'velero_storage_mount':'/disk','velero_storage_uuid':'fixture-uuid','velero_storage_path':'/disk/velero-backups',
-              'velero_project_id':42,'velero_quota_bytes':100*Gi,'velero_restore_headroom_bytes':20*Gi,
-              'velero_store_capacity_bytes':80*Gi,'velero_metadata_budget_bytes':20*Gi,
-              'velero_longhorn_disk_name':'one','velero_longhorn_disk_path':'/disk'}
-    return [fs, project, enforcement, quota, node, settings, deepcopy(fs), {'diskUUID':'disk-id'}, inputs]
 
 
 def transfer_fixture():
@@ -59,7 +44,7 @@ class VeleroDeployment(unittest.TestCase):
                 f=binary/name; f.write_text('#!/bin/sh\necho called > "$API_MARKER"\nexit 99\n'); f.chmod(0o700)
             env = {**os.environ,'PATH':str(binary)+os.pathsep+os.environ['PATH'],'API_MARKER':str(marker),
                    'ANSIBLE_LOCAL_TEMP':str(path/'ansible'),'KUBECONFIG':'/dev/null'}
-            for play,flag in (('install.yaml','velero_install_apply'),('bootstrap-store.yaml','velero_garage_run'),('exercise.yaml','velero_exercise_run'),('recovery.yaml','velero_recovery_run')):
+            for play,flag in (('install.yaml','velero_install_apply'),('bootstrap-store.yaml','velero_garage_run'),('exercise.yaml','velero_exercise_run')):
                 for extra in ([],['--check','-e',json.dumps({flag:True})]):
                     with self.subTest(play=play,extra=extra):
                         result=subprocess.run(['ansible-playbook','-i','localhost,',str(PACKAGE/play),*extra],env=env,text=True,capture_output=True,timeout=30)
@@ -102,75 +87,7 @@ class VeleroDeployment(unittest.TestCase):
         actual=deepcopy(desired);actual['metadata']['labels']={}
         self.assertFalse(guard.owned_matches(actual,desired))
 
-    def test_native_tenant_backup_paused_schedule_and_isolated_restore(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path=Path(directory);path.chmod(0o700)
-            config=path/'kubeconfig';config.write_text('synthetic only');config.chmod(0o600)
-            binary=path/'kubectl';binary.write_text((ROOT/'tests/fixtures/velero_kubectl.py').read_text());binary.chmod(0o700)
-            state=path/'state.json';state.write_text(json.dumps({
-                'Namespace||tenant-source':{'apiVersion':'v1','kind':'Namespace','metadata':{'name':'tenant-source','uid':'source-namespace'}},
-                'Namespace||tenant-target':{'apiVersion':'v1','kind':'Namespace','metadata':{'name':'tenant-target','uid':'target-namespace'}},
-                'PersistentVolumeClaim|tenant-source|payload':{'apiVersion':'v1','kind':'PersistentVolumeClaim','metadata':{'name':'payload','namespace':'tenant-source','uid':'old-pvc'},'spec':{'volumeName':'old-pv'},'status':{'phase':'Bound'}},
-                'Kustomization|flux-system|fixture-owner':{'kind':'Kustomization','metadata':{'name':'fixture-owner','namespace':'flux-system'},'spec':{'suspend':True}}}))
-            command={'container':'app','command':['/bin/true'],'onError':'Fail','timeout':'30s'}
-            hook={'name':'quiesce','includedNamespaces':['tenant-source'],'labelSelector':{'matchLabels':{'app':'fixture'}},'pre':[{'exec':command}],'post':[{'exec':command}]}
-            post={'name':'validate','includedNamespaces':['tenant-target'],'labelSelector':{'matchLabels':{'app':'fixture'}},'postHooks':[{'exec':{'container':'app','command':['/bin/true'],'onError':'Fail','execTimeout':'30s','waitTimeout':'2m'}}]}
-            values={'velero_recovery_run':True,'velero_recovery_scope':'velero-backup-v1','velero_recovery_action':'backup',
-                    'velero_recovery_name':'tenant-backup','velero_source_namespace':'tenant-source','velero_target_namespace':'tenant-target',
-                    'velero_backup_name':'tenant-backup','velero_backup_hooks':[hook],'velero_restore_hooks':[post],'velero_rollback_window_hours':24,
-                    'velero_recovery_versions':{'app_image_digest':'sha256:'+'a'*64,'chart_artifact_digest':'sha256:'+'b'*64,'app_git_commit':'c'*40,'platform_git_commit':'d'*40,'enrollment_git_commit':'e'*40,'database_version':'17.6','schema_version':'20261107'},
-                    'velero_restore_owners':[{'kind':'kustomizations.kustomize.toolkit.fluxcd.io','name':'fixture-owner','namespace':'flux-system'}],
-                    'velero_kubectl':str(binary),'velero_kubeconfig':str(config),'velero_context':'fixture','velero_api':'https://fixture.internal:6443',
-                    'velero_cluster_uid':'cluster-fixture-uid','velero_state_dir':str(path)}
-            inputs=path/'inputs.json';env={**os.environ,'VELERO_FAKE_STATE':str(state),'ANSIBLE_LOCAL_TEMP':str(path/'ansible')}
-            command=['ansible-playbook','-i','localhost,',str(PACKAGE/'recovery.yaml'),'-e','@'+str(inputs)]
-            for action,name in [('backup','tenant-backup'),('paused-schedule','tenant-schedule'),('restore','tenant-restore')]:
-                values.update(velero_recovery_action=action,velero_recovery_name=name,velero_recovery_scope='velero-'+action+'-v1',velero_schedule_cron='0 */6 * * *')
-                if action=='restore':
-                    # A native scheduled point inherits its PVC/version annotations. It has no local receipt.
-                    current=json.loads(state.read_text());schedule=current['Schedule|velero|tenant-schedule']
-                    point={'apiVersion':'velero.io/v1','kind':'Backup','metadata':{'name':'scheduled-point','namespace':'velero','uid':'scheduled-backup-uid','annotations':schedule['metadata']['annotations']},'spec':schedule['spec']['template'],'status':{'phase':'Completed','errors':0}}
-                    current['Backup|velero|scheduled-point']=point;state.write_text(json.dumps(current));values['velero_backup_name']='scheduled-point'
-                inputs.write_text(json.dumps(values));result=subprocess.run(command,env=env,text=True,capture_output=True,timeout=75)
-                self.assertEqual(result.returncode,0,result.stdout+result.stderr)
-            recorded=json.loads(state.read_text())
-            self.assertTrue(recorded['Schedule|velero|tenant-schedule']['spec']['paused'])
-            self.assertTrue(recorded['Kustomization|flux-system|fixture-owner']['spec']['suspend'])
-            restored=recorded['Restore|velero|tenant-restore']['spec']
-            for resource in ('ingresses.networking.k8s.io','networkpolicies.networking.k8s.io','services','cronjobs.batch'):
-                self.assertNotIn(resource,restored['includedResources'])
-            self.assertEqual(recorded['NetworkPolicy|tenant-target|velero-restore-isolation']['spec']['ingress'],[])
-            self.assertFalse(json.loads((path/'restore-tenant-restore.json').read_text())['functional_service'])
 
-    def test_native_selector_promotion_repeat_and_intervening_app_refusal(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path=Path(directory);path.chmod(0o700);package=path/'velero';shutil.copytree(PACKAGE,package,ignore=shutil.ignore_patterns('__pycache__'))
-            binary=path/'kubectl';binary.write_text((ROOT/'tests/fixtures/velero_kubectl.py').read_text());binary.chmod(0o700)
-            state=path/'state.json';state.write_text(json.dumps({'target_commit':'a'*40,
-                'HelmRelease|bigbang|harbor':{'kind':'HelmRelease','metadata':{'name':'harbor','namespace':'bigbang','generation':2},'spec':{},'status':{'observedGeneration':2,'conditions':[{'type':'Ready','status':'True'}]}},
-                'GitRepository|flux-system|cluster-config':{'kind':'GitRepository','metadata':{'uid':'source-uid','name':'cluster-config','namespace':'flux-system','resourceVersion':'1'},'spec':{'url':'https://github.com/perkforge/perkforge-platform.git','ref':{'tag':'v1.0.0'},'interval':'1m'},'status':{'artifact':{'revision':'v1.0.0@sha1:d95371627179fa090d935043619fd994e05b1437'}}},
-                'Kustomization|flux-system|cluster-root':{'kind':'Kustomization','metadata':{'uid':'root-uid','name':'cluster-root','namespace':'flux-system','resourceVersion':'1'},'spec':{'sourceRef':{'kind':'GitRepository','name':'cluster-config'},'path':'./big-bang-bootstrap/clusters/local-grafana-sso','serviceAccountName':'platform-reconciler','prune':False,'interval':'1m'}}}))
-            values={'vk':[str(binary)],'velero_state_dir':str(path),'velero_root_name':'cluster-root','velero_previous_tag':'v1.0.0','velero_release_tag':'v1.0.1','velero_release_commit':'a'*40,'velero_previous_path':'./big-bang-bootstrap/clusters/local-grafana-sso'}
-            harness=package/'fixture.yaml';harness.write_text(yaml.safe_dump([{'hosts':'localhost','connection':'local','gather_facts':False,'vars':values,'tasks':[{'ansible.builtin.include_tasks':'deployment/read-selectors.yaml'},{'ansible.builtin.include_tasks':'deployment/promote.yaml'}]}]))
-            env={**os.environ,'VELERO_FAKE_STATE':str(state),'ANSIBLE_LOCAL_TEMP':str(path/'ansible')};command=['ansible-playbook','-i','localhost,',str(harness)]
-            original=json.loads(state.read_text())
-            for failure in ('unready','stale','new-base'):
-                failed=deepcopy(original);status=failed['HelmRelease|bigbang|harbor']['status']
-                if failure=='unready':status['conditions'][0]['status']='False'
-                elif failure=='stale':status['observedGeneration']=1
-                else:failed['GitRepository|flux-system|cluster-config']['status']['artifact']['revision']='v1.0.0@sha1:'+'b'*40
-                state.write_text(json.dumps(failed));denied=subprocess.run(command,env=env,text=True,capture_output=True,timeout=25)
-                self.assertNotEqual(denied.returncode,0);self.assertNotIn('\"patch\"',Path(str(state)+'.calls').read_text())
-            state.write_text(json.dumps(original))
-            result=subprocess.run(command,env=env,text=True,capture_output=True,timeout=45);self.assertEqual(result.returncode,0,result.stdout+result.stderr)
-            promoted=json.loads(state.read_text());self.assertEqual(promoted['GitRepository|flux-system|cluster-config']['spec']['ref']['tag'],'v1.0.1')
-            self.assertEqual(promoted['Kustomization|flux-system|cluster-root']['spec']['path'],'./big-bang-bootstrap/clusters/local-velero')
-            result=subprocess.run(command,env=env,text=True,capture_output=True,timeout=30);self.assertEqual(result.returncode,0,result.stdout+result.stderr);self.assertIn('changed=0',result.stdout)
-            # An app or source configuration change after capture is never silently overwritten.
-            promoted['Kustomization|flux-system|cluster-root']['spec']['path']='./big-bang-bootstrap/clusters/local-newer-app'
-            state.write_text(json.dumps(promoted));before=Path(str(state)+'.calls').read_text().count('"patch"')
-            result=subprocess.run(command,env=env,text=True,capture_output=True,timeout=25);self.assertNotEqual(result.returncode,0)
-            self.assertEqual(Path(str(state)+'.calls').read_text().count('"patch"'),before)
 
     def test_native_runtime_values_and_foundation_render(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -179,10 +96,10 @@ class VeleroDeployment(unittest.TestCase):
             ca=path/'public-ca';ca.write_text('SYNTHETIC PUBLIC CA')
             values={'velero_runtime_enabled':True,'velero_kubelet_root':'/var/lib/kubelet','velero_data_nodes':['worker-fixture'],
                     'velero_store_hostname':'backups.internal','velero_store_bucket':'backups','velero_store_prefix':'cluster/fixture',
-                    'velero_storage_node':'worker-fixture','velero_storage_path':'/disk/velero-backups','velero_quota_bytes':20*Gi,
+                    'velero_store_storage_class':'longhorn','velero_store_size':'20Gi',
                     'velero_store_client_cidrs':['192.0.2.6/32'],'velero_api_cidrs':['192.0.2.4/32'],'velero_store_cidrs':['192.0.2.5/32'],'velero_api_port':6443,
                     'velero_secret_files':{'ca_cert':str(ca)}}
-            play=[{'hosts':'localhost','connection':'local','gather_facts':False,'vars':values,'tasks':[
+            play=[{'hosts':'localhost','connection':'local','gather_facts':False,'vars':{**yaml.safe_load((PACKAGE/'deployment/defaults.yaml').read_text()),**values},'tasks':[
                 {'ansible.builtin.include_tasks':'deployment/runtime-values.yaml'},
                 {'ansible.builtin.copy':{'dest':str(path/'runtime.json'),'content':'{{ velero_desired_runtime | to_json }}'}},
                 {'ansible.builtin.template':{'src':'templates/foundation.yaml.j2','dest':str(path/'foundation.yaml')}}]}]
@@ -194,7 +111,12 @@ class VeleroDeployment(unittest.TestCase):
             node=next(x for x in objects if x['kind']=='ConfigMap' and x['metadata']['name']=='velero-node-agent')
             config=json.loads(node['data']['config.json']);self.assertEqual(config['loadConcurrency']['globalConfig'],1)
             self.assertEqual(config['loadAffinity'][0]['nodeSelector']['matchExpressions'][0]['values'],['worker-fixture'])
-            backend=yaml.safe_load(runtime['data']['backend.yaml']);self.assertEqual(backend['storageNode'],'worker-fixture')
+            backend=yaml.safe_load(runtime['data']['backend.yaml']);self.assertNotIn('storageNode',backend)
+            self.assertFalse(any(x['kind']=='PersistentVolume' for x in objects))
+            claim=next(x for x in objects if x['kind']=='PersistentVolumeClaim' and x['metadata']['name']=='velero-store')
+            self.assertEqual(claim['spec']['storageClassName'],'longhorn')
+            self.assertEqual(claim['spec']['resources']['requests']['storage'],'20Gi')
+            self.assertNotIn('volumeName',claim['spec'])
             addon=yaml.safe_load(runtime['data']['velero.yaml'])['addons']['velero'];self.assertTrue(addon['enabled'])
             self.assertEqual(addon['flux']['storageNamespace'],'velero')
             location=addon['values']['upstream']['configuration']['backupStorageLocation'][0]
@@ -221,9 +143,116 @@ class VeleroDeployment(unittest.TestCase):
             cfg=next(x for x in store if x['kind']=='ConfigMap')['data']['garage.toml']
             for setting in ('db_engine = "sqlite"','metadata_fsync = true','data_fsync = true','metadata_auto_snapshot_interval = "1h"','metadata_snapshots_dir = "/data/meta-snapshots"'):self.assertIn(setting,cfg)
             sts=next(x for x in store if x['kind']=='StatefulSet');self.assertFalse(sts['spec']['template']['spec']['automountServiceAccountToken'])
-            self.assertEqual(sts['spec']['template']['spec']['nodeSelector'],{'kubernetes.io/hostname':'worker-fixture','kubernetes.io/arch':'amd64'})
+            self.assertEqual(sts['spec']['template']['spec']['nodeSelector'],{'kubernetes.io/arch':'amd64'})
             self.assertEqual(sts['spec']['template']['spec']['securityContext']['fsGroupChangePolicy'],'OnRootMismatch')
             self.assertEqual(sts['spec']['template']['spec']['containers'][0]['image'],'docker.io/dxflrs/garage:v2.5.0@sha256:23b16d34e0348d9aca9b960a7429a7e6d494974b5288bfb8f6c3ab856895f71e')
+
+    def test_native_schedule_render_preserves_scope_retention_and_pause(self):
+        for paused, ttl in ((True, '48h'), (False, '72h')):
+            with self.subTest(paused=paused, ttl=ttl), tempfile.TemporaryDirectory() as directory:
+                path=Path(directory); package=path/'velero'
+                shutil.copytree(PACKAGE,package,ignore=shutil.ignore_patterns('__pycache__'))
+                ca=path/'ca';ca.write_text('SYNTHETIC PUBLIC CA')
+                values={'velero_runtime_enabled':True,'velero_data_nodes':['worker-fixture'],
+                        'velero_store_hostname':'backups.internal','velero_store_bucket':'backups','velero_store_prefix':'cluster/fixture',
+                        'velero_store_client_cidrs':['192.0.2.6/32'],'velero_secret_files':{'ca_cert':str(ca)},
+                        'velero_schedule_cron':'0 */6 * * *','velero_schedule_namespaces':['velero-poc-app'],
+                        'velero_schedule_paused':paused,'velero_backup_ttl':ttl}
+                harness=package/'fixture.yaml'
+                harness.write_text(yaml.safe_dump([{'hosts':'localhost','connection':'local','gather_facts':False,
+                    'vars':{**yaml.safe_load((PACKAGE/'deployment/defaults.yaml').read_text()),**values},'tasks':[
+                        {'ansible.builtin.include_tasks':'deployment/runtime-values.yaml'},
+                        {'ansible.builtin.copy':{'dest':str(path/'runtime.json'),'content':'{{ velero_desired_runtime | to_json }}'}}]}]))
+                result=subprocess.run(['ansible-playbook','-i','localhost,',str(harness)],text=True,capture_output=True,timeout=30,
+                    env={**os.environ,'ANSIBLE_LOCAL_TEMP':str(path/'ansible')})
+                self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                runtime=json.loads((path/'runtime.json').read_text())
+                upstream=yaml.safe_load(runtime['data']['velero.yaml'])['addons']['velero']['values']['upstream']
+                schedule=upstream['schedules']['local-poc']
+                self.assertEqual(upstream['configuration']['defaultBackupTTL'],ttl)
+                self.assertEqual(schedule['schedule'],'0 */6 * * *')
+                self.assertEqual(schedule['paused'],paused)
+                self.assertEqual(schedule['template']['includedNamespaces'],['velero-poc-app'])
+                self.assertFalse(schedule['template']['includeClusterResources'])
+                self.assertTrue(schedule['template']['snapshotMoveData'])
+                self.assertEqual(schedule['template']['ttl'],ttl)
+                self.assertFalse(schedule['useOwnerReferencesInBackup'])
+                if not os.environ.get('VELERO_CHART_SOURCE') or not shutil.which('helm'):
+                    self.skipTest('native schedule values passed; exact chart fixture required')
+                from fixtures.render_helpers import helm
+                rendered=helm(Path(os.environ['VELERO_CHART_SOURCE'])/'chart','velero','velero',[yaml.safe_dump({'upstream':upstream})],[arg for kind in ('VolumeSnapshot','VolumeSnapshotClass','VolumeSnapshotContent') for arg in ('--api-versions','snapshot.storage.k8s.io/v1/'+kind)])
+                native=next(x for x in rendered if x['kind']=='Schedule')
+                self.assertEqual(native['spec'].get('paused',False),paused)
+                self.assertEqual(native['spec']['template'],schedule['template'])
+
+    def test_baseline_uses_no_host_storage_or_custom_promotion_framework(self):
+        for name in ('prepare.yaml','recovery.yaml','request.example.yaml','deployment/host-preflight.yaml',
+                     'deployment/promote.yaml','deployment/read-selectors.yaml','deployment/recovery-run.yaml'):
+            self.assertFalse((PACKAGE/name).exists(),name)
+        defaults=yaml.safe_load((PACKAGE/'deployment/defaults.yaml').read_text())
+        self.assertFalse(defaults['velero_install_apply'])
+        self.assertTrue(defaults['velero_schedule_paused'])
+        self.assertEqual(defaults['velero_schedule_cron'],'')
+        self.assertEqual(defaults['velero_backup_ttl'],'48h')
+        self.assertEqual(defaults['velero_store_storage_class'],'longhorn')
+        self.assertEqual(yaml.safe_load((PACKAGE/'profiles/aws.yaml').read_text())['profile']['retention_hours'],336)
+        local=yaml.safe_load((PACKAGE/'profiles/local.yaml').read_text())['profile']
+        self.assertEqual(local['retention_hours'],48)
+        self.assertEqual(local['backing'],'longhorn-pvc')
+        self.assertFalse(local['independent_failure_domain'])
+
+    def test_native_runtime_create_repeat_update_and_foreign_owner_refusal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory);package=path/'velero'
+            shutil.copytree(PACKAGE,package,ignore=shutil.ignore_patterns('__pycache__'))
+            binary=path/'kubectl';binary.write_text((ROOT/'tests/fixtures/velero_kubectl.py').read_text());binary.chmod(0o700)
+            state=path/'state.json';state.write_text('{}')
+            desired={'apiVersion':'v1','kind':'ConfigMap','metadata':{'name':'velero-runtime-values','namespace':'bigbang','labels':{'perkforge.io/owner':'velero-platform-v1'}},'data':{'backend.yaml':'backend','velero.yaml':'paused'}}
+            harness=package/'fixture.yaml'
+            def run():
+                harness.write_text(yaml.safe_dump([{'hosts':'localhost','connection':'local','gather_facts':False,
+                    'vars':{'vk':[str(binary)],'velero_desired_runtime':desired},
+                    'tasks':[{'ansible.builtin.include_tasks':'deployment/update-runtime.yaml'}]}]))
+                return subprocess.run(['ansible-playbook','-i','localhost,',str(harness)],text=True,capture_output=True,timeout=30,
+                    env={**os.environ,'ANSIBLE_LOCAL_TEMP':str(path/'ansible'),'VELERO_FAKE_STATE':str(state)})
+            first=run();self.assertEqual(first.returncode,0,first.stdout+first.stderr)
+            repeat=run();self.assertEqual(repeat.returncode,0,repeat.stdout+repeat.stderr);self.assertIn('changed=0',repeat.stdout)
+            desired['data']['velero.yaml']='approved schedule settings'
+            update=run();self.assertEqual(update.returncode,0,update.stdout+update.stderr)
+            current=json.loads(state.read_text());key='ConfigMap|bigbang|velero-runtime-values'
+            self.assertEqual(current[key]['data'],desired['data'])
+            calls=[json.loads(line) for line in Path(str(state)+'.calls').read_text().splitlines()]
+            patch=next(call for call in calls if call[0]=='patch')
+            self.assertEqual(json.loads(patch[patch.index('-p')+1])[0]['path'],'/metadata/resourceVersion')
+            current[key]['metadata']['labels']['perkforge.io/owner']='another-owner';state.write_text(json.dumps(current))
+            before=Path(str(state)+'.calls').read_text().count('"patch"');failed=run()
+            self.assertNotEqual(failed.returncode,0)
+            self.assertEqual(Path(str(state)+'.calls').read_text().count('"patch"'),before)
+            current[key]['metadata']['labels']['perkforge.io/owner']='velero-platform-v1'
+            current['inject_runtime_conflict']=True;state.write_text(json.dumps(current))
+            previous=deepcopy(current[key]['data']);desired['data']['velero.yaml']='newer requested settings'
+            conflict=run();self.assertNotEqual(conflict.returncode,0)
+            self.assertIn('compare-and-swap refused',conflict.stdout+conflict.stderr)
+            self.assertEqual(json.loads(state.read_text())[key]['data'],previous)
+
+    def test_invalid_schedule_inputs_fail_before_api_or_release_lookup(self):
+        valid={'velero_install_apply':True,'velero_install_scope':'velero-foundation-v1',
+            'velero_release_tag':'v1.0.0','velero_release_commit':'a'*40,'velero_data_nodes':['worker-fixture'],
+            'velero_api_cidrs':['192.0.2.4/32'],'velero_store_cidrs':['192.0.2.5/32'],
+            'velero_store_hostname':'backups.internal','velero_store_bucket':'backups','velero_store_prefix':'cluster/fixture',
+            'velero_store_client_cidrs':['192.0.2.6/32'],'velero_schedule_cron':'0 */6 * * *','velero_schedule_namespaces':['poc-app']}
+        for bad in ({'velero_schedule_namespaces':[]},{'velero_schedule_namespaces':['*']},
+                    {'velero_schedule_namespaces':['poc-app','poc-app']},{'velero_backup_ttl':'0h'},
+                    {'velero_schedule_paused':'false'},{'velero_schedule_cron':'99 * * * *'}):
+            with self.subTest(bad=bad),tempfile.TemporaryDirectory() as directory:
+                path=Path(directory);binary=path/'bin';binary.mkdir();marker=path/'unexpected'
+                for name in ('kubectl','git','curl','ssh'):
+                    p=binary/name;p.write_text('#!/bin/sh\necho called > "$API_MARKER"\nexit 99\n');p.chmod(0o700)
+                result=subprocess.run(['ansible-playbook','-i','localhost,',str(PACKAGE/'install.yaml'),'-e',json.dumps({**valid,**bad})],
+                    text=True,capture_output=True,timeout=30,env={**os.environ,'PATH':str(binary)+os.pathsep+os.environ['PATH'],
+                    'API_MARKER':str(marker),'ANSIBLE_LOCAL_TEMP':str(path/'ansible'),'KUBECONFIG':'/dev/null'})
+                self.assertNotEqual(result.returncode,0)
+                self.assertFalse(marker.exists(),result.stdout+result.stderr)
 
     def test_native_garage_single_bucket_bootstrap_and_uncertain_write(self):
         import threading
@@ -299,24 +328,6 @@ class VeleroDeployment(unittest.TestCase):
         self.assertEqual(evidence['aws_plugin']['checksum_algorithm'],'default CRC32')
         self.assertEqual(evidence['native_bootstrap']['repeat_changes'],0)
 
-    def test_storage_requires_quota_identity_capacity_and_existing_commitments(self):
-        self.assertTrue(guard.storage_safe(*storage_fixture()))
-        cases=[]
-        x=storage_fixture();x[8]['velero_metadata_budget_bytes']=0;cases.append(x)
-        x=storage_fixture();x[8]['velero_store_capacity_bytes']=100*Gi;cases.append(x)
-        x=storage_fixture();x[0]['filesystems'][0]['options']='rw,noquota';cases.append(x)
-        x=storage_fixture();x[2]='Project quota state\nAccounting: ON\nEnforcement: OFF';cases.append(x)
-        x=storage_fixture();x[6]['filesystems'][0]['uuid']='other-disk';cases.append(x)
-        x=storage_fixture();x[7]['diskUUID']='wrong-longhorn-disk';cases.append(x)
-        x=storage_fixture();x[8]['velero_storage_path']='/disk/replicas/velero-backups';cases.append(x)
-        x=storage_fixture();x[8]['velero_storage_path']='/disk/velero-backups/../replicas';cases.append(x)
-        x=storage_fixture();x[4]['spec']['disks']['other']={'path':'/disk/velero-backups'};cases.append(x)
-        x=storage_fixture();x[4]['spec']['disks']['one']['storageReserved']=200*Gi;cases.append(x)
-        x=storage_fixture();x[0]['filesystems'][0]['avail']=100*Gi;cases.append(x)
-        # Regression: physical free bytes do not erase Longhorn's scheduled replica promises.
-        x=storage_fixture();x[8]['velero_quota_bytes']=700*Gi;x[3]=f'#42 0 0 {700*Gi//1024} 0 0';x[4]['spec']['disks']['one']['storageReserved']=970*Gi;cases.append(x)
-        for x in cases:
-            with self.subTest(case=x):self.assertFalse(guard.storage_safe(*x))
 
     def test_transfer_verification_binds_exact_uids_pvc_coverage_and_repository_snapshot(self):
         b,r,s,t,u,d=transfer_fixture()

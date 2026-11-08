@@ -13,7 +13,7 @@ while args and args[0].startswith('--'):
     if '=' not in option:args.pop(0)
 with Path(str(state_path)+'.calls').open('a') as log:log.write(json.dumps(args)+'\n')
 ns=args[args.index('-n')+1] if '-n' in args else ''
-kindmap={'namespace':'Namespace','pod':'Pod','pvc':'PersistentVolumeClaim','backup':'Backup','restore':'Restore','schedule':'Schedule','gitrepository':'GitRepository','kustomization':'Kustomization','helmrelease':'HelmRelease','kustomizations.kustomize.toolkit.fluxcd.io':'Kustomization'}
+kindmap={'configmap':'ConfigMap','namespace':'Namespace','pod':'Pod','pvc':'PersistentVolumeClaim','backup':'Backup','restore':'Restore','schedule':'Schedule','gitrepository':'GitRepository','kustomization':'Kustomization','helmrelease':'HelmRelease','kustomizations.kustomize.toolkit.fluxcd.io':'Kustomization'}
 def key(kind,name,namespace=''):return '|'.join((kind,namespace,name))
 def output(value):
     state_path.write_text(json.dumps(state))
@@ -38,6 +38,9 @@ def insert(obj):
 if args[:2]==['config','view']:output('https://fixture.internal:6443')
 if args[0]=='patch':
     obj=state[key(kindmap[args[1]],args[2],ns)]
+    if state.get('inject_runtime_conflict') and obj['kind']=='ConfigMap':
+        obj['metadata']['resourceVersion']=str(int(obj['metadata']['resourceVersion'])+1)
+        state_path.write_text(json.dumps(state))
     patch=json.loads(args[args.index('-p')+1])
     for operation in patch:
         parts=operation['path'].strip('/').split('/');target=obj
