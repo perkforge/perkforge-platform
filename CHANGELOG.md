@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.34.0](https://github.com/perkforge/perkforge-platform/compare/v0.33.6...v0.34.0) (2026-11-09)
+
+
+### Features
+
+* bootstrap recovery secrets from Bitwarden into OpenBao ([#305](https://github.com/perkforge/perkforge-platform/issues/305)) ([74cb09a](https://github.com/perkforge/perkforge-platform/commit/74cb09a4a3c490604c26ceed067170f2d1aac8d7))
+
 ## [0.33.6](https://github.com/perkforge/perkforge-platform/compare/v0.33.5...v0.33.6) (2026-11-08)
 
 
