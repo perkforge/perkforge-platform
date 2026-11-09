@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-09",
+  "reviewedPlatformCommit": "ae3b74b94c83f0bf909a798ea797e049c269fe8c",
+  "reviewMethod": "source-only; no live assessment",
+  "disclosureApproval": "pending issue #81; local build is not publication approval",
+  "statusLegend": {
+    "implemented": "source/configuration exists; deployment is not inferred",
+    "planned": "workflow or control is incomplete/not implemented",
+    "unverified": "runtime/assessment outcome not established by this review"
+  },
+  "bundles": {
+    "tenant": {
+      "sourceRoot": "docs/tenant-architecture",
+      "models": [
+        "model.c4"
+      ],
+      "views": [
+        "tenant_context",
+        "tenant_boundaries",
+        "tenant_onboarding"
+      ],
+      "classification": "sanitized tenant candidate",
+      "publication": "owner review required"
+    },
+    "security": {
+      "sourceRoot": "docs/security-architecture",
+      "models": [
+        "model.c4"
+      ],
+      "views": [
+        "security_context",
+        "security_identity",
+        "security_image_intake",
+        "security_chart_intake",
+        "security_maintenance",
+        "security_promotion"
+      ],
+      "classification": "sanitized security review candidate; no restricted evidence",
+      "publication": "security and disclosure review required"
+    }
+  },
+  "owners": {
+    "accuracy": "platform maintainers (proposed)",
+    "boundaries": "identity/network/package owners (proposed)",
+    "assessment": "security owner (assignment pending)",
+    "disclosure": "system/data owner (approval pending)"
+  },
+  "coordination": [
+    21,
+    43,
+    44,
+    45,
+    77,
+    79,
+    80,
+    81
+  ],
+  "portal": "https://github.com/perkforge/perkforge-portal/pull/11"
+}
