@@ -91,3 +91,17 @@ runs it with the native operator source; the generated StatefulSet must retain
 `private-registry` for both Prometheus and its reloader. Broader roots' deferred
 blackbox exporter is explicitly asserted unchanged, not claimed covered. No
 registry authentication, actual pull, live recovery or Secret value is tested.
+
+`bootstrap/test_bitwarden_bootstrap.py` exercises real Ansible against synthetic
+Bitwarden CLI and trusted loopback HTTPS fixtures. Run with
+`PYTHONPATH=big-bang-bootstrap/tests python3 -m unittest bootstrap.test_bitwarden_bootstrap -v`.
+Default/check modes never access a vault or server. No real credentials are used.
+Native KV-v2/ACL checks use the existing pinned OpenBao 2.7.2 binary, without a
+download, kubeconfig or operator token:
+
+```sh
+KUBECONFIG=/dev/null RUN_OPENBAO_POLICY_TESTS=1 \
+  OPENBAO_POLICY_TEST_BINARY=/ABSOLUTE/existing/bao \
+  PYTHONPATH=big-bang-bootstrap/tests \
+  python3 -m unittest bootstrap.test_bitwarden_bootstrap.NativeOpenBaoBootstrap -v
+```
