@@ -8,7 +8,7 @@ application repositories own application configuration.
 - [Platform maintenance](docs/platform/README.md): add/configure apps, targets/environments and impact profiles.
 - [Big Bang bootstrap](big-bang-bootstrap/README.md): cluster/environment/impact-profile selection, Flux bootstrap, platform application configuration and staged operations.
 - [Infrastructure](infrastructure/README.md): physical-host inventory and RHEL/RKE2 provisioning.
-- [Interactive provisioning architecture](docs/architecture/README.md): context-to-detail LikeC4 views, local network topology and the operator procedure.
+- [Architecture by audience](docs/architecture/README.md): tenant onboarding/isolation, security review and source-linked operator LikeC4 views.
 - [Current handoff](HANDOFF.md): operational boundaries and known trial limits.
 - [Releases](RELEASING.md): reviewed release PRs and verified tag references.
 

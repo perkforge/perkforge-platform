@@ -1,0 +1,75 @@
+specification {
+  element person { style { shape person } }
+  element system
+  element component
+  element boundary { style { color amber } }
+}
+model {
+  tenant_user = person 'Tenant team' {
+    description 'Own app changes, approved users and data needs. A person may hold explicit memberships in several tenants; no automatic platform role.'
+  }
+  tenant_operator = person 'Platform operator' {
+    description 'Approves enrollment and platform policy; maintains shared infrastructure. Privileged administrators are trusted and can bypass nominal app boundaries.'
+  }
+  tenant_identity = system 'Shared sign-in' {
+    description 'IMPLEMENTED (SOURCE): Keycloak and separate app-client patterns. PLANNED/UNVERIFIED: complete tenant delegation and revocation. Sign-in is not resource authorization.'
+    link https://github.com/perkforge/perkforge-platform/blob/ae3b74b94c83f0bf909a798ea797e049c269fe8c/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role scopes and limits'
+  }
+  tenant_platform = system 'PerkForge platform' {
+    description 'IMPLEMENTED (SOURCE): platform/enrollment/app ownership and scoped Flux wiring. UNVERIFIED: complete deployed tenant isolation. Shared services are not dedicated tenant hardware.'
+    tenant_enrollment = component 'Platform-owned enrollment' {
+      description 'IMPLEMENTED (SOURCE): protected enrollment source chooses tenant namespaces, identities and app references. Generic defaults are suspended; selection/activation is explicit.'
+      link https://github.com/perkforge/perkforge-platform/blob/ae3b74b94c83f0bf909a798ea797e049c269fe8c/big-bang-bootstrap/enrollments/local/reconcile.yaml 'Scoped enrollment reconciliation'
+    }
+    tenant_gitops = component 'Scoped app reconciliation' {
+      description 'IMPLEMENTED (SOURCE): Flux reconciles reviewed desired-state references. Exact effective permissions and tenant release require acceptance; tenants do not own the platform reconciler.'
+    }
+    tenant_a = boundary 'Your tenant scope' {
+      description 'PLANNED/UNVERIFIED: each API, workload identity, traffic and data boundary must enforce tenant scope. A namespace label alone is not isolation.'
+      tenant_app = component 'Your application' {
+        description 'App/API validates identity and native permissions. Successful login alone is not proof of cross-tenant denial.'
+      }
+      tenant_data = component 'Your data and secrets' {
+        description 'App-specific access and recovery must be verified. Trusted platform/identity/host/storage/backup administrators can bypass ordinary app policy.'
+      }
+    }
+    tenant_b = boundary 'Other tenant scope' {
+      description 'PLANNED/UNVERIFIED: no ordinary cross-tenant access is intended. Require explicit positive and negative tests, not a diagram as proof.'
+    }
+  }
+  tenant_app_git = system 'Tenant app repository' {
+    description 'IMPLEMENTED (SOURCE): app-owned configuration is separate from platform-owned enrollment; reviewed release references become desired state, not direct cluster authority.'
+  }
+  tenant_user -> tenant_identity 'Sign in; app access still checked'
+  tenant_user -> tenant_app_git 'Propose app changes for review'
+  tenant_operator -> tenant_platform.tenant_enrollment 'Review and enroll approved source'
+  tenant_platform.tenant_enrollment -> tenant_platform.tenant_gitops 'Select approved source and identity'
+  tenant_app_git -> tenant_platform.tenant_gitops 'Reviewed desired-state references'
+  tenant_platform.tenant_gitops -> tenant_platform.tenant_a.tenant_app 'Reconcile within approved scope'
+  tenant_identity -> tenant_platform.tenant_a.tenant_app 'Identity claims; native authorization required'
+  tenant_platform.tenant_a.tenant_app -> tenant_platform.tenant_a.tenant_data 'Approved app-specific data access'
+}
+views {
+  view tenant_context {
+    title 'Tenant context: who owns what'
+    description 'Source-reviewed 2026-11-09. Implemented means code exists, not live acceptance. Planned/unverified boundaries remain explicit. No private tenant inventory.'
+    include tenant_user, tenant_operator, tenant_identity, tenant_platform, tenant_app_git
+    autoLayout LeftRight
+  }
+  view tenant_boundaries {
+    title 'Tenant boundaries: your scope and shared trust'
+    description 'PLANNED/UNVERIFIED end-to-end isolation. Ordinary cross-tenant access is not intended; privileged administrators remain trusted. No mesh, hardware separation or ATO claim.'
+    include tenant_identity, tenant_platform.tenant_enrollment, tenant_platform.tenant_gitops, tenant_platform.tenant_a.tenant_app, tenant_platform.tenant_a.tenant_data, tenant_platform.tenant_b, tenant_app_git
+    autoLayout LeftRight
+  }
+  dynamic view tenant_onboarding {
+    title 'Tenant onboarding: planned end-to-end journey'
+    description 'Repository ownership/scoped wiring exist in source. User delegation, full denial acceptance and recovery remain per-tenant gates. Every release and activation requires its own review; this flow performs nothing.'
+    tenant_user -> tenant_operator 'Agree app, users, data scope and recovery needs'
+    tenant_operator -> tenant_platform.tenant_enrollment 'Review namespace, identity, policy and source ownership'
+    tenant_user -> tenant_app_git 'Propose and review app configuration'
+    tenant_platform.tenant_enrollment -> tenant_platform.tenant_gitops 'Select approved release after separate activation approval'
+    tenant_platform.tenant_gitops -> tenant_platform.tenant_a.tenant_app 'Reconcile only the authorized app scope'
+    tenant_user -> tenant_platform.tenant_a.tenant_app 'Verify intended access, cross-tenant denial and recovery'
+  }
+}

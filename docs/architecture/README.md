@@ -1,4 +1,14 @@
-# Physical provisioning architecture
+# Architecture by audience
+
+- **Tenants:** [onboarding and boundaries](../tenant-architecture/README.md), three terse views.
+- **Security reviewers:** [architecture and rationale](../security-architecture/README.md), six views and a [control evidence/gap map](../security-architecture/controls.md).
+- **Operators:** the physical provisioning and application procedures below.
+
+Reviewed 2026-11-09 against source commit `ae3b74b94c83f0bf909a798ea797e049c269fe8c`.
+The [audience manifest](audiences.json) records source roots, status semantics,
+proposed owners and pending disclosure approval. No live assessment ran.
+
+## Operator provisioning views
 
 Use context first, then narrow into components or an operating flow. The single
 [human-operated procedure](../../pxe/README.md) contains full commands; the linked
@@ -77,3 +87,78 @@ Start with `authorization_roles`, then the smaller `authorization_core_apps`,
 and acceptance gates. The [role/app matrix](../../big-bang-bootstrap/configuration/authorization/MATRIX.md)
 separates confirmed intent, offline examples, existing code evidence and unimplemented
 app/edition/enforcement decisions. These views create no identities or permissions.
+
+## Audience builds
+
+The operator root (`docs/architecture`), tenant root (`docs/tenant-architecture`)
+and security root (`docs/security-architecture`) are independent LikeC4 inputs.
+The pinned package above validates/builds all three; outputs are local and ignored:
+`dist` (operator), `dist-tenant` and `dist-security`. Audience builds first clear
+their own ignored output directories to prevent stale assets; never store hand-authored
+files there. No build deploys a site.
+Tenant/security builds do not copy the operator `public` directory or its source
+allowlist. The build inspects all emitted files for expected views, other-audience
+markers, copied operator assets and private-path/key markers; this is a focused
+regression check, not a substitute for disclosure review. Do not combine these outputs into a public or tenant download.
+
+```sh
+npm --prefix docs/architecture run validate:audiences
+npm --prefix docs/architecture run build:audiences
+```
+
+For a local tenant-only viewer, after installing the pinned dependencies:
+
+```sh
+docs/architecture/node_modules/.bin/likec4 serve docs/tenant-architecture --listen 127.0.0.1 --port 5174
+```
+
+Serve the security root separately on a different loopback port when needed.
+Do not host the common parent directory. All checked-in audience models are
+sanitized candidates; separate builds are a disclosure boundary, **not an access
+control system**. Restricted evidence/private operational models must stay out
+of all three browser payloads. Future restricted delivery requires authorized
+storage and server-side access checks before bytes are sent, not role-based UI hiding.
+
+### Review and publication contract
+
+1. Change a model with its owner source: update status, source links, review date,
+   reviewed commit, README and evidence gaps in the same MR. Unverified stays
+   unverified until a target/revision/time-bound result exists.
+2. Platform/package owners verify accuracy; identity/network owners review their
+   boundaries; the security owner reviews control claims; system/data owners approve
+   disclosure. These are proposed responsibilities, **not completed owner sign-off**.
+3. Review the exact exported payload, including scripts, source maps and static
+   assets. Tenant assets must contain neither security nor operator models. Do not
+   attach inventories, raw logs, credentials, physical addresses or private paths.
+4. Build and test each audience independently. After approved publication, record
+   the release/commit and authorized destination. A successful local build is not
+   publication approval and does not close [#81](https://github.com/perkforge/perkforge-platform/issues/81).
+
+[Portal Explorer #10](https://github.com/perkforge/perkforge-portal/issues/10) and
+[draft #11](https://github.com/perkforge/perkforge-portal/pull/11) can reuse the tenant
+model and status/metadata contract. They must not import the security/operator
+model into tenant bundles or treat client-side workspace visibility as authorization.
+No portal files or access policies change here.
+
+### Documentation inventory and ownership
+
+| Source | Audience / authoritative scope | Review result and next owner action |
+|---|---|---|
+| Root README and this index | Everyone: find the right audience, not current health | Updated to separate audience entrypoints. |
+| Tenant README and model | Sanitized tenant onboarding, responsibilities and isolation limits | Source-reviewed; full tenant acceptance and disclosure sign-off remain open. |
+| Security README, control map and model | Sanitized security rationale, authority, intake/maintenance/promotion journeys | Source-reviewed; no ATO or live-control claim. Assign owners and resolve linked gaps. |
+| Existing operator model/views/runbook | Physical provisioning, scoped operations and historical acceptance | Retained source links and focused regressions. Historical observations must not be generalized to current state. |
+| HANDOFF and package/SSO runbooks | Operators: bounded observations and supported procedures | Evidence is revision/time-specific and contains historical sections; not a live status dashboard. Do not copy these wholesale into tenant assets. |
+| Platform maintenance, targets, profiles and TLS docs | Maintainers: authoritative change procedures and proposed TLS contract | Reused, not duplicated; coordinate #77/#44/#45. |
+| CI documentation and workflow source | Maintainers: validation behavior | Added explicit current pause; retained historical measurements. Gates unchanged. |
+| Role matrix, tests and evidence tooling | Boundary owners / reviewers | Distinguish source fixtures, bounded historical acceptance and missing live denial/restore evidence. |
+| Portal draft Explorer | Separate application-owned delivery | Existing sanitized draft retained; model ownership/disclosure and restricted-delivery design still pending. |
+
+Coordination stays with [#21](https://github.com/perkforge/perkforge-platform/issues/21),
+[#43](https://github.com/perkforge/perkforge-platform/issues/43),
+[#44](https://github.com/perkforge/perkforge-platform/issues/44),
+[#45](https://github.com/perkforge/perkforge-platform/issues/45),
+[#77](https://github.com/perkforge/perkforge-platform/issues/77),
+[#79](https://github.com/perkforge/perkforge-platform/issues/79) and
+[#80](https://github.com/perkforge/perkforge-platform/issues/80). This does not expand
+#75 or implement the CLI, intake, promotion, networking, mesh or live integrations.

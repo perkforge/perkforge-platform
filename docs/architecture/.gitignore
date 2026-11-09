@@ -3,3 +3,5 @@ dist/
 .likec4/
 *.log
 public/sources/
+dist-tenant/
+dist-security/

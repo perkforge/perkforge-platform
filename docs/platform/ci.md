@@ -1,5 +1,21 @@
 # Change-aware offline CI
 
+## Current status: validation paused
+
+Reviewed 2026-11-09 at `ae3b74b94c83f0bf909a798ea797e049c269fe8c`.
+Hosted validation jobs in `gitops-selection.yml` and `release-checks` in
+`configuration-release.yml` have explicit false conditions. Release automation
+has a temporary condition allowing source releases despite skipped validation.
+Keep these gates off until the owner explicitly approves a change. A green or
+skipped workflow during this pause is **not** evidence that the checks ran.
+Run applicable offline checks locally and report their exact coverage.
+
+The sections below describe the retained selection design and historical measured
+runs, not current gate enforcement. Restoring CI is separate work; this document
+does not change workflows, branch protection or activation permissions.
+
+## Retained selection design (inactive while paused)
+
 `configuration-release` is the canonical automatic entrypoint: one call of the
 shared selection workflow per PR or main push. The reusable workflow no longer
 also starts itself for the same push/PR. It retains a manual full run. Release

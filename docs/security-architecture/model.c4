@@ -1,0 +1,140 @@
+specification {
+  element person { style { shape person } }
+  element system
+  element component
+  element boundary { style { color amber } }
+}
+model {
+  review_human = person 'Authorized person' {
+    description 'Per-role and per-tenant permissions, not implicit trust from LAN membership or sign-in.'
+  }
+  review_operator = person 'Platform / security reviewer' {
+    description 'Reviews policy, source, evidence and privileged boundaries. This model grants no authority or live-operation approval.'
+  }
+  review_identity = system 'Identity and native authorization' {
+    description 'IMPLEMENTED (SOURCE): Keycloak and per-app adapters. PLANNED/UNVERIFIED: full tenant delegation and revocation. Each native API must authorize its own resources.'
+    link https://github.com/perkforge/perkforge-platform/blob/ae3b74b94c83f0bf909a798ea797e049c269fe8c/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Source role matrix and bypass paths'
+    review_idp = component 'Keycloak: human authentication' {
+      description 'Shared identities and per-app client/audience patterns; privileged realm administration is a trust boundary, not ordinary tenant access.'
+    }
+    review_api = component 'Application / Kubernetes API' {
+      description 'Validate issuer/audience/claims and authorize each action/resource. App policies, RBAC, admission and NetworkPolicy have distinct responsibilities.'
+    }
+    review_recovery = component 'Independent recovery custody' {
+      description 'PLANNED/UNVERIFIED in full: scoped emergency authority, independent custody and rehearsed recovery; no promise of secrecy from powerful administrators.'
+    }
+  }
+  review_git = system 'Reviewed source / release' {
+    description 'IMPLEMENTED (SOURCE): Git-reviewed desired state and immutable release procedures. CI validation is currently paused; workflow existence is not enforced gate evidence.'
+    link https://github.com/perkforge/perkforge-platform/blob/ae3b74b94c83f0bf909a798ea797e049c269fe8c/.github/workflows/configuration-release.yml 'Exact workflow baseline; validation paused'
+  }
+  review_platform = system 'Platform control plane' {
+    description 'IMPLEMENTED (SOURCE): infrastructure Ansible owns hosts/RKE2, platform Ansible owns gated preparation/API configuration, Flux owns GitOps, Big Bang supplies packages. Rancher is cluster lifecycle, not Fleet app delivery.'
+    review_flux = component 'Flux / scoped installers' {
+      description 'Delegate package/enrollment/app changes to reviewed identities. Some controllers and operators retain broad trust; least privilege is scope-specific.'
+    }
+    review_runtime = component 'Tenant and shared workloads' {
+      description 'UNVERIFIED overall: effective app permissions, complete ingress/egress, workload identity, secret access and cross-tenant denial. No blanket mesh/mTLS claim.'
+    }
+  }
+  review_evidence = system 'Restricted evidence custody' {
+    description 'IMPLEMENTED (SOURCE): offline findings tooling and bounded acceptance procedures. PLANNED/UNVERIFIED: complete event coverage, protected retention, review and restore. No raw evidence is bundled in this model.'
+    link https://github.com/perkforge/perkforge-platform/blob/ae3b74b94c83f0bf909a798ea797e049c269fe8c/evidence/README.md 'Evidence handling and limits'
+  }
+  review_upstream = system 'External image / chart sources' {
+    description 'PLANNED intake #79: allowlist source/destination, immutable identities and reviewed provenance requirements; imported code is not executed.'
+  }
+  review_staging = boundary 'Isolated validation; no Harbor write' {
+    description 'PLANNED #79: untrusted MR/fork and intake jobs cannot access publisher secrets; scan/report failures block publication.'
+    review_image_scan = component 'Image digest / platform scans' {
+      description 'PLANNED: scan every copied runnable platform digest with Trivy; SBOM, JSON, tool/DB freshness and policy metadata. No image execution or Docker socket.'
+    }
+    review_chart_scan = component 'Chart / rendered manifest checks' {
+      description 'PLANNED: exact package hash/OCI digest, dependency lock/provenance, lint/schema, approved values/capabilities matrix, CRDs, misconfiguration scans and complete image inventory.'
+    }
+    review_gate = component 'Maintainer-owned policy / evidence gate' {
+      description 'PLANNED: explicit findings failures, freshness, coverage, trusted producer/ref/job and hashes; missing evidence or errors fail closed. Severities and exceptions still need decisions.'
+    }
+  }
+  review_publisher = system 'Separately authorized publisher' {
+    description 'PLANNED #79: scoped Harbor robot, trusted code/ref/evidence verification and digest readback. Intake does not hold this authority. Caller JSON saying passed is insufficient.'
+    link https://github.com/perkforge/perkforge-platform/issues/79 'Intake specification and open policy decisions'
+  }
+  review_harbor = system 'Harbor artifact storage' {
+    description 'IMPLEMENTED (SOURCE): staged Harbor package/TLS/data contracts. Trivy is DISABLED. PLANNED: enforced intake, robots, tenant sync and post-import rescans. Storage alone is not artifact approval.'
+    link https://github.com/perkforge/perkforge-platform/blob/ae3b74b94c83f0bf909a798ea797e049c269fe8c/big-bang-bootstrap/configuration/packages/harbor/candidate-values.yaml 'Candidate with scanner disabled'
+  }
+  review_cli = system 'Human-first Rust maintenance CLI' {
+    description 'PLANNED #77: local repo preparation and explicit offline/live test modes. No general cluster administration, implicit commit/push, silent target or unapproved live tests.'
+    link https://github.com/perkforge/perkforge-platform/issues/77 'Maintenance scope'
+  }
+  review_gitlab = system 'Internal GitLab development' {
+    description 'PLANNED #80: authoritative source per repository and versioned one-way promotion; current repositories have not been migrated by this work.'
+  }
+  review_github = system 'Approved public-safe GitHub source' {
+    description 'PLANNED #80: independent GitOps source when in-cluster GitLab is unavailable. Images, charts, keys, credentials and data still need independent recovery.'
+    link https://github.com/perkforge/perkforge-platform/issues/80 'Promotion and recovery design'
+  }
+  review_human -> review_identity 'Authenticate; receiving API checks scope'
+  review_operator -> review_git 'Review code, policy and exact release'
+  review_git -> review_platform 'Approved desired-state references'
+  review_platform -> review_harbor 'Retrieve configured artifacts; not a scan guarantee'
+  review_platform -> review_evidence 'Bounded acceptance and operational records'
+  review_identity -> review_evidence 'Required event coverage still to verify'
+}
+views {
+  view security_context {
+    title 'Security context: authority and evidence boundaries'
+    description 'Source review 2026-11-09. Implemented is not deployed/accepted. Tenant isolation, audit completeness and ATO remain unverified; private records are not included.'
+    include review_human, review_operator, review_identity, review_git, review_platform, review_harbor, review_evidence
+    autoLayout LeftRight
+  }
+  dynamic view security_identity {
+    title 'Identity: authentication is not authorization'
+    description 'PARTIAL source implementation. Full tenant/native denials, token revocation and recovery are UNVERIFIED here. Privileged administration can bypass nominal app boundaries.'
+    review_human -> review_identity.review_idp 'Authenticate through approved app-specific client'
+    review_identity.review_idp -> review_identity.review_api 'Supply scoped identity claims; API validates token'
+    review_identity.review_api -> review_platform.review_runtime 'Enforce tenant/resource/action permissions and workload boundaries'
+    review_identity.review_api -> review_evidence 'Record allowed/denied actions; completeness/retention need evidence'
+    review_operator -> review_identity.review_recovery 'Separately approve emergency access; preserve accountable evidence'
+  }
+  dynamic view security_image_intake {
+    title 'Image intake: PLANNED before Harbor publication'
+    description 'Not implemented. Scan all copied runnable platform digests; findings/errors/stale DBs/missing coverage block. Thresholds, signatures and exceptions require maintainer decisions. No CI gate is enabled by this diagram.'
+    review_upstream -> review_staging.review_image_scan 'Resolve allowlisted source to immutable index/child digests'
+    review_staging.review_image_scan -> review_staging.review_gate 'Supply per-platform JSON/SBOM and tool/DB/policy evidence'
+    review_staging.review_gate -> review_publisher 'Verify trusted producer/ref/job, hashes, freshness and decision'
+    review_publisher -> review_harbor 'Copy approved digests only; verify destination identity'
+    review_publisher -> review_evidence 'Retain redacted decision, exceptions and readback receipts'
+  }
+  dynamic view security_chart_intake {
+    title 'Chart intake: PLANNED package, render and image coverage'
+    description 'Not implemented. Approval covers only the recorded dependency/values/Kubernetes-capability matrix. No hooks/tests/scripts run. Unsupported controller/conditional/lookup image coverage blocks.'
+    review_upstream -> review_staging.review_chart_scan 'Verify exact package hash/OCI identity, dependencies and provenance'
+    review_staging.review_chart_scan -> review_staging.review_chart_scan 'Lint/schema, render matrix with CRDs; scan misconfigurations'
+    review_staging.review_chart_scan -> review_staging.review_image_scan 'Inventory and scan normal/init/sidecar/hook/Job/subchart images'
+    review_staging.review_image_scan -> review_staging.review_gate 'Bind coverage, hashes, policy and freshness to chart decision'
+    review_staging.review_gate -> review_publisher 'Independently verify producer and evidence; block gaps/errors'
+    review_publisher -> review_harbor 'Publish approved images then exact chart; verify readback'
+  }
+  dynamic view security_maintenance {
+    title 'Maintenance: Git-owned changes and explicit acceptance'
+    description 'GitOps ownership is IMPLEMENTED (SOURCE); Rust CLI is PLANNED #77. Hosted validation remains paused. Source preparation is not activation, deletion or live-test approval.'
+    review_operator -> review_cli 'Planned: select target/profile/app and local preparation or explicit test mode'
+    review_cli -> review_git 'Planned: produce intended YAML diff and offline test evidence'
+    review_operator -> review_git 'Review exact change, permissions, data consequences and release'
+    review_git -> review_platform.review_flux 'After separate approval, select reviewed desired-state release'
+    review_platform.review_flux -> review_platform.review_runtime 'Reconcile through scoped installers, not an alternate CLI control plane'
+    review_platform.review_runtime -> review_evidence 'Separately authorized acceptance: revision, time, positive/negative results'
+  }
+  dynamic view security_promotion {
+    title 'GitLab to GitHub: PLANNED one-way public-safe promotion'
+    description 'Planning only #80. No migration, copy or new automation. One authoritative source per repo; independent image/chart/credential/data recovery is still required.'
+    review_operator -> review_gitlab 'Review repository authority, source split and release identity'
+    review_gitlab -> review_git 'Validate approved commit/tag, public content and provenance'
+    review_operator -> review_github 'Approve versioned one-way promotion of public-safe content only'
+    review_github -> review_platform.review_flux 'Independently supply reviewed GitOps references'
+    review_platform.review_flux -> review_harbor 'Resolve approved artifacts; GitHub alone is not complete recovery'
+    review_operator -> review_evidence 'Demonstrate restore/bootstrap and rollback without in-cluster GitLab'
+  }
+}
