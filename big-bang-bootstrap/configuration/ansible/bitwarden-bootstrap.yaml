@@ -1,0 +1,58 @@
+# Local recovery input staging, then separately approved OpenBao KV-v2 population.
+# Never invoked by bootstrap.yaml, Flux, CI, or an application reconciler.
+- name: Stage explicitly mapped Bitwarden inputs and seed downstream platform secrets
+  hosts: bootstrap_clusters
+  connection: local
+  gather_facts: false
+  vars:
+    bitwarden_bootstrap_stage: false
+    bitwarden_bootstrap_seed: false
+    bitwarden_bootstrap_manifest: {}
+    bitwarden_bootstrap_cli: /UNCONFIGURED/bw
+    bitwarden_bootstrap_bao_url: https://UNCONFIGURED
+    bitwarden_bootstrap_bao_cluster_id: UNCONFIGURED
+    bitwarden_bootstrap_bao_policy: UNCONFIGURED
+    bitwarden_bootstrap_bao_ca_file: /UNCONFIGURED/public-ca
+    bitwarden_bootstrap_bao_token_file: /UNCONFIGURED/scoped-token
+    bw_repo: '{{ (playbook_dir + "/../../..") | realpath }}'
+    bw_root: '{{ bw_repo }}/.secrets'
+    bw_output: '{{ bw_root }}/bitwarden-bootstrap-{{ deployment_environment }}'
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ bitwarden_bootstrap_bao_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      unredirected_headers: [X-Vault-Token]
+      timeout: 20
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check mode is inert. Local staging and platform KV seeding are separate approvals. No login, grants, deployment, rotation, unseal or cleanup.'
+  - name: Operate only on explicitly reviewed runtime mappings
+    when: (bitwarden_bootstrap_stage | bool or bitwarden_bootstrap_seed | bool) and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.include_tasks: tasks/bitwarden-validate.yaml
+    - ansible.builtin.include_tasks: tasks/bitwarden-stage.yaml
+      when: bitwarden_bootstrap_stage | bool
+    - ansible.builtin.include_tasks: tasks/bitwarden-seed.yaml
+      when: bitwarden_bootstrap_seed | bool
+    always:
+    - name: Clear transient secret-bearing results even on failure
+      ansible.builtin.set_fact:
+        bw_status: {}
+        bw_reads: {}
+        bw_values: {}
+        bw_item: {}
+        bw_existing: {}
+        bw_staged: {}
+        bw_headers: {}
+        bw_token: {}
+        bw_current: {}
+        bw_readback: {}
+        bw_payload: {}
+        bw_payloads: {}
+        bw_written: {}
+        bw_mounts: {}
+      no_log: true

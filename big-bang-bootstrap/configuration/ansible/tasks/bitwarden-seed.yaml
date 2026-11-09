@@ -1,0 +1,111 @@
+- name: Require completed staging and a separately supplied short-lived scoped token
+  ansible.builtin.assert:
+    quiet: true
+    that:
+    - bitwarden_bootstrap_manifest.platform | length > 0
+    - lookup('file', bw_output + '/manifest.json') | from_json == bitwarden_bootstrap_manifest
+    - bitwarden_bootstrap_bao_url is match('^https://[a-zA-Z0-9.-]+(:[0-9]+)?$')
+    - bitwarden_bootstrap_bao_url != 'https://UNCONFIGURED'
+    - bitwarden_bootstrap_bao_cluster_id != 'UNCONFIGURED'
+    - bitwarden_bootstrap_bao_cluster_id | length > 0
+    - bitwarden_bootstrap_bao_policy is match('^bitwarden-bootstrap-[a-z0-9-]+$')
+    - bitwarden_bootstrap_bao_token_file is match('^/')
+    - bitwarden_bootstrap_bao_token_file | realpath == bitwarden_bootstrap_bao_token_file
+    - bitwarden_bootstrap_bao_ca_file is match('^/')
+- ansible.builtin.stat:
+    path: '{{ bitwarden_bootstrap_bao_token_file }}'
+    follow: false
+    get_checksum: false
+    get_mime: false
+  register: bw_token_file
+- ansible.builtin.assert:
+    quiet: true
+    that:
+    - bw_token_file.stat.isreg | default(false)
+    - not bw_token_file.stat.islnk
+    - bw_token_file.stat.mode == '0600'
+    - bw_token_file.stat.pw_name == lookup('env', 'USER')
+    - bw_token_file.stat.nlink == 1
+- name: Assemble only downstream keys from completed local staging
+  ansible.builtin.set_fact:
+    bw_payloads: {}
+- ansible.builtin.include_tasks: bitwarden-payload.yaml
+  loop: '{{ bitwarden_bootstrap_manifest.platform }}'
+  loop_control:
+    loop_var: bw_destination
+- name: Verify TLS and exact initialized unsealed OpenBao cluster before sending token
+  ansible.builtin.uri:
+    url: '{{ bitwarden_bootstrap_bao_url }}/v1/sys/health'
+  register: bw_health
+- ansible.builtin.assert:
+    quiet: true
+    that:
+    - bw_health.json.initialized and not bw_health.json.sealed
+    - bw_health.json.cluster_id == bitwarden_bootstrap_bao_cluster_id
+- ansible.builtin.set_fact:
+    bw_headers: {X-Vault-Token: "{{ lookup('file', bitwarden_bootstrap_bao_token_file) | trim }}"}
+- name: Refuse root or long-lived operator authority for routine population
+  ansible.builtin.uri:
+    url: '{{ bitwarden_bootstrap_bao_url }}/v1/auth/token/lookup-self'
+    headers: '{{ bw_headers }}'
+  register: bw_token
+- ansible.builtin.assert:
+    quiet: true
+    that:
+    - bw_token.json.data.policies == [bitwarden_bootstrap_bao_policy]
+    - bw_token.json.data.identity_policies | default([]) | length == 0
+    - bw_token.json.data.ttl | int > 0
+    - bw_token.json.data.ttl | int <= 3600
+- name: Discover only each destination mount using the scoped token
+  ansible.builtin.uri:
+    url: '{{ bitwarden_bootstrap_bao_url }}/v1/sys/internal/ui/mounts/platform/{{ item.path }}'
+    headers: '{{ bw_headers }}'
+  loop: '{{ bitwarden_bootstrap_manifest.platform }}'
+  register: bw_mounts
+- ansible.builtin.assert:
+    quiet: true
+    that:
+    - item.json.data.path == 'platform/'
+    - item.json.data.type == 'kv'
+    - item.json.data.options.version | string == '2'
+  loop: '{{ bw_mounts.results }}'
+- name: Read all exact destinations before any write
+  ansible.builtin.uri:
+    url: '{{ bitwarden_bootstrap_bao_url }}/v1/platform/data/{{ item.path }}'
+    headers: '{{ bw_headers }}'
+    status_code: [200, 404]
+  loop: '{{ bitwarden_bootstrap_manifest.platform }}'
+  register: bw_current
+- name: Preserve existing values and refuse rotation or partial key replacement
+  ansible.builtin.assert:
+    quiet: true
+    that:
+    - item.status == 404 or item.json.data.data == bw_payloads[item.item.path]
+  loop: '{{ bw_current.results }}'
+- name: Create missing paths once using KV-v2 check-and-set zero
+  ansible.builtin.uri:
+    url: '{{ bitwarden_bootstrap_bao_url }}/v1/platform/data/{{ item.item.path }}'
+    method: POST
+    headers: '{{ bw_headers }}'
+    body_format: json
+    body:
+      options: {cas: 0}
+      data: '{{ bw_payloads[item.item.path] }}'
+    status_code: 200
+  loop: '{{ bw_current.results }}'
+  when: item.status == 404
+  register: bw_written
+  changed_when: true
+- name: Verify exact data after create or no-change reuse
+  ansible.builtin.uri:
+    url: '{{ bitwarden_bootstrap_bao_url }}/v1/platform/data/{{ item.path }}'
+    headers: '{{ bw_headers }}'
+  loop: '{{ bitwarden_bootstrap_manifest.platform }}'
+  register: bw_readback
+- ansible.builtin.assert:
+    quiet: true
+    that:
+    - item.json.data.data == bw_payloads[item.item.path]
+    - item.json.data.metadata.destroyed == false
+    - item.json.data.metadata.deletion_time == ''
+  loop: '{{ bw_readback.results }}'

@@ -1,0 +1,13 @@
+- ansible.builtin.set_fact:
+    bw_payload: {}
+- name: Read only selected downstream files preserving exact bytes
+  ansible.builtin.set_fact:
+    bw_payload: '{{ bw_payload | combine({item.key: lookup("file", bw_output + "/" + item.value, rstrip=false, lstrip=false)}) }}'
+  loop: '{{ bw_destination.fields | dict2items }}'
+- ansible.builtin.assert:
+    quiet: true
+    that:
+    - item is string and item | trim | length > 0
+  loop: '{{ bw_payload.values() | list }}'
+- ansible.builtin.set_fact:
+    bw_payloads: '{{ bw_payloads | combine({bw_destination.path: bw_payload}) }}'

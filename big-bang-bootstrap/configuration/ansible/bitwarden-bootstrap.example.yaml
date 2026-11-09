@@ -1,0 +1,39 @@
+# Copy into protected ignored runtime inputs. These are deliberately unusable.
+# No item name, account, environment or credential is inferred from the vault.
+bitwarden_bootstrap_cli: /UNCONFIGURED/installed/bw
+bitwarden_bootstrap_manifest:
+  schema_version: 1
+  environment: UNCONFIGURED
+  account_id: UNCONFIGURED
+  server_url: https://vault.bitwarden.com
+  organization_id: null
+  sources:
+    initial-registry-password:
+      item_id: UNCONFIGURED
+      item_name: UNCONFIGURED
+      field: password
+      purpose: initial
+      collection_ids: []
+    downstream-registry-user:
+      item_id: UNCONFIGURED
+      item_name: UNCONFIGURED
+      field: username
+      purpose: downstream
+      collection_ids: []
+    downstream-registry-password:
+      item_id: UNCONFIGURED
+      item_name: UNCONFIGURED
+      field: password
+      purpose: downstream
+      collection_ids: []
+  platform:
+  - path: bootstrap/UNCONFIGURED/registry
+    fields:
+      username: downstream-registry-user
+      password: downstream-registry-password
+# Existing scoped token supplied independently, never an OpenBao root/unseal key.
+bitwarden_bootstrap_bao_url: https://UNCONFIGURED
+bitwarden_bootstrap_bao_cluster_id: UNCONFIGURED
+bitwarden_bootstrap_bao_ca_file: /UNCONFIGURED/public-ca
+bitwarden_bootstrap_bao_token_file: /UNCONFIGURED/scoped-token
+bitwarden_bootstrap_bao_policy: UNCONFIGURED

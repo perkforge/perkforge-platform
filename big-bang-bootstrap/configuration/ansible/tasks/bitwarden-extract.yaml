@@ -1,0 +1,15 @@
+- ansible.builtin.set_fact:
+    bw_item: '{{ (bw_reads.results | selectattr("item", "equalto", bw_source.value.item_id) | first).stdout | from_json }}'
+- ansible.builtin.assert:
+    quiet: true
+    that:
+    - bw_item.id == bw_source.value.item_id
+    - bw_item.name == bw_source.value.item_name
+    - bw_item.type == 1
+    - bw_item.deletedDate | default(none) == none
+    - bw_item.organizationId == bitwarden_bootstrap_manifest.organization_id
+    - bw_item.collectionIds | sort == bw_source.value.collection_ids | sort
+    - bw_item.login[bw_source.value.field] is string
+    - bw_item.login[bw_source.value.field] | trim | length > 0
+- ansible.builtin.set_fact:
+    bw_values: '{{ bw_values | combine({bw_source.key: bw_item.login[bw_source.value.field]}) }}'

@@ -1,0 +1,80 @@
+- name: Require an existing unlocked operator session and explicit installed CLI
+  ansible.builtin.assert:
+    quiet: true
+    that:
+    - bitwarden_bootstrap_cli is match('^/')
+    - not bitwarden_bootstrap_cli.startswith('/UNCONFIGURED/')
+    - lookup('env', 'BW_SESSION') | length > 0
+- name: Verify the tested Password Manager CLI version without login or sync
+  ansible.builtin.command:
+    argv: ['{{ bitwarden_bootstrap_cli }}', --version]
+  environment: {BW_NOINTERACTION: 'true'}
+  register: bw_version
+  changed_when: false
+- ansible.builtin.assert:
+    quiet: true
+    that: bw_version.stdout | trim == '2026.10.1'
+- name: Verify existing vault account and server before retrieving exact items
+  ansible.builtin.command:
+    argv: ['{{ bitwarden_bootstrap_cli }}', status]
+  environment: {BW_NOINTERACTION: 'true'}
+  register: bw_status
+  changed_when: false
+- ansible.builtin.assert:
+    quiet: true
+    that:
+    - (bw_status.stdout | from_json).status == 'unlocked'
+    - (bw_status.stdout | from_json).userId == bitwarden_bootstrap_manifest.account_id
+    - (bw_status.stdout | from_json).serverUrl == bitwarden_bootstrap_manifest.server_url
+- name: Read only mapped item IDs without list, export, sync or credential arguments
+  ansible.builtin.command:
+    argv: ['{{ bitwarden_bootstrap_cli }}', get, item, '{{ item }}']
+    strip_empty_ends: false
+  loop: '{{ bitwarden_bootstrap_manifest.sources.values() | map(attribute="item_id") | unique | list }}'
+  environment: {BW_NOINTERACTION: 'true'}
+  register: bw_reads
+  changed_when: false
+- ansible.builtin.set_fact:
+    bw_values: {}
+- name: Validate exact identity, ownership and nonempty selected fields
+  ansible.builtin.include_tasks: bitwarden-extract.yaml
+  loop: '{{ bitwarden_bootstrap_manifest.sources | dict2items }}'
+  loop_control:
+    loop_var: bw_source
+- name: Compare all existing files before writing any new credential
+  ansible.builtin.assert:
+    quiet: true
+    that: lookup('file', bw_output + '/' + item.item, rstrip=false, lstrip=false) == bw_values[item.item]
+  loop: '{{ bw_destinations.results[:-1] }}'
+  when: item.stat.exists
+- name: Create only absent protected local custody directories
+  ansible.builtin.file:
+    path: '{{ item.item }}'
+    state: directory
+    mode: '0700'
+  loop: '{{ bw_directories.results }}'
+  when: not item.stat.exists
+- name: Stage mapped values without overwriting existing credentials or showing diffs
+  ansible.builtin.copy:
+    dest: '{{ bw_output }}/{{ item.key }}'
+    content: '{{ item.value }}'
+    mode: '0600'
+    force: false
+  loop: '{{ bw_values | dict2items }}'
+  diff: false
+- name: Verify exact staged bytes before marking the mapping complete
+  ansible.builtin.slurp:
+    src: '{{ bw_output }}/{{ item.key }}'
+  loop: '{{ bw_values | dict2items }}'
+  register: bw_staged
+- ansible.builtin.assert:
+    quiet: true
+    that: item.content | b64decode == item.item.value
+  loop: '{{ bw_staged.results }}'
+- name: Record only mapping metadata after successful staging
+  ansible.builtin.copy:
+    dest: '{{ bw_output }}/manifest.json'
+    content: '{{ bitwarden_bootstrap_manifest | to_nice_json }}'
+    mode: '0600'
+    force: false
+  diff: false

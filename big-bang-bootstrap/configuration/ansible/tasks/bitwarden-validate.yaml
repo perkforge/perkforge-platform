@@ -1,0 +1,88 @@
+- name: Require one local target and an exact environment-bound manifest
+  ansible.builtin.assert:
+    quiet: true
+    that:
+    - ansible_play_hosts_all | length == 1
+    - ansible_connection == 'local'
+    - deployment_environment is match('^[a-z][a-z0-9-]{0,39}$')
+    - bitwarden_bootstrap_manifest is mapping
+    - bitwarden_bootstrap_manifest.schema_version == 1
+    - bitwarden_bootstrap_manifest.environment == deployment_environment
+    - bitwarden_bootstrap_manifest.account_id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+    - bitwarden_bootstrap_manifest.server_url is match('^https://[a-zA-Z0-9.-]+(:[0-9]+)?$')
+    - bitwarden_bootstrap_manifest.organization_id == none or bitwarden_bootstrap_manifest.organization_id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+    - bitwarden_bootstrap_manifest.sources is mapping
+    - bitwarden_bootstrap_manifest.sources | length > 0
+    - bitwarden_bootstrap_manifest.platform is sequence
+    - bitwarden_bootstrap_manifest.platform is not string
+    - bitwarden_bootstrap_manifest.platform is not mapping
+- name: Validate only explicit Login username or password selectors
+  ansible.builtin.assert:
+    quiet: true
+    that:
+    - item.key is match('^[a-z][a-z0-9-]{0,79}$')
+    - item.value.item_id is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+    - item.value.item_name is string and item.value.item_name | length > 0
+    - item.value.item_name != 'UNCONFIGURED'
+    - item.value.field in ['username', 'password']
+    - item.value.purpose in ['initial', 'downstream']
+    - item.value.collection_ids is sequence and item.value.collection_ids is not string
+    - item.value.collection_ids | unique | length == item.value.collection_ids | length
+    - item.value.collection_ids | reject('match', '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') | list | length == 0
+  loop: '{{ bitwarden_bootstrap_manifest.sources | dict2items }}'
+- name: Validate explicit environment-scoped platform paths and key references
+  ansible.builtin.assert:
+    quiet: true
+    that:
+    - item.path is match('^bootstrap/' + deployment_environment + '/[a-z][a-z0-9-]*(/[a-z][a-z0-9-]*)*$')
+    - item.fields is mapping and item.fields | length > 0
+    - item.fields.keys() | reject('match', '^[a-zA-Z][a-zA-Z0-9_-]{0,79}$') | list | length == 0
+    - item.fields.values() | difference(bitwarden_bootstrap_manifest.sources.keys()) | length == 0
+    - item.fields.values() | difference(bitwarden_bootstrap_manifest.sources | dict2items | selectattr('value.purpose', 'equalto', 'downstream') | map(attribute='key') | list) | length == 0
+  loop: '{{ bitwarden_bootstrap_manifest.platform }}'
+- ansible.builtin.assert:
+    quiet: true
+    that:
+    - bitwarden_bootstrap_manifest.platform | map(attribute='path') | unique | length == bitwarden_bootstrap_manifest.platform | length
+- name: Refuse symlinked custody paths before creating or reading files
+  ansible.builtin.assert:
+    quiet: true
+    that:
+    - bw_root | realpath == bw_root
+    - bw_output | realpath == bw_output
+- name: Verify repository ignore coverage for staged credentials
+  ansible.builtin.command:
+    argv: [git, -C, '{{ bw_repo }}', check-ignore, --quiet, '{{ bw_output }}/{{ item }}']
+  loop: "{{ (bitwarden_bootstrap_manifest.sources.keys() | list) + ['manifest.json'] }}"
+  changed_when: false
+- name: Inspect custody directories without reading contents
+  ansible.builtin.stat:
+    path: '{{ item }}'
+    follow: false
+    get_checksum: false
+    get_mime: false
+  loop: ['{{ bw_root }}', '{{ bw_output }}']
+  register: bw_directories
+- ansible.builtin.assert:
+    quiet: true
+    that:
+    - not item.stat.exists or (item.stat.isdir | default(false) and not item.stat.islnk and item.stat.mode == '0700' and item.stat.pw_name == lookup('env', 'USER'))
+  loop: '{{ bw_directories.results }}'
+- name: Check every destination before reading from Bitwarden
+  ansible.builtin.stat:
+    path: '{{ bw_output }}/{{ item }}'
+    follow: false
+    get_checksum: false
+    get_mime: false
+  loop: "{{ (bitwarden_bootstrap_manifest.sources.keys() | list) + ['manifest.json'] }}"
+  register: bw_destinations
+- ansible.builtin.assert:
+    quiet: true
+    that:
+    - not item.stat.exists or (item.stat.isreg | default(false) and not item.stat.islnk and item.stat.mode == '0600' and item.stat.pw_name == lookup('env', 'USER') and item.stat.nlink == 1)
+  loop: '{{ bw_destinations.results }}'
+- name: Refuse changing a staged run's source identities or destination mapping
+  ansible.builtin.assert:
+    quiet: true
+    that: lookup('file', bw_output + '/manifest.json') | from_json == bitwarden_bootstrap_manifest
+  when: bw_destinations.results[-1].stat.exists

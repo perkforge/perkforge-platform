@@ -370,3 +370,10 @@ Secret. All targets are immutable and owned; identical repeats make no changes,
 and unowned or changed objects fail instead of being adopted or rotated. Private
 values pass through redacted stdin. Nothing here authorizes collection beyond
 the opt-in logging-pilot namespace or changes the active Flux root.
+
+## Bitwarden recovery inputs and downstream secrets
+
+Use the separately gated [Bitwarden recovery bootstrap](bitwarden-bootstrap.md)
+to stage explicitly mapped initial credentials locally and, after OpenBao recovery,
+create only missing approved downstream records in `platform/` KV-v2. It does not
+run first-install bootstrap, create grants or change ongoing OpenBao/ESO ownership.
