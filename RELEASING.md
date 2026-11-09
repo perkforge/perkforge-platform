@@ -20,17 +20,29 @@ portal chart/image versions are independent; this does not bump either of those.
 Dependency tags and reviewed resolved commits are recorded in `release-evidence.json`. The selected configuration dependency chain is enrollment v1.0.0 → portal config v1.0.0; a compatible platform release containing this selection must publish before bootstrap can use it. Image versions remain independently selected by application configuration. Do not infer compatibility from version numbers alone.
 
 The separate Nextcloud-only selection is enrollment
-[v1.5.0](https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v1.5.0)
+[v1.5.2](https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v1.5.2)
 → app configuration
-[v1.1.0](https://github.com/perkforge/perkforge-tenant-nextcloud/releases/tag/v1.1.0).
-Its platform overlay changes only the enrollment ref; the existing
-`local-metrics-limited-pilot-ui` stage and enrollment `./clusters/local-nextcloud`
-path, suspension flags, data/claim/recovery guards and Portal selection remain
-unchanged. This is source review, not live promotion. Before separately approved
-promotion, the private-image app requires `nextcloud-registry-existing`,
-`nextcloud-oidc` and `nextcloud-oidc-ca`; OIDC inputs and live policy/network/rollout
-approval remain separate gates. Shared-ingress selection is not approval to apply
-it. No bootstrap or Jett enrollment is included.
+[v1.1.1](https://github.com/perkforge/perkforge-tenant-nextcloud/releases/tag/v1.1.1).
+It selects the reviewed files expansion to 128Gi, unchanged 16Gi PostgreSQL,
+and a 144Gi namespace quota with bounded, non-shrinking files admission.
+The platform overlay changes only the enrollment ref. All composed roots,
+including `local-velero`, retain their existing workload selections; enrollment
+`./clusters/local-nextcloud`, suspension/identity/prune/force settings and Portal
+selection remain unchanged. This is source review, not live promotion.
+
+Before separately approved promotion, operator-apply and validate only the
+reviewed quota/files-admission foundation from the published enrollment release.
+Foundation is not reconciled by the tenant child. Recheck the existing native
+admission type warning, dedicated replica health/capacity and paired recovery
+readiness. Preserve PVC/PV identities and the 16Gi database; never shrink or
+replace the files claim to roll back. After authorized expansion, verify 128Gi
+request/capacity and filesystem size, two healthy dedicated replicas, quota use,
+web/cron health and synthetic-file retention. Any needed restart is separate.
+
+The existing private-image inputs `nextcloud-registry-existing`, `nextcloud-oidc`
+and `nextcloud-oidc-ca` are retained; no credential rotation, SSO activation,
+bootstrap replay or household import is included. Publish this platform candidate
+as a reviewed release before selecting it for a separately approved live rollout.
 
 Publish source/image changes first when required, then app configuration → enrollment → platform. Each dependency advance is a reviewed PR using an actually published compatible tag. Verify source contents, paths, cluster/environment/profile context and rendering before adopting it.
 

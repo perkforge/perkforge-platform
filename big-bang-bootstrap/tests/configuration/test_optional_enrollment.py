@@ -44,18 +44,20 @@ class OptionalEnrollmentTests(unittest.TestCase):
         self.assertFalse(parent['spec']['prune'])
         self.assertTrue(all(not x['spec']['suspend'] for x in enrolled))
 
-    def test_current_metrics_stage_keeps_nextcloud_and_portal_selections_separate(self):
+    def test_metrics_and_velero_stages_keep_nextcloud_and_portal_selections_separate(self):
         evidence = json.loads((ROOT.parent / 'release-evidence.json').read_text())['dependencies']
-        objects = build(ROOT / 'clusters/local-metrics-limited-pilot-ui')
-        enrolled = [obj for obj in objects if obj['metadata']['name'] == 'tenant-enrollments']
-        self.assertEqual({obj['kind'] for obj in enrolled}, {'GitRepository', 'Kustomization'})
-        source = next(obj for obj in enrolled if obj['kind'] == 'GitRepository')
-        parent = next(obj for obj in enrolled if obj['kind'] == 'Kustomization')
-        release_for(source, evidence['nextcloud-enrollment'])
-        self.assertEqual(parent['spec']['path'], './clusters/local-nextcloud')
-        self.assertEqual(parent['spec']['serviceAccountName'], 'tenant-enrollment-admin')
-        self.assertFalse(parent['spec']['prune'])
-        self.assertTrue(all(not obj['spec']['suspend'] for obj in enrolled))
+        for stage in ['local-metrics-limited-pilot-ui', 'local-velero']:
+            with self.subTest(stage=stage):
+                objects = build(ROOT / 'clusters' / stage)
+                enrolled = [obj for obj in objects if obj['metadata']['name'] == 'tenant-enrollments']
+                self.assertEqual({obj['kind'] for obj in enrolled}, {'GitRepository', 'Kustomization'})
+                source = next(obj for obj in enrolled if obj['kind'] == 'GitRepository')
+                parent = next(obj for obj in enrolled if obj['kind'] == 'Kustomization')
+                release_for(source, evidence['nextcloud-enrollment'])
+                self.assertEqual(parent['spec']['path'], './clusters/local-nextcloud')
+                self.assertEqual(parent['spec']['serviceAccountName'], 'tenant-enrollment-admin')
+                self.assertFalse(parent['spec']['prune'])
+                self.assertTrue(all(not obj['spec']['suspend'] for obj in enrolled))
         portal = build(ROOT / 'enrollments/local')
         portal_source = next(obj for obj in portal if obj['kind'] == 'GitRepository')
         portal_parent = next(obj for obj in portal if obj['kind'] == 'Kustomization')
