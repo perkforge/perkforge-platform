@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.35.0](https://github.com/perkforge/perkforge-platform/compare/v0.34.3...v0.35.0) (2026-11-10)
+
+
+### Features
+
+* **secrets:** prepare native ESO and scoped OpenBao stores ([#316](https://github.com/perkforge/perkforge-platform/issues/316)) ([fbb01d0](https://github.com/perkforge/perkforge-platform/commit/fbb01d0835ff3893d27af4e5c19a2ce4b2a43c96))
+
 ## [0.34.3](https://github.com/perkforge/perkforge-platform/compare/v0.34.2...v0.34.3) (2026-11-10)
 
 
