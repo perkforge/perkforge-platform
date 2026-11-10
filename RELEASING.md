@@ -20,18 +20,24 @@ portal chart/image versions are independent; this does not bump either of those.
 Dependency tags and reviewed resolved commits are recorded in `release-evidence.json`. The selected configuration dependency chain is enrollment v1.0.0 → portal config v1.0.0; a compatible platform release containing this selection must publish before bootstrap can use it. Image versions remain independently selected by application configuration. Do not infer compatibility from version numbers alone.
 
 The separate Nextcloud-only selection is enrollment
-[v1.5.2](https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v1.5.2)
+[v1.5.3](https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v1.5.3)
 → app configuration
-[v1.1.1](https://github.com/perkforge/perkforge-tenant-nextcloud/releases/tag/v1.1.1).
-It selects the reviewed files expansion to 128Gi, unchanged 16Gi PostgreSQL,
-and a 144Gi namespace quota with bounded, non-shrinking files admission.
+[v1.1.2](https://github.com/perkforge/perkforge-tenant-nextcloud/releases/tag/v1.1.2).
+It selects the reviewed Apache concurrency/memory correction: two workers,
+a 512Mi memory request and 1Gi limit, with the updated rollout annotation.
+CPU, probes, PHP, image, storage, database and cron settings are unchanged.
+The 128Gi files claim, 16Gi PostgreSQL and 144Gi namespace quota remain selected.
+Enrollment foundation objects are unchanged; large-upload acceptance remains
+pending. The live deployment is unchanged by this source update.
 The platform overlay changes only the enrollment ref. All composed roots,
 including `local-velero`, retain their existing workload selections; enrollment
 `./clusters/local-nextcloud`, suspension/identity/prune/force settings and Portal
 selection remain unchanged. This is source review, not live promotion.
 
-Before separately approved promotion, operator-apply and validate only the
-reviewed quota/files-admission foundation from the published enrollment release.
+For a target that still needs the earlier storage expansion, separately approve
+operator application and validation of only the reviewed quota/files-admission
+foundation from the published enrollment release. This memory/concurrency pin
+requires no foundation change; do not repeat completed expansion work.
 Foundation is not reconciled by the tenant child. Recheck the existing native
 admission type warning, dedicated replica health/capacity and paired recovery
 readiness. Preserve PVC/PV identities and the 16Gi database; never shrink or
