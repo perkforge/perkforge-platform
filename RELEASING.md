@@ -20,15 +20,15 @@ portal chart/image versions are independent; this does not bump either of those.
 Dependency tags and reviewed resolved commits are recorded in `release-evidence.json`. The selected configuration dependency chain is enrollment v1.0.0 → portal config v1.0.0; a compatible platform release containing this selection must publish before bootstrap can use it. Image versions remain independently selected by application configuration. Do not infer compatibility from version numbers alone.
 
 The separate Nextcloud-only selection is enrollment
-[v1.5.3](https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v1.5.3)
+[v1.5.4](https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v1.5.4)
 → app configuration
-[v1.1.2](https://github.com/perkforge/perkforge-tenant-nextcloud/releases/tag/v1.1.2).
-It selects the reviewed Apache concurrency/memory correction: two workers,
-a 512Mi memory request and 1Gi limit, with the updated rollout annotation.
-CPU, probes, PHP, image, storage, database and cron settings are unchanged.
+[v1.1.3](https://github.com/perkforge/perkforge-tenant-nextcloud/releases/tag/v1.1.3).
+It selects the reviewed cron memory correction: a 128Mi request and 256Mi limit,
+up from 64Mi/128Mi. Cron CPU and PHP heap, two Apache workers, web memory
+(512Mi/1Gi), probes, image, storage and database settings are unchanged.
 The 128Gi files claim, 16Gi PostgreSQL and 144Gi namespace quota remain selected.
-Enrollment foundation objects are unchanged; large-upload acceptance remains
-pending. The live deployment is unchanged by this source update.
+Enrollment foundation objects are unchanged. This source update does not deploy
+the correction or establish that the new memory limit is sufficient under load.
 The platform overlay changes only the enrollment ref. All composed roots,
 including `local-velero`, retain their existing workload selections; enrollment
 `./clusters/local-nextcloud`, suspension/identity/prune/force settings and Portal
@@ -36,7 +36,7 @@ selection remain unchanged. This is source review, not live promotion.
 
 For a target that still needs the earlier storage expansion, separately approve
 operator application and validation of only the reviewed quota/files-admission
-foundation from the published enrollment release. This memory/concurrency pin
+foundation from the published enrollment release. This cron memory pin
 requires no foundation change; do not repeat completed expansion work.
 Foundation is not reconciled by the tenant child. Recheck the existing native
 admission type warning, dedicated replica health/capacity and paired recovery
@@ -44,6 +44,14 @@ readiness. Preserve PVC/PV identities and the 16Gi database; never shrink or
 replace the files claim to roll back. After authorized expansion, verify 128Gi
 request/capacity and filesystem size, two healthy dedicated replicas, quota use,
 web/cron health and synthetic-file retention. Any needed restart is separate.
+
+Before any separately approved promotion, stop all transfer and readback activity
+and establish the bounded Recreate window: the single replica's web and cron
+containers restart together. Verify at least two completed cron cycles, metadata
+backlog progress and no new OOMs/restarts before considering transfer resumption.
+Interrupted metadata jobs may have been removed from the queue before execution;
+content hashes alone do not establish metadata completeness. Any targeted metadata
+regeneration and transfer continuation require their own approved recovery plan.
 
 The existing private-image inputs `nextcloud-registry-existing`, `nextcloud-oidc`
 and `nextcloud-oidc-ca` are retained; no credential rotation, SSO activation,

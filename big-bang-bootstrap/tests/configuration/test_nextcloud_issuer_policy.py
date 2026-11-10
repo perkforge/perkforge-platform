@@ -87,9 +87,10 @@ class LocalIssuerSelection(unittest.TestCase):
                 self.assertEqual(len(policies), 1)
                 self.assert_exact_policy(policies[0])
         self.assertEqual(selected_roots, [
+            'local-grafana-sso', 'local-harbor-app', 'local-harbor-data',
             'local-logging-backend', 'local-logging-limited-pilot', 'local-logging-pilot',
             'local-metrics-crds', 'local-metrics-limited-pilot', 'local-metrics-limited-pilot-ui',
-            'local-metrics-pilot', 'local-metrics-review', 'local-nextcloud'])
+            'local-metrics-pilot', 'local-metrics-review', 'local-nextcloud', 'local-velero'])
         self.assertEqual([o['kind'] for o in build(path)], ['NetworkPolicy'])
         seed = (ROOT / 'configuration/ansible/seed.yaml.j2').read_text()
         self.assertIn('serviceAccountName: platform-reconciler', seed)
