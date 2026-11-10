@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.34.2](https://github.com/perkforge/perkforge-platform/compare/v0.34.1...v0.34.2) (2026-11-10)
+
+
+### Bug Fixes
+
+* **nextcloud:** pin enrollment v1.5.3 [skip ci] ([#311](https://github.com/perkforge/perkforge-platform/issues/311)) ([456364c](https://github.com/perkforge/perkforge-platform/commit/456364c3fcac1d3cb79a676b2697abb45fc0a250))
+
 ## [0.34.1](https://github.com/perkforge/perkforge-platform/compare/v0.34.0...v0.34.1) (2026-11-09)
 
 
