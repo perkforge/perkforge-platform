@@ -1,0 +1,21 @@
+- ansible.builtin.assert:
+    that: eso_alias_id is match('^[A-Za-z0-9-]+$')
+- ansible.builtin.uri:
+    url: '{{ eso_api }}/identity/entity-alias/id/{{ eso_alias_id }}'
+    headers: '{{ eso_headers }}'
+  register: eso_alias
+- name: Refuse inherited entity/group authority for this machine-auth accessor
+  when: eso_alias.json.data.mount_accessor == eso_mount.accessor
+  block:
+  - ansible.builtin.assert:
+      that: eso_alias.json.data.canonical_id is match('^[A-Za-z0-9-]+$')
+  - ansible.builtin.uri:
+      url: '{{ eso_api }}/identity/entity/id/{{ eso_alias.json.data.canonical_id }}'
+      headers: '{{ eso_headers }}'
+    register: eso_entity
+  - ansible.builtin.assert:
+      that:
+      - eso_entity.json.data.policies | default([]) | length == 0
+      - eso_entity.json.data.group_ids | default([]) | length == 0
+      - eso_entity.json.data.direct_group_ids | default([]) | length == 0
+      - eso_entity.json.data.inherited_group_ids | default([]) | length == 0

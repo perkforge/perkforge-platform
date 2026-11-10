@@ -1,0 +1,104 @@
+# Reviewed prerequisite only. Not selected by a runtime root.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    perkforge.io/owner: external-secrets-foundation-v1
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: external-secrets-installer, namespace: bigbang}
+automountServiceAccountToken: false
+---
+# Native chart owns runtime SA external-secrets. Binding may precede its creation.
+# LIST/WATCH permits full Secret contents across ALL namespaces, not only metadata.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: external-secrets-cache}
+rules:
+- apiGroups: ['']
+  resources: [secrets]
+  verbs: [list, watch]
+- apiGroups: ['']
+  resources: [namespaces]
+  verbs: [get, list, watch]
+- apiGroups: [external-secrets.io]
+  resources: [externalsecrets, secretstores, clustersecretstores]
+  verbs: [get, list, watch]
+- apiGroups: [generators.external-secrets.io]
+  resources: [generatorstates]
+  verbs: [get, list, watch]
+- apiGroups: [external-secrets.io]
+  resources: [clustersecretstores/status]
+  resourceNames: [openbao-platform]
+  verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: external-secrets-cache}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: external-secrets-cache}
+subjects: [{kind: ServiceAccount, name: external-secrets, namespace: external-secrets}]
+---
+# Only platform namespace mutations. Enrollment owns the separate tenant Role.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: external-secrets-runtime, namespace: external-secrets}
+rules:
+- apiGroups: ['']
+  resources: [secrets]
+  verbs: [get, create, update, patch, delete]
+- apiGroups: [external-secrets.io]
+  resources: [externalsecrets]
+  verbs: [patch]
+- apiGroups: [external-secrets.io]
+  resources: [externalsecrets/status]
+  verbs: [update, patch]
+- apiGroups: [external-secrets.io]
+  resources: [secretstores/status]
+  verbs: [patch]
+- apiGroups: ['']
+  resources: [events]
+  verbs: [create, patch]
+- apiGroups: ['']
+  resources: [configmaps]
+  resourceNames: [openbao-ca]
+  verbs: [get]
+- apiGroups: ['']
+  resources: [serviceaccounts/token]
+  resourceNames: [eso-platform]
+  verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: external-secrets-runtime, namespace: external-secrets}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: external-secrets-runtime}
+subjects: [{kind: ServiceAccount, name: external-secrets, namespace: external-secrets}]
+---
+# Helm storage and exact native namespaced chart kinds; no runtime RBAC escalation.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: external-secrets-installer, namespace: external-secrets}
+rules:
+- apiGroups: ['']
+  resources: [secrets, configmaps, serviceaccounts, services]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [apps]
+  resources: [deployments]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [networking.k8s.io]
+  resources: [networkpolicies]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: ['']
+  resources: [pods]
+  verbs: [get, list, watch]
+- apiGroups: [apps]
+  resources: [replicasets]
+  verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: external-secrets-installer, namespace: external-secrets}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: external-secrets-installer}
+subjects: [{kind: ServiceAccount, name: external-secrets-installer, namespace: bigbang}]

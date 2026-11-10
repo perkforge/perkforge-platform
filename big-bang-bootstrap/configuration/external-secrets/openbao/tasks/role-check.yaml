@@ -1,0 +1,20 @@
+- name: Refuse broad, periodic, inherited or unexpected existing role settings
+  when: eso_role_result.status == 200
+  vars:
+    current: '{{ eso_role_result.json.data }}'
+    desired: "{{ eso_desired_roles[eso_role_result.item] }}"
+  ansible.builtin.assert:
+    that:
+    - current | combine(desired) == current
+    - current.keys() | difference(desired.keys() | list + ['alias_name_source', 'bound_service_account_namespace_selector', 'token_bound_cidrs', 'token_num_uses', 'token_period', 'token_type', 'token_strictly_bind_ip', 'policies', 'period', 'ttl', 'max_ttl']) | length == 0
+    - current.bound_service_account_namespace_selector | default('') == ''
+    - current.alias_name_source | default('serviceaccount_uid') == 'serviceaccount_uid'
+    - current.token_bound_cidrs | default([]) | length == 0
+    - current.token_num_uses | default(0) == 0
+    - not (current.token_strictly_bind_ip | default(false))
+    - current.token_period | default(0) == 0
+    - current.period | default(0) == 0
+    - current.token_type | default('default') in ['default', 'service']
+    - current.policies | default([]) in [[], desired.token_policies]
+    - current.ttl | default(desired.token_ttl) == desired.token_ttl
+    - current.max_ttl | default(desired.token_max_ttl) == desired.token_max_ttl

@@ -78,3 +78,8 @@ mattermost-operator:
   url: https://repo1.dso.mil/big-bang/product/packages/mattermost-operator/-/archive/1.25.9-bb.1/mattermost-operator-1.25.9-bb.1.tar.gz
   sha256: 733a0acaf98e575e8c1286b2a8481af650aa17243b550ce53a2685df5ba78000
   chart: chart
+
+external-secrets:
+  url: https://repo1.dso.mil/big-bang/product/packages/external-secrets/-/archive/2.12.0-bb.0/external-secrets-2.12.0-bb.0.tar.gz
+  sha256: f2d2f3baf6efddaee5cf32c3997762dd699430639a6c45998df39e1e0f81f57e
+  chart: chart

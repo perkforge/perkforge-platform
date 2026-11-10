@@ -1,0 +1,9 @@
+# Evidence pin only; native addon source/image versions remain inherited from Big Bang.
+bigbang_version: 3.35.1
+package_version: 2.12.0-bb.0
+upstream_version: 2.12.0
+source_url: https://repo1.dso.mil/big-bang/product/packages/external-secrets/-/archive/2.12.0-bb.0/external-secrets-2.12.0-bb.0.tar.gz
+source_sha256: f2d2f3baf6efddaee5cf32c3997762dd699430639a6c45998df39e1e0f81f57e
+upstream_archive_sha256: 4b584136b7311c0af8c8719d377cc5b1a7ef12c2de18f1fdb30614eab75bdeb3
+crd_bundle_sha256: 2b2aa2e85a4c081a11688f0b31ebdb33153c0885d4c2e3604d11058995a11b75
+crd_count: 25

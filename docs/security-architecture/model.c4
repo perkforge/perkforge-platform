@@ -31,7 +31,7 @@ model {
   review_platform = system 'Platform control plane' {
     description 'IMPLEMENTED (SOURCE): infrastructure Ansible owns hosts/RKE2, platform Ansible owns gated preparation/API configuration, Flux owns GitOps, Big Bang supplies packages. Rancher is cluster lifecycle, not Fleet app delivery.'
     review_flux = component 'Flux / scoped installers' {
-      description 'Delegate package/enrollment/app changes to reviewed identities. Some controllers and operators retain broad trust; least privilege is scope-specific.'
+      description 'Delegate package/enrollment/app changes to reviewed identities. INACTIVE ESO SOURCE UPDATE: one native controller requires cluster-wide Secret list/watch, exposing full values even with scoped Stores. This operator is trusted; no confidentiality against its compromise. Separate scoped instances are a documented alternative, not deployed. Least privilege is scope-specific.'
     }
     review_runtime = component 'Tenant and shared workloads' {
       description 'UNVERIFIED overall: effective app permissions, complete ingress/egress, workload identity, secret access and cross-tenant denial. No blanket mesh/mTLS claim.'

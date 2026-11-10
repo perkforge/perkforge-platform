@@ -1,0 +1,7 @@
+# Authentication identity only: no RBAC permissions and no mounted token.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eso-platform
+  namespace: external-secrets
+automountServiceAccountToken: false

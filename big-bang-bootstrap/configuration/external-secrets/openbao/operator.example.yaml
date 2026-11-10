@@ -1,0 +1,16 @@
+# Copy outside tracked source. These are references and public metadata, not values.
+# Every run remains separately approved; defaults are inert.
+openbao_eso_run: false
+openbao_eso_operation: inspect
+openbao_eso_reviewed_scope: UNAPPROVED
+openbao_eso_recovery_verified: false
+openbao_eso_cluster_id: UNCONFIGURED
+openbao_eso_origin: https://openbao.perkforge.home.arpa
+openbao_eso_public_ca_file: /UNCONFIGURED/openbao-public-ca.pem
+openbao_eso_token_file: /UNCONFIGURED/existing-approved-operator-token
+# Existing inventory supplies local target/environment/profile. Exact published
+# source evidence must match the clean executing checkout; do not use HEAD/main.
+config_tag: v0.0.0
+config_release_evidence: /UNCONFIGURED/platform-release.json
+config_repository: https://github.com/perkforge/perkforge-platform.git
+gitops_path: ./big-bang-bootstrap/clusters/local-external-secrets

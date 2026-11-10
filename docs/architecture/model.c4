@@ -396,6 +396,11 @@ model {
         description 'UI forwards the human token; Kubernetes authenticates/authorizes it. Unsafe service-account token use and chart cluster-role binding are disabled. Prior proven OIDC group mappings are retained only for later review.'
       }
     }
+    external_secrets = component 'Native ESO: trusted Secret reader - inactive' {
+      description 'IMPLEMENTED SOURCE, NOT DEPLOYED: one native Big Bang 3.35.1 ESO 2.12.0-bb.0 controller. Required all-namespace Secret list/watch can expose full values; this is not metadata-only or controller-compromise isolation. Explicit namespace writes and exact TokenRequest identities, platform ClusterSecretStore namespace conditions and tenant SecretStore/OpenBao policies constrain consumers. No values, live grants or ExternalSecret delivery. Stronger option uses one pinned scoped controller per namespace with protected controller identities and added operational cost.'
+      link https://github.com/perkforge/perkforge-platform/blob/feat/scoped-external-secrets/big-bang-bootstrap/configuration/external-secrets/README.md 'Native controller, store ownership and activation gates'
+      link https://github.com/perkforge/perkforge-platform/blob/feat/scoped-external-secrets/big-bang-bootstrap/configuration/external-secrets/strong-isolation.md 'Alternative for tighter controller-compromise isolation'
+    }
     openbao = component 'OpenBao recovery and PA OIDC — configured' {
       description 'OBSERVED v0.13.0: official chart 0.30.6/OpenBao 2.7.2, initialized once 3 shares / threshold 2, unsealed and initial root-token access verified. One TLS-required worker server, Longhorn-backed 10Gi PebbleDB; separately approved v0.14.0 LAN passthrough accepted, no injector/Kubernetes auth delegation or automatic init/unseal. No HA. Current approved v1 PA OIDC configuration/repeats and recovery passed, with empty owned engines; owner reports named OIDC login; bounded native ACL test and exact cleanup passed; no-group OIDC pending. Preserved broader pilot policies are not activated. Sealed/uninitialized is NotReady, not accepted.'
       link https://github.com/perkforge/perkforge-platform/blob/feat/openbao-bootstrap/big-bang-bootstrap/configuration/packages/openbao/README.md 'OpenBao source and activation gates'
@@ -499,6 +504,10 @@ model {
   platform.flux -> platform.storage 'Reconciles approved Helm deployment'
   platform.rancher -> platform.rke2 'Platform-admin lifecycle'
   platform.flux -> platform.bigbang 'Reconcile platform packages'
+  platform.bigbang -> platform.external_secrets 'Inactive native addon; no independent package or version override'
+  platform.prerequisite_applier -> platform.external_secrets 'Separately approved CRDs and explicit controller/installer RBAC'
+  platform.external_secrets -> platform.openbao 'Dedicated audience/SA/namespace role and exact read-only paths'
+  platform.external_secrets -> platform.rke2.server.rbac 'Global Secret list/watch trust; finite destination writes and TokenRequests'
   platform.flux -> platform.enrollment 'Optional later enrollment; currently excluded locally'
   platform.flux -> platform.applications 'Reconcile application configuration'
   platform.authorization.roles.pa -> platform.authorization.groups 'Exact role group and explicit memberships'
