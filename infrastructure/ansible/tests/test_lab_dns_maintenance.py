@@ -95,6 +95,7 @@ class DNSMaintenance(unittest.TestCase):
                  'DNS_FIXTURE_UNIT': str(self.unit),
                  'DNS_FIXTURE_TARGETS': {'nextcloud-dns-record-v1': 'nextcloud',
                      'grafana-dns-record-v1': 'grafana',
+                     'portal-dns-record-v1': 'portal',
                      'harbor-dns-record-v1': 'harbor'}.get(scope, 'gitlab,gitlab-objects'),
                  'DNS_FIXTURE_MODE': mode, 'ANSIBLE_LOCAL_TEMP': str(self.path/'local'),
                  'ANSIBLE_REMOTE_TEMP': str(self.path/'remote')})
@@ -429,6 +430,251 @@ class DNSMaintenance(unittest.TestCase):
             with self.subTest(flags=flags):
                 result = subprocess.run(['ansible-playbook', '-i', str(inventory),
                     str(PLAY), '-e', 'lab_dns_maintenance_scope=harbor-dns-record-v1',
+                    *flags], env=env, capture_output=True, text=True, timeout=20)
+                self.assertEqual(result.returncode, expected, result.stdout+result.stderr)
+                self.assertFalse(marker.exists())
+                self.assertFalse(self.backup.exists())
+
+    def portal_base(self):
+        # Preserve actual predecessor block forms, blank lines and unrelated bytes.
+        self.original += self.record_block('GitLab', ('gitlab', 'gitlab-objects'))
+        self.original += self.record_block('Nextcloud', ('nextcloud',))
+        self.original += self.record_block('Grafana', ('grafana',))
+        self.original += self.record_block('Harbor', ('harbor',))
+        self.original += '# reviewed unrelated comment with trailing spaces  \n\n'
+        self.config.write_text(self.original)
+        self.digest = hashlib.sha256(self.original.encode()).hexdigest()
+
+    def assert_portal_queries(self, names, expected_count=1):
+        calls = self.calls.read_text().splitlines()
+        for name in names:
+            for transport in ('+notcp', '+tcp'):
+                query = ('dig @10.0.0.1 '+name+'.perkforge.home.arpa A '
+                         '+short +time=2 +tries=1 '+transport)
+                self.assertEqual(calls.count(query), expected_count, query)
+
+    def test_portal_exact_add_repeat_preservation_backup_and_udp_tcp(self):
+        self.portal_base()
+        result = self.run_fixture(scope='portal-dns-record-v1')
+        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+        expected = (self.original+self.record_block('Portal', ('portal',))).encode()
+        self.assertEqual(self.config.read_bytes(), expected)
+        self.assertEqual(self.config.stat().st_mode & 0o777, 0o644)
+        self.assertEqual(self.unit.read_bytes(), self.unit_bytes.encode())
+        saved = self.backup/(self.digest+'.conf')
+        self.assertEqual(saved.read_bytes(), self.original.encode())
+        self.assertEqual(saved.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(self.backup.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(saved.stat().st_uid, os.getuid())
+        self.assert_portal_queries(('portal',))
+        self.assert_portal_queries(('headlamp', 'keycloak', 'rancher', 'openbao',
+                                   'gitlab', 'gitlab-objects', 'nextcloud', 'grafana', 'harbor'), 2)
+        calls = self.calls.read_text()
+        self.assertEqual(calls.count('dnsmasq --test --conf-file='), 1)
+        self.assertEqual(calls.count('restorecon '), 1)
+        self.assertEqual(calls.count('dig @10.0.0.1 example.com A '), 2)
+        before_repeat = (self.config.stat().st_ino, self.config.stat().st_mtime_ns,
+                         saved.stat().st_ino, saved.stat().st_mtime_ns)
+        repeat = self.run_fixture(scope='portal-dns-record-v1')
+        self.assertEqual(repeat.returncode, 0, repeat.stdout+repeat.stderr)
+        self.assertIn('changed=0', repeat.stdout)
+        self.assertEqual(self.restarts(), 1)
+        self.assertEqual(self.config.read_bytes(), expected)
+        self.assertEqual(saved.read_bytes(), self.original.encode())
+        self.assertEqual(before_repeat,
+            (self.config.stat().st_ino, self.config.stat().st_mtime_ns,
+             saved.stat().st_ino, saved.stat().st_mtime_ns))
+        self.assertEqual(self.calls.read_text().count('restorecon '), 1)
+        self.assertFalse((self.backup/'maintenance.lock').exists())
+
+    def test_portal_each_missing_prior_record_is_refused(self):
+        self.portal_base()
+        for name in ('headlamp', 'keycloak', 'rancher', 'openbao', 'gitlab',
+                     'gitlab-objects', 'nextcloud', 'grafana', 'harbor'):
+            with self.subTest(name=name):
+                before = self.original.replace('host-record='+name+'.perkforge.home.arpa,10.0.0.2\n', '')
+                self.config.write_text(before)
+                result = self.run_fixture(scope='portal-dns-record-v1',
+                    digest=hashlib.sha256(before.encode()).hexdigest())
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.config.read_bytes(), before.encode())
+                self.assertFalse(self.backup.exists())
+                self.assertEqual(self.restarts(), 0)
+
+    def test_portal_foreign_record_and_block_are_not_adopted(self):
+        self.portal_base()
+        for suffix in (
+                'host-record=portal.perkforge.home.arpa,10.0.0.2\n',
+                'host-record=portal.perkforge.home.arpa,10.0.0.99\n',
+                'address=/portal.perkforge.home.arpa/10.0.0.2\n',
+                'cname=portal.perkforge.home.arpa,grafana.perkforge.home.arpa\n',
+                self.record_block('Portal', ('portal',)).replace('DNS v1', 'DNS v2')):
+            with self.subTest(suffix=suffix):
+                before = self.original+suffix
+                self.config.write_text(before)
+                result = self.run_fixture(scope='portal-dns-record-v1',
+                    digest=hashlib.sha256(before.encode()).hexdigest())
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.config.read_bytes(), before.encode())
+                self.assertFalse(self.backup.exists())
+                self.assertEqual(self.restarts(), 0)
+
+    def test_portal_restart_failure_restores_nine_records_and_reports_failure(self):
+        self.portal_base()
+        result = self.run_fixture('restart', scope='portal-dns-record-v1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('original configuration restored', result.stdout)
+        self.assertEqual(self.config.read_bytes(), self.original.encode())
+        self.assertEqual(self.unit.read_bytes(), self.unit_bytes.encode())
+        self.assertEqual((self.backup/(self.digest+'.conf')).read_bytes(), self.original.encode())
+        self.assertEqual(self.restarts(), 2)
+        self.assert_portal_queries(('headlamp', 'keycloak', 'rancher', 'openbao',
+                                   'gitlab', 'gitlab-objects', 'nextcloud', 'grafana', 'harbor'), 2)
+        self.assertFalse((self.backup/'maintenance.lock').exists())
+
+    def test_portal_answer_failure_restores_nine_records(self):
+        self.portal_base()
+        result = self.run_fixture('verify', scope='portal-dns-record-v1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('original configuration restored', result.stdout)
+        self.assertEqual(self.config.read_bytes(), self.original.encode())
+        self.assertEqual(self.restarts(), 2)
+        self.assert_portal_queries(('headlamp', 'keycloak', 'rancher', 'openbao',
+                                   'gitlab', 'gitlab-objects', 'nextcloud', 'grafana', 'harbor'), 3)
+        self.assertFalse((self.backup/'maintenance.lock').exists())
+
+    def test_portal_external_answer_failure_rolls_back(self):
+        self.portal_base()
+        result = self.run_fixture('external', scope='portal-dns-record-v1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('original configuration restored', result.stdout)
+        self.assertEqual(self.config.read_bytes(), self.original.encode())
+        self.assertEqual(self.restarts(), 2)
+        self.assertFalse((self.backup/'maintenance.lock').exists())
+
+    def test_portal_validation_failure_preserves_config_and_service(self):
+        self.portal_base()
+        result = self.run_fixture('validate', scope='portal-dns-record-v1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('before any configuration write', result.stdout)
+        self.assertEqual(self.config.read_bytes(), self.original.encode())
+        self.assertEqual(self.restarts(), 0)
+        self.assertFalse((self.backup/'maintenance.lock').exists())
+
+    def test_portal_failed_repeat_never_removes_existing_owned_block(self):
+        self.portal_base()
+        before = self.original+self.record_block('Portal', ('portal',))
+        self.config.write_text(before)
+        result = self.run_fixture('verify', scope='portal-dns-record-v1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('before any configuration write', result.stdout)
+        self.assertEqual(self.config.read_bytes(), before.encode())
+        self.assertEqual(self.restarts(), 0)
+        self.assertFalse((self.backup/'maintenance.lock').exists())
+
+    def test_portal_concurrent_edit_is_never_overwritten_by_rollback(self):
+        self.portal_base()
+        result = self.run_fixture('foreign', scope='portal-dns-record-v1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.config.read_text(),
+                         self.original+self.record_block('Portal', ('portal',))+'# concurrent edit\n')
+        self.assertEqual(self.restarts(), 1)
+        self.assertEqual((self.backup/(self.digest+'.conf')).read_bytes(), self.original.encode())
+        self.assertFalse((self.backup/'maintenance.lock').exists())
+
+    def test_portal_checksum_and_unit_guards_refuse_before_backup(self):
+        self.portal_base()
+        for mode in ('checksum', 'unit', 'dropin', 'reload', 'preflight'):
+            with self.subTest(mode=mode):
+                before = self.original+('# drift\n' if mode == 'checksum' else '')
+                self.config.write_text(before)
+                unit = 'foreign unit\n' if mode == 'unit' else self.unit_bytes
+                self.unit.write_text(unit)
+                result = self.run_fixture(mode, scope='portal-dns-record-v1')
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.config.read_bytes(), before.encode())
+                self.assertEqual(self.unit.read_text(), unit)
+                self.assertFalse(self.backup.exists())
+                self.assertEqual(self.restarts(), 0)
+
+    def test_portal_symlinks_and_wrong_modes_are_refused(self):
+        self.portal_base()
+        for target in (self.config, self.unit):
+            for mode in ('symlink', 'permissions'):
+                with self.subTest(target=target.name, mode=mode):
+                    contents = target.read_bytes()
+                    if mode == 'symlink':
+                        actual = target.with_suffix('.real')
+                        target.rename(actual)
+                        target.symlink_to(actual)
+                    else:
+                        target.chmod(0o666)
+                    result = self.run_fixture(scope='portal-dns-record-v1')
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(target.read_bytes(), contents)
+                    self.assertFalse(self.backup.exists())
+                    self.assertEqual(self.restarts(), 0)
+                    if mode == 'symlink':
+                        target.unlink()
+                        actual.rename(target)
+                    else:
+                        target.chmod(0o644)
+
+    def test_portal_busy_lock_is_preserved(self):
+        self.portal_base()
+        self.backup.mkdir(mode=0o700)
+        lock = self.backup/'maintenance.lock'
+        lock.mkdir(mode=0o700)
+        (lock/'owner').write_text('another operation')
+        result = self.run_fixture(scope='portal-dns-record-v1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual((lock/'owner').read_text(), 'another operation')
+        self.assertEqual(self.config.read_bytes(), self.original.encode())
+        self.assertFalse((self.backup/(self.digest+'.conf')).exists())
+        self.assertEqual(self.restarts(), 0)
+
+    def test_portal_foreign_backup_is_not_overwritten(self):
+        self.portal_base()
+        self.backup.mkdir(mode=0o700)
+        saved = self.backup/(self.digest+'.conf')
+        saved.write_text('foreign backup\n')
+        saved.chmod(0o600)
+        result = self.run_fixture(scope='portal-dns-record-v1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(saved.read_text(), 'foreign backup\n')
+        self.assertEqual(self.config.read_bytes(), self.original.encode())
+        self.assertEqual(self.restarts(), 0)
+        self.assertFalse((self.backup/'maintenance.lock').exists())
+
+    def test_portal_unrecognized_scope_is_refused_without_commands(self):
+        result = self.run_fixture(scope='arbitrary-dns-record-v1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.config.read_bytes(), self.original.encode())
+        self.assertFalse(self.calls.exists())
+        self.assertFalse(self.backup.exists())
+
+    def test_portal_public_default_check_and_unreviewed_apply_make_no_contact(self):
+        marker = self.path/'contacted'
+        for name in ('ssh', 'gh', 'sudo', 'dig', 'systemctl', 'dnsmasq', 'restorecon'):
+            stub = self.bin/name
+            stub.write_text('#!/bin/sh\ntouch "'+str(marker)+'"\nexit 99\n')
+            stub.chmod(0o700)
+        inventory = self.path/'inventory.yaml'
+        inventory.write_text(yaml.safe_dump({'all': {'children': {
+            'rke2_servers': {'hosts': {'control-1': {'ansible_host': '192.0.2.1'}}},
+            'rke2_agents': {'hosts': {'worker-1': {'ansible_host': '192.0.2.2'},
+                                    'worker-2': {'ansible_host': '192.0.2.3'}}},
+            # Even an explicitly selected remote target must remain inert.
+            'lab_dns_maintenance_server': {'hosts': {'control-1': {}}}}}}))
+        env = {**os.environ, 'PATH': str(self.bin)+':'+os.environ['PATH'],
+               'ANSIBLE_LOCAL_TEMP': str(self.path/'local'),
+               'ANSIBLE_REMOTE_TEMP': str(self.path/'remote')}
+        for flags, expected in (([], 0), (['--check'], 0),
+                (['--check', '-e', 'lab_dns_maintenance_apply=true'], 0),
+                (['-e', 'lab_dns_maintenance_apply=true'], 2)):
+            with self.subTest(flags=flags):
+                result = subprocess.run(['ansible-playbook', '-i', str(inventory),
+                    str(PLAY), '-e', 'lab_dns_maintenance_scope=portal-dns-record-v1',
                     *flags], env=env, capture_output=True, text=True, timeout=20)
                 self.assertEqual(result.returncode, expected, result.stdout+result.stderr)
                 self.assertFalse(marker.exists())

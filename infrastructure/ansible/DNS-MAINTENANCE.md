@@ -36,7 +36,7 @@ ansible-playbook -i "$physical_inventory" \
 
 The private input file contains `lab_dns_maintenance_apply: true`, scope
 `gitlab-dns-records-v1`, `nextcloud-dns-record-v1`, `grafana-dns-record-v1` or
-`harbor-dns-record-v1`, `lab_dns_maintenance_expected_sha256` and the absolute
+`harbor-dns-record-v1` or `portal-dns-record-v1`, `lab_dns_maintenance_expected_sha256` and the absolute
 `lab_dns_maintenance_release_evidence` path. Release evidence identifies the
 repository, stable tag and resolved commit. The checked-out commit must match,
 and the tree must be clean. No password belongs in that file or chat: enter sudo
@@ -91,6 +91,21 @@ but obtain separate network-change approval before running this scope. Enter sud
 only at the operator's hidden Ansible prompt. DNS success does not prove Harbor
 startup, HTTPS/core health, SSO or image push/pull acceptance; verify those
 separately after the application is healthy.
+
+Portal uses the separate fixed `portal-dns-record-v1` scope: only
+`portal.perkforge.home.arpa` at worker-1's ingress address from the protected
+inventory. It requires all nine preceding records: Headlamp, Keycloak, Rancher,
+OpenBao, GitLab, GitLab Objects, Nextcloud, Grafana and Harbor. Their exact bytes,
+including predecessor blocks and unrelated comments, are preserved; only the
+owned `Portal DNS v1` block is appended. The same release/checksum/unit/backup,
+UDP/TCP, single-successful-restart and own-bytes rollback controls apply.
+
+**The DNS restart affects a shared service, including Nextcloud resolution.**
+Do not run this maintenance during the active Toshiba-to-Nextcloud transfer
+without a separately approved safe window, even though the record is Portal-only.
+A failed changed candidate can require an additional rollback restart. No DNS,
+certificate, credential, ingress or application activation is authorized by this
+source candidate. See [Portal physical release gates](../../big-bang-bootstrap/enrollments/PORTAL-PHYSICAL.md).
 
 Offline regression checks (fake executables and temporary local files, no live DNS):
 
