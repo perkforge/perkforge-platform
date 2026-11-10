@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.0](https://github.com/perkforge/perkforge-platform/compare/v0.36.0...v0.37.0) (2026-11-10)
+
+
+### Features
+
+* **portal:** wire paused physical enrollment release ([#320](https://github.com/perkforge/perkforge-platform/issues/320)) ([704aedc](https://github.com/perkforge/perkforge-platform/commit/704aedc7c18e1f11f39ef82dc1bfe61a41614e96))
+
 ## [0.36.0](https://github.com/perkforge/perkforge-platform/compare/v0.35.0...v0.36.0) (2026-11-10)
 
 
