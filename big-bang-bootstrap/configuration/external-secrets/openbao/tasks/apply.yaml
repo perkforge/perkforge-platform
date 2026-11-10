@@ -1,0 +1,55 @@
+# Only missing dedicated objects are created. No update/delete/rollback/login.
+- name: Enable only a missing owned machine-auth mount
+  ansible.builtin.uri:
+    url: '{{ eso_api }}/sys/auth/kubernetes-eso'
+    headers: '{{ eso_headers }}'
+    method: POST
+    body_format: json
+    body:
+      type: kubernetes
+      description: PerkForge eso-machine-v1
+      config: {default_lease_ttl: 300, max_lease_ttl: 900}
+    status_code: 204
+  when: eso_mount == {}
+  changed_when: true
+- name: Configure local pod reviewer only when missing
+  ansible.builtin.uri:
+    url: '{{ eso_api }}/auth/kubernetes-eso/config'
+    headers: '{{ eso_headers }}'
+    method: POST
+    body_format: json
+    body: '{{ eso_config }}'
+    status_code: 204
+  when: eso_current_config.status == 404
+  changed_when: true
+- name: Create only missing exact policies
+  ansible.builtin.uri:
+    url: '{{ eso_api }}/sys/policies/acl/{{ item.item }}'
+    headers: '{{ eso_headers }}'
+    method: PUT
+    body_format: json
+    body:
+      policy: "{{ eso_desired_policies[item.item] }}"
+    status_code: 204
+  loop: '{{ eso_policies.results }}'
+  when: item.status == 404
+  changed_when: true
+- name: Create only missing exact service-account roles
+  ansible.builtin.uri:
+    url: '{{ eso_api }}/auth/kubernetes-eso/role/{{ item.item }}'
+    headers: '{{ eso_headers }}'
+    method: POST
+    body_format: json
+    body: "{{ eso_desired_roles[item.item] }}"
+    status_code: 204
+  loop: '{{ eso_roles.results }}'
+  when: item.status == 404
+  changed_when: true
+- name: Re-read and verify the resulting complete configuration without further writes
+  ansible.builtin.include_tasks: preflight.yaml
+- ansible.builtin.assert:
+    that:
+    - eso_mount != {}
+    - eso_current_config.status == 200
+    - eso_policies.results | map(attribute='status') | list == [200, 200]
+    - eso_roles.results | map(attribute='status') | list == [200, 200]

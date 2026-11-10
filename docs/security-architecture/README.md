@@ -55,6 +55,19 @@ allowed-flow/default-deny design. This review selects neither Istio nor Gateway 
 | GitLab plus a public-safe GitHub release surface | Proposed internal development home and separately reviewed public release/GitOps source can reduce the bootstrap dependency on in-cluster GitLab. | **Planned #80**, not a migration already performed. One authority per repository, one-way promotion, public-content checks and independent image/chart/credential backups are required; GitHub alone cannot recover the platform. |
 | Harbor | Controlled artifact storage and project authority provide a destination for reviewed image/chart identities. | Storage is not approval. The current Harbor candidate disables Trivy. Robots, enforced intake, tenant project sync and post-import rescanning remain separate work. Upstream Iron Bank provenance does not prove freshness or zero vulnerabilities. |
 
+## ESO baseline trust update
+
+The [inactive native ESO candidate](../../big-bang-bootstrap/configuration/external-secrets/README.md)
+chooses one trusted platform controller for operational simplicity. Its Kubernetes
+Secret list/watch authority is cluster-wide and exposes full values, including
+unmanaged tenant Secrets. Namespace Stores, class labels and exact OpenBao roles
+constrain consumers but are not confidentiality from a compromised controller.
+No live grant, credential handling or delivery is claimed by this source update.
+Consumers requiring tighter controls should review the documented
+[scoped-controller alternative](../../big-bang-bootstrap/configuration/external-secrets/strong-isolation.md),
+including per-namespace RBAC, protected controller identities, shared-store
+limitations and additional release/resource/acceptance costs.
+
 ## Artifact approval before publication
 
 [#79](https://github.com/perkforge/perkforge-platform/issues/79) is the source of

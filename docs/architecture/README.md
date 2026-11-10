@@ -46,6 +46,7 @@ Use context first, then narrow into components or an operating flow. The single
 | rke2_detail | Server/workers, Canal/DNS/Traefik, administrator access and recovery |
 | bootstrap_installer_flow | Release → shared/package prerequisites → Flux/Big Bang → delegated installer → runtime and acceptance |
 | rancher_local_admin | Planned release/inputs/delegation → Big Bang/Flux → trusted HTTPS/local admin; no SSO |
+| external_secrets_boundary | Inactive native ESO trust, scoped Stores, exact auth and stronger-isolation alternative |
 | platform_detail | Separate readiness and RKE2/Rancher/Flux/Big Bang ownership |
 
 Actual IP/MAC values and SSH identity references remain in ignored

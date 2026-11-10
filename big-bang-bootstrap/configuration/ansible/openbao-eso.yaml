@@ -1,0 +1,125 @@
+- name: Inspect or prepare only dedicated ESO machine authentication
+  hosts: bootstrap_clusters
+  connection: local
+  gather_facts: false
+  vars:
+    openbao_eso_run: false
+    openbao_eso_operation: inspect
+    openbao_eso_reviewed_scope: UNAPPROVED
+    openbao_eso_recovery_verified: false
+    openbao_eso_cluster_id: UNCONFIGURED
+    openbao_eso_origin: https://UNCONFIGURED
+    openbao_eso_public_ca_file: /UNCONFIGURED/ca.pem
+    openbao_eso_token_file: /UNCONFIGURED/operator-token
+    gitops_path: ./big-bang-bootstrap/clusters/local-external-secrets
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ openbao_eso_public_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      unredirected_headers: [X-Vault-Token]
+      timeout: 20
+  tasks:
+  - name: Default and check mode do not read credentials or contact APIs
+    ansible.builtin.debug:
+      msg: 'ESO machine auth run={{ openbao_eso_run | bool }} operation={{ openbao_eso_operation }} check={{ ansible_check_mode }}. Reviewer RBAC, stores, secret delivery and login are separate stages.'
+  - name: Require independently approved release and exact target before credentials
+    when: openbao_eso_run | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - openbao_eso_run | type_debug == 'bool'
+        - openbao_eso_recovery_verified | type_debug == 'bool'
+        - ansible_play_hosts_all == ['local']
+        - deployment_environment == 'local'
+        - impact_profile == 'il2'
+        - gitops_path == './big-bang-bootstrap/clusters/local-external-secrets'
+        - openbao_eso_operation in ['inspect', 'apply']
+        - openbao_eso_reviewed_scope == 'openbao-eso-machine-v1'
+        - openbao_eso_recovery_verified | bool
+        - openbao_eso_cluster_id != 'UNCONFIGURED'
+        - openbao_eso_cluster_id | length > 0
+        - openbao_eso_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - openbao_eso_origin != 'https://UNCONFIGURED'
+        - openbao_eso_public_ca_file is match('^/')
+        - not openbao_eso_public_ca_file.startswith('/UNCONFIGURED/')
+    - ansible.builtin.include_tasks: verify-release.yaml
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', rev-parse, HEAD]
+      register: eso_checkout
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [git, -C, '{{ playbook_dir }}/../../..', status, --porcelain]
+      register: eso_changes
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - eso_checkout.stdout == config_release.resolvedCommit
+        - eso_changes.stdout | length == 0
+    - name: Keep native API state and credentials private
+      no_log: true
+      block:
+      - ansible.builtin.assert:
+          that:
+          - "'-----BEGIN CERTIFICATE-----' in lookup('file', openbao_eso_public_ca_file)"
+          - "'PRIVATE KEY' not in lookup('file', openbao_eso_public_ca_file)"
+      - ansible.builtin.set_fact:
+          eso_api: '{{ openbao_eso_origin }}/v1'
+          eso_headers: {}
+          eso_names: [eso-platform, eso-tenant-portal]
+          eso_source: '{{ playbook_dir }}/../external-secrets/openbao'
+      - name: Verify trusted target before reading or transmitting any bearer
+        ansible.builtin.uri:
+          url: '{{ eso_api }}/sys/health'
+        register: eso_health
+      - ansible.builtin.assert:
+          that:
+          - eso_health.json.cluster_id == openbao_eso_cluster_id
+          - eso_health.json.version == '2.7.2'
+          - eso_health.json.initialized and not eso_health.json.sealed
+          - not (eso_health.json.standby | default(true))
+      - ansible.builtin.stat:
+          path: '{{ openbao_eso_token_file }}'
+          follow: false
+          get_checksum: false
+          get_mime: false
+        register: eso_token_stat
+      - ansible.builtin.assert:
+          that:
+          - openbao_eso_token_file is match('^/')
+          - openbao_eso_token_file | realpath == openbao_eso_token_file
+          - eso_token_stat.stat.isreg | default(false)
+          - not (eso_token_stat.stat.islnk | default(false))
+          - eso_token_stat.stat.nlink == 1
+          - eso_token_stat.stat.mode == '0600'
+          - eso_token_stat.stat.pw_name == lookup('env', 'USER')
+          - eso_token_stat.stat.size > 0
+      - ansible.builtin.set_fact:
+          eso_headers: {X-Vault-Token: "{{ lookup('file', openbao_eso_token_file) | trim }}"}
+          eso_config: "{{ lookup('file', eso_source ~ '/kubernetes-auth.json') | from_json }}"
+      - name: Load every reviewed public candidate before any mutation
+        ansible.builtin.set_fact:
+          eso_desired_policies: "{{ (eso_desired_policies | default({})) | combine({item: lookup('file', eso_source ~ '/policies/' ~ item ~ '.hcl')}) }}"
+          eso_desired_roles: "{{ (eso_desired_roles | default({})) | combine({item: lookup('file', eso_source ~ '/roles/' ~ item ~ '.json') | from_json}) }}"
+        loop: '{{ eso_names }}'
+      - ansible.builtin.include_tasks: ../external-secrets/openbao/tasks/preflight.yaml
+      - ansible.builtin.include_tasks: ../external-secrets/openbao/tasks/apply.yaml
+        when: openbao_eso_operation == 'apply'
+      always:
+      - ansible.builtin.set_fact:
+          eso_headers: {}
+          cacheable: false
+        no_log: true
+  - name: Report only public object completeness, never values or bearer state
+    ansible.builtin.debug:
+      msg:
+        operation: '{{ openbao_eso_operation }}'
+        machine_mount_present: '{{ eso_mount != {} }}'
+        machine_config_present: '{{ eso_current_config.status == 200 }}'
+        policies_present: "{{ eso_policies.results | selectattr('status', 'equalto', 200) | list | length }}"
+        roles_present: "{{ eso_roles.results | selectattr('status', 'equalto', 200) | list | length }}"
+        expected_each: 2
+        acceptance: 'Configuration inspection only. No Kubernetes JWT login, reviewer TokenReview or ESO synchronization acceptance.'
+    when: openbao_eso_run | bool and not ansible_check_mode

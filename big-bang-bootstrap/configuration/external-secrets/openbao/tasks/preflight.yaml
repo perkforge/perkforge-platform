@@ -1,0 +1,78 @@
+# Complete all desired reads and conflict checks before the first write.
+- ansible.builtin.uri:
+    url: '{{ eso_api }}/sys/auth'
+    headers: '{{ eso_headers }}'
+  register: eso_auth
+- ansible.builtin.set_fact:
+    eso_mount: "{{ eso_auth.json.data.get('kubernetes-eso/', {}) }}"
+- ansible.builtin.assert:
+    that:
+    - eso_mount == {} or eso_mount.type == 'kubernetes'
+    - eso_mount == {} or eso_mount.description == 'PerkForge eso-machine-v1'
+    - eso_mount == {} or eso_mount.config.default_lease_ttl == 300
+    - eso_mount == {} or eso_mount.config.max_lease_ttl == 900
+    - eso_mount == {} or eso_mount.accessor is match('^[A-Za-z0-9_-]+$')
+- ansible.builtin.uri:
+    url: '{{ eso_api }}/sys/mounts'
+    headers: '{{ eso_headers }}'
+  register: eso_kv
+- name: Existing KV-v2 mounts only; never create data engines
+  ansible.builtin.assert:
+    that:
+    - eso_kv.json.data[item].type == 'kv'
+    - eso_kv.json.data[item].options.version | string == '2'
+  loop: [platform/, tenants/]
+- ansible.builtin.uri:
+    url: '{{ eso_api }}/auth/kubernetes-eso/role?list=true'
+    headers: '{{ eso_headers }}'
+    status_code: [200, 404]
+  register: eso_role_names
+- ansible.builtin.assert:
+    that:
+    - eso_role_names.status == 404 or eso_role_names.json.data['keys'] | difference(eso_names) | length == 0
+- ansible.builtin.uri:
+    url: '{{ eso_api }}/auth/kubernetes-eso/config'
+    headers: '{{ eso_headers }}'
+    status_code: [200, 404]
+  register: eso_current_config
+# OpenBao v2.7.2 internal/builtin/credential/kubernetes/path_config.go reads
+# stored config(), not login-time loadConfig(). backend.go loads pod CA/JWT only
+# dynamically, so this contract deliberately requires empty stored overrides.
+# https://github.com/openbao/openbao/blob/v2.7.2/internal/builtin/credential/kubernetes/path_config.go
+# https://github.com/openbao/openbao/blob/v2.7.2/internal/builtin/credential/kubernetes/backend.go
+- name: Refuse foreign API endpoint, reviewer credentials, CA overrides or issuer rules
+  when: eso_current_config.status == 200
+  vars:
+    current: '{{ eso_current_config.json.data }}'
+  ansible.builtin.assert:
+    that:
+    - current | combine(eso_config) == current
+    - current.keys() | difference(['kubernetes_host', 'disable_local_ca_jwt', 'kubernetes_ca_cert', 'pem_keys', 'issuer', 'disable_iss_validation', 'token_reviewer_jwt_set']) | length == 0
+    - current.kubernetes_ca_cert | default('') == ''
+    - current.pem_keys | default([]) | length == 0
+    - current.issuer | default('') == ''
+    - current.disable_iss_validation | default(true) == true
+    - not (current.token_reviewer_jwt_set | default(false))
+- ansible.builtin.uri:
+    url: '{{ eso_api }}/sys/policies/acl/{{ item }}'
+    headers: '{{ eso_headers }}'
+    status_code: [200, 404]
+  loop: '{{ eso_names }}'
+  register: eso_policies
+- ansible.builtin.uri:
+    url: '{{ eso_api }}/auth/kubernetes-eso/role/{{ item }}'
+    headers: '{{ eso_headers }}'
+    status_code: [200, 404]
+  loop: '{{ eso_names }}'
+  register: eso_roles
+- name: Refuse replacing a policy with different permissions
+  ansible.builtin.assert:
+    that:
+    - item.status == 404 or item.json.data.policy | trim == eso_desired_policies[item.item] | trim
+  loop: '{{ eso_policies.results }}'
+- ansible.builtin.include_tasks: role-check.yaml
+  loop: '{{ eso_roles.results }}'
+  loop_control: {loop_var: eso_role_result}
+- name: Inspect identities for inherited authority on an existing owned mount
+  ansible.builtin.include_tasks: identities.yaml
+  when: eso_mount != {}

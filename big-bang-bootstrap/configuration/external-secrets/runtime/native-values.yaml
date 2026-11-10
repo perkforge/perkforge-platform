@@ -1,0 +1,41 @@
+# Native Big Bang 3.35.1 addon; inherit its reviewed package/image pins.
+# Unselected and suspended until the separately approved foundation/network stages.
+addons:
+  externalSecrets:
+    enabled: true
+    flux:
+      suspend: true
+      serviceAccountName: external-secrets-installer
+      storageNamespace: external-secrets
+      install:
+        createNamespace: false
+        crds: Skip
+        remediation: {retries: 0}
+      upgrade:
+        crds: Skip
+        remediation: {retries: 0}
+    values:
+      upstream:
+        controllerClass: perkforge
+        # Reference only; approved Registry1 delivery remains a separate stage.
+        imagePullSecrets: [{name: private-registry}]
+        rbac:
+          create: false
+        processClusterExternalSecret: false
+        processClusterPushSecret: false
+        processPushSecret: false
+        processClusterGenerator: false
+        extraArgs:
+          enable-managed-secrets-caching: "false"
+          enable-secrets-caching: "false"
+          enable-configmaps-caching: "false"
+          enable-generator-state: "false"
+      networkPolicies:
+        enabled: true
+        egress:
+          from:
+            external-secrets:
+              to:
+                definition:
+                  # Provider route must be supplied and reviewed before activation.
+                  secrets-api-subnets: false

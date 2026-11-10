@@ -1,0 +1,30 @@
+- ansible.builtin.uri:
+    url: '{{ eso_api }}/identity/entity-alias/id?list=true'
+    headers: '{{ eso_headers }}'
+    status_code: [200, 404]
+  register: eso_alias_ids
+- ansible.builtin.assert:
+    that:
+    - eso_alias_ids.status == 404 or eso_alias_ids.json.data['keys'] | length <= 1000
+    - eso_alias_ids.status == 404 or eso_alias_ids.json.data['keys'] | unique | length == eso_alias_ids.json.data['keys'] | length
+- ansible.builtin.include_tasks: alias.yaml
+  loop: "{{ eso_alias_ids.json.data['keys'] if eso_alias_ids.status == 200 else [] }}"
+  loop_control: {loop_var: eso_alias_id}
+- ansible.builtin.uri:
+    url: '{{ eso_api }}/identity/group-alias/id?list=true'
+    headers: '{{ eso_headers }}'
+    status_code: [200, 404]
+  register: eso_group_ids
+- ansible.builtin.assert:
+    that: eso_group_ids.status == 404 or eso_group_ids.json.data['keys'] | length <= 1000
+- ansible.builtin.assert:
+    that: item is match('^[A-Za-z0-9-]+$')
+  loop: "{{ eso_group_ids.json.data['keys'] if eso_group_ids.status == 200 else [] }}"
+- ansible.builtin.uri:
+    url: '{{ eso_api }}/identity/group-alias/id/{{ item }}'
+    headers: '{{ eso_headers }}'
+  loop: "{{ eso_group_ids.json.data['keys'] if eso_group_ids.status == 200 else [] }}"
+  register: eso_groups
+- ansible.builtin.assert:
+    that: item.json.data.mount_accessor != eso_mount.accessor
+  loop: '{{ eso_groups.results }}'

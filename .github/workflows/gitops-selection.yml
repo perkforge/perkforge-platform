@@ -105,7 +105,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    - run: python3 -m pip install PyYAML==6.0.3
+    - run: python3 -m pip install PyYAML==6.0.3 jsonschema==4.25.1
     - name: Verify published Nextcloud-only enrollment pin
       env:
         GH_TOKEN: ${{ github.token }}
@@ -193,6 +193,8 @@ jobs:
       run: python3 big-bang-bootstrap/tests/fixtures/fetch_sources.py "$RUNNER_TEMP/minimal-sources"
     - name: Validate declarative context across the pinned review chain
       env:
+        ESO_CHART_SOURCE: ${{ runner.temp }}/minimal-sources/external-secrets
+        ESO_CRD_BUNDLE: ${{ runner.temp }}/minimal-sources/external-secrets/chart/crds/bundle.yaml
         PREFLIGHT_SOURCES_DIR: ${{ runner.temp }}/minimal-sources
         CAPACITY_REPORT_DIR: ${{ runner.temp }}/minimal-inventory
         ENROLLMENT_CHECKOUT: ${{ github.workspace }}/.inputs/enrollment

@@ -487,4 +487,15 @@ views {
     platform.harbor -> engineer '5. Verify trusted admin, authenticated push/pull and denial, persistence/restore; SSO/CI robots later'
   }
 
+
+  dynamic view external_secrets_boundary {
+    title 'Native ESO and scoped Stores - inactive source candidate'
+    description 'Single native operator is a trusted cluster-wide Secret reader. Tenant Store/ACL restrictions do not isolate data from controller compromise. No live grants, values or delivery are implied.'
+    engineer -> platform.prerequisite_applier '1. Review exact release, global read exposure, CRDs, native network and recovery; approve distinct stages'
+    platform.prerequisite_applier -> platform.external_secrets '2. Explicit installer and controller authority; no wildcard mutation or app grant'
+    platform.bigbang -> platform.external_secrets '3. Native addon remains unselected and suspended until reviewed activation'
+    platform.external_secrets -> platform.openbao '4. Exact machine SA/namespace/audience and approved paths; human recovery stays separate'
+    platform.external_secrets -> platform.rke2.server.rbac '5. Kubernetes allows all-namespace Secret list/watch; writes restricted by namespace Roles'
+    platform.external_secrets -> engineer '6. Verify auth/namespace/TLS denial and exact consumer rotation under separate acceptance approval'
+  }
 }

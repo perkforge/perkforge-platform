@@ -1,0 +1,16 @@
+{
+  "bound_service_account_names": [
+    "eso-platform"
+  ],
+  "bound_service_account_namespaces": [
+    "external-secrets"
+  ],
+  "audience": "openbao-eso",
+  "token_policies": [
+    "eso-platform"
+  ],
+  "token_ttl": 300,
+  "token_max_ttl": 900,
+  "token_explicit_max_ttl": 900,
+  "token_no_default_policy": true
+}

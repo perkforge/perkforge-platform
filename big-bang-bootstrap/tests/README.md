@@ -105,3 +105,28 @@ KUBECONFIG=/dev/null RUN_OPENBAO_POLICY_TESTS=1 \
   PYTHONPATH=big-bang-bootstrap/tests \
   python3 -m unittest bootstrap.test_bitwarden_bootstrap.NativeOpenBaoBootstrap -v
 ```
+
+## Native ESO candidate
+
+The source remains unselected/suspended and CI's existing pause is unchanged.
+`fetch_sources.py` includes the checksummed native ESO wrapper and its vendored
+dependencies. Set `ESO_CHART_SOURCE=$PREFLIGHT_SOURCES_DIR/external-secrets` and
+`ESO_CRD_BUNDLE=$ESO_CHART_SOURCE/chart/crds/bundle.yaml`; JSON-schema validation
+requires `jsonschema==4.25.1` in the test environment. The paused selection job is
+wired to these inputs for when its existing gates are restored separately.
+
+```sh
+KUBECONFIG=/dev/null PYTHONPATH=big-bang-bootstrap/tests \
+  RUN_PLATFORM_CONFIG_TESTS=1 python3 -m unittest \
+  bootstrap.test_external_secrets_native bootstrap.test_external_secrets_foundation \
+  integration.test_openbao_eso \
+  security.test_external_secrets_stores -v
+```
+
+Schema validation checks the actual pinned served v1 schema, not upstream CEL
+admission. The real Ansible HTTPS test uses synthetic credentials and a copied
+fixture release/checkout check; it proves API ordering, conflict refusal,
+idempotence and redaction, not remote publication or physical readiness.
+Optional native OpenBao ACL tests reuse the existing `RUN_OPENBAO_POLICY_TESTS=1`
+and `OPENBAO_POLICY_TEST_BINARY` setup above. They validate exact read/deny paths
+and role API compatibility, not Kubernetes JWT login or actual ESO synchronization.

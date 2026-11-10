@@ -1,0 +1,16 @@
+{
+  "bound_service_account_names": [
+    "eso-tenant-portal"
+  ],
+  "bound_service_account_namespaces": [
+    "tenant-portal"
+  ],
+  "audience": "openbao-eso",
+  "token_policies": [
+    "eso-tenant-portal"
+  ],
+  "token_ttl": 300,
+  "token_max_ttl": 900,
+  "token_explicit_max_ttl": 900,
+  "token_no_default_policy": true
+}

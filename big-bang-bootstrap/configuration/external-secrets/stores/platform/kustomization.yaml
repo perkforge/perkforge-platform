@@ -1,0 +1,4 @@
+# Explicit post-controller stage. Not selected by any active cluster root.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [store.yaml, identity.yaml]

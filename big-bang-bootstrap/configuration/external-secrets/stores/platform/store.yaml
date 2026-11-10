@@ -1,0 +1,28 @@
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: openbao-platform
+spec:
+  controller: perkforge
+  # Cluster-scoped object does not mean every namespace may use it.
+  # Add each destination only with its reviewed consumer/path/auth contract.
+  conditions:
+  - namespaces: [external-secrets]
+  provider:
+    vault:
+      server: https://openbao.perkforge.home.arpa
+      path: platform
+      version: v2
+      caProvider:
+        type: ConfigMap
+        name: openbao-ca
+        namespace: external-secrets
+        key: ca.crt
+      auth:
+        kubernetes:
+          mountPath: kubernetes-eso
+          role: eso-platform
+          serviceAccountRef:
+            name: eso-platform
+            namespace: external-secrets
+            audiences: [openbao-eso]
