@@ -1,0 +1,11 @@
+# Independent from the live Nextcloud tenant-enrollments source.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: portal-enrollments
+spec:
+  suspend: true
+  interval: 10m
+  url: https://github.com/perkforge/perkforge-platform-tenants.git
+  ref:
+    tag: v2.0.0

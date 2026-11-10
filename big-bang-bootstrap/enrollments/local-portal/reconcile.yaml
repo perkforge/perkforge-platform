@@ -1,0 +1,16 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: portal-enrollments
+spec:
+  suspend: true
+  interval: 5m
+  timeout: 5m
+  path: ./clusters/local
+  sourceRef:
+    kind: GitRepository
+    name: portal-enrollments
+  serviceAccountName: tenant-enrollment-admin
+  prune: false
+  force: false
+  wait: true

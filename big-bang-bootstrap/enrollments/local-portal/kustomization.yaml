@@ -1,0 +1,11 @@
+# Additive, paused physical Portal wiring; absent from every platform cluster root.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: flux-system
+resources:
+- source.yaml
+- reconcile.yaml
+commonAnnotations:
+  platform.perkforge.io/cluster: local
+  platform.perkforge.io/environment: local
+  platform.perkforge.io/profile: il2

@@ -17,7 +17,13 @@ portal chart/image versions are independent; this does not bump either of those.
 
 ## Published chain and rollout
 
-Dependency tags and reviewed resolved commits are recorded in `release-evidence.json`. The selected configuration dependency chain is enrollment v1.0.0 → portal config v1.0.0; a compatible platform release containing this selection must publish before bootstrap can use it. Image versions remain independently selected by application configuration. Do not infer compatibility from version numbers alone.
+Dependency tags and reviewed resolved commits are recorded in `release-evidence.json`. The retained `enrollments/local` specimen selects historical enrollment v1.0.0 → portal config v1.0.0 and is not the physical Portal selection. Image versions remain independently selected by application configuration. Do not infer compatibility from version numbers alone.
+
+The separate physical Portal preparation uses an independent, paused
+`portal-enrollments` source/parent at enrollment `v2.0.0` → app configuration
+`v2.0.0`, recorded under `physical-portal-enrollment`. It is absent from every
+platform cluster root and does not change the historical specimen or Nextcloud
+selection. See [physical Portal release gates](big-bang-bootstrap/enrollments/PORTAL-PHYSICAL.md).
 
 The separate Nextcloud-only selection is enrollment
 [v1.5.4](https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v1.5.4)

@@ -13,6 +13,13 @@
       "resolvedCommit": "446cb2c480f4c80adead679980c4b52081337e95",
       "publishedAt": "2026-10-31T21:53:35Z",
       "releaseUrl": "https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v1.0.0"
+    },
+    "physical-portal-enrollment": {
+      "repository": "perkforge/perkforge-platform-tenants",
+      "tag": "v2.0.0",
+      "resolvedCommit": "59462926a05fcb7a0ee8015f2998b233b706c9e8",
+      "publishedAt": "2026-11-10T19:58:16Z",
+      "releaseUrl": "https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v2.0.0"
     }
   }
 }
