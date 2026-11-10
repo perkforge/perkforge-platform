@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.36.0](https://github.com/perkforge/perkforge-platform/compare/v0.35.0...v0.36.0) (2026-11-10)
+
+
+### Features
+
+* **platform:** prepare guarded physical Portal DNS scope ([#315](https://github.com/perkforge/perkforge-platform/issues/315)) ([90d9e4a](https://github.com/perkforge/perkforge-platform/commit/90d9e4a254e5708b2e164468cf923c2a4ffb7deb))
+
 ## [0.35.0](https://github.com/perkforge/perkforge-platform/compare/v0.34.3...v0.35.0) (2026-11-10)
 
 
