@@ -10,6 +10,14 @@ Preserve evidence-producing tests when moving code; distinguish historical fixtu
 
 Maintain only the supported human-operated procedure and required implementation/tests. Do not recreate historical archives, session journals, planning folders or duplicate docs. Physical IP/MAC metadata belongs only in ignored infrastructure/ansible/inventory/.topology.yml. Public topology views show relationships without physical identifiers; credentials and private keys must remain outside tracked files.
 
+## Credential custody and runtime secrets
+
+- Use Bitwarden Password Manager for explicitly approved bootstrap/recovery inputs and durable human break-glass credentials that must remain available independently of the cluster and Keycloak. Follow the [credential storage procedure](big-bang-bootstrap/configuration/ansible/bitwarden-credentials.md).
+- Use OpenBao for ongoing platform-owned and tenant-specific runtime secrets, with separate scopes and ESO delivery only to approved consumers. Do not substitute personal tokens or a Bitwarden runtime integration for that path. See [shared-secret scope](https://github.com/perkforge/perkforge-platform/issues/31).
+- Never make OpenBao the sole custodian of the material needed to recover it. Root tokens, unseal shares, CA signing keys and SSH private keys require their separately reviewed custody; do not place them in downstream application records or generic Login items.
+- The [Bitwarden recovery bootstrap](big-bang-bootstrap/configuration/ansible/bitwarden-bootstrap.md) reads existing approved Login fields and seeds only missing approved OpenBao records. It does not create Bitwarden items, rotate credentials or activate ESO consumers.
+- Obtain action-specific authorization for credential creation/access, storage destination and sharing, rotation, delivery and cleanup. These instructions and a documentation change authorize none of those operations. Never expose values, sessions, encoded payloads or secret-bearing receipts in Git, chat or logs.
+
 ## Working rules
 
 - Use the GitHub CLI (`gh`) for PerkForge GitHub operations unless Corey directs otherwise. Do not switch tools or credentials to bypass an access denial.
