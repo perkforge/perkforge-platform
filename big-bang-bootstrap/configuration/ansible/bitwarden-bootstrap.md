@@ -13,6 +13,10 @@ One reviewed source works with each explicitly selected inventory/environment.
 There are no home-lab credentials, hardware identities or environment guesses in
 source. CI gates remain off.
 
+To create an approved Login item before recovery, follow the separate
+[credential storage procedure](bitwarden-credentials.md). This adapter only reads
+existing items; it neither creates them nor verifies credential issuance.
+
 ## 1. Review the runtime mapping
 
 Copy [the example](bitwarden-bootstrap.example.yaml) to an ignored, operator-owned

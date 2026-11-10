@@ -373,6 +373,10 @@ the opt-in logging-pilot namespace or changes the active Flux root.
 
 ## Bitwarden recovery inputs and downstream secrets
 
+For a new approved bootstrap or break-glass Login item, use the
+[Bitwarden credential storage procedure](bitwarden-credentials.md). Creation and
+private readback are separate from recovery staging, rotation and runtime delivery.
+
 Use the separately gated [Bitwarden recovery bootstrap](bitwarden-bootstrap.md)
 to stage explicitly mapped initial credentials locally and, after OpenBao recovery,
 create only missing approved downstream records in `platform/` KV-v2. It does not
