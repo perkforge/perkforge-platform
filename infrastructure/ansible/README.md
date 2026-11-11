@@ -27,6 +27,8 @@ See [RKE2 inputs and safety](RKE2.md) and [platform Rancher management](../../bi
 
 All apply flags default false; check mode never contacts nodes/clusters. Source restoration is not physical-readiness or live-execution approval. RHEL, repositories, SSH/become, network/CNI/firewall, storage, TLS and capacity must be reviewed first. No VM or AWS provisioning workflow is reintroduced.
 
+See [physical home-lab backup and recovery](BACKUP-RECOVERY.md) for the separate backup target and activation hold.
+
 ## Dedicated Longhorn filesystem mounts
 
 This separate host step mounts already-prepared XFS partitions on reviewed RHEL
