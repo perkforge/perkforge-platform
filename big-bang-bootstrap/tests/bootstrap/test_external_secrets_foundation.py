@@ -1,5 +1,6 @@
 """Real Ansible apply-path tests with synthetic public CRDs and a local CLI double."""
 import copy
+from collections import UserDict
 import hashlib
 import importlib.util
 import json
@@ -34,6 +35,26 @@ class OwnedComparison(unittest.TestCase):
             wrong = copy.deepcopy(actual)
             mutate(wrong)
             self.assertFalse(guard.matches(wrong, desired))
+
+    def test_plain_projection_preserves_fields_scalars_and_input(self):
+        class NoDeepcopyDict(UserDict):
+            def __deepcopy__(self, memo):
+                raise AssertionError('must not deepcopy lazy container context')
+
+        scalar = 'literal {{ not evaluated by projection }}'
+        original = NoDeepcopyDict({'metadata': NoDeepcopyDict({'name': 'fixture'}),
+                                  'values': [None, True, False, 0, 3.25, scalar,
+                                             NoDeepcopyDict({'tuple': (1, 'two')})]})
+        projected = guard.plain_structure(original)
+        self.assertIs(type(projected), dict)
+        self.assertIs(type(projected['metadata']), dict)
+        self.assertEqual(projected, {'metadata': {'name': 'fixture'},
+                         'values': [None, True, False, 0, 3.25, scalar, {'tuple': [1, 'two']}]})
+        self.assertIs(projected['values'][5], scalar)
+        projected['metadata']['name'] = 'changed'
+        projected['values'][6]['tuple'].append(3)
+        self.assertEqual(original['metadata']['name'], 'fixture')
+        self.assertEqual(original['values'][6]['tuple'], (1, 'two'))
 
     def test_comparison_summaries_are_bounded_and_fail_closed(self):
         desired = {'kind': 'ClusterRole', 'metadata': {'name': 'fixture',
