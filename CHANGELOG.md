@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.38.0](https://github.com/perkforge/perkforge-platform/compare/v0.37.2...v0.38.0) (2026-11-11)
+
+
+### Features
+
+* **eso:** add guarded native activation inputs ([#326](https://github.com/perkforge/perkforge-platform/issues/326)) ([76b6a97](https://github.com/perkforge/perkforge-platform/commit/76b6a97c2d33cef5e47ebdb67468ff359c121608))
+
 ## [0.37.2](https://github.com/perkforge/perkforge-platform/compare/v0.37.1...v0.37.2) (2026-11-11)
 
 
