@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Synthetic CLI for real Ansible tests. No network, real credentials or cluster."""
 import base64
+import copy
 import json
 import os
 from pathlib import Path
@@ -40,6 +41,9 @@ elif name == 'kubectl':
             namespace = args[args.index('--namespace') + 1] if '--namespace' in args else ''
             obj = state.get('|'.join([kind, namespace, object_name]))
             if obj is not None:
+                obj = copy.deepcopy(obj)
+                if '--show-managed-fields=true' not in args:
+                    obj['metadata'].pop('managedFields', None)
                 print(json.dumps(obj))
     elif 'create' in args:
         obj = json.load(sys.stdin)
@@ -62,6 +66,12 @@ elif name == 'kubectl':
         if obj['kind'] == 'Namespace':
             obj['spec'] = {'finalizers': ['kubernetes']}
             meta['labels']['kubernetes.io/metadata.name'] = meta['name']
+            meta.setdefault('annotations', {}).update({
+                'lifecycle.cattle.io/create.namespace-auth': 'true',
+                'cattle.io/status': json.dumps({'Conditions': [
+                    {'Type': t, 'Status': 'True', 'Message': '',
+                     'LastUpdateTime': '2026-11-11T01:13:42Z'}
+                    for t in ('ResourceQuotaInit', 'InitialRolesPopulated')]})})
         if mode == 'readback_drift' and obj['kind'] == 'ClusterRole':
             obj['rules'][0]['verbs'].append('delete')
         state[object_key] = obj

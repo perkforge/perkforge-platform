@@ -1,5 +1,6 @@
 """Pure fail-closed comparison for reviewed ESO foundation. No generation or I/O."""
 from copy import deepcopy
+import json
 
 OWNER = 'external-secrets-foundation-v1'
 CRD_MANAGER = 'perkforge-external-secrets-crds'
@@ -33,6 +34,23 @@ def matches(actual, desired):
         storage = {v['name'] for v in desired['spec']['versions'] if v.get('storage')}
         if set(actual.get('status', {}).get('storedVersions', [])) - storage:
             return False
+    if desired['kind'] == 'Namespace':
+        annotations = found.get('annotations', {})
+        if annotations.get('lifecycle.cattle.io/create.namespace-auth', 'true') != 'true':
+            return False
+        if 'cattle.io/status' in annotations:
+            try:
+                status = json.loads(annotations['cattle.io/status'])
+                conditions = status['Conditions']
+                if (set(status) != {'Conditions'} or not isinstance(conditions, list)
+                        or len(conditions) != 2
+                        or {c['Type'] for c in conditions} != {'ResourceQuotaInit', 'InitialRolesPopulated'}
+                        or any(c['Status'] != 'True' or
+                               set(c) - {'Type', 'Status', 'Message', 'LastUpdateTime'}
+                               for c in conditions)):
+                    return False
+            except (ValueError, TypeError, KeyError):
+                return False
     return normalize(actual) == normalize(desired)
 
 
@@ -47,6 +65,11 @@ def normalize(obj):
         values = meta.setdefault(name, {})
         if name == 'annotations':
             values.pop('kubectl.kubernetes.io/last-applied-configuration', None)
+            # Known Rancher namespace initialization bookkeeping only; matches()
+            # validates the successful lifecycle shape before normalization.
+            if result['kind'] == 'Namespace':
+                values.pop('cattle.io/status', None)
+                values.pop('lifecycle.cattle.io/create.namespace-auth', None)
         if name == 'labels' and result['kind'] == 'Namespace':
             values.pop('kubernetes.io/metadata.name', None)
         if not values:
@@ -73,6 +96,22 @@ def normalize(obj):
     return result
 
 
+def comparison_checks(results, allow_absent=False):
+    """Keep assertion loop items bounded, rather than logging full CRD schemas."""
+    checks = []
+    for result in results:
+        desired = result['item']
+        raw = result.get('stdout', '').strip()
+        try:
+            accepted = bool(allow_absent) if not raw else matches(json.loads(raw), desired)
+        except (ValueError, TypeError, KeyError, AttributeError):
+            accepted = False
+        checks.append({'resource': desired['kind'] + '/' + desired['metadata']['name'],
+                       'matches': accepted})
+    return checks
+
+
 class FilterModule:
     def filters(self):
-        return {'external_secrets_foundation_matches': matches}
+        return {'external_secrets_foundation_matches': matches,
+                'external_secrets_foundation_checks': comparison_checks}

@@ -35,6 +35,89 @@ class OwnedComparison(unittest.TestCase):
             mutate(wrong)
             self.assertFalse(guard.matches(wrong, desired))
 
+    def test_comparison_summaries_are_bounded_and_fail_closed(self):
+        desired = {'kind': 'ClusterRole', 'metadata': {'name': 'fixture',
+                   'labels': {'perkforge.io/owner': guard.OWNER}}, 'rules': []}
+        result = {'item': desired, 'stdout': json.dumps(desired)}
+        self.assertEqual(guard.comparison_checks([result]),
+                         [{'resource': 'ClusterRole/fixture', 'matches': True}])
+        for raw in ('', '{invalid', 'null', '{}'):
+            with self.subTest(raw=raw):
+                result['stdout'] = raw
+                self.assertEqual(guard.comparison_checks([result]),
+                                 [{'resource': 'ClusterRole/fixture', 'matches': False}])
+        result['stdout'] = ''
+        self.assertTrue(guard.comparison_checks([result], True)[0]['matches'])
+        result['stdout'] = json.dumps(dict(desired, unexpected='large schema' * 10000))
+        checks = guard.comparison_checks([result])
+        self.assertFalse(checks[0]['matches'])
+        self.assertLess(len(json.dumps(checks)), 100)
+
+    def test_crd_manager_and_content_checks_remain_fail_closed(self):
+        desired = {'apiVersion': 'apiextensions.k8s.io/v1', 'kind': 'CustomResourceDefinition',
+                   'metadata': {'name': 'fixtures.example.test',
+                                'labels': {'perkforge.io/owner': guard.OWNER},
+                                'annotations': {guard.HASH_ANNOTATION: 'a' * 64}},
+                   'spec': {'versions': [{'name': 'v1', 'storage': True}]}}
+        for operation in ('Apply', 'Update'):
+            actual = copy.deepcopy(desired)
+            actual['metadata']['managedFields'] = [{'manager': guard.CRD_MANAGER, 'operation': operation}]
+            actual['status'] = {'storedVersions': ['v1']}
+            self.assertTrue(guard.matches(actual, desired))
+        mutations = [
+            lambda x: x['metadata'].pop('managedFields'),
+            lambda x: x['metadata']['managedFields'][0].update(manager='unrelated'),
+            lambda x: x['metadata']['managedFields'][0].update(operation='Unknown'),
+            lambda x: x['metadata']['annotations'].update({guard.HASH_ANNOTATION: 'b' * 64}),
+            lambda x: x['metadata'].update(finalizers=['unreviewed']),
+            lambda x: x['metadata'].update(deletionTimestamp='now'),
+            lambda x: x['metadata'].update(ownerReferences=[{'name': 'other'}]),
+            lambda x: x['status'].update(storedVersions=['v1', 'v0']),
+            lambda x: x['spec']['versions'][0].update(schema={'unreviewed': True}),
+        ]
+        for index, mutate in enumerate(mutations):
+            with self.subTest(case=index):
+                wrong = copy.deepcopy(actual)
+                mutate(wrong)
+                self.assertFalse(guard.matches(wrong, desired))
+
+    def test_only_known_successful_rancher_namespace_bookkeeping_is_tolerated(self):
+        desired = {'apiVersion': 'v1', 'kind': 'Namespace',
+                   'metadata': {'name': 'external-secrets', 'labels': {
+                       'perkforge.io/owner': guard.OWNER,
+                       'pod-security.kubernetes.io/enforce': 'restricted'}}}
+        conditions = [{'Type': t, 'Status': 'True', 'Message': '',
+                       'LastUpdateTime': '2026-11-11T01:13:42Z'}
+                      for t in ('ResourceQuotaInit', 'InitialRolesPopulated')]
+        actual = copy.deepcopy(desired)
+        actual['metadata']['annotations'] = {
+            'cattle.io/status': json.dumps({'Conditions': conditions}),
+            'lifecycle.cattle.io/create.namespace-auth': 'true'}
+        actual['spec'] = {'finalizers': ['kubernetes']}
+        self.assertTrue(guard.matches(actual, desired))
+        for annotations in (
+                {'cattle.io/status': 'not JSON'},
+                {'cattle.io/status': json.dumps({'Conditions': []})},
+                {'cattle.io/status': json.dumps({'Conditions': conditions[:1]})},
+                {'cattle.io/status': json.dumps({'Conditions': [dict(c, Status='False') for c in conditions]})},
+                {'cattle.io/status': json.dumps({'Conditions': [dict(c, Type='Unexpected') for c in conditions]})},
+                {'lifecycle.cattle.io/create.namespace-auth': 'false'},
+                {'cattle.io/unreviewed': 'true'},
+                {'unreviewed': 'true'}):
+            with self.subTest(annotations=annotations):
+                wrong = copy.deepcopy(actual)
+                wrong['metadata']['annotations'].update(annotations)
+                self.assertFalse(guard.matches(wrong, desired))
+        for labels in ({'perkforge.io/owner': 'other'},
+                       {'pod-security.kubernetes.io/enforce': 'privileged'}):
+            wrong = copy.deepcopy(actual)
+            wrong['metadata']['labels'].update(labels)
+            self.assertFalse(guard.matches(wrong, desired))
+        # The exception must never apply to another kind.
+        desired['kind'] = actual['kind'] = 'ServiceAccount'
+        actual.pop('spec')
+        self.assertFalse(guard.matches(actual, desired))
+
 
 @unittest.skipUnless(shutil.which('ansible-playbook') and shutil.which('kubectl'), 'Ansible and kubectl kustomize required')
 class FoundationApply(unittest.TestCase):
@@ -129,18 +212,27 @@ class FoundationApply(unittest.TestCase):
         calls = self.calls()
         writes = [c for c in calls if c['tool'] == 'kubectl' and 'create' in c['args']]
         self.assertEqual(len(writes), len(self.foundation) + 1)
+        object_reads = [c for c in calls if c['tool'] == 'kubectl' and 'get' in c['args']
+                        and 'json' in c['args']]
+        self.assertEqual(len(object_reads), 2 * (len(self.foundation) + 1))
+        self.assertTrue(all('--show-managed-fields=true' in c['args'] for c in object_reads))
         first_apply = next(i for i, c in enumerate(calls) if c['tool'] == 'kubectl' and 'create' in c['args'])
         self.assertEqual(sum(c['tool'] == 'kubectl' and 'get' in c['args'] for c in calls[:first_apply]), len(self.foundation) + 2)
         (self.root / 'calls.jsonl').write_text('')
         result = self.run_play()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('changed=0', result.stdout)
+        self.assertFalse(any(c['tool'] == 'kubectl' and any(action in c['args']
+                             for action in ('create', 'apply', 'patch', 'replace', 'delete'))
+                             for c in self.calls()))
         self.assertFalse(any(c['tool'] == 'kubectl' and 'create' in c['args'] for c in self.calls()))
 
     def test_readback_drift_stops_without_automatic_repair(self):
         result = self.run_play('readback_drift')
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('ESO foundation readback differs', result.stdout + result.stderr)
+        self.assertIn('ClusterRole/', result.stdout)
+        self.assertNotIn('stdout_lines', result.stdout)
         self.assertFalse(any(c['tool'] == 'kubectl' and any(action in c['args']
                              for action in ('apply', 'patch', 'replace', 'delete')) for c in self.calls()))
 
