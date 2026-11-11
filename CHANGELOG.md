@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.1](https://github.com/perkforge/perkforge-platform/compare/v0.37.0...v0.37.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **eso:** verify managed ownership and Rancher namespace defaults ([#322](https://github.com/perkforge/perkforge-platform/issues/322)) ([1b753b6](https://github.com/perkforge/perkforge-platform/commit/1b753b6ba0240900adfadc1b5460ded9b9549f20))
+
 ## [0.37.0](https://github.com/perkforge/perkforge-platform/compare/v0.36.0...v0.37.0) (2026-11-10)
 
 
