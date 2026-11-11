@@ -1,5 +1,5 @@
 """Pure fail-closed comparison for reviewed ESO foundation. No generation or I/O."""
-from copy import deepcopy
+from collections.abc import Mapping
 import json
 
 OWNER = 'external-secrets-foundation-v1'
@@ -54,8 +54,17 @@ def matches(actual, desired):
     return normalize(actual) == normalize(desired)
 
 
+def plain_structure(value):
+    """Copy public manifest containers without copying Ansible's lazy context."""
+    if isinstance(value, Mapping):
+        return {key: plain_structure(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [plain_structure(item) for item in value]
+    return value
+
+
 def normalize(obj):
-    result = deepcopy(obj)
+    result = plain_structure(obj)
     result.pop('status', None)
     meta = result['metadata']
     for name in ('uid', 'resourceVersion', 'generation', 'creationTimestamp',
