@@ -5,7 +5,9 @@ This is the home-lab procedure, not the recovery architecture required of platfo
 ## Current state and hold
 
 The dedicated Toshiba disk is formatted ext4 (`PF-BACKUP`) and attached to `worker-2`.
-The inspected state has no mount or active NFS export. Backup-target configuration,
+It is UUID-mounted at `/srv/perkforge-backup`; a dedicated `longhorn` directory,
+three-node export allowlist and NFSv4/TCP-only configuration are staged. NFS remains
+**disabled and inactive**, with no NFS/RPC listeners. Longhorn target activation,
 schedules and restore acceptance are **not complete**. Keep all backup execution on
 hold until the native Nextcloud sync finishes; its workstation source copies remain intact.
 
@@ -26,6 +28,16 @@ hold until the native Nextcloud sync finishes; its workstation source copies rem
 4. Only after sync completion, approve activation, select this target in reviewed
    Longhorn configuration, and test one disposable volume backup and restore before
    enabling workload schedules. Record successful restore evidence and retention.
+
+Staging is captured in `playbooks/prepare-backup-target.yml`: default/check mode
+makes no host connection. Initial apply requires reviewed private disk/client
+inputs and an explicitly authorized sudo credential supplied only in the process
+environment; no password is written to source or a vars file. It refuses an
+already-mounted target rather than repeating partial setup blindly. The local
+NFS service override removes optional rpcbind/statd startup; review it after
+`nfs-utils` upgrades. Loaded mount dependencies, effective protocol settings and
+inactive services were checked. Actual reboot/unplug and backup/restore tests
+remain outstanding; do not treat configuration checks as recovery acceptance.
 
 ## Recover
 

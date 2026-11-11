@@ -1,0 +1,183 @@
+---
+# Stages the reviewed physical-lab target. Does not start NFS or activate backups.
+- name: Stage the approved backup target without enabling network services
+  hosts: worker-2
+  gather_facts: false
+  become: true
+  vars:
+    backup_prepare_apply: false
+    backup_prepare_reviewed: false
+    backup_mount: /srv/perkforge-backup
+    ansible_become_password: "{{ lookup('env', 'PF_APPROVED_BECOME_PASSWORD') }}"
+  tasks:
+    - name: Stage only after explicit review; check/default mode does not connect
+      when: backup_prepare_apply | bool and backup_prepare_reviewed | bool and not ansible_check_mode
+      block:
+        - name: Validate exact private inputs
+          ansible.builtin.assert:
+            that:
+              - backup_uuid is match('^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$')
+              - backup_serial | length > 5
+              - backup_clients | length == 3
+              - backup_clients | unique | length == 3
+              - backup_server_address in backup_clients
+              - backup_server_address == ansible_host
+        - name: Verify physical host
+          ansible.builtin.command: hostname
+          register: backup_hostname
+          changed_when: false
+        - name: Verify disk label
+          ansible.builtin.command: "blkid -s LABEL -o value /dev/disk/by-uuid/{{ backup_uuid }}"
+          register: backup_label
+          changed_when: false
+        - name: Verify filesystem type
+          ansible.builtin.command: "blkid -s TYPE -o value /dev/disk/by-uuid/{{ backup_uuid }}"
+          register: backup_fstype
+          changed_when: false
+        - name: Verify parent device identity without inspecting contents
+          ansible.builtin.command: "lsblk -snro SERIAL /dev/disk/by-uuid/{{ backup_uuid }}"
+          register: backup_serials
+          changed_when: false
+        - name: Inspect NFS service state
+          ansible.builtin.command: systemctl is-active nfs-server
+          register: backup_nfs_active
+          changed_when: false
+          failed_when: false
+        - name: Inspect NFS enablement
+          ansible.builtin.command: systemctl is-enabled nfs-server
+          register: backup_nfs_enabled
+          changed_when: false
+          failed_when: false
+        - name: Refuse an already mounted source for this initial staging operation
+          ansible.builtin.command: "findmnt -rn --source UUID={{ backup_uuid }}"
+          register: backup_source_mount
+          changed_when: false
+          failed_when: backup_source_mount.rc not in [0, 1]
+        - name: Inspect intended mount path
+          ansible.builtin.stat:
+            path: "{{ backup_mount }}"
+            follow: false
+          register: backup_path
+        - name: Require approved identity and untouched initial state
+          ansible.builtin.assert:
+            that:
+              - backup_hostname.stdout == 'worker-2'
+              - backup_label.stdout == 'PF-BACKUP'
+              - backup_fstype.stdout == 'ext4'
+              - backup_serial in backup_serials.stdout_lines
+              - backup_nfs_active.stdout == 'inactive'
+              - backup_nfs_enabled.stdout == 'disabled'
+              - backup_source_mount.rc == 1
+              - not backup_path.stat.exists
+        - name: Create the dedicated mount directory
+          ansible.builtin.file:
+            path: "{{ backup_mount }}"
+            state: directory
+            owner: root
+            group: root
+            mode: '0700'
+        - name: Add only this UUID mount to fstab
+          ansible.builtin.blockinfile:
+            path: /etc/fstab
+            marker: '# {mark} PerkForge backup target'
+            block: "UUID={{ backup_uuid }} {{ backup_mount }} ext4 rw,noatime,nosuid,nodev,noexec,nofail,x-systemd.device-timeout=15s,x-systemd.device-bound 0 2"
+            backup: true
+        - name: Reload mount unit definitions without starting services
+          ansible.builtin.systemd_service:
+            daemon_reload: true
+        - name: Mount only the dedicated UUID filesystem
+          ansible.builtin.command: "mount {{ backup_mount }}"
+          changed_when: true
+        - name: Require exact mounted UUID and filesystem before directory writes
+          ansible.builtin.command: "findmnt -rn --mountpoint {{ backup_mount }} --source UUID={{ backup_uuid }} --types ext4 --options rw"
+          changed_when: false
+        - name: Create only the dedicated Longhorn destination
+          ansible.builtin.file:
+            path: "{{ backup_mount }}/longhorn"
+            state: directory
+            owner: root
+            group: root
+            mode: '0700'
+        - name: Create service configuration directories
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: directory
+            owner: root
+            group: root
+            mode: '0755'
+          loop:
+            - /etc/nfs.conf.d
+            - /etc/exports.d
+            - /etc/systemd/system/nfs-server.service.d
+            - /etc/systemd/system/nfs-mountd.service.d
+        - name: Stage NFSv4 TCP only on the reviewed host address
+          ansible.builtin.copy:
+            dest: /etc/nfs.conf.d/90-perkforge-backup.conf
+            owner: root
+            group: root
+            mode: '0644'
+            content: |
+              [nfsd]
+              host={{ backup_server_address }}
+              port=2049
+              tcp=y
+              udp=n
+              vers3=n
+              vers4=y
+              rdma=n
+        - name: Stage exact client allowlist and refuse missing-drive export
+          ansible.builtin.copy:
+            dest: /etc/exports.d/perkforge-backup.exports
+            owner: root
+            group: root
+            mode: '0644'
+            content: |
+              {{ backup_mount }}/longhorn {% for client in backup_clients %}{{ client }}(rw,sync,no_subtree_check,no_root_squash,mountpoint={{ backup_mount }}){% if not loop.last %} {% endif %}{% endfor %}
+        - name: Bind future NFS startup to the UUID-verified disk; omit auxiliary listeners
+          ansible.builtin.copy:
+            dest: /etc/systemd/system/nfs-server.service.d/90-perkforge-backup.conf
+            owner: root
+            group: root
+            mode: '0644'
+            content: |
+              [Unit]
+              RequiresMountsFor={{ backup_mount }}
+              BindsTo=srv-perkforge\x2dbackup.mount
+              After=srv-perkforge\x2dbackup.mount
+              [Service]
+              ExecStartPre=
+              ExecStartPre=/usr/bin/findmnt -rn --mountpoint {{ backup_mount }} --source UUID={{ backup_uuid }} --types ext4 --options rw
+              ExecStartPre=/usr/sbin/exportfs -r
+        - name: Retain mountd cache support without public mount protocol listeners
+          ansible.builtin.copy:
+            dest: /etc/systemd/system/nfs-mountd.service.d/90-perkforge-backup.conf
+            owner: root
+            group: root
+            mode: '0644'
+            content: |
+              [Service]
+              ExecStart=
+              ExecStart=/usr/sbin/rpc.mountd --no-tcp --no-udp
+        # systemd dependency lists cannot be cleared by drop-ins. Preserve the
+        # vendor service except these three optional v3/RPC startup dependencies.
+        # Review this override after nfs-utils upgrades.
+        - name: Read installed vendor NFS service definition
+          ansible.builtin.slurp:
+            src: /usr/lib/systemd/system/nfs-server.service
+          register: backup_nfs_vendor
+        - name: Verify expected optional dependency declarations before replacing
+          ansible.builtin.assert:
+            that:
+              - "'Wants=rpcbind.socket network-online.target' in (backup_nfs_vendor.content | b64decode)"
+              - "'Wants=rpc-statd.service nfs-idmapd.service' in (backup_nfs_vendor.content | b64decode)"
+              - "'Wants=rpc-statd-notify.service' in (backup_nfs_vendor.content | b64decode)"
+        - name: Stage vendor service without optional public RPC startup
+          ansible.builtin.copy:
+            dest: /etc/systemd/system/nfs-server.service
+            owner: root
+            group: root
+            mode: '0644'
+            content: "{{ (backup_nfs_vendor.content | b64decode) | replace('Wants=rpcbind.socket network-online.target', 'Wants=network-online.target') | replace('Wants=rpc-statd.service nfs-idmapd.service', 'Wants=nfs-idmapd.service') | replace('Wants=rpc-statd-notify.service', '# rpc-statd-notify deliberately omitted for NFSv4-only backup target') }}"
+        - name: Reload staged units only; deliberately do not start or enable NFS
+          ansible.builtin.systemd_service:
+            daemon_reload: true

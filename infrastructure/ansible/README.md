@@ -4,6 +4,7 @@ The operator uses PXE and interactive Anaconda to install RHEL. Infrastructure A
 
 | Entrypoint | Purpose | Default |
 |---|---|---|
+| `playbooks/prepare-backup-target.yml` | reviewed physical-lab UUID mount and disabled NFSv4 target staging | no connections |
 | `playbooks/label-longhorn-workers.yml` | separately approved worker-only storage labels | no cluster access |
 | `playbooks/prepare-longhorn-hosts.yml` | separately approved worker-only V1 storage prerequisites | no connections |
 | `playbooks/mount-longhorn-disks.yml` | reviewed existing XFS disks, UUID mounts and root-directory guard | no connections |
