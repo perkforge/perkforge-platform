@@ -108,8 +108,9 @@ and exact target identities; inspect current state and stop on ownership drift.
    auth, data or rotation. Do not automatically delete values or restart apps.
 
 The source does not implement automatic root selection, provider-network discovery,
-registry/CA delivery, consumer population or cleanup. Those remain explicit
-operator stages rather than hidden side effects of controller installation.
+consumer population or cleanup. Registry/CA delivery and protected provider values
+use the separately gated operator input procedure below; none is a hidden side
+effect of controller installation.
 
 ## Validation and limits
 
@@ -135,3 +136,81 @@ synthetic server, not production authentication. Required live acceptance includ
 wrong SA/namespace/audience denial, exact Store namespace restrictions, unrelated
 namespace write/token denial, correct public TLS, no unexpected secret exposure
 in logs, exact consumer mapping/rotation and preservation of existing resources.
+
+## Guarded operator input preparation
+
+`../ansible/external-secrets-inputs.yaml` now implements the narrow input stages.
+It is default-off and check mode performs no input/API access. It never selects a
+Flux source, creates authentication, generates credentials or applies Stores.
+Publish reviewed source first: enabled execution requires an immutable verified
+release, a clean matching checkout, the exact local inventory and cluster UID,
+and the existing owned foundation namespace. Use the normal protected inventory
+and release-evidence inputs, plus `external_secrets_inputs_scope:
+external-secrets-inputs-v1`. Each following flag is a **boolean**, defaults false,
+and requires its own action approval:
+
+- `external_secrets_registry_apply`: reads only
+  `flux-system/private-registry`; validates a Registry1-only docker config and
+  copies only its existing Registry1 auth entry to the immutable
+  `external-secrets/private-registry`. No generation, rotation or other registry.
+- `external_secrets_ca_apply`: reads `external_secrets_ca_file`, containing one
+  public CA certificate only, and checks its independently verified SHA-256
+  certificate fingerprint in `external_secrets_expected_ca_sha256`, CA constraint
+  and remaining lifetime before creating immutable `external-secrets/openbao-ca`.
+  Obtain this public certificate separately without exporting signing keys. The
+  operator must first verify the OpenBao server chain and the certificate SAN for
+  `openbao.perkforge.home.arpa`; this play does not contact OpenBao or prove routing.
+- `external_secrets_network_apply`: reads `external_secrets_provider_file`, an
+  owner-held 0600 regular file outside the checkout containing exactly one
+  RFC1918 IPv4 `/32`. It creates immutable
+  `bigbang/external-secrets-network-values`, defining only that host on TCP 443.
+  Provider egress remains disabled in the suspended root. No DNS discovery,
+  physical address in Git, generic provider egress, or alternate server hostname.
+- `external_secrets_activation_apply`: after the other stages, independently
+  verifies their exact owned immutable targets and the CA/fingerprint and private
+  route inputs again, then creates immutable
+  `bigbang/external-secrets-activation-values`. It also requires the explicit
+  boolean `external_secrets_activation_prerequisites_approved: true`, confirming
+  the separately reviewed established CRDs/RBAC, controller trust, resource
+  headroom and native DNS/API/metrics/provider policy acceptance. This manual
+  acceptance is not replaced by namespace or input checks.
+
+The separately selectable `clusters/local-external-secrets-active` root extends
+unchanged `local-external-secrets`/`local-velero`, requiring both network and
+activation ConfigMaps. It cannot supply its own activation permission. Verify
+both inputs immediately before selecting a released root through the existing
+GitOps procedure. Missing required inputs stop umbrella reconciliation, so never
+select this root early. Selection and live readiness remain separate approved
+operations; creating the permission ConfigMap does not select a root. Once
+selected, repeat input stages do not revoke activation or continuously police
+prerequisites. Stop for review if an input is lost or changes.
+
+First creation validates all selected targets before creating any. Existing
+exact owned immutable targets remain unchanged; ownership/content drift,
+collisions and concurrent creation fail rather than adopt, overwrite or repair.
+A partial failed creation is retained for an unchanged retry, never rolled back by
+secret deletion. Rotation, route changes and CA replacement need a separate
+reviewed migration; this create-only workflow intentionally cannot perform them.
+All protected operations and loop results are redacted. Do not run with debug
+callbacks, fact caching or task-variable logging that could disclose private data.
+
+The shared ingress `/32:443` permits other virtual hosts on that address.
+Kubernetes L3/L4 policy cannot restrict HTTP Host or TLS SNI. TLS verification and
+ESO's exact OpenBao URL remain required; this is not host-level isolation. Actual
+CNI/DNAT behavior may require a separately reviewed route; do not broaden this
+policy or change the TLS hostname to an internal service name to work around it.
+No auth setup, TokenReview grant, runtime record population, Portal OIDC/TLS/GHCR
+credential or other application's network rule is part of these stages.
+
+Offline evidence: `bootstrap.test_external_secrets_inputs` runs real Ansible with
+synthetic public CA/Registry1 data and a fake CLI. It covers default/check no-access,
+first creation/repeat, ownership/drift/race denial, bad inputs, prerequisite-gated
+activation and preservation of every existing root object. Set `ESO_CHART_SOURCE`
+to the pinned wrapper to additionally render the exact /32 provider policy.
+`bootstrap.test_external_secrets_input_gates` additionally runs the enabled
+playbook and real release-verification script against fake CLIs: unpublished or
+retargeted releases, dirty/wrong checkouts and wrong cluster UID stop before
+credential reads. The input suite verifies partial creation retention and a
+missing-only retry, with no repair/deletion or early activation. With both
+`ESO_CHART_SOURCE` and `PREFLIGHT_SOURCES_DIR`, it renders the real umbrella,
+proves only ESO activation changes and checks the exact effective provider policy.
