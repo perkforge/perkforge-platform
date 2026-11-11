@@ -470,3 +470,13 @@ and restore acceptance remain blockers; this PR creates no credentials/jobs.
 
 References: [disk management](https://longhorn.io/docs/1.13.0/nodes-and-volumes/nodes/multidisk/),
 [StorageClass parameters](https://longhorn.io/docs/1.13.0/references/storage-class-parameters/).
+
+## Backup and recovery for adopters
+
+Choose an NFS or object-store backup target outside the workload failure domain,
+with retention and restore-time objectives appropriate to your cloud or on-premises
+environment. Back up control-plane state, credentials and application-consistent
+data separately where required; Longhorn volume backups are not whole-cluster recovery.
+Test restores before relying on the policy. Follow [upstream backup guidance](https://longhorn.io/docs/1.13.0/snapshots-and-backups/backup-and-restore/set-backup-target/);
+the [physical home-lab procedure](../../../../infrastructure/ansible/BACKUP-RECOVERY.md)
+is a local implementation, not an adopter requirement.
