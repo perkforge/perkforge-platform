@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.2](https://github.com/perkforge/perkforge-platform/compare/v0.37.1...v0.37.2) (2026-11-11)
+
+
+### Bug Fixes
+
+* **eso:** avoid copying Ansible lazy template context ([#324](https://github.com/perkforge/perkforge-platform/issues/324)) ([2653cf5](https://github.com/perkforge/perkforge-platform/commit/2653cf5954ade10ae070c8b00e2bff425ee7c6ca))
+
 ## [0.37.1](https://github.com/perkforge/perkforge-platform/compare/v0.37.0...v0.37.1) (2026-11-11)
 
 
