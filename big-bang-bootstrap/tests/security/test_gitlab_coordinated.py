@@ -5,7 +5,7 @@ from fixtures.collaboration import package_render
 from fixtures.render_helpers import build,ordered_values,helm,child_values
 ROOT=Path(__file__).resolve().parents[2]
 class CoordinatedGitLab(unittest.TestCase):
- def test_lab_preserves_resources_except_webservice_limit_and_toolbox_request(self):
+ def test_lab_preserves_resources_except_explicit_lab_overrides(self):
   _,base=package_render(ROOT,'gitlab')['gitlab']
   _,lab=package_render(ROOT,'gitlab',extra_values=(ROOT/'configuration/packages/gitlab/lab-values.yaml',))['gitlab']
   from collections import Counter
@@ -24,7 +24,10 @@ class CoordinatedGitLab(unittest.TestCase):
      self.assertEqual(env['WORKER_PROCESSES'],'2')
     if 'toolbox' in expected:
      self.assertEqual(expected['toolbox']['requests']['cpu'],2)
-     expected['toolbox']['requests']['cpu']='1'
+     expected['toolbox']['requests']['cpu']='250m'
+    if 'gitlab-workhorse' in expected:
+     self.assertEqual(expected['gitlab-workhorse']['requests']['cpu'],'600m')
+     expected['gitlab-workhorse']['requests']['cpu']='100m'
     self.assertEqual(sizes(x),expected)
  def test_app_memory_fix_changes_only_limit_and_values_hashed_job_names(self):
   import re

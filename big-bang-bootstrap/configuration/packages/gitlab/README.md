@@ -11,7 +11,7 @@ Read [the coordinated procedure](coordinated-outcome.md) and
 | Area | Prepared source | Remaining live evidence |
 |---|---|---|
 | GitLab | Big Bang 3.35.1 / package 10.4.2-bb.0 / 19.4.2-ee Free, exact tested webservice digest | Real install, capacity/support, initial recovery and persistence |
-| Lab sizing | One webservice/shell/Sidekiq HPA replica; Toolbox requests 1 CPU with its 2-CPU limit and memory retained | Explicit non-HA acceptance, placement, migrations and surge |
+| Lab sizing | One webservice/shell/Sidekiq HPA replica; Toolbox/PostgreSQL request 250m and Workhorse 100m; limits and memory retained | Explicit non-HA acceptance, placement, migrations and surge |
 | Data services | Shared CNPG operator, dedicated PostgreSQL/Valkey, no-discovery Garage | Approved foundation, credentials/TLS, native startup and S3 behavior |
 | PostgreSQL TLS | Supported extraEnv/CA mount with native verify-full, exact CNG transport tests | Real provider CA/SAN, generated application config and database flow |
 | Credentials | Private existing-input assembly, create-only immutable Secret/CA delivery | Separately approved real generation/delivery and rotation plan |
@@ -20,11 +20,34 @@ Read [the coordinated procedure](coordinated-outcome.md) and
 | Runner | Protected project, paused registration, private token receipt, isolated manager/job identities | Actual registration, CNI/DNAT egress, clone/artifact/deny/drain cases |
 | Backup | Owner-selected encrypted external drive; cron disabled | Drive authorization, capacity, backup and independent restore |
 
-The home-lab Toolbox CPU request is 1 core instead of the package default of 2;
-its 2-core limit permits bursts, and memory remains unchanged. This changes its
-Pod QoS from Guaranteed to Burstable. Later release promotion replaces the Toolbox
-Pod under its Recreate strategy, briefly interrupting Toolbox access. The smaller
-reservation is not evidence of demanding backup/recovery performance.
+## Conservative home-lab CPU requests
+
+For a single GitLab user with a few repositories, the first sizing pass changes
+only CPU requests: Toolbox 1000m to 250m, dedicated PostgreSQL 1000m to 250m,
+and Workhorse 600m to 100m. All memory requests/limits, CPU limits (respectively
+2, 2 and 600m), replicas, chart/image pins and security/storage controls stay
+unchanged. This frees 2000m of requests, not physical CPUs. The roughly 40-hour
+observation window had one-minute peaks of about 2m, 69m and 8m respectively;
+it does not establish demanding backup/restore or future concurrency capacity.
+
+Publication alone does not deploy. Before separately approved release promotion,
+check current per-node fit, effective init-container requests, rollout surge,
+PVC placement and a recoverable backup. Do not run heavy CI, imports or backups
+during replacement. Toolbox uses Recreate and is briefly unavailable; the
+single-instance PostgreSQL operator may restart its Pod, briefly interrupting
+GitLab. Do not promise a zero-downtime rollout or manually patch live resources.
+Freed requests may automatically allow previously Pending workloads to start;
+verify their storage and readiness too. Aggregate free CPU does not prove that a
+single large Pod fits on either worker.
+
+After promotion, check PostgreSQL/app readiness, login, repository clone/push,
+one small CI job, and normal background work before another reduction. Exercise
+backup and a separately approved isolated restore before lowering Toolbox memory
+or making stronger maintenance-performance claims. Retain the previous immutable
+release for source-based rollback if readiness, database response, job completion
+or backup behavior regresses. Monitor latency, queues, throttling and OOMs as well
+as CPU/memory. Neither low idle use nor these offline tests proves N+1 capacity.
+Flux, Nextcloud and other application sizing are outside this change.
 
 The pinned GitLab chart treats discovery of `monitoring.coreos.com/v1` as enabling
 monitoring even when `global.monitoring.enabled` is false. The source-owned child
