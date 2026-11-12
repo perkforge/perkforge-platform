@@ -8,6 +8,9 @@
     backup_prepare_apply: false
     backup_prepare_reviewed: false
     backup_mount: /srv/perkforge-backup
+    # Optional same-host pod subnet; root-write exposure requires separate review.
+    backup_local_pod_cidr: ""
+    backup_local_pod_cidr_reviewed: false
     ansible_become_password: "{{ lookup('env', 'PF_APPROVED_BECOME_PASSWORD') }}"
   tasks:
     - name: Stage only after explicit review; check/default mode does not connect
@@ -22,6 +25,12 @@
               - backup_clients | unique | length == 3
               - backup_server_address in backup_clients
               - backup_server_address == ansible_host
+        - name: Require separate review for the backup host's pod subnet
+          ansible.builtin.assert:
+            that:
+              - backup_local_pod_cidr == '' or backup_local_pod_cidr_reviewed | bool
+              - backup_local_pod_cidr == '' or backup_local_pod_cidr is match('^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])[.]){3}0/24$')
+            fail_msg: Only a separately reviewed single IPv4 /24 pod subnet may supplement the three exact node clients.
         - name: Verify physical host
           ansible.builtin.command: hostname
           register: backup_hostname
@@ -132,7 +141,7 @@
             group: root
             mode: '0644'
             content: |
-              {{ backup_mount }}/longhorn {% for client in backup_clients %}{{ client }}(rw,sync,no_subtree_check,no_root_squash,mountpoint={{ backup_mount }}){% if not loop.last %} {% endif %}{% endfor %}
+              {{ backup_mount }}/longhorn {% for client in backup_clients + ([backup_local_pod_cidr] if backup_local_pod_cidr else []) %}{{ client }}(rw,sync,no_subtree_check,no_root_squash,mountpoint={{ backup_mount }}){% if not loop.last %} {% endif %}{% endfor %}
         - name: Bind future NFS startup to the UUID-verified disk; omit auxiliary listeners
           ansible.builtin.copy:
             dest: /etc/systemd/system/nfs-server.service.d/90-perkforge-backup.conf
