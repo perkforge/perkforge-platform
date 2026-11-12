@@ -2,14 +2,15 @@
 
 This is the home-lab procedure, not the recovery architecture required of platform adopters.
 
-## Current state and hold
+## Current state
 
-The dedicated Toshiba disk is formatted ext4 (`PF-BACKUP`) and attached to `worker-2`.
-It is UUID-mounted at `/srv/perkforge-backup`; a dedicated `longhorn` directory,
-three-node export allowlist and NFSv4/TCP-only configuration are staged. NFS remains
-**disabled and inactive**, with no NFS/RPC listeners. Longhorn target activation,
-schedules and restore acceptance are **not complete**. Keep all backup execution on
-hold until the native Nextcloud sync finishes; its workstation source copies remain intact.
+The Toshiba disk (`PF-BACKUP`) is UUID-mounted on `worker-2` at
+`/srv/perkforge-backup`. The guarded NFSv4 target and Longhorn's `default` target
+are active with the approved backup-host pod-subnet exception; NFS is enabled
+at startup. No reboot test has been performed. A disposable volume was backed up and restored into a separate volume;
+its 8 MiB random payload passed SHA256 comparison on 2026-11-12. This is storage
+round-trip evidence, not application or whole-cluster recovery acceptance.
+Workload backups, retention and recovery exercises still need review.
 
 ## Prepare, then activate
 
@@ -20,6 +21,13 @@ hold until the native Nextcloud sync finishes; its workstation source copies rem
    of Kubernetes. Export only `/srv/perkforge-backup/longhorn` to the exact approved
    cluster-node addresses. Review `no_root_squash`: those clients obtain root-level
    write access to that export. Keep other recovery material outside that export.
+   Same-host Longhorn traffic can retain its pod IP rather than the node IP. If
+   needed, separately approve only the backup host's pod /24 via private
+   `backup_local_pod_cidr` and `backup_local_pod_cidr_reviewed: true`. This grants
+   root-capable access to reachable pods in that subnet, not just Longhorn.
+   Do not permit the entire cluster CIDR or assume Kubernetes NetworkPolicy
+   protects a pod's access to its own host. Target discovery alone is not a test
+   of the backup engine's access.
 3. Fail closed if the drive is absent: verify its expected UUID before serving,
    bind the service to the mount/device, and use the NFS `mountpoint=` export guard.
    Never fall back to writing backups into the host root filesystem. Test the
@@ -35,9 +43,10 @@ inputs and an explicitly authorized sudo credential supplied only in the process
 environment; no password is written to source or a vars file. It refuses an
 already-mounted target rather than repeating partial setup blindly. The local
 NFS service override removes optional rpcbind/statd startup; review it after
-`nfs-utils` upgrades. Loaded mount dependencies, effective protocol settings and
-inactive services were checked. Actual reboot/unplug and backup/restore tests
-remain outstanding; do not treat configuration checks as recovery acceptance.
+`nfs-utils` upgrades. Loaded mount dependencies and effective protocol/listener restrictions were checked. The live disposable backup/restore passed;
+actual reboot/unplug and application recovery tests remain outstanding. Do not
+rerun this initial-staging playbook against the active target. Keep activation and
+startup enablement separate, explicitly approved operations.
 
 ## Recover
 
