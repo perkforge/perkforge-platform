@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.39.0](https://github.com/perkforge/perkforge-platform/compare/v0.38.0...v0.39.0) (2026-11-12)
+
+
+### Features
+
+* stage physical backup target without starting NFS ([#329](https://github.com/perkforge/perkforge-platform/issues/329)) ([e903ee0](https://github.com/perkforge/perkforge-platform/commit/e903ee08c40ff867fcce1aa3bfbb7f764130c4f6))
+
+
+### Bug Fixes
+
+* support reviewed backup-host pod subnet ([#330](https://github.com/perkforge/perkforge-platform/issues/330)) ([62d022a](https://github.com/perkforge/perkforge-platform/commit/62d022a53a1f437d9d4aa9e915e0b6e2234650ee))
+
 ## [0.38.0](https://github.com/perkforge/perkforge-platform/compare/v0.37.2...v0.38.0) (2026-11-11)
 
 
