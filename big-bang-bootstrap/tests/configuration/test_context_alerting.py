@@ -69,6 +69,9 @@ class ContextAlerting(unittest.TestCase):
             lambda a: a['ntfy'].update(token=''),
             lambda a: a['ntfy'].update(token='a\nb'),
             lambda a: a['ntfy'].update(url='http://ntfy.example.test'),
+            lambda a: a['ntfy'].update(url='https://ntfy.example.test:notaport'),
+            lambda a: a['ntfy'].update(url='https://ntfy.example.test:99999'),
+            lambda a: a['ntfy'].update(url='https://ntfy.example.test:0'),
             lambda a: a['ntfy'].update(url='https://user:pass@ntfy.example.test'),
             lambda a: a['ntfy'].update(url='https://ntfy.example.test/?template=other'),
             lambda a: a['ntfy'].update(url='https://ntfy.example.test/topic'),
@@ -98,6 +101,16 @@ class ContextAlerting(unittest.TestCase):
                 render([a, different])
         with self.assertRaises(guard.InvalidInputs):
             render([a, a])
+
+    def test_destination_aliases_rejected(self):
+        for field, key, value in [
+            ('ntfy', 'url', 'https://NTFY.example.test:443/'),
+            ('mattermost', 'webhook_url', 'https://CHAT.example.test:443/hooks/'+'a'*26),
+        ]:
+            a, b = fixture(), fixture(); b['id'] = 'other'
+            b[field][key] = value
+            with self.subTest(field=field), self.assertRaises(guard.InvalidInputs):
+                render([a, b])
 
     def test_no_policy_or_rule_or_live_selector_added(self):
         doc = render([fixture()])

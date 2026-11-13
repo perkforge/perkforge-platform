@@ -19,6 +19,7 @@ def verify(audiences):
             u = urlsplit(value)
             require(u.scheme == 'https' and bool(u.hostname) and not u.username
                     and not u.password and not u.fragment and not u.query)
+            require(u.port is None or 0 < u.port <= 65535)
             return u
         except ValueError:
             raise InvalidInputs('Invalid alert destination') from None
@@ -40,15 +41,16 @@ def verify(audiences):
         require(u.path in ('', '/'))
         require(n['publisher_permission'] == 'exact-topic-write-only')
         require(isinstance(n['token'], str) and len(n['token']) >= 16 and not any(c.isspace() for c in n['token']))
-        topic = (u.netloc, n['topic'])
+        topic = (u.hostname.lower(), u.port or 443, n['topic'])
         require(topic not in topics)
         topics.add(topic)
         w = https(m['webhook_url'])
         require(re.fullmatch(r'/hooks/[a-z0-9]{26}', w.path))
         require(isinstance(m['channel_id'], str) and re.fullmatch(r'[a-z0-9]{26}', m['channel_id']))
         require(m['channel_locked'] is True)
-        channel = (w.netloc, m['channel_id'])
-        require(channel not in channels and m['webhook_url'] not in hooks)
+        channel = (w.hostname.lower(), w.port or 443, m['channel_id'])
+        hook = (w.hostname.lower(), w.port or 443, w.path)
+        require(channel not in channels and hook not in hooks)
         channels.add(channel)
-        hooks.add(m['webhook_url'])
+        hooks.add(hook)
     return True
