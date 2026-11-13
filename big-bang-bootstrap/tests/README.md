@@ -142,3 +142,9 @@ org boundaries, ingestion authenticity or deployed network isolation.
 Grafana 13.2.1 and Prometheus 3.14.0: real synthetic series, upstream mTLS,
 per-org roles, custom-datasource attacks and query-model API denials. See the same
 gateway README for binary inputs and the remaining deployed/plugin/ingestion gaps.
+
+`configuration/test_tenant_query_package.py` renders the unselected gateway package
+through real Ansible and Kustomize. Optional exact-digest network-none container
+smoke and pinned monitoring Helm comparison cover startup and the discovery-only
+overlay. These do not establish actual CNI policy, runtime credentials or Operator
+mTLS probe compatibility; tenant grants remain closed.
