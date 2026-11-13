@@ -1,0 +1,33 @@
+# Native Grafana provisioning; rendered only after validating approved inputs.
+# Secret-bearing output belongs in protected runtime storage, never a ConfigMap/Git.
+apiVersion: 1
+contactPoints:
+{% for audience in alert_audiences %}
+  - orgId: {{ audience.org_id }}
+    name: {{ ('context-' ~ audience.id) | to_json }}
+    receivers:
+      - uid: {{ ('ctx-' ~ audience.id ~ '-ntfy') | to_json }}
+        type: webhook
+        disableResolveMessage: false
+        settings:
+          url: {{ audience.ntfy.url | to_json }}
+          httpMethod: POST
+          authorization_scheme: Bearer
+          authorization_credentials: {{ audience.ntfy.token | to_json }}
+          tlsConfig:
+            insecureSkipVerify: false
+          payload:
+            template: >-
+              {% raw %}{"topic":"{% endraw %}{{ audience.ntfy.topic }}{% raw %}","title":"{% endraw %}{{ audience.id }}{% raw %} alerts","message":"{% endraw %}{{ audience.id }}{% raw %}: {{ if eq .Status "firing" }}firing{{ else if eq .Status "resolved" }}resolved{{ else }}unknown{{ end }}; {{ len .Alerts }} grouped alert(s)."}{% endraw %}
+      - uid: {{ ('ctx-' ~ audience.id ~ '-mattermost') | to_json }}
+        type: webhook
+        disableResolveMessage: false
+        settings:
+          url: {{ audience.mattermost.webhook_url | to_json }}
+          httpMethod: POST
+          tlsConfig:
+            insecureSkipVerify: false
+          payload:
+            template: >-
+              {% raw %}{"text":"{% endraw %}{{ audience.id }}{% raw %}: {{ if eq .Status "firing" }}firing{{ else if eq .Status "resolved" }}resolved{{ else }}unknown{{ end }}; {{ len .Alerts }} grouped alert(s)."}{% endraw %}
+{% endfor %}
