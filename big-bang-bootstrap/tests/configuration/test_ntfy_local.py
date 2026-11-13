@@ -14,6 +14,7 @@ class NtfyLocal(unittest.TestCase):
         self.assertEqual(config['base-url'],'https://ntfy.perkforge.home.arpa')
         self.assertEqual(config['cache-duration'],'24h')
         self.assertEqual(config['auth-default-access'],'deny-all')
+        self.assertEqual(by_kind['StatefulSet']['spec']['template']['spec']['nodeSelector'], {'storage.perkforge.io/worker':'true'})
         pvc=by_kind['StatefulSet']['spec']['volumeClaimTemplates'][0]['spec']
         self.assertEqual(pvc['storageClassName'],'longhorn')
         self.assertEqual(pvc['resources']['requests']['storage'],'1Gi')

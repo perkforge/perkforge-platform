@@ -40,6 +40,7 @@ class NtfyDeployment(unittest.TestCase):
         self.assertEqual(set(spec['persistentVolumeClaimRetentionPolicy'].values()), {'Retain'})
         pod = spec['template']['spec']
         self.assertFalse(pod['automountServiceAccountToken'])
+        self.assertEqual(pod['nodeSelector'], {'storage.perkforge.io/worker':'true'})
         self.assertTrue(pod['securityContext']['runAsNonRoot'])
         container = pod['containers'][0]
         self.assertTrue(container['securityContext']['readOnlyRootFilesystem'])
