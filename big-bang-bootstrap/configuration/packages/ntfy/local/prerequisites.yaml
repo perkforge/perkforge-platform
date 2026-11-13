@@ -1,0 +1,28 @@
+# Owner-applied only; deliberately excluded from receiving Flux root.
+apiVersion: v1
+kind: Namespace
+metadata: {name: ntfy}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: ntfy-reconciler, namespace: ntfy}
+rules:
+- apiGroups: ['']
+  resources: [configmaps, services, serviceaccounts, persistentvolumeclaims]
+  verbs: [get, list, watch, create, patch, update]
+- apiGroups: [apps]
+  resources: [statefulsets]
+  verbs: [get, list, watch, create, patch, update]
+- apiGroups: [networking.k8s.io]
+  resources: [ingresses, networkpolicies]
+  verbs: [get, list, watch, create, patch, update]
+- apiGroups: [traefik.io]
+  resources: [serverstransports]
+  verbs: [get, list, watch, create, patch, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: ntfy-reconciler, namespace: ntfy}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: ntfy-reconciler}
+subjects:
+- {kind: ServiceAccount, name: platform-reconciler, namespace: flux-system}
