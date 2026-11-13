@@ -73,3 +73,5 @@ The test executes the real Ansible playbook against an isolated TLS fixture,
 including no-contact/check behavior, repeat, malformed inputs, wrong IDs/paths,
 non-private/wrong-owner contexts, pinned-version mismatch, rejected credentials,
 redirect/server failures and redaction. It never contacts the installed GitLab.
+
+See [scoped GitLab events](events/README.md) for the inactive Portal event policy and native webhook input template.

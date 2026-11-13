@@ -1,0 +1,23 @@
+# Inactive desired policy, not a deployed event processor or membership grant.
+gitlab_events:
+  schema_version: 1
+  enabled: false
+  context: portal
+  identity_contract: ../../../authorization/contexts/portal.yaml
+  events:
+    pipeline: {failed: firing, recovered: resolved}
+    security_scan_execution: {failed: firing}
+    deployment: {failed: firing}
+  security_findings_threshold: null
+  security_scan_jobs: []
+  project_ids: []
+  receiver: null
+  notification_owner: grafana-built-in-alertmanager
+  grouping: [context, project_id, event_class, incident_key, status]
+  repeat: unresolved-only
+  destinations: [mattermost, ntfy]
+  viewer_delivery: mattermost-channel-only
+  platform_visibility: all-tenant-contexts
+  unmapped_project: reject
+  payload_destination_overrides: reject
+  raw_payload_forwarding: false

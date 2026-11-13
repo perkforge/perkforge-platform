@@ -1,0 +1,18 @@
+{# Render only after verify_inputs.verify; protected runtime output, never Git/logs. #}
+{
+  "url": {{ gitlab_event_hook.receiver_url | to_json }},
+  "token": {{ gitlab_event_hook.token | to_json }},
+  "enable_ssl_verification": true,
+  "push_events": false,
+  "tag_push_events": false,
+  "issues_events": false,
+  "confidential_issues_events": false,
+  "note_events": false,
+  "confidential_note_events": false,
+  "merge_requests_events": false,
+  "wiki_page_events": false,
+  "releases_events": false,
+  "job_events": true,
+  "pipeline_events": true,
+  "deployment_events": true
+}
