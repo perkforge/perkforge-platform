@@ -57,3 +57,5 @@ No hosted API or installed GitLab 19.4.2 compatibility test is claimed.
 References: [project hooks API](https://docs.gitlab.com/api/project_webhooks/),
 [webhook event types](https://docs.gitlab.com/user/project/integrations/webhook_events/).
 Run `PYTHONPATH=big-bang-bootstrap/tests python3 -m unittest configuration.test_gitlab_events -v`.
+
+A [native polling candidate](metrics/README.md) avoids a bespoke event service, with explicit latest-state/polling limits. It remains inactive pending selection and acceptance.

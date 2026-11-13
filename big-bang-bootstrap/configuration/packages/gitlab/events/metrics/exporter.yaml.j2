@@ -1,0 +1,41 @@
+# Inactive single-context polling candidate; runtime token via GCPE_GITLAB_TOKEN.
+log: {level: warn, format: json}
+server:
+  listen_address: '127.0.0.1:8080'
+  enable_pprof: false
+  metrics: {enabled: true}
+  webhook: {enabled: false}
+gitlab:
+  url: {{ gitlab_url | to_json }}
+  enable_tls_verify: true
+  maximum_requests_per_second: 1
+  burstable_requests_per_second: 2
+pull:
+  projects_from_wildcards: {on_init: false, scheduled: false}
+  metrics: {on_init: true, scheduled: true, interval_seconds: 30}
+project_defaults:
+  output_sparse_status_metrics: true
+  pull:
+    refs:
+      tags: {enabled: false}
+      merge_requests: {enabled: false}
+    pipeline:
+      variables: {enabled: false}
+      test_reports: {enabled: false, test_cases: {enabled: false}}
+      jobs:
+        enabled: true
+        from_child_pipelines: {enabled: false}
+        runner_description: {enabled: false}
+wildcards: []
+projects:
+{% for project in metric_projects %}
+  - name: {{ project.path | to_json }}
+    pull:
+      refs:
+        branches:
+          enabled: true
+          regexp: {{ ('^(' + (project.refs | map('regex_escape') | join('|')) + ')$') | to_json }}
+      environments:
+        enabled: false  # LastDeployment is not evidence of all failed deployments
+        regexp: {{ ('^(' + (project.environments | map('regex_escape') | join('|')) + ')$') | to_json }}
+{% endfor %}
