@@ -116,8 +116,10 @@ ansible-playbook -i infrastructure/ansible/inventory/hosts.yml \
 ```
 
 ntfy uses the fixed `ntfy-dns-record-v1` scope, adding only
-`ntfy.perkforge.home.arpa` at the existing reviewed ingress address. All ten prior
-records, including Portal, and all predecessor bytes are required and preserved.
+`ntfy.perkforge.home.arpa` at the existing reviewed ingress address. All nine prior
+records through Harbor and all predecessor bytes are required and preserved.
+Portal is an independent rollout: if present its bytes are preserved, but its
+record and resolution are not required or queried by the ntfy scope.
 Only the owned `Ntfy DNS v1` block is appended. The same release, fresh base hash,
 backup, repeat/no-restart, UDP/TCP verification and guarded rollback apply.
 Explicit approval covers the shared DNS restart; a failed changed candidate can
