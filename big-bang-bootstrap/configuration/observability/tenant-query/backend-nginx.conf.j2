@@ -20,7 +20,7 @@ http {
         ssl_protocols TLSv1.2 TLSv1.3;
         client_max_body_size 64k;
         # Query reads and authenticated self-scrape only. Never expose lifecycle.
-{% for endpoint in ['/api/v1/query', '/api/v1/query_range', '/metrics'] %}
+{% for endpoint in ['/api/v1/query', '/api/v1/query_range', '/api/v1/labels', '/api/v1/series', '/api/v1/metadata', '/api/v1/status/buildinfo', '/metrics'] %}
         location = {{ endpoint }} {
             limit_except GET POST { deny all; }
             proxy_pass_request_headers off;
@@ -30,6 +30,11 @@ http {
             proxy_pass http://127.0.0.1:{{ prometheus_loopback_port }};
         }
 {% endfor %}
+        location ~ ^/api/v1/label/[a-zA-Z_][a-zA-Z0-9_]*/values$ {
+            limit_except GET { deny all; }
+            proxy_pass_request_headers off;
+            proxy_pass http://127.0.0.1:{{ prometheus_loopback_port }};
+        }
         location / { return 404; }
     }
 }

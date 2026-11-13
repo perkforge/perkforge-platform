@@ -161,6 +161,29 @@ class NativeTenantDataPlane(unittest.TestCase):
     def query(cls, uid, user='tenant-viewer', expr='fixture_value'):
         return cls.api('/api/datasources/proxy/uid/' + uid + '/api/v1/query?' + urllib.parse.urlencode({'query': expr}), user=user)
 
+    def test_platform_variable_and_health_reads(self):
+        prefix = '/api/datasources/proxy/uid/platform/api/v1/'
+        for endpoint in ['labels', 'series?match[]=fixture_value', 'metadata', 'status/buildinfo', 'label/namespace/values']:
+            code, result = self.api(prefix + endpoint)
+            self.assertEqual(code, 200, (endpoint, result))
+            self.assertEqual(result['status'], 'success')
+        code, result = self.api(prefix + 'label/namespace/values')
+        self.assertEqual(set(result['data']), {'tenant-portal', 'tenant-other'})
+        code, result = self.api(prefix + 'series?match[]=fixture_value')
+        self.assertEqual({v['source'] for v in result['data']}, {'portal', 'other', 'unmapped'})
+
+    def test_platform_read_routes_reject_tenant_credentials_and_mutations(self):
+        for endpoint in ['labels', 'series?match[]=fixture_value', 'metadata', 'status/buildinfo', 'label/namespace/values']:
+            code, _ = self.http(self.gateway + '/platform/api/v1/' + endpoint, user='portal', password='synthetic-portal')
+            self.assertEqual(code, 401, endpoint)
+            code, _ = self.http(self.gateway + '/portal/api/v1/' + endpoint, user='portal', password='synthetic-portal')
+            self.assertEqual(code, 404, endpoint)
+        for endpoint in ['/-/reload', '/-/quit', '/api/v1/admin/tsdb/delete_series', '/api/v1/status/config']:
+            code, _ = self.http(self.gateway + '/platform' + endpoint, user='platform', password='synthetic-platform', method='POST')
+            self.assertEqual(code, 404, endpoint)
+        code, _ = self.http(self.gateway + '/platform/api/v1/labels', user='platform', password='synthetic-platform', method='DELETE')
+        self.assertEqual(code, 403)
+
     def test_roles_only_receive_runtime_namespace_data(self):
         for user in ['tenant-admin', 'tenant-developer', 'tenant-viewer']:
             code, result = self.query('portal', user=user)
