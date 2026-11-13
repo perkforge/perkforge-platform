@@ -1,0 +1,24 @@
+- ansible.builtin.uri:
+    url: '{{ pr_api }}/roles/{{ pr_role }}'
+    headers: '{{ pr_headers }}'
+    status_code: [200, 404]
+  register: pr_definition
+- name: Never adopt foreign roles or composite/native privileges
+  ansible.builtin.assert:
+    that:
+    - pr_definition.json.name == pr_role
+    - pr_definition.json.id is match('^[A-Za-z0-9-]+$')
+    - pr_definition.json.containerId == pr_realm_id
+    - not pr_definition.json.composite | bool
+    - not pr_definition.json.clientRole | bool
+    - pr_definition.json.attributes == {'perkforge-managed':['true'], 'perkforge-purpose':['tenant-context-role-v1']}
+  when: pr_definition.status == 200
+- ansible.builtin.set_fact:
+    pr_role_objects: '{{ pr_role_objects | combine({pr_role:pr_definition.json}) }}'
+  when: pr_definition.status == 200
+- ansible.builtin.set_fact:
+    pr_missing_roles: '{{ (pr_missing_roles + [pr_role]) | unique | list }}'
+  when: pr_definition.status == 404
+- ansible.builtin.assert:
+    that: pr_definition.status == 200
+  when: pr_verify | default(false) | bool

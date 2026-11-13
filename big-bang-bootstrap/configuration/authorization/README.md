@@ -455,3 +455,9 @@ authentication flows and realm settings. This explicitly supersedes PA's earlier
 `realm_admin: false`; master/other realms remain excluded. A separately approved #136 run applied one mapping; exact readback passed. The no-change rerun failed safely at a remaining group-representation guard, so successful merged-source idempotence is not yet claimed. A local narrow fix passes the active state in GET-only mode (38 ok, changed 0, failed 0) and realistic apply/repeat fixtures; review/publication is pending.
 Earlier empty-mapping workflows remain pre-delegation checks and intentionally
 refuse after a grant. Publication is not live approval.
+
+## Portal generic-role mapping
+
+See [Portal group-to-role mapping](PORTAL-ROLES.md) for the separate default-off
+workflow. Generic roles require exact tenant group context; role names alone never
+authorize cross-tenant access. This does not activate application grants.
