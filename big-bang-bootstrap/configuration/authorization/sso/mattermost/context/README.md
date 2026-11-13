@@ -10,8 +10,11 @@ Tenant viewers may participate in Mattermost channels and see channel alerts.
 They receive no direct ntfy or other alert subscription. Platform engineers have
 cross-tenant visibility, not an implicit Mattermost System Admin grant. Native
 team/channel administration rights are not inferred from either decision.
-The private Portal alerts channel is `alerts` in the desired `tenant-portal`
-team. These names do not establish that those objects exist.
+The approved topology is one **PerkForge** team with private tenant channels.
+Team-directory and direct-message visibility across tenants are accepted; private
+channel content must remain scoped. Team/channel slugs and native IDs are explicit
+contract inputs, not derived grants. Example slugs below do not establish that
+those objects exist or approve additional membership.
 
 ## Inspect a configured native context
 
@@ -30,8 +33,8 @@ native IDs):
 {
   "schema_version": 1,
   "context_id": "portal",
-  "team_name": "tenant-portal",
-  "channel_name": "alerts",
+  "team_name": "perkforge",
+  "channel_name": "portal-alerts",
   "team_id": "RESOLVED_NATIVE_TEAM_ID",
   "channel_id": "RESOLVED_NATIVE_CHANNEL_ID",
   "publisher_user_id": "RESOLVED_DEDICATED_PUBLISHER_ID",
@@ -41,8 +44,10 @@ native IDs):
 }
 ```
 
-Include the publisher and all approved platform/tenant members in each actual
-roster. Explicit native admins, if separately approved, are represented by
+The team roster is the **entire shared team**, including other tenants. The
+channel roster includes only the publisher and the approved Portal and platform
+members. Shared-team membership must never imply private-channel membership.
+Keep the team roster synchronized across all channel inspection contracts. Explicit native admins, if separately approved, are represented by
 `team_user team_admin` or `channel_user channel_admin`; the tool does not grant
 these roles. Do not invent IDs from email or a mutable display name. Resolve
 Keycloak subject-to-native-account linkage separately. An app-global System Admin
@@ -88,3 +93,25 @@ Baseline deployment, data services/TLS, edition/security-patch review and operat
 trust remain the package runbook's gates. This source adds no root selection or
 live permission. The integrated Portal pilot must not skip those gates merely
 because this verifier passes against fixtures.
+
+## Required invitation-boundary acceptance before enablement
+
+Private channels alone are not sufficient: the pinned v11.11.0 default
+[`channel_user` role](https://github.com/mattermost/mattermost/blob/v11.11.0/server/public/model/role.go)
+includes `manage_private_channel_members`. A normal member can therefore widen
+membership unless the actual edition's supported policy prevents it. OIDC groups
+do not change that default.
+
+Before enabling the pilot, verify the exact deployed Entry edition supports the
+approved restriction, then test with ordinary Portal admin, developer and viewer
+identities that adding a foreign tenant to the private channel is denied. Test
+the approved membership manager separately, plus foreign-tenant channel
+discovery/content denial and PE access. Record binary/version, edition, effective
+policy and test outcomes without tokens. The membership manager's identity and
+rights require an explicit decision; this runbook does not assign them.
+
+The GET-only inspector does **not** evaluate effective native role permissions,
+invitation restriction, license entitlements or these denial tests. Its success
+is not permission to enable. Do not bypass an edition limitation using unreviewed
+role changes or assume a paid feature exists. Applying live permission settings
+requires separate confirmation.

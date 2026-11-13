@@ -24,11 +24,11 @@ class MattermostContext(unittest.TestCase):
         subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
                         '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost',
                         '-keyout', str(self.d / 'key'), '-out', str(self.d / 'ca')], check=True, capture_output=True)
-        self.contract = dict(schema_version=1, context_id='portal', team_name='tenant-portal', channel_name='alerts',
+        self.contract = dict(schema_version=1, context_id='portal', team_name='perkforge', channel_name='alerts',
                              team_id=T, channel_id=C, webhook_id=H, publisher_user_id=U,
                              team_members=[dict(user_id=U, roles='team_user')],
                              channel_members=[dict(user_id=U, roles='channel_user')])
-        self.s = dict(calls=[], team=dict(id=T, name='tenant-portal', type='I', delete_at=0, allow_open_invite=False),
+        self.s = dict(calls=[], team=dict(id=T, name='perkforge', type='I', delete_at=0, allow_open_invite=False),
                       channel=dict(id=C, team_id=T, name='alerts', type='P', delete_at=0),
                       team_members=[dict(team_id=T, user_id=U, roles='team_user', delete_at=0)],
                       channel_members=[dict(channel_id=C, user_id=U, roles='channel_user')],
@@ -89,6 +89,14 @@ class MattermostContext(unittest.TestCase):
         self.run_play()
         self.assertEqual(len(self.s['calls']),10)
 
+    def test_shared_team_does_not_imply_channel_membership(self):
+        other = dict(user_id='o'*26, roles='team_user')
+        self.contract['team_members'].append(other)
+        self.s['team_members'].append(dict(team_id=T, delete_at=0, **other))
+        self.run_play()
+        self.s['channel_members'].append(dict(channel_id=C, user_id=other['user_id'], roles='channel_user'))
+        self.run_play(success=False)
+
     def test_foreign_public_deleted_or_invitable_context(self):
         original=copy.deepcopy(self.s)
         for key,field,value in [('team','name','tenant-other'),('team','type','O'),('team','allow_open_invite',True),
@@ -114,7 +122,7 @@ class MattermostContext(unittest.TestCase):
 
     def test_bad_input_fails_before_contact(self):
         original=copy.deepcopy(self.contract)
-        for field,value in [('team_id','../foreign'),('webhook_id','x'*26+'\n'),('team_name','tenant-other'),('channel_name','../path')]:
+        for field,value in [('team_id','../foreign'),('webhook_id','x'*26+'\n'),('team_name','../path'),('channel_name','../path')]:
             self.contract=original | {field:value}; self.run_play(success=False)
             self.assertEqual(self.s['calls'],[])
         self.contract=original

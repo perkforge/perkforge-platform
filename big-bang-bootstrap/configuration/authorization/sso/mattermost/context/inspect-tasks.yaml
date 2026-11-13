@@ -3,7 +3,7 @@
     that:
     - mc.schema_version == 1
     - mc.context_id is match('^[a-z][a-z0-9-]{1,62}$')
-    - mc.team_name == 'tenant-' + mc.context_id
+    - mc.team_name is match('^[a-z][a-z0-9-]{1,62}$')
     - mc.channel_name is match('^[a-z][a-z0-9-]{1,62}$')
     - mc.team_members | length > 0 and mc.team_members | length < 200
     - mc.channel_members | length > 0 and mc.channel_members | length < 200
