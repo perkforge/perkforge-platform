@@ -87,7 +87,7 @@ It imports only synthetic contact points and checks the native provisioning API
 for both receiver IDs, file provenance, resolved-event enablement and unchanged
 custom payloads. It creates no policy/rule and cannot contact either destination.
 No ports are published, no real credential or cluster context is read, and the
-container is removed even on assertion failure. Pull the image explicitly first:
+container cleanup is attempted even on assertion failure. Pull the image explicitly first:
 
 ```sh
 podman pull docker.io/grafana/grafana@sha256:1dec240d14e232597dce9bfa56dae55f4397b138cdc91e3ee92ac6b157e2fc49

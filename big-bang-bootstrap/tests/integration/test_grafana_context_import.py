@@ -59,6 +59,8 @@ class NativeGrafanaImport(unittest.TestCase):
                     self.assertEqual(point['type'], 'webhook')
                     self.assertEqual(point['provenance'], 'file')
                     self.assertFalse(point['disableResolveMessage'])
+                    for setting in ('url', 'httpMethod', 'tlsConfig'):
+                        self.assertEqual(point['settings'][setting], expected[point['uid']]['settings'][setting])
                     self.assertIn('payload', point['settings'])
                     self.assertEqual(point['settings']['payload'], expected[point['uid']]['settings']['payload'])
             finally:
