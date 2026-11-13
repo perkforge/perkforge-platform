@@ -50,3 +50,11 @@ Sources: [Grafana migration](https://grafana.com/docs/grafana/latest/alerting/al
 [ntfy publishing/templates](https://docs.ntfy.sh/publish/),
 [exact native formatter source](https://github.com/binwiederhier/ntfy/tree/v2.37.2/server/templates),
 [ntfy v2.37.2 release and checksums](https://github.com/binwiederhier/ntfy/releases/tag/v2.37.2).
+
+## Portal PaaS delivery extension
+
+The [context-scoped dual-delivery building block](context-alerting/README.md)
+adds native Grafana contact-point rendering for one approved audience with both
+ntfy and channel-locked Mattermost destinations. It is unselected and introduces
+no policy tree, rules or recipients. Viewer eligibility is Mattermost-only; the
+same transport contact point does not imply identical subscriber membership.
