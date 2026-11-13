@@ -43,6 +43,7 @@ spec:
   template:
     metadata: {labels: {app.kubernetes.io/name: ntfy}}
     spec:
+      nodeSelector: {storage.perkforge.io/worker: 'true'}
       serviceAccountName: ntfy
       automountServiceAccountToken: false
       securityContext:
