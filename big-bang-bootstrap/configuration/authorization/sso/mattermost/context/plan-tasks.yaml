@@ -1,0 +1,115 @@
+- ansible.builtin.assert:
+    that:
+    - mc.schema_version == 1
+    - mc.context_id is match('^[a-z][a-z0-9-]{1,62}$')
+    - mc.team_name is match('^[a-z][a-z0-9-]{1,62}$')
+    - mc.channel_name is match('^[a-z][a-z0-9-]{1,62}$')
+    - mattermost_keycloak_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+    - mattermost_keycloak_origin is not search('[\\x00-\\x20\\x7f]')
+    - mc.groups | length == 4
+    - mc.groups | map(attribute='path') | sort == ['/tenants/' + mc.context_id + '/admins', '/tenants/' + mc.context_id + '/developers', '/tenants/' + mc.context_id + '/viewers', '/platform/engineers'] | sort
+    - mc.groups | map(attribute='id') | unique | length == 4
+    - mc.bindings | map(attribute='subject') | unique | length == mc.bindings | length
+    - mc.bindings | map(attribute='user_id') | unique | length == mc.bindings | length
+    - mc.exceptions | unique | length == mc.exceptions | length
+- ansible.builtin.assert:
+    that: item is match('^[a-zA-Z0-9-]{1,64}$')
+  loop: '{{ (mc.groups | map(attribute="id") | list) + (mc.bindings | map(attribute="subject") | list) }}'
+- ansible.builtin.assert:
+    that: item is match('^[a-z0-9]{26}$')
+  loop: '{{ [mc.team_id, mc.channel_id] + mc.exceptions + (mc.bindings | map(attribute="user_id") | list) }}'
+- ansible.builtin.set_fact:
+    mp_subjects: []
+    mp_desired: '{{ mc.exceptions }}'
+    mp_add: []
+    mp_remove: []
+- name: Fetch exact authoritative groups, never discover by display name
+  ansible.builtin.uri:
+    url: '{{ mattermost_keycloak_origin }}/admin/realms/perkforge/groups/{{ item.id }}'
+    ca_path: '{{ mattermost_keycloak_ca_file }}'
+    headers: '{{ mk_headers }}'
+  loop: '{{ mc.groups }}'
+  register: mp_groups
+- ansible.builtin.assert:
+    that:
+    - item.json.id == item.item.id and item.json.path == item.item.path
+    # Nested subgroup inheritance is not silently treated as a complete direct roster.
+    - item.json.subGroups | default([]) | length == 0
+    - item.json.subGroupCount is integer and item.json.subGroupCount == 0
+  loop: '{{ mp_groups.results }}'
+- name: Bounded authority reads fail rather than silently truncate
+  ansible.builtin.uri:
+    url: '{{ mattermost_keycloak_origin }}/admin/realms/perkforge/groups/{{ item.id }}/members?first=0&max=200&briefRepresentation=false'
+    ca_path: '{{ mattermost_keycloak_ca_file }}'
+    headers: '{{ mk_headers }}'
+  loop: '{{ mc.groups }}'
+  register: mp_members
+- ansible.builtin.assert:
+    that:
+    - item.json is sequence and item.json is not mapping and item.json is not string
+    - item.json | length < 200
+    - item.json | map(attribute='id') | unique | length == item.json | length
+  loop: '{{ mp_members.results }}'
+- ansible.builtin.set_fact:
+    mp_subjects: '{{ (mp_subjects + (item.json | selectattr("enabled", "equalto", true) | map(attribute="id") | list)) | unique | list }}'
+  loop: '{{ mp_members.results }}'
+- ansible.builtin.assert:
+    that:
+    - mp_subjects | difference(mc.bindings | map(attribute='subject')) | length == 0
+- ansible.builtin.set_fact:
+    mp_desired: '{{ (mp_desired + (mc.bindings | selectattr("subject", "in", mp_subjects) | map(attribute="user_id") | list)) | unique | list }}'
+- name: Verify immutable native account linkage; redacted or absent linkage blocks
+  ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/users/{{ item.user_id }}'
+    headers: '{{ mc_headers }}'
+  loop: '{{ mc.bindings | selectattr("subject", "in", mp_subjects) | list }}'
+  register: mp_users
+- ansible.builtin.assert:
+    that:
+    - item.json.id == item.item.user_id and item.json.delete_at == 0
+    - item.json.auth_service == 'openid'
+    - item.json.auth_data == item.item.subject
+    - item.json.roles.split() | sort == ['system_user']
+  loop: '{{ mp_users.results }}'
+- ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/teams/{{ mc.team_id }}'
+    headers: '{{ mc_headers }}'
+  register: mp_team
+- ansible.builtin.assert:
+    that: mp_team.json.id == mc.team_id and mp_team.json.name == mc.team_name and mp_team.json.delete_at == 0
+- ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/channels/{{ mc.channel_id }}'
+    headers: '{{ mc_headers }}'
+  register: mp_channel
+- ansible.builtin.assert:
+    that:
+    - mp_channel.json.id == mc.channel_id and mp_channel.json.team_id == mc.team_id
+    - mp_channel.json.name == mc.channel_name and mp_channel.json.type == 'P' and mp_channel.json.delete_at == 0
+- ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/{{ item }}/members?page=0&per_page=200'
+    headers: '{{ mc_headers }}'
+  loop: ['teams/{{ mc.team_id }}', 'channels/{{ mc.channel_id }}']
+  register: mp_rosters
+- ansible.builtin.assert:
+    that:
+    - item.json is sequence and item.json is not mapping and item.json is not string
+    - item.json | length < 200
+    - item.json | map(attribute='user_id') | unique | length == item.json | length
+  loop: '{{ mp_rosters.results }}'
+- ansible.builtin.assert:
+    that:
+    - mp_desired | difference(mp_rosters.results[0].json | selectattr('delete_at','equalto',0) | map(attribute='user_id')) | length == 0
+- name: Refuse native role elevation for authoritative tenant or PE members
+  ansible.builtin.assert:
+    that:
+    - item.channel_id == mc.channel_id
+    - item.user_id not in mp_desired or item.user_id in mc.exceptions or item.roles.split() | sort == ['channel_user']
+  loop: '{{ mp_rosters.results[1].json }}'
+- ansible.builtin.assert:
+    that:
+    - item.team_id == mc.team_id
+    - item.user_id not in mp_desired or item.user_id in mc.exceptions or item.roles.split() | sort == ['team_user']
+  loop: '{{ mp_rosters.results[0].json }}'
+- ansible.builtin.set_fact:
+    mp_add: '{{ mp_desired | difference(mp_rosters.results[1].json | map(attribute="user_id")) | sort }}'
+    mp_remove: '{{ (mp_rosters.results[1].json | map(attribute="user_id")) | difference(mp_desired) | sort }}'

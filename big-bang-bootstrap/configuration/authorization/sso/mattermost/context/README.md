@@ -145,6 +145,67 @@ team memberships or alter other channels as a side effect. Re-fetch authority an
 current membership immediately before apply; fail on changed assumptions, then
 verify idempotent repeat and offboarding against the actual edition.
 
-This section is a design contract, not an implemented synchronizer. Live enablement
+The default-off implementation below realizes this contract. Live enablement
 still requires the invitation-boundary acceptance above and confirmation of the
-concrete permission changes. The existing inspector remains GET-only.
+concrete permission changes. The existing inspector and planner remain GET-only unless apply is separately enabled.
+
+## Reconciliation implementation (default-off)
+
+`plan.yaml` reads the four pinned Keycloak groups (Portal admins, developers,
+viewers and `/platform/engineers`) and computes an exact private-channel delta.
+Every platform engineer is included, with access to that channel's existing
+history. Protected runtime group UUIDs must match those exact paths. It never
+derives native identity from email: every enabled authoritative Keycloak subject
+requires a protected binding to a native Mattermost user, whose `openid`
+`auth_data` must match. Missing/redacted linkage blocks the operation. Non-exception authoritative users
+must have only ordinary native global/team/channel roles; unexpected admin roles
+block rather than being silently downgraded or bypassing invitation policy.
+
+Use the inspector's protected files/TLS inputs plus
+`mattermost_keycloak_origin`, `mattermost_keycloak_ca_file` and
+`mattermost_keycloak_token_file`. The contract adds `groups` entries
+(`id`, `path`), `bindings` entries (`subject`, `user_id`) and an
+`exceptions` list of explicitly approved native service/operator IDs.
+Only enabled authoritative group members are included. Direct group reads are
+bounded to 199 members; full pages and nested subgroups block rather than silently
+truncate. Empty successful groups authorize offboarding, not failed API calls.
+
+Set `mattermost_membership_plan: true` to read and plan. Check/default modes
+contact nothing. Exact `mp_add`/`mp_remove` lists stay in protected in-memory
+Ansible facts; console output contains counts only. An approved operator can
+consume those facts within the same protected execution. No plans containing
+private IDs are written to Git or ordinary logs.
+
+Applying additionally requires `mattermost_membership_apply: true`,
+`mattermost_membership_apply_confirmed: true`,
+`mattermost_invitation_boundary_verified: true`, and exact
+`mattermost_membership_approved_add`/`mattermost_membership_approved_remove`
+lists matching the reviewed plan. These flags record prerequisites, not substitute
+for actual user authorization. The play re-reads authority immediately before
+mutations, removes unauthorized channel members, adds ordinary members, then
+reads back authority and membership. It does not grant native admin roles,
+create accounts, join the shared team, change native global roles or schedule
+itself. Missing shared-team membership blocks; account/team provisioning is a
+separate approved step.
+
+The multi-API operation is not transactional. Concurrent authority drift or a
+mid-apply failure stops with a failed result; completed mutations are not rolled
+back into unauthorized access. Re-plan from fresh reads before retrying.
+Do not enable until effective invitation restrictions, packaged-edition behavior,
+immutable linking and production read permissions have been accepted.
+
+### Disposable edition evidence
+
+A checksum-verified official 11.11.0 Enterprise binary selected Entry without
+a trial or uploaded license. A synthetic test reproduced default unauthorized
+invitation (201), then removed `manage_private_channel_members` from the global
+`channel_user` role through the native API (200). Ordinary tenant personas and
+a PE were denied further invitations (403); foreign channel/content reads were
+403, PE read was 200, and a synthetic System Admin membership manager could add
+members (201). Disposable server/database were stopped afterward.
+
+This is a global default-role effect, not paid per-team schemes; it affects every
+ordinary channel member. No live role change was made. It does not prove vendor
+support entitlement, exact Iron Bank image equivalence, privileged native
+team/channel-admin behavior, restart persistence, or Entry renewal behavior.
+Those limits remain explicit pre-enable gates, not assumed successes.
