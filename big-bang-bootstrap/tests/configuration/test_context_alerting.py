@@ -108,6 +108,11 @@ class ContextAlerting(unittest.TestCase):
             ('mattermost', 'webhook_url', 'https://CHAT.example.test:443/hooks/'+'a'*26),
         ]:
             a, b = fixture(), fixture(); b['id'] = 'other'
+            if field == 'ntfy':
+                b['mattermost']['channel_id'] = 'c'*26
+                b['mattermost']['webhook_url'] = 'https://chat.example.test/hooks/'+'d'*26
+            else:
+                b['ntfy']['topic'] = 'other-alerts'
             b[field][key] = value
             with self.subTest(field=field), self.assertRaises(guard.InvalidInputs):
                 render([a, b])
