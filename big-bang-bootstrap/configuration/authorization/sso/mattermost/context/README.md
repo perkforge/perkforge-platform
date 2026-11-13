@@ -117,3 +117,34 @@ invitation restriction, license entitlements or these denial tests. Its success
 is not permission to enable. Do not bypass an edition limitation using unreviewed
 role changes or assume a paid feature exists. Applying live permission settings
 requires separate confirmation.
+
+## Planned platform-managed reconciliation
+
+The approved target is automated **exact** channel membership, not native paid
+group sync. The authoritative desired human roster is the union of the exact
+context's Keycloak admin/developer/viewer groups and explicit platform exceptions.
+Include the separately approved publisher identity as a service exception.
+A flat realm role is not context authorization: an admin in tenant A must not
+gain tenant B membership or administration. No additional native admin rights
+follow from tenant role labels.
+
+The adapter must resolve pinned Keycloak group IDs and immutable subject-to-native
+user-ID bindings, fetch complete membership and reject unresolved/ambiguous
+identity, partial pagination, unavailable authority or empty/incomplete snapshots
+before planning removals. An authoritative empty group is different from a failed
+read. Protect all runtime identifiers and credentials; never match on display
+names alone.
+
+Plan mode should show exact additions/removals without granting access. Once
+approved for live execution, reconcile only the named tenant channel, removing
+**all** unauthorized members, including manually added users, and read back the
+complete result. Loss of all authorized groups removes channel access; removal
+from one group while another still authorizes membership does not. Preserve only
+explicit approved platform/service exceptions. Do not delete users, remove shared
+team memberships or alter other channels as a side effect. Re-fetch authority and
+current membership immediately before apply; fail on changed assumptions, then
+verify idempotent repeat and offboarding against the actual edition.
+
+This section is a design contract, not an implemented synchronizer. Live enablement
+still requires the invitation-boundary acceptance above and confirmation of the
+concrete permission changes. The existing inspector remains GET-only.
