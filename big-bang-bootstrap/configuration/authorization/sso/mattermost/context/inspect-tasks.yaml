@@ -1,0 +1,79 @@
+- name: Validate the explicit reviewed native identity contract
+  ansible.builtin.assert:
+    that:
+    - mc.schema_version == 1
+    - mc.context_id is match('^[a-z][a-z0-9-]{1,62}$')
+    - mc.team_name is match('^[a-z][a-z0-9-]{1,62}$')
+    - mc.channel_name is match('^[a-z][a-z0-9-]{1,62}$')
+    - mc.team_members | length > 0 and mc.team_members | length < 200
+    - mc.channel_members | length > 0 and mc.channel_members | length < 200
+    - mc.channel_members | map(attribute='user_id') | difference(mc.team_members | map(attribute='user_id')) | length == 0
+    - mc.team_members | map(attribute='user_id') | unique | length == mc.team_members | length
+    - mc.channel_members | map(attribute='user_id') | unique | length == mc.channel_members | length
+    - mc.publisher_user_id in (mc.channel_members | map(attribute='user_id'))
+- ansible.builtin.assert:
+    that: item is match('^[a-z0-9]{26}$') and item is not search('[\\x00-\\x20\\x7f]')
+  loop: '{{ [mc.team_id, mc.channel_id, mc.webhook_id, mc.publisher_user_id] + (mc.team_members | map(attribute="user_id") | list) }}'
+- ansible.builtin.assert:
+    that: item.roles in ['team_user', 'team_user team_admin']
+  loop: '{{ mc.team_members }}'
+- ansible.builtin.assert:
+    that: item.roles in ['channel_user', 'channel_user channel_admin']
+  loop: '{{ mc.channel_members }}'
+- ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/teams/{{ mc.team_id }}'
+    headers: '{{ mc_headers }}'
+  register: mc_team
+- ansible.builtin.assert:
+    that:
+    - mc_team.json.id == mc.team_id and mc_team.json.name == mc.team_name
+    - mc_team.json.type == 'I' and mc_team.json.delete_at == 0
+    - not mc_team.json.allow_open_invite
+- ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/channels/{{ mc.channel_id }}'
+    headers: '{{ mc_headers }}'
+  register: mc_channel
+- ansible.builtin.assert:
+    that:
+    - mc_channel.json.id == mc.channel_id and mc_channel.json.team_id == mc.team_id
+    - mc_channel.json.name == mc.channel_name and mc_channel.json.type == 'P'
+    - mc_channel.json.delete_at == 0
+- name: Fetch a bounded full membership page, refusing a possibly truncated roster
+  ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/{{ item }}/members?page=0&per_page=200'
+    headers: '{{ mc_headers }}'
+  loop: ['teams/{{ mc.team_id }}', 'channels/{{ mc.channel_id }}']
+  register: mc_members
+- ansible.builtin.assert:
+    that:
+    - item.json is sequence and item.json is not mapping and item.json is not string
+    - item.json | length < 200
+  loop: '{{ mc_members.results }}'
+- ansible.builtin.assert:
+    that:
+    - mc_members.results[0].json | map(attribute='user_id') | sort == mc.team_members | map(attribute='user_id') | sort
+    - mc_members.results[1].json | map(attribute='user_id') | sort == mc.channel_members | map(attribute='user_id') | sort
+- ansible.builtin.assert:
+    that:
+    - actual.team_id == mc.team_id and actual.delete_at == 0
+    - actual.roles.split() | sort == item.roles.split() | sort
+  vars:
+    actual: '{{ mc_members.results[0].json | selectattr("user_id", "equalto", item.user_id) | first }}'
+  loop: '{{ mc.team_members }}'
+- ansible.builtin.assert:
+    that:
+    - actual.channel_id == mc.channel_id
+    - actual.roles.split() | sort == item.roles.split() | sort
+  vars:
+    actual: '{{ mc_members.results[1].json | selectattr("user_id", "equalto", item.user_id) | first }}'
+  loop: '{{ mc.channel_members }}'
+- ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/hooks/incoming/{{ mc.webhook_id }}'
+    headers: '{{ mc_headers }}'
+  register: mc_hook
+- ansible.builtin.assert:
+    that:
+    - mc_hook.json.id == mc.webhook_id
+    - mc_hook.json.team_id == mc.team_id and mc_hook.json.channel_id == mc.channel_id
+    - mc_hook.json.user_id == mc.publisher_user_id and mc_hook.json.delete_at == 0
+    - mc_hook.json.channel_locked is sameas true
