@@ -55,7 +55,7 @@ class GitLabMetrics(unittest.TestCase):
 
     def test_unreviewed_input_rejected(self):
         changes = [('project_id', 99), ('project_id', True), ('project_path', 'other/project'),
-                   ('metric', 'up'), ('event_class', 'vulnerability_findings')]
+                   ('metric', 'up'), ('event_class', 'vulnerability_findings'), ('event_class', 'deployment')]
         for key, value in changes:
             values = fixture()
             values['metric_incidents'][0][key] = value
@@ -66,10 +66,9 @@ class GitLabMetrics(unittest.TestCase):
         with self.assertRaises(ValueError):
             render('rules.yaml.j2', values)
 
-    def test_execution_and_deployment_use_exact_job_or_environment(self):
+    def test_execution_uses_exact_job(self):
         for event, metric, selectors in [
-            ('security_scan_execution', 'gitlab_ci_pipeline_job_status', dict(ref='main', kind='branch', source='push', stage='test', job_name='scanner')),
-            ('deployment', 'gitlab_ci_environment_deployment_status', dict(environment='test'))]:
+            ('security_scan_execution', 'gitlab_ci_pipeline_job_status', dict(ref='main', kind='branch', source='push', stage='test', job_name='scanner'))]:
             values = fixture()
             values['metric_incidents'][0].update(event_class=event, metric=metric, selectors=selectors)
             expr = render('rules.yaml.j2', values)['groups'][0]['rules'][0]['data'][0]['model']['expr']

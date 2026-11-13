@@ -84,3 +84,14 @@ open until actual integration and scoped receipt tests pass.
 References: [upstream pinned configuration](https://github.com/mvisonneau/gitlab-ci-pipelines-exporter/blob/c50ef849a541cd2a826167b9494fa7d0d7d134b4/docs/configuration_syntax.md),
 [pinned metrics](https://github.com/mvisonneau/gitlab-ci-pipelines-exporter/blob/c50ef849a541cd2a826167b9494fa7d0d7d134b4/docs/metrics.md),
 [GitLab pipeline efficiency](https://docs.gitlab.com/ci/pipelines/pipeline_efficiency/).
+
+### Failed deployment coverage remains open
+
+Do not use `gitlab_ci_environment_deployment_status` for failure coverage. Pinned
+exporter `pkg/gitlab/environments.go` reads the environment's `LastDeployment`,
+which GitLab has historically scoped to successful deployments. The input validator
+therefore rejects deployment incidents and environment polling is disabled in this
+candidate. Explicitly mapped deployment jobs can cover their execution failures,
+but are not equivalent to all API/trigger deployments. Select and verify a native
+Deployments API or reviewed job mapping before claiming the third event class.
+The selected event policy still includes deployments; this partial candidate does not.

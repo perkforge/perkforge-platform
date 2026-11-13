@@ -32,8 +32,7 @@ def verify(values):
     require(isinstance(values['metric_incidents'], list) and bool(values['metric_incidents']))
     uids = set()
     metrics = {'pipeline': ('gitlab_ci_pipeline_status', {'ref', 'kind', 'source'}),
-               'security_scan_execution': ('gitlab_ci_pipeline_job_status', {'ref', 'kind', 'source', 'stage', 'job_name'}),
-               'deployment': ('gitlab_ci_environment_deployment_status', {'environment'})}
+               'security_scan_execution': ('gitlab_ci_pipeline_job_status', {'ref', 'kind', 'source', 'stage', 'job_name'})}
     for incident in values['metric_incidents']:
         require(re.fullmatch(r'[a-z][a-z0-9-]{0,39}', incident['uid']) and incident['uid'] not in uids)
         uids.add(incident['uid'])

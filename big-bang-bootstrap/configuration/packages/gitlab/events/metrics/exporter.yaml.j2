@@ -36,6 +36,6 @@ projects:
           enabled: true
           regexp: {{ ('^(' + (project.refs | map('regex_escape') | join('|')) + ')$') | to_json }}
       environments:
-        enabled: {{ (project.environments | length > 0) | to_json }}
+        enabled: false  # LastDeployment is not evidence of all failed deployments
         regexp: {{ ('^(' + (project.environments | map('regex_escape') | join('|')) + ')$') | to_json }}
 {% endfor %}
