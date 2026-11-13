@@ -12,7 +12,8 @@ Service with the annotated HTTPS version. Namespace-only `prerequisites.yaml`
 is deliberately outside the Flux root: owner applies it once, not the receiving
 reconciler. The role adds get/list/watch/create/patch/update for ConfigMap,
 Service, ServiceAccount, PVC, StatefulSet, Ingress, NetworkPolicy and
-ServersTransport **only in ntfy**; no direct Secret API, RBAC-write, delete or
+ServersTransport **only in ntfy**, plus read-only get/list/watch Pods for Flux
+health checking; no direct Secret API, RBAC-write, delete or
 cluster authority. Workload creation inherently permits mounting any Secret in
 this dedicated namespace (including the approved ntfy TLS leaf), choosing its
 service account and editing its network policy. Treat this reconciler as trusted

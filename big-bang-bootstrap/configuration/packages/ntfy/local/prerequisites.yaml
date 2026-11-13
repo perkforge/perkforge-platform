@@ -8,6 +8,9 @@ kind: Role
 metadata: {name: ntfy-reconciler, namespace: ntfy}
 rules:
 - apiGroups: ['']
+  resources: [pods]
+  verbs: [get, list, watch]
+- apiGroups: ['']
   resources: [configmaps, services, serviceaccounts, persistentvolumeclaims]
   verbs: [get, list, watch, create, patch, update]
 - apiGroups: [apps]
