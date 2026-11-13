@@ -20,14 +20,16 @@ context entitlement; it must not independently invent roles or membership. Users
 in multiple tenants get separate explicitly authorized contexts, not a wildcard
 query credential. Unknown or removed contexts receive no tenant datasource access.
 
-Access matrix: confirmed scope plus explicitly pending native-role decisions.
+Access matrix: Corey approved tenant Admin/Editor/Viewer mapping; no grants are
+enabled until the backend and every access path enforce tenant isolation.
 
 | Actor | Candidate access | Not implied |
 |---|---|---|
 | Platform administrator | Preserve current platform monitoring | New tenant membership or new credentials |
 | Platform engineer | Corey selected visibility across all tenants ("God mode"); native Grafana role still to be selected | OpenBao access or any unrequested credential/secret grant |
-| Portal tenant administrator/developer | Portal runtime metrics/logs; native Grafana role to be decided | Grafana server/admin role, datasource edits, control namespaces, other tenants |
-| Portal tenant viewer | Mattermost channel alerts only; no direct alert delivery | Grafana query access remains undecided, not implicitly granted |
+| Portal tenant administrator | Grafana organization Admin, only after genuinely tenant-isolated data exists | Grafana server admin, control namespaces, other tenants |
+| Portal tenant developer | Grafana Editor within tenant-isolated data | Datasource/backend administration or other tenant access |
+| Portal tenant viewer | Grafana Viewer within tenant-isolated data; Mattermost channel alerts, no direct alert delivery | Dashboard edits or other tenant access |
 | Unmapped/removed identity | Deny | Fallback organization or default datasource |
 | Collector | Explicit namespace read + ingest identity | Query or administration identity |
 | Grafana backend client | Read-only authorized datastore scope | Ingest, rule administration, storage deletion, arbitrary tenant header |
@@ -97,11 +99,16 @@ query-rewriting service, but its resource cost is a decision, not hidden scope.
    metadata/labels/series endpoints and saved links all encounter the same boundary.
    Any unsupported path is denied rather than forwarded with a shared credential.
 
-Platform-owned provisioning controls datasources, rules and routes. Folder visibility
-is presentation, not the data boundary. Decide tenant dashboard creation separately;
-public snapshots, anonymous/public dashboard sharing and external rendering/export
-must remain unavailable until disclosure behavior is reviewed. No tenant can edit
-credentials, endpoint URLs, alert destinations or backend scope through a dashboard.
+Platform-owned provisioning controls backend credentials, query enforcement and
+notification routes. Folder visibility is presentation, not the data boundary.
+Corey approved native organization Admin/Editor/Viewer tenant roles, so enforcement
+must hold even when a tenant Admin creates a datasource or an Editor changes a
+query/dashboard. Native Admin is not a restricted custom role: do not promise its
+UI/API cannot create a datasource. Backends and network boundaries must make those
+actions unable to reach another context or acquire a broader credential. Public
+snapshots, anonymous/public sharing and external rendering/export remain unavailable
+until disclosure behavior is reviewed. Native role rights and the required provider
+restrictions must be tested together, not claimed from immutable provisioning alone.
 
 ## Activation acceptance and rollback
 
