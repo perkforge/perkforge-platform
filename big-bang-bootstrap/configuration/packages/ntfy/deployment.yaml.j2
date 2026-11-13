@@ -1,0 +1,92 @@
+# Unselected candidate. Render only with reviewed operator inputs; no root includes it.
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: ntfy, namespace: {{ ntfy_namespace | to_json }}}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: ntfy-config, namespace: {{ ntfy_namespace | to_json }}}
+data:
+  server.yml: |
+    base-url: {{ ntfy_base_url | to_json }}
+    listen-http: '-'
+    listen-https: ':8443'
+    key-file: /tls/tls.key
+    cert-file: /tls/tls.crt
+    auth-file: /data/auth.db
+    auth-default-access: deny-all
+    cache-file: /data/cache.db
+    cache-duration: {{ ntfy_cache_duration | to_json }}
+    attachment-cache-dir: ''
+    upstream-base-url: ''
+    web-root: disable
+    enable-signup: false
+    log-level: WARN
+---
+apiVersion: v1
+kind: Service
+metadata: {name: ntfy, namespace: {{ ntfy_namespace | to_json }}}
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: ntfy}
+  ports: [{name: https, port: 8443, targetPort: https}]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: {name: ntfy, namespace: {{ ntfy_namespace | to_json }}}
+spec:
+  serviceName: ntfy
+  replicas: 1
+  persistentVolumeClaimRetentionPolicy: {whenDeleted: Retain, whenScaled: Retain}
+  selector: {matchLabels: {app.kubernetes.io/name: ntfy}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: ntfy}}
+    spec:
+      serviceAccountName: ntfy
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+      - name: ntfy
+        image: docker.io/binwiederhier/ntfy:v2.37.2@sha256:1875ddcf815c8a3c981d6d78c67a93452d0abba79b1ab9520b1f5f5238902bd7
+        command: [/bin/sh, -ec]
+        args: ['umask 077; exec ntfy serve --config /etc/ntfy/server.yml']
+        ports: [{name: https, containerPort: 8443}]
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities: {drop: [ALL]}
+        resources:
+          requests: {cpu: 50m, memory: 64Mi}
+          limits: {cpu: 500m, memory: 256Mi}
+        readinessProbe:
+          tcpSocket: {port: https}
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket: {port: https}
+          initialDelaySeconds: 20
+          periodSeconds: 20
+        volumeMounts:
+        - {name: config, mountPath: /etc/ntfy, readOnly: true}
+        - {name: tls, mountPath: /tls, readOnly: true}
+        - {name: data, mountPath: /data}
+        - {name: tmp, mountPath: /tmp}
+      volumes:
+      - name: config
+        configMap: {name: ntfy-config}
+      - name: tls
+        secret: {secretName: {{ ntfy_tls_secret | to_json }}, defaultMode: 288}
+      - name: tmp
+        emptyDir: {sizeLimit: 16Mi}
+  volumeClaimTemplates:
+  - metadata: {name: data}
+    spec:
+      accessModes: [ReadWriteOnce]
+      storageClassName: {{ ntfy_storage_class | to_json }}
+      resources:
+        requests: {storage: {{ ntfy_storage_size | to_json }}}
