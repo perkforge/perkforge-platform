@@ -34,10 +34,14 @@ native membership operation; it does not automatically map Keycloak group claims
 
 ## Next integration boundary
 
-Keycloak roles assigned to groups are the shared identity input. Exact native
-GitLab role levels and the initial event set remain owner decisions, not defaults
-chosen here. No tenant-admin → instance-admin mapping is permitted by implication.
-Use the shared context mapping for two independently enforced destinations:
+Keycloak roles assigned to groups are the shared identity input. Corey approved
+tenant-admin → GitLab Owner, tenant-developer → Developer, and tenant-viewer →
+Reporter for their tenant group/projects. Group Owner is not instance-admin.
+These are the intended native grants, not grants performed by this inspector.
+Platform-engineer visibility is cross-tenant; OpenBao is outside this workstream.
+The initial event set and actual native identities remain activation inputs.
+Use the shared context mapping for independently enforced destinations. Tenant
+viewers receive alert delivery through Mattermost only, not direct ntfy:
 
 - an exact ntfy topic with topic-scoped publisher/subscriber ACLs;
 - an exact Mattermost private channel ID with a channel-locked webhook.
