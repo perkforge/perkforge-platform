@@ -78,3 +78,24 @@ See [file provisioning](https://grafana.com/docs/grafana/latest/alerting/set-up/
 [custom webhook payload](https://grafana.com/docs/grafana/latest/alerting/configure-notifications/manage-contact-points/integrations/webhook-notifier/),
 [ntfy JSON publishing](https://docs.ntfy.sh/publish/#publish-as-json), and
 [Mattermost channel locking](https://docs.mattermost.com/integrations-guide/incoming-webhooks).
+
+### Isolated native import regression
+
+`tests/integration/test_grafana_context_import.py` boots official Grafana 13.2.1
+(pinned manifest digest) in a disposable Podman container with `--network=none`.
+It imports only synthetic contact points and checks the native provisioning API
+for both receiver IDs, file provenance, resolved-event enablement and unchanged
+custom payloads. It creates no policy/rule and cannot contact either destination.
+No ports are published, no real credential or cluster context is read, and the
+container is removed even on assertion failure. Pull the image explicitly first:
+
+```sh
+podman pull docker.io/grafana/grafana@sha256:1dec240d14e232597dce9bfa56dae55f4397b138cdc91e3ee92ac6b157e2fc49
+RUN_GRAFANA_CONTEXT_IMPORT=1 PYTHONDONTWRITEBYTECODE=1 \
+  PYTHONPATH=big-bang-bootstrap/tests python3 -m unittest \
+  integration.test_grafana_context_import -v
+```
+
+The opt-in test passed against that image. This establishes native import, **not**
+notification delivery, template execution against real events, recipient access,
+silence/repeat behavior or tenant isolation. Those acceptance gates remain.
