@@ -1,0 +1,88 @@
+# Read-only prerequisite for #334. No discovery, membership or notification writes.
+- name: Verify one explicitly selected GitLab project belongs to its tenant context
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    gitlab_context_run: false
+    gitlab_context_scope: UNAPPROVED
+    gitlab_context_id: UNCONFIGURED
+    gitlab_native_origin: https://gitlab.UNCONFIGURED.invalid
+    gitlab_native_ca_file: /UNCONFIGURED/public-ca
+    gitlab_native_token_file: /UNCONFIGURED/read-api-token
+    gitlab_context_group_id: 0
+    gitlab_context_group_path: UNCONFIGURED
+    gitlab_context_project_id: 0
+    gitlab_context_project_path: UNCONFIGURED
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ gitlab_native_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      unredirected_headers: [PRIVATE-TOKEN]
+      timeout: 20
+      method: GET
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check mode contacts no API. Explicit project/group identity inspection only; no memberships, hooks, tokens, CI or notifications are changed.'
+  - when: gitlab_context_run | bool and not ansible_check_mode
+    block:
+    - no_log: true
+      block:
+      - ansible.builtin.assert:
+          that:
+          - gitlab_context_scope == 'gitlab-context-inspect-v1'
+          - gitlab_context_id is match('^[a-z][a-z0-9-]{0,62}$')
+          - gitlab_native_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+          - "'UNCONFIGURED' not in gitlab_native_origin"
+          - gitlab_context_group_id | type_debug == 'int' and gitlab_context_group_id > 0
+          - gitlab_context_project_id | type_debug == 'int' and gitlab_context_project_id > 0
+          - gitlab_context_group_path is match('^[a-zA-Z0-9_-]+(/[a-zA-Z0-9_-]+)+$')
+          - gitlab_context_project_path is match('^[a-zA-Z0-9_-]+(/[a-zA-Z0-9_-]+)+$')
+          - gitlab_context_project_path.rsplit('/', 1)[0] == gitlab_context_group_path
+      - ansible.builtin.stat:
+          path: '{{ gitlab_native_token_file }}'
+          follow: false
+        register: gitlab_context_token_stat
+      - ansible.builtin.assert:
+          that:
+          - gitlab_native_token_file is match('^/') and gitlab_native_token_file | realpath == gitlab_native_token_file
+          - gitlab_context_token_stat.stat.isreg | default(false)
+          - not (gitlab_context_token_stat.stat.islnk | default(false))
+          - gitlab_context_token_stat.stat.mode == '0600'
+          - gitlab_context_token_stat.stat.pw_name == lookup('env','USER')
+          - gitlab_context_token_stat.stat.size > 0 and gitlab_context_token_stat.stat.size < 4096
+      - ansible.builtin.set_fact:
+          gitlab_context_headers: {PRIVATE-TOKEN: "{{ lookup('file',gitlab_native_token_file) | trim }}"}
+          cacheable: false
+      - ansible.builtin.uri:
+          url: '{{ gitlab_native_origin }}/api/v4/{{ item }}'
+          headers: '{{ gitlab_context_headers }}'
+        loop:
+        - version
+        - 'groups/{{ gitlab_context_group_id }}?with_projects=false'
+        - 'projects/{{ gitlab_context_project_id }}'
+        register: gitlab_context_observed
+      - ansible.builtin.assert:
+          that:
+          - gitlab_context_observed.results[0].json.version in ['19.4.2','19.4.2-ee']
+          - gitlab_context_observed.results[1].json.id == gitlab_context_group_id
+          - gitlab_context_observed.results[1].json.full_path == gitlab_context_group_path
+          - gitlab_context_observed.results[1].json.visibility == 'private'
+          - gitlab_context_observed.results[2].json.id == gitlab_context_project_id
+          - gitlab_context_observed.results[2].json.path_with_namespace == gitlab_context_project_path
+          - gitlab_context_observed.results[2].json.visibility == 'private'
+          - gitlab_context_observed.results[2].json.archived == false
+          - gitlab_context_observed.results[2].json.namespace.kind == 'group'
+          - gitlab_context_observed.results[2].json.namespace.id == gitlab_context_group_id
+          - gitlab_context_observed.results[2].json.namespace.full_path == gitlab_context_group_path
+          fail_msg: 'Selected GitLab project/group identity or private context differs; no change made.'
+      always:
+      - ansible.builtin.set_fact:
+          gitlab_context_headers: {}
+          gitlab_context_observed: {}
+          cacheable: false
+    - ansible.builtin.debug:
+        msg: 'Selected GitLab project/group identity verified. Membership, inherited access and notification delivery are not proven.'
