@@ -254,3 +254,58 @@ Before requesting deployment approval, finish the following bounded gates:
    reopening raw backends while tenants still have access. Staging rollback removes
    only the new candidate objects and restores the reviewed values selection,
    preserving telemetry, existing credentials and the working platform app.
+
+### Operator-compatible backend integration proof (not deployment-ready)
+
+The pinned Operator v0.94.0 implementation is material here, not just the
+Prometheus web configuration schema:
+
+- [`buildProbeHandler`](https://github.com/prometheus-operator/prometheus-operator/blob/v0.94.0/pkg/prometheus/promcfg.go#L1426)
+  uses kubelet HTTP(S) probes without client certificates normally. With
+  `listenLocal: true` it instead uses an exec HTTP probe to `localhost:9090`.
+- [`BuildConfigReloader`](https://github.com/prometheus-operator/prometheus-operator/blob/v0.94.0/pkg/prometheus/common.go#L362)
+  targets the local Prometheus endpoint for reload; `MakeContainerPorts` omits
+  the public container port with `listenLocal`.
+
+`backend-nginx.conf.j2` is an **unselected native integration proof**, not part
+of `render.yaml` or a deployable overlay. Its candidate arrangement is HTTP
+Prometheus bound to loopback, with a separately bound authenticated TLS frontend
+in the same pod. The frontend requires a trusted client certificate, exposes
+only query/query_range and authenticated `/metrics`, and rejects lifecycle and
+admin endpoints even for an authenticated client. Loopback probe/reload paths
+remain available inside the Prometheus pod. Do not co-locate Grafana or tenant
+workloads in that pod. A dedicated client CA must authorize only the gateway and
+explicit trusted monitoring consumers, not every cluster client certificate.
+
+The native fixture runs **the same ten Grafana data/isolation tests** through
+this frontend, plus local readiness/liveness/reload and authenticated self-scrape
+checks. It does not run the Operator, prove generated pod reconciliation, validate
+Iron Bank image exec tooling, enforce Kubernetes network policy, or establish
+credential separation for production. The synthetic fixture certificate is not a
+runtime trust design.
+
+Before making a deployment overlay selectable:
+
+1. Render and reconcile the exact Operator/chart configuration in an isolated
+   test cluster. Prometheus must bind loopback only; a sidecar must bind a
+   **different** public port (for example 9443, not 9090 on wildcard which would
+   collide). Update Service target ports, gateway upstream and policy ports
+   together. Verify probes, config reload, rolling restart and self-scrape.
+2. Inventory every existing Prometheus consumer. Migrate the self ServiceMonitor
+   to the frontend with a dedicated TLS client and correct service port; do not
+   expose unauthenticated raw query as a compatibility fallback. Preserve the
+   reloader metrics endpoint independently. Validate current alerts/PE dashboards.
+3. Preserve PE functionality before enabling tenants: the present gateway permits
+   only query/query_range. Dashboard variable labels/series/metadata and existing
+   log datasources require their own authenticated, tested routes. Do not claim
+   that pointing all current Grafana datasources at this gateway is compatible.
+4. Obtain action approval for the exact backend port/auth/ServiceMonitor changes
+   and Grafana egress changes. Existing monitoring-wide ingress is additive; it
+   does not supply query authorization. An egress allowlist must retain necessary
+   DNS/identity/PE data paths without allowing Grafana to reach loopback backend
+   or alternative unauthenticated services. Validate effective CNI policy and
+   direct/custom-datasource denial on the target cluster before granting tenants.
+
+This proof avoids the unsafe native `RequireAndVerifyClientCert` flip that would
+break ordinary kubelet probes. It is not permission to make that flip or a claim
+that the remaining PE consumer and egress migration is complete.
