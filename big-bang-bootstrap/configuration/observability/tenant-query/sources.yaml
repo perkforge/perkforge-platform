@@ -4,3 +4,13 @@ prom_label_proxy:
   release: https://github.com/prometheus-community/prom-label-proxy/releases/tag/v0.16.2
   linux_amd64_archive_sha256: 968c71e3035fb28b3dbc63bcd6e2213a18f2d77f8a6b90e25987a5012131b1e7
   linux_amd64_binary_sha256: 04f0dfa30df134b1d1544d54fbe6e9e8efb7014768d925f02701f8696c2945cb
+prometheus:
+  version: 3.14.0
+  release: https://github.com/prometheus/prometheus/releases/tag/v3.14.0
+  linux_amd64_archive_sha256: f665c6da19eb7ba399c915d30c7d9793c9b417bf8a749b504bc470678631478d
+  linux_amd64_binary_sha256: 30576b9bd5fc4e4faa8bda23cb29f48a24ca27cbe9788c392ccf403f945163dc
+grafana:
+  version: 13.2.1
+  archive: https://dl.grafana.com/oss/release/grafana-13.2.1.linux-amd64.tar.gz
+  linux_amd64_archive_sha256: 849b3f17a0a318a2f1a681b663e9feb4e4fc7f70d43bb0b4ea07cd34b1987462
+  linux_amd64_binary_sha256: 837cd696e86e4d4902e44347ddd74b3ff0f573d347a18d0e412d418b33446ece

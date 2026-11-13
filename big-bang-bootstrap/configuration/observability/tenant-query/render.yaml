@@ -26,6 +26,7 @@
       ansible.builtin.assert:
         that:
           - item.id is match('^[a-z][a-z0-9-]*$')
+          - item.id != 'platform'
           - item.namespaces is sequence and item.namespaces is not string and item.namespaces | length > 0
           - item.namespaces | select('match', '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$') | list | length == item.namespaces | length
           - item.htpasswd_path is match('^/[A-Za-z0-9_./-]+$')
@@ -34,6 +35,28 @@
           - item.proxy_port | string is match('^[0-9]+$')
         fail_msg: Empty or request-supplied namespace scope is forbidden.
       loop: '{{ query_contexts }}'
+
+    - name: Require authenticated TLS backend except isolated loopback fixtures
+      ansible.builtin.assert:
+        that:
+          - metrics_upstream.startswith('https://') or metrics_upstream is match('^http://127[.]0[.]0[.]1:[0-9]+$')
+
+    - name: Validate protected upstream TLS paths
+      ansible.builtin.assert:
+        that:
+          - upstream_ca_path is match('^/[A-Za-z0-9_./-]+$')
+          - upstream_client_cert_path is match('^/[A-Za-z0-9_./-]+$')
+          - upstream_client_key_path is match('^/[A-Za-z0-9_./-]+$')
+      when: metrics_upstream.startswith('https://')
+
+    - name: Require distinct authenticated platform route
+      ansible.builtin.assert:
+        that:
+          - metrics_upstream.startswith('https://')
+          - upstream_tls_name is match('^[a-z0-9.-]+$')
+          - platform_query.htpasswd_path is match('^/[A-Za-z0-9_./-]+$')
+          - platform_query.htpasswd_path | realpath not in query_contexts | map(attribute='htpasswd_path') | map('realpath') | list
+      when: platform_query is defined
 
     - name: Create private candidate rendering directory
       ansible.builtin.file:
@@ -49,3 +72,4 @@
       loop:
         - {src: nginx.conf.j2, dest: nginx.conf}
         - {src: proxy-arguments.yaml.j2, dest: proxy-arguments.yaml}
+        - {src: grafana-security.ini.j2, dest: grafana-security.ini}

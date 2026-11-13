@@ -170,14 +170,21 @@ class NativeTenantQueryGateway(unittest.TestCase):
 
     def test_renderer_refuses_port_and_credential_aliases(self):
         import copy
-        for defect in ['port-string', 'credential-alias', 'listener-conflict']:
+        for defect in ['port-string', 'credential-alias', 'listener-conflict', 'reserved-context', 'platform-auth-alias']:
             values = copy.deepcopy(self.values)
             if defect == 'port-string':
                 values['query_contexts'][1]['proxy_port'] = '0' + str(values['query_contexts'][0]['proxy_port'])
             elif defect == 'credential-alias':
                 values['query_contexts'][1]['htpasswd_path'] = str(self.folder / 'unused/../portal.htpasswd')
-            else:
+            elif defect == 'listener-conflict':
                 values['query_contexts'][1]['proxy_port'] = self.port
+            elif defect == 'reserved-context':
+                values['query_contexts'][1]['id'] = 'platform'
+            else:
+                values.update(metrics_upstream='https://localhost:9999', upstream_tls_name='localhost',
+                              upstream_ca_path=values['certificate_path'], upstream_client_cert_path=values['certificate_path'],
+                              upstream_client_key_path=values['private_key_path'],
+                              platform_query={'htpasswd_path': values['query_contexts'][0]['htpasswd_path']})
             before = (self.folder / 'proxy-arguments.yaml').read_bytes()
             path = self.folder / 'invalid.yaml'
             path.write_text(yaml.safe_dump(values))
