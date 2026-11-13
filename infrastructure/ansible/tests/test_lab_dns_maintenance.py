@@ -454,9 +454,10 @@ class DNSMaintenance(unittest.TestCase):
                          '+short +time=2 +tries=1 '+transport)
                 self.assertEqual(calls.count(query), expected_count, query)
 
-    def ntfy_base(self):
+    def ntfy_base(self, include_portal=False):
         self.portal_base()
-        self.original += self.record_block('Portal', ('portal',))
+        if include_portal:
+            self.original += self.record_block('Portal', ('portal',))
         self.config.write_text(self.original)
         self.digest = hashlib.sha256(self.original.encode()).hexdigest()
 
@@ -478,7 +479,7 @@ class DNSMaintenance(unittest.TestCase):
         self.assertEqual(saved.stat().st_uid, os.getuid())
         self.assert_ntfy_queries(('ntfy',))
         self.assert_ntfy_queries(('headlamp', 'keycloak', 'rancher', 'openbao',
-                                   'gitlab', 'gitlab-objects', 'nextcloud', 'grafana', 'harbor', 'portal'), 2)
+                                   'gitlab', 'gitlab-objects', 'nextcloud', 'grafana', 'harbor'), 2)
         calls = self.calls.read_text()
         self.assertEqual(calls.count('dnsmasq --test --conf-file='), 1)
         self.assertEqual(calls.count('restorecon '), 1)
@@ -500,7 +501,7 @@ class DNSMaintenance(unittest.TestCase):
     def test_ntfy_each_missing_prior_record_is_refused(self):
         self.ntfy_base()
         for name in ('headlamp', 'keycloak', 'rancher', 'openbao', 'gitlab',
-                     'gitlab-objects', 'nextcloud', 'grafana', 'harbor', 'portal'):
+                     'gitlab-objects', 'nextcloud', 'grafana', 'harbor'):
             with self.subTest(name=name):
                 before = self.original.replace('host-record='+name+'.perkforge.home.arpa,10.0.0.2\n', '')
                 self.config.write_text(before)
@@ -529,7 +530,7 @@ class DNSMaintenance(unittest.TestCase):
                 self.assertFalse(self.backup.exists())
                 self.assertEqual(self.restarts(), 0)
 
-    def test_ntfy_restart_failure_restores_ten_records_and_reports_failure(self):
+    def test_ntfy_restart_failure_restores_nine_records_and_reports_failure(self):
         self.ntfy_base()
         result = self.run_fixture('restart', scope='ntfy-dns-record-v1')
         self.assertNotEqual(result.returncode, 0)
@@ -539,10 +540,10 @@ class DNSMaintenance(unittest.TestCase):
         self.assertEqual((self.backup/(self.digest+'.conf')).read_bytes(), self.original.encode())
         self.assertEqual(self.restarts(), 2)
         self.assert_ntfy_queries(('headlamp', 'keycloak', 'rancher', 'openbao',
-                                   'gitlab', 'gitlab-objects', 'nextcloud', 'grafana', 'harbor', 'portal'), 2)
+                                   'gitlab', 'gitlab-objects', 'nextcloud', 'grafana', 'harbor'), 2)
         self.assertFalse((self.backup/'maintenance.lock').exists())
 
-    def test_ntfy_answer_failure_restores_ten_records(self):
+    def test_ntfy_answer_failure_restores_nine_records(self):
         self.ntfy_base()
         result = self.run_fixture('verify', scope='ntfy-dns-record-v1')
         self.assertNotEqual(result.returncode, 0)
@@ -550,8 +551,19 @@ class DNSMaintenance(unittest.TestCase):
         self.assertEqual(self.config.read_bytes(), self.original.encode())
         self.assertEqual(self.restarts(), 2)
         self.assert_ntfy_queries(('headlamp', 'keycloak', 'rancher', 'openbao',
-                                   'gitlab', 'gitlab-objects', 'nextcloud', 'grafana', 'harbor', 'portal'), 3)
+                                   'gitlab', 'gitlab-objects', 'nextcloud', 'grafana', 'harbor'), 3)
         self.assertFalse((self.backup/'maintenance.lock').exists())
+
+    def test_ntfy_optional_portal_bytes_preserved_without_queries(self):
+        self.ntfy_base(include_portal=True)
+        expected = self.original+self.record_block('Ntfy', ('ntfy',))
+        for _ in range(2):
+            result = self.run_fixture(scope='ntfy-dns-record-v1')
+            self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+            self.assertEqual(self.config.read_text(), expected)
+            self.assertEqual((self.backup/(self.digest+'.conf')).read_text(), self.original)
+        self.assertEqual(self.restarts(), 1)
+        self.assertNotIn('portal.perkforge.home.arpa', self.calls.read_text())
 
     def test_portal_exact_add_repeat_preservation_backup_and_udp_tcp(self):
         self.portal_base()
