@@ -1,0 +1,23 @@
+# Secret-bearing fragment. Never append this to the public ConfigMap or Git.
+# Native ntfy owns database reconciliation at startup, not an additional service.
+auth-default-access: deny-all
+auth-users:
+{% for account in ntfy_accounts %}
+  - {{ (account.username ~ ':' ~ account.password_hash ~ ':user') | to_json }}
+{% else %}
+  []
+{% endfor %}
+auth-access:
+{% for account in ntfy_accounts %}
+{% for topic in account.topics %}
+  - {{ (account.username ~ ':' ~ topic ~ ':' ~ ('write-only' if account.kind == 'publisher' else 'read-only')) | to_json }}
+{% endfor %}
+{% else %}
+  []
+{% endfor %}
+auth-tokens:
+{% for account in ntfy_accounts %}
+  - {{ (account.username ~ ':' ~ account.token ~ ':context-alerts') | to_json }}
+{% else %}
+  []
+{% endfor %}

@@ -21,6 +21,12 @@ def render():
         ntfy_storage_size='1Gi', ntfy_cache_duration='10m')))
 
 class NtfyDeployment(unittest.TestCase):
+    def native_config(self, config):
+        return config
+
+    def native_checks(self, name, run):
+        pass
+
     def test_scope_and_deny_defaults(self):
         docs = render()
         self.assertEqual([d['kind'] for d in docs], ['ServiceAccount','ConfigMap','Service','StatefulSet'])
@@ -59,7 +65,7 @@ class NtfyDeployment(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory); path.chmod(0o755)
             (path/'data').mkdir(mode=0o777); (path/'data').chmod(0o777)
-            (path/'server.yml').write_text(docs[1]['data']['server.yml'])
+            (path/'server.yml').write_text(yaml.safe_dump(self.native_config(yaml.safe_load(docs[1]['data']['server.yml']))))
             run('openssl','req','-x509','-newkey','rsa:2048','-nodes','-keyout',str(path/'tls.key'),
                 '-out',str(path/'tls.crt'),'-days','1','-subj','/CN=localhost','-addext','subjectAltName=DNS:localhost')
             (path/'tls.key').chmod(0o644)  # disposable synthetic key, never production
@@ -87,5 +93,6 @@ class NtfyDeployment(unittest.TestCase):
                                   'https://localhost:8443/tenant-portal-alerts',check=False)
                 self.assertNotEqual(denied_post.returncode, 0)
                 self.assertIn('403', denied_post.stderr)
+                self.native_checks(name, run)
             finally:
                 run('podman','rm','-f',name,check=False)
