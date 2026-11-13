@@ -1,0 +1,6 @@
+# Native test pin only. No image, Helm release or runtime selection is implied.
+prom_label_proxy:
+  version: 0.16.2
+  release: https://github.com/prometheus-community/prom-label-proxy/releases/tag/v0.16.2
+  linux_amd64_archive_sha256: 968c71e3035fb28b3dbc63bcd6e2213a18f2d77f8a6b90e25987a5012131b1e7
+  linux_amd64_binary_sha256: 04f0dfa30df134b1d1544d54fbe6e9e8efb7014768d925f02701f8696c2945cb

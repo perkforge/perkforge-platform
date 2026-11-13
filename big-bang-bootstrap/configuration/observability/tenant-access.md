@@ -149,3 +149,11 @@ credentials. Storage cleanup/deletion is not part of this rollback.
 - [Loki authentication](https://grafana.com/docs/loki/latest/operations/authentication/)
 - [Prometheus security model](https://prometheus.io/docs/operating/security/)
 - Existing [logging boundary](logging.md), [metrics](metrics.md), and [authorization matrix](../authorization/MATRIX.md).
+
+## Inactive native query gateway slice
+
+[The candidate renderer and native component tests](tenant-query/README.md) use
+per-context TLS authentication and pinned prom-label-proxy with fixed namespace
+scopes. No live tenant access, ingestion authenticity, Grafana custom-datasource
+bypass protection or returned-series isolation is claimed. Deployment and those
+acceptance gates remain open; this is not a completed #218 implementation.

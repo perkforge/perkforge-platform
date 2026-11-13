@@ -130,3 +130,10 @@ idempotence and redaction, not remote publication or physical readiness.
 Optional native OpenBao ACL tests reuse the existing `RUN_OPENBAO_POLICY_TESTS=1`
 and `OPENBAO_POLICY_TEST_BINARY` setup above. They validate exact read/deny paths
 and role API compatibility, not Kubernetes JWT login or actual ESO synchronization.
+
+`integration/test_tenant_query_gateway.py` runs the actual inactive Ansible
+renderer, native Nginx TLS/auth and checksum-pinned prom-label-proxy against a
+synthetic recording backend. Supply `PROM_LABEL_PROXY_BIN` as documented in
+[the gateway slice](../configuration/observability/tenant-query/README.md).
+It tests query rewriting and authentication, not real Prometheus data, Grafana
+org boundaries, ingestion authenticity or deployed network isolation.
