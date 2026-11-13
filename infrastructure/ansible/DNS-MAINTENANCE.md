@@ -36,7 +36,7 @@ ansible-playbook -i "$physical_inventory" \
 
 The private input file contains `lab_dns_maintenance_apply: true`, scope
 `gitlab-dns-records-v1`, `nextcloud-dns-record-v1`, `grafana-dns-record-v1` or
-`harbor-dns-record-v1` or `portal-dns-record-v1`, `lab_dns_maintenance_expected_sha256` and the absolute
+`harbor-dns-record-v1` or `portal-dns-record-v1` or `ntfy-dns-record-v1`, `lab_dns_maintenance_expected_sha256` and the absolute
 `lab_dns_maintenance_release_evidence` path. Release evidence identifies the
 repository, stable tag and resolved commit. The checked-out commit must match,
 and the tree must be clean. No password belongs in that file or chat: enter sudo
@@ -114,3 +114,12 @@ python3 -m unittest discover -s infrastructure/ansible/tests -p 'test_*dns*.py' 
 ansible-playbook -i infrastructure/ansible/inventory/hosts.yml \
   infrastructure/ansible/playbooks/maintain-lab-dns.yml --syntax-check
 ```
+
+ntfy uses the fixed `ntfy-dns-record-v1` scope, adding only
+`ntfy.perkforge.home.arpa` at the existing reviewed ingress address. All ten prior
+records, including Portal, and all predecessor bytes are required and preserved.
+Only the owned `Ntfy DNS v1` block is appended. The same release, fresh base hash,
+backup, repeat/no-restart, UDP/TCP verification and guarded rollback apply.
+Explicit approval covers the shared DNS restart; a failed changed candidate can
+also require a rollback restart. This source does not activate ntfy or authorize
+an unreviewed live run.
