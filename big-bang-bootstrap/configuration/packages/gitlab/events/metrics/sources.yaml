@@ -1,0 +1,7 @@
+exporter:
+  repository: https://github.com/mvisonneau/gitlab-ci-pipelines-exporter
+  version: v0.6.0
+  commit: c50ef849a541cd2a826167b9494fa7d0d7d134b4
+  linux_amd64_archive_sha512: 32b2b167c69a19a5c06b5c6848139c4e0742ae1d78dd6b8bd02ffae95086a06c94ad5e65bebb7d4cc6935dd737c9211d32c89b48482d68ade7c8a743b1c890e9
+  # Upstream HTTPS checksum retrieved; no independent signature verification claimed.
+  signature_verified: false

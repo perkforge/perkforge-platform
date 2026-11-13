@@ -1,0 +1,48 @@
+# One fixed incident per rule prevents missing-series eviction masquerading as recovery.
+apiVersion: 1
+groups:
+  - orgId: {{ grafana_org_id }}
+    name: gitlab-context-incidents
+    folder: Platform-owned GitLab incidents
+    interval: 30s
+    rules:
+{% for incident in metric_incidents %}
+      - uid: {{ incident.uid | to_json }}
+        title: {{ ('GitLab ' + incident.event_class + ' ' + incident.uid) | to_json }}
+        condition: C
+        for: 0s
+        noDataState: KeepLast
+        execErrState: KeepLast
+        isPaused: true
+        labels:
+          context: {{ context_id | to_json }}
+          project_id: {{ incident.project_id | string | to_json }}
+          event_class: {{ incident.event_class | to_json }}
+          incident_key: {{ incident.uid | to_json }}
+        annotations:
+          summary: {{ ('GitLab ' + incident.event_class + ' execution failed') | to_json }}
+        data:
+          - refId: A
+            datasourceUid: {{ prometheus_uid | to_json }}
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              datasource: {type: prometheus, uid: {{ prometheus_uid | to_json }}}
+              refId: A
+              instant: true
+              range: false
+              expr: >-
+                max({{ incident.metric }}{project={{ incident.project_path | to_json }},{% for key, value in incident.selectors.items() %}{{ key }}={{ value | to_json }},{% endfor %}status="failed"} == 1)
+                or (0 * max({{ incident.metric }}{project={{ incident.project_path | to_json }},{% for key, value in incident.selectors.items() %}{{ key }}={{ value | to_json }},{% endfor %}status="success"} == 1))
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange: {from: 0, to: 0}
+            model:
+              type: threshold
+              refId: C
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  reducer: {type: last, params: []}
+                  type: query
+{% endfor %}
