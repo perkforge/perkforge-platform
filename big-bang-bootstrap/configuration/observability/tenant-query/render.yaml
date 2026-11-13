@@ -1,0 +1,51 @@
+---
+- name: Render inactive tenant query gateway locally
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    # Include only in an explicitly selected local rendering play. No service actions.
+    - name: Require explicit inactive render and safe scalar inputs
+      ansible.builtin.assert:
+        that:
+          - tenant_query_render_enabled | default(false) | bool
+          - query_contexts is sequence and query_contexts is not string and query_contexts | length > 0
+          - runtime_dir is match('^/[A-Za-z0-9_./-]+$')
+          - certificate_path is match('^/[A-Za-z0-9_./-]+$')
+          - private_key_path is match('^/[A-Za-z0-9_./-]+$')
+          - server_name is match('^[a-z0-9.-]+$')
+          - listen_address is match('^127[.]0[.]0[.]1:[0-9]+$')
+          - metrics_upstream is match('^https?://[a-zA-Z0-9.-]+:[0-9]+$')
+          - listen_address.split(':')[-1] | int not in query_contexts | map(attribute='proxy_port') | map('int') | list
+          - query_contexts | map(attribute='id') | unique | length == query_contexts | length
+          - query_contexts | map(attribute='proxy_port') | unique | length == query_contexts | length
+          - query_contexts | map(attribute='htpasswd_path') | map('realpath') | unique | length == query_contexts | length
+        fail_msg: Inactive renderer requires explicit selection and valid protected paths/context inputs.
+
+    - name: Require fixed nonempty namespace scope for every context
+      ansible.builtin.assert:
+        that:
+          - item.id is match('^[a-z][a-z0-9-]*$')
+          - item.namespaces is sequence and item.namespaces is not string and item.namespaces | length > 0
+          - item.namespaces | select('match', '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$') | list | length == item.namespaces | length
+          - item.htpasswd_path is match('^/[A-Za-z0-9_./-]+$')
+          - item.proxy_port | type_debug == 'int'
+          - item.proxy_port | int > 1024 and item.proxy_port | int < 65536
+          - item.proxy_port | string is match('^[0-9]+$')
+        fail_msg: Empty or request-supplied namespace scope is forbidden.
+      loop: '{{ query_contexts }}'
+
+    - name: Create private candidate rendering directory
+      ansible.builtin.file:
+        path: '{{ runtime_dir }}'
+        state: directory
+        mode: '0700'
+
+    - name: Render inactive gateway candidate files
+      ansible.builtin.template:
+        src: '{{ playbook_dir }}/{{ item.src }}'
+        dest: '{{ runtime_dir }}/{{ item.dest }}'
+        mode: '0600'
+      loop:
+        - {src: nginx.conf.j2, dest: nginx.conf}
+        - {src: proxy-arguments.yaml.j2, dest: proxy-arguments.yaml}

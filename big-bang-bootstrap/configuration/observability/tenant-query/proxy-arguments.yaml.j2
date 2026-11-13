@@ -1,0 +1,13 @@
+# One gateway-owned process per authenticated context; never a Service/public port.
+# Namespace values come from platform-owned context, not request headers/parameters.
+{% for context in query_contexts %}
+- context: {{ context.id }}
+  arguments:
+    - -insecure-listen-address=127.0.0.1:{{ context.proxy_port }}
+    - -upstream={{ metrics_upstream }}
+    - -label=namespace
+    - -error-on-replace
+{% for namespace in context.namespaces %}
+    - -label-value={{ namespace }}
+{% endfor %}
+{% endfor %}
