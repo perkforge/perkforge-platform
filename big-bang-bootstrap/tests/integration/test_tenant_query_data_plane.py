@@ -20,7 +20,7 @@ from integration.test_tenant_query_gateway import SOURCE, ROOT, port, NoRedirect
 
 class Metrics(BaseHTTPRequestHandler):
     def do_GET(self):
-        payload = {'/portal': 'fixture_value{namespace="tenant-other",source="portal"} 11\n',
+        payload = {'/metrics': 'reloader_fixture 1\n', '/portal': 'fixture_value{namespace="tenant-other",source="portal"} 11\n',
                    '/other': 'fixture_value{source="other"} 22\n',
                    '/unknown': 'fixture_value{source="unmapped"} 33\n'}[self.path].encode()
         self.send_response(200)
@@ -77,7 +77,7 @@ class NativeTenantDataPlane(unittest.TestCase):
             config = Environment(undefined=StrictUndefined).from_string((SOURCE / 'backend-nginx.conf.j2').read_text()).render(
                 runtime_dir=str(cls.folder), backend_listen_address='127.0.0.1:' + str(cls.prom_port),
                 certificate_path=str(cert), private_key_path=str(key), client_ca_path=str(cert),
-                prometheus_loopback_port=cls.local_prom_port)
+                prometheus_loopback_port=cls.local_prom_port, reloader_loopback_port=cls.exporter.server_port)
             backend_config = cls.folder / 'backend-nginx.conf'; backend_config.write_text(config)
             cls.start([os.environ.get('NGINX_VALIDATE_BIN', '/usr/sbin/nginx'), '-c', str(backend_config), '-p', str(cls.folder), '-g', 'daemon off;'], 'backend-nginx')
         contexts = []
@@ -268,6 +268,9 @@ class NativeLoopbackBackend(NativeTenantDataPlane):
         url = 'https://localhost:' + str(self.prom_port)
         code, metrics = self.http(url + '/metrics', tls=tls)
         self.assertEqual(code, 200); self.assertIn('prometheus_build_info', metrics)
+        code, metrics = self.http(url + '/reloader/metrics', tls=tls)
+        self.assertEqual(code, 200); self.assertIn('reloader_fixture 1', metrics)
+        self.assertEqual(self.http(url + '/reloader/metrics')[0], 400)
         for path in ['/-/reload', '/-/quit', '/api/v1/admin/tsdb/delete_series']:
             self.assertEqual(self.http(url + path, method='POST', tls=tls)[0], 404)
 

@@ -35,6 +35,12 @@ http {
             proxy_pass_request_headers off;
             proxy_pass http://127.0.0.1:{{ prometheus_loopback_port }};
         }
+        # Operator listenLocal also binds reloader HTTP metrics to loopback.
+        location = /reloader/metrics {
+            limit_except GET { deny all; }
+            proxy_pass_request_headers off;
+            proxy_pass http://127.0.0.1:{{ reloader_loopback_port }}/metrics;
+        }
         location / { return 404; }
     }
 }
