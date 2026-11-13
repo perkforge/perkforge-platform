@@ -27,6 +27,7 @@ class NtfyLocal(unittest.TestCase):
         self.assertEqual(ns['metadata']['name'],'ntfy')
         self.assertEqual(role['kind'],'Role')
         self.assertEqual(role['metadata']['namespace'],'ntfy')
+        self.assertEqual([r['verbs'] for r in role['rules'] if r['resources']==['pods']], [['get','list','watch']])
         for rule in role['rules']:
             self.assertFalse(set(rule['resources']) & {'secrets','roles','rolebindings','clusterroles','clusterrolebindings','*'})
             self.assertFalse(set(rule['verbs']) & {'delete','deletecollection','*','bind','escalate'})
