@@ -96,6 +96,7 @@ class DNSMaintenance(unittest.TestCase):
                  'DNS_FIXTURE_TARGETS': {'nextcloud-dns-record-v1': 'nextcloud',
                      'grafana-dns-record-v1': 'grafana',
                      'portal-dns-record-v1': 'portal',
+                     'ntfy-dns-record-v1': 'ntfy',
                      'harbor-dns-record-v1': 'harbor'}.get(scope, 'gitlab,gitlab-objects'),
                  'DNS_FIXTURE_MODE': mode, 'ANSIBLE_LOCAL_TEMP': str(self.path/'local'),
                  'ANSIBLE_REMOTE_TEMP': str(self.path/'remote')})
@@ -452,6 +453,105 @@ class DNSMaintenance(unittest.TestCase):
                 query = ('dig @10.0.0.1 '+name+'.perkforge.home.arpa A '
                          '+short +time=2 +tries=1 '+transport)
                 self.assertEqual(calls.count(query), expected_count, query)
+
+    def ntfy_base(self):
+        self.portal_base()
+        self.original += self.record_block('Portal', ('portal',))
+        self.config.write_text(self.original)
+        self.digest = hashlib.sha256(self.original.encode()).hexdigest()
+
+    def assert_ntfy_queries(self, names, expected_count=1):
+        self.assert_portal_queries(names, expected_count)
+
+    def test_ntfy_exact_add_repeat_preservation_backup_and_udp_tcp(self):
+        self.ntfy_base()
+        result = self.run_fixture(scope='ntfy-dns-record-v1')
+        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+        expected = (self.original+self.record_block('Ntfy', ('ntfy',))).encode()
+        self.assertEqual(self.config.read_bytes(), expected)
+        self.assertEqual(self.config.stat().st_mode & 0o777, 0o644)
+        self.assertEqual(self.unit.read_bytes(), self.unit_bytes.encode())
+        saved = self.backup/(self.digest+'.conf')
+        self.assertEqual(saved.read_bytes(), self.original.encode())
+        self.assertEqual(saved.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(self.backup.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(saved.stat().st_uid, os.getuid())
+        self.assert_ntfy_queries(('ntfy',))
+        self.assert_ntfy_queries(('headlamp', 'keycloak', 'rancher', 'openbao',
+                                   'gitlab', 'gitlab-objects', 'nextcloud', 'grafana', 'harbor', 'portal'), 2)
+        calls = self.calls.read_text()
+        self.assertEqual(calls.count('dnsmasq --test --conf-file='), 1)
+        self.assertEqual(calls.count('restorecon '), 1)
+        self.assertEqual(calls.count('dig @10.0.0.1 example.com A '), 2)
+        before_repeat = (self.config.stat().st_ino, self.config.stat().st_mtime_ns,
+                         saved.stat().st_ino, saved.stat().st_mtime_ns)
+        repeat = self.run_fixture(scope='ntfy-dns-record-v1')
+        self.assertEqual(repeat.returncode, 0, repeat.stdout+repeat.stderr)
+        self.assertIn('changed=0', repeat.stdout)
+        self.assertEqual(self.restarts(), 1)
+        self.assertEqual(self.config.read_bytes(), expected)
+        self.assertEqual(saved.read_bytes(), self.original.encode())
+        self.assertEqual(before_repeat,
+            (self.config.stat().st_ino, self.config.stat().st_mtime_ns,
+             saved.stat().st_ino, saved.stat().st_mtime_ns))
+        self.assertEqual(self.calls.read_text().count('restorecon '), 1)
+        self.assertFalse((self.backup/'maintenance.lock').exists())
+
+    def test_ntfy_each_missing_prior_record_is_refused(self):
+        self.ntfy_base()
+        for name in ('headlamp', 'keycloak', 'rancher', 'openbao', 'gitlab',
+                     'gitlab-objects', 'nextcloud', 'grafana', 'harbor', 'portal'):
+            with self.subTest(name=name):
+                before = self.original.replace('host-record='+name+'.perkforge.home.arpa,10.0.0.2\n', '')
+                self.config.write_text(before)
+                result = self.run_fixture(scope='ntfy-dns-record-v1',
+                    digest=hashlib.sha256(before.encode()).hexdigest())
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.config.read_bytes(), before.encode())
+                self.assertFalse(self.backup.exists())
+                self.assertEqual(self.restarts(), 0)
+
+    def test_ntfy_foreign_record_and_block_are_not_adopted(self):
+        self.ntfy_base()
+        for suffix in (
+                'host-record=ntfy.perkforge.home.arpa,10.0.0.2\n',
+                'host-record=ntfy.perkforge.home.arpa,10.0.0.99\n',
+                'address=/ntfy.perkforge.home.arpa/10.0.0.2\n',
+                'cname=ntfy.perkforge.home.arpa,grafana.perkforge.home.arpa\n',
+                self.record_block('Ntfy', ('ntfy',)).replace('DNS v1', 'DNS v2')):
+            with self.subTest(suffix=suffix):
+                before = self.original+suffix
+                self.config.write_text(before)
+                result = self.run_fixture(scope='ntfy-dns-record-v1',
+                    digest=hashlib.sha256(before.encode()).hexdigest())
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.config.read_bytes(), before.encode())
+                self.assertFalse(self.backup.exists())
+                self.assertEqual(self.restarts(), 0)
+
+    def test_ntfy_restart_failure_restores_ten_records_and_reports_failure(self):
+        self.ntfy_base()
+        result = self.run_fixture('restart', scope='ntfy-dns-record-v1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('original configuration restored', result.stdout)
+        self.assertEqual(self.config.read_bytes(), self.original.encode())
+        self.assertEqual(self.unit.read_bytes(), self.unit_bytes.encode())
+        self.assertEqual((self.backup/(self.digest+'.conf')).read_bytes(), self.original.encode())
+        self.assertEqual(self.restarts(), 2)
+        self.assert_ntfy_queries(('headlamp', 'keycloak', 'rancher', 'openbao',
+                                   'gitlab', 'gitlab-objects', 'nextcloud', 'grafana', 'harbor', 'portal'), 2)
+        self.assertFalse((self.backup/'maintenance.lock').exists())
+
+    def test_ntfy_answer_failure_restores_ten_records(self):
+        self.ntfy_base()
+        result = self.run_fixture('verify', scope='ntfy-dns-record-v1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('original configuration restored', result.stdout)
+        self.assertEqual(self.config.read_bytes(), self.original.encode())
+        self.assertEqual(self.restarts(), 2)
+        self.assert_ntfy_queries(('headlamp', 'keycloak', 'rancher', 'openbao',
+                                   'gitlab', 'gitlab-objects', 'nextcloud', 'grafana', 'harbor', 'portal'), 3)
+        self.assertFalse((self.backup/'maintenance.lock').exists())
 
     def test_portal_exact_add_repeat_preservation_backup_and_udp_tcp(self):
         self.portal_base()
