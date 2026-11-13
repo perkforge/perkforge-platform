@@ -37,6 +37,20 @@ class TenantQueryPackage(unittest.TestCase):
         cls.folder = Path(cls.tmp.name)
         cls.docs = render(cls.folder)
 
+    def test_backend_config_is_offline_opt_in_and_matches_mount_contract(self):
+        result = subprocess.run(['ansible-playbook', '-i', 'localhost,', str(BASE / 'render-backend.yaml'), '-e', 'backend_render_enabled=true', '-e', 'backend_output_dir=' + str(self.folder)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        config = yaml.safe_load((self.folder / 'backend-config.yaml').read_text())
+        self.assertEqual(config['kind'], 'ConfigMap')
+        self.assertEqual(config['metadata'], {'name': 'query-backend-config', 'namespace': 'monitoring'})
+        text = config['data']['nginx.conf']
+        for expected in ['listen 0.0.0.0:9443 ssl;', 'ssl_verify_client on;', 'proxy_pass http://127.0.0.1:9090;', 'ssl_client_certificate /etc/query-backend/tls/ca.crt;']:
+            self.assertIn(expected, text)
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(['ansible-playbook', '-i', 'localhost,', str(BASE / 'render-backend.yaml'), '-e', 'backend_output_dir=' + directory], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((Path(directory) / 'backend-config.yaml').exists())
+
     def test_only_tls_service_and_loopback_query_scope(self):
         service = self.docs[2]; pod = self.docs[3]['spec']['template']['spec']
         self.assertEqual(service['spec']['type'], 'ClusterIP')
@@ -122,6 +136,46 @@ class TenantQueryPackage(unittest.TestCase):
                     if selector not in before[identity]['spec']: del after[identity]['spec'][selector]
             self.assertEqual(after[identity], before[identity], identity)
         self.assertEqual(changes, 1)
+
+    @unittest.skipUnless(os.environ.get('QUERY_MONITORING_CHART') and os.environ.get('HELM_VALIDATE_BIN'), 'provide verified monitoring chart and Helm')
+    def test_native_backend_overlay_keeps_reloader_http_and_loopback_probes(self):
+        chart = Path(os.environ['QUERY_MONITORING_CHART'])
+        self.assertEqual(yaml.safe_load((chart / 'Chart.yaml').read_text())['version'], '91.4.1-bb.1')
+        overlay = yaml.safe_load((BASE / 'backend-values.yaml').read_text())['monitoring']['values']
+        values = self.folder / 'backend-chart-values.yaml'; values.write_text(yaml.safe_dump(overlay))
+        command = [os.environ['HELM_VALIDATE_BIN'], 'template', 'monitoring-monitoring', str(chart), '--namespace', 'monitoring', '--kube-version', '1.36.5', '--set', 'domain=fixture.invalid', '-f', str(values)]
+        rendered = subprocess.run(command, check=True, capture_output=True, text=True)
+        docs = [obj for obj in yaml.safe_load_all(rendered.stdout) if obj]
+        prom = next(obj for obj in docs if obj['kind'] == 'Prometheus')
+        self.assertTrue(prom['spec']['listenLocal'])
+        self.assertFalse(prom['spec'].get('web'))
+        backend = prom['spec']['containers'][0]
+        self.assertEqual(backend['ports'], [{'name': 'backend-tls', 'containerPort': 9443}])
+        self.assertNotEqual(backend['ports'][0]['containerPort'], 9090)
+        self.assertTrue(backend['securityContext']['readOnlyRootFilesystem'])
+        self.assertEqual(backend['securityContext']['capabilities']['drop'], ['ALL'])
+        service = next(obj for obj in docs if obj['kind'] == 'Service' and obj['metadata']['name'] == prom['metadata']['name'])
+        ports = {port['name']: port for port in service['spec']['ports']}
+        self.assertEqual(ports['http-web']['targetPort'], 'backend-tls')
+        self.assertNotIn('reloader-web', ports)
+        self.assertFalse(any(obj['kind'] == 'ServiceMonitor' and obj['metadata']['name'] == prom['metadata']['name'] for obj in docs))
+        monitor = yaml.safe_load((BASE / 'backend-self-monitor.yaml').read_text())
+        for key, value in prom['spec'].get('serviceMonitorSelector', {}).get('matchLabels', {}).items():
+            self.assertEqual(monitor['metadata']['labels'][key], value)
+        self.assertFalse(prom['spec'].get('serviceMonitorSelector', {}).get('matchExpressions'))
+        for key, value in monitor['spec']['selector']['matchLabels'].items():
+            self.assertEqual(service['metadata']['labels'][key], value)
+        endpoint, reloader = monitor['spec']['endpoints']
+        self.assertEqual(endpoint['scheme'], 'https')
+        self.assertIn('keySecret', endpoint['tlsConfig'])
+        self.assertEqual(reloader['port'], 'http-web')
+        self.assertEqual(reloader['path'], '/reloader/metrics')
+        self.assertEqual(reloader['scheme'], 'https')
+        self.assertEqual(reloader['tlsConfig'], endpoint['tlsConfig'])
+        self.assertEqual(endpoint['relabelings'], [{'targetLabel': 'component', 'replacement': 'prometheus'}])
+        self.assertEqual(reloader['relabelings'], [{'targetLabel': 'component', 'replacement': 'config-reloader'}])
+        self.assertEqual(set(monitor['spec']['namespaceSelector']['matchNames']), {'monitoring'})
+        self.assertFalse(any(obj['kind'] == 'Secret' and obj['metadata']['name'].startswith('query-backend') for obj in docs))
 
     @unittest.skipUnless(os.environ.get('RUN_QUERY_PACKAGE_NATIVE') == '1', 'opt-in network-none container smoke')
     def test_native_container_nonroot_start_and_internal_health(self):

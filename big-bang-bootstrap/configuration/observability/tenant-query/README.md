@@ -330,3 +330,48 @@ metadata/variable paths. This updates the query-only PE limitation noted above,
 Loki/log datasource routes, exemplars and other read APIs are not implemented;
 keep existing PE datasources and live network settings unchanged until their
 compatibility and isolation are tested. The inactive package is still not selected.
+
+### Inactive chart integration candidate
+
+`backend-values.yaml` is a separate **unselected** Big Bang overlay. It sets
+`listenLocal: true`, adds the pinned nonroot Nginx sidecar on pod port **9443**,
+and directs the existing Prometheus Service's target to `backend-tls`. The Service
+port remains 9090; any destination-pod NetworkPolicy must allow **9443**, not
+assume the Service port is the pod port. The gateway upstream must use HTTPS and
+the authenticated backend Service DNS name, never loopback on the gateway pod.
+There is no automatic change to the earlier gateway package's policy or upstream.
+
+The pinned chart applies `serviceMonitor.scheme/tlsConfig` to BOTH native
+Prometheus and reloader endpoints. Therefore this candidate disables that stock
+self-monitor and pairs it with `backend-self-monitor.yaml`: Prometheus `/metrics`
+and `/reloader/metrics` use the dedicated client Secret and HTTPS. The frontend
+forwards reloader metrics to HTTP localhost8080. Operator `ListenLocal` also binds
+reloader metrics locally and removes its named container port, so the obsolete
+public reloader Service port is disabled. The reloader itself remains HTTP. Each endpoint sets a distinct static `component`
+target label (`prometheus` or `config-reloader`) so shared `go_*`/`process_*`
+metric names cannot collide behind the same TLS Service/port.
+The monitor selector matches the actual chart-rendered Service labels. It does
+not change other kubelet/KSM/resource labels or discovery settings.
+
+`render-backend.yaml` only renders a local `backend-config.yaml` ConfigMap when
+explicitly opted in with an existing canonical `backend_output_dir`; it never
+applies it. The ConfigMap and overlay agree on 9443 frontend, 9090 loopback,
+protected TLS mount and writable scratch mount. Required `query-backend-tls`
+(server cert/key and narrowly trusted client CA) and `query-backend-self-client`
+(client cert/key/server CA) Secrets are **not created or stored in Git**. The
+server certificate must match
+`monitoring-monitoring-kube-prometheus.monitoring.svc`. Source names are proposed
+runtime inputs, not existing issued credentials.
+
+The real pinned Helm render test proves the overlay's CR/Service and per-endpoint monitor
+shape. It does **not** prove Operator reconciliation, pod secret/fsGroup access,
+exec-probe tooling, reloader health, nor actual scrape success under Kubernetes.
+No isolated Kubernetes environment is currently available in this workstation's
+PATH; native process and offline Helm tests do not replace that validation. Do
+not activate this candidate alone: current PE consumers would need coordinated
+migration to authenticated HTTPS, and CNI/egress and log compatibility remain
+open. A future activation approval must enumerate the paired ConfigMap/Secrets,
+Prometheus rollout, Service target, split monitor, gateway destination port9443,
+and preserved PE/identity/log routes. Keep tenant grants closed until that tested
+migration is ready. Do not use the live cluster as an unapproved reconciliation
+experiment.

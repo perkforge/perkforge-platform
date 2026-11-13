@@ -1,0 +1,43 @@
+# INACTIVE: not included in any root values file. Requires separately rendered
+# backend ConfigMap, dedicated TLS Secrets, self-monitor and consumer migration.
+# Not evidence of Operator reconciliation; never apply this alone.
+monitoring:
+  values:
+    upstream:
+      prometheus:
+        service:
+          targetPort: backend-tls
+          reloaderWebPort: 0
+        serviceMonitor:
+          selfMonitor: false
+        prometheusSpec:
+          listenLocal: true
+          # Leave native Prometheus web TLS unset: local exec probes/reload use HTTP.
+          containers:
+          - name: query-backend-tls
+            image: docker.io/library/nginx:1.31.6-alpine@sha256:0530961ff0592b58c10f767535cc0abdfccf9e389ff7cc90f87320c1bc7e8506
+            command: [/usr/sbin/nginx]
+            args: [-c, /etc/query-backend/config/nginx.conf, -g, 'daemon off;']
+            ports: [{name: backend-tls, containerPort: 9443}]
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1000
+              runAsGroup: 1000
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: {drop: [ALL]}
+            resources:
+              requests: {cpu: 20m, memory: 64Mi}
+              limits: {cpu: 500m, memory: 128Mi}
+            readinessProbe: {tcpSocket: {port: backend-tls}, periodSeconds: 5}
+            volumeMounts:
+            - {name: query-backend-config, mountPath: /etc/query-backend/config, readOnly: true}
+            - {name: query-backend-tls, mountPath: /etc/query-backend/tls, readOnly: true}
+            - {name: query-backend-runtime, mountPath: /tmp/query-backend}
+          volumes:
+          - name: query-backend-config
+            configMap: {name: query-backend-config}
+          - name: query-backend-tls
+            secret: {secretName: query-backend-tls, defaultMode: 288}
+          - name: query-backend-runtime
+            emptyDir: {medium: Memory, sizeLimit: 32Mi}

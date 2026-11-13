@@ -1,0 +1,26 @@
+# Offline opt-in rendering only; deliberately no apply/reconcile tasks.
+- name: Render inactive Prometheus backend configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    runtime_dir: /tmp/query-backend
+    backend_listen_address: 0.0.0.0:9443
+    prometheus_loopback_port: 9090
+    reloader_loopback_port: 8080
+    certificate_path: /etc/query-backend/tls/tls.crt
+    private_key_path: /etc/query-backend/tls/tls.key
+    client_ca_path: /etc/query-backend/tls/ca.crt
+  tasks:
+    - name: Require explicit local rendering request
+      ansible.builtin.assert:
+        that:
+          - backend_render_enabled | default(false) | bool
+          - backend_output_dir is defined
+          - backend_output_dir is match('^/[a-zA-Z0-9_./-]+$')
+          - backend_output_dir == (backend_output_dir | realpath)
+    - name: Render only local backend ConfigMap
+      ansible.builtin.template:
+        src: '{{ playbook_dir }}/backend-config.yaml.j2'
+        dest: '{{ backend_output_dir }}/backend-config.yaml'
+        mode: '0600'

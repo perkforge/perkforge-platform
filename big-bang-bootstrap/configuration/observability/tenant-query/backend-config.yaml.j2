@@ -1,0 +1,7 @@
+# INACTIVE: pair with backend-values.yaml and split self-monitor after review.
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: query-backend-config, namespace: monitoring}
+data:
+  nginx.conf: |
+{{ lookup('template', playbook_dir + '/backend-nginx.conf.j2') | indent(4, true) }}
