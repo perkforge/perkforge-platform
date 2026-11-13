@@ -1,0 +1,36 @@
+# Platform-owned desired context, approved for the Portal pilot.
+# Inactive: names are desired state, not discovered native IDs or live grants.
+paas_context:
+  schema_version: 1
+  id: portal
+  activation: false
+  keycloak:
+    realm: perkforge
+    groups:
+      tenant-admin: /tenants/portal/admins
+      tenant-developer: /tenants/portal/developers
+      tenant-viewer: /tenants/portal/viewers
+  kubernetes:
+    runtime_namespaces: [tenant-portal]
+    control_namespaces: [tenant-portal-config, tenant-portal-release]
+  applications: [portal]
+  targets:
+    grafana:
+      access: blocked_until_query_isolation
+      role_mappings:
+        tenant-admin: Admin
+        tenant-developer: Editor
+        tenant-viewer: Viewer
+    ntfy:
+      topic: tenant-portal-alerts
+    mattermost:
+      team_name: null
+      channel_name: alerts
+      channel_type: P
+    gitlab:
+      group_id: null
+      project_ids: []
+      role_mappings:
+        tenant-admin: Owner
+        tenant-developer: Developer
+        tenant-viewer: Reporter
