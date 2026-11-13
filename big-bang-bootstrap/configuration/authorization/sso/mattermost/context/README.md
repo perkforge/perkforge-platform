@@ -107,8 +107,10 @@ approved restriction, then test with ordinary Portal admin, developer and viewer
 identities that adding a foreign tenant to the private channel is denied. Test
 the approved membership manager separately, plus foreign-tenant channel
 discovery/content denial and PE access. Record binary/version, edition, effective
-policy and test outcomes without tokens. The membership manager's identity and
-rights require an explicit decision; this runbook does not assign them.
+policy and test outcomes without tokens. Channel membership is platform-managed; tenants must not manage who joins.
+The approved platform operator's concrete native identity and minimum required
+rights must be resolved before apply; this runbook grants neither System Admin
+nor team/channel admin automatically.
 
 The GET-only inspector does **not** evaluate effective native role permissions,
 invitation restriction, license entitlements or these denial tests. Its success
