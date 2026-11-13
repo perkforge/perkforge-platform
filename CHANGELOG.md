@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.40.0](https://github.com/perkforge/perkforge-platform/compare/v0.39.0...v0.40.0) (2026-11-13)
+
+
+### Features
+
+* **alerting:** prepare context-scoped dual delivery ([#337](https://github.com/perkforge/perkforge-platform/issues/337)) ([13b2d5a](https://github.com/perkforge/perkforge-platform/commit/13b2d5ab2c6b2e52d4a9a2bffd43cad44c725545))
+* **gitlab:** add native metrics alert candidate ([#347](https://github.com/perkforge/perkforge-platform/issues/347)) ([fd0167e](https://github.com/perkforge/perkforge-platform/commit/fd0167e660a3cf338e958792e64359535568e120))
+* **gitlab:** define scoped event ingress contract ([#343](https://github.com/perkforge/perkforge-platform/issues/343)) ([241ca6a](https://github.com/perkforge/perkforge-platform/commit/241ca6a1653ab7fd26ea3613fdaf0a93738e3150))
+* **gitlab:** verify exact tenant project context read-only ([#336](https://github.com/perkforge/perkforge-platform/issues/336)) ([02a148b](https://github.com/perkforge/perkforge-platform/commit/02a148bfd96658c773ba4cca11c0ee74fa9adb1f))
+* **identity:** define inactive Portal context contract ([#340](https://github.com/perkforge/perkforge-platform/issues/340)) ([fe247b3](https://github.com/perkforge/perkforge-platform/commit/fe247b343db0b42fa0368adf03af3b027218f9ae))
+* **identity:** gate Portal generic group role mappings ([#342](https://github.com/perkforge/perkforge-platform/issues/342)) ([e83e2aa](https://github.com/perkforge/perkforge-platform/commit/e83e2aa2dfa0993fd23f9c355b61364c7878a7fc))
+* **mattermost:** gate authoritative channel membership reconciliation ([#346](https://github.com/perkforge/perkforge-platform/issues/346)) ([b7581e7](https://github.com/perkforge/perkforge-platform/commit/b7581e7be93b5c257bd7378c42253a2076e0a062))
+* **mattermost:** verify native tenant alert context ([#338](https://github.com/perkforge/perkforge-platform/issues/338)) ([93d7a0b](https://github.com/perkforge/perkforge-platform/commit/93d7a0b943f52dd0b9aa3f1add0c4e7eb2175861))
+* **ntfy:** add unselected native deployment candidate ([#345](https://github.com/perkforge/perkforge-platform/issues/345)) ([cac1237](https://github.com/perkforge/perkforge-platform/commit/cac1237c57dd02194efd661b5a3478fbe42ded93))
+* **ntfy:** prepare verified backend routing candidate ([#348](https://github.com/perkforge/perkforge-platform/issues/348)) ([adbbc0d](https://github.com/perkforge/perkforge-platform/commit/adbbc0d963bacb249231b5019798848e8e0a9d29))
+* **ntfy:** stage approved local GitOps activation ([#351](https://github.com/perkforge/perkforge-platform/issues/351)) ([3be72e9](https://github.com/perkforge/perkforge-platform/commit/3be72e9dfdb5fb87a87ef5b65119bce985f9cc27))
+* **observability:** add inactive authenticated tenant query gateway ([#344](https://github.com/perkforge/perkforge-platform/issues/344)) ([2dd8ba3](https://github.com/perkforge/perkforge-platform/commit/2dd8ba3f44abb3257ea79b91e47a53ece6dccfd8))
+* **observability:** verify authenticated tenant data plane natively ([#350](https://github.com/perkforge/perkforge-platform/issues/350)) ([23c8c38](https://github.com/perkforge/perkforge-platform/commit/23c8c389a377320d48563e9ea3ee998ddaa01caf))
+
 ## [0.39.0](https://github.com/perkforge/perkforge-platform/compare/v0.38.0...v0.39.0) (2026-11-12)
 
 
