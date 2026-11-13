@@ -35,7 +35,7 @@ http {
 {% endfor %}
 {% endfor %}
 {% if platform_query is defined %}
-{% for endpoint in ['query', 'query_range'] %}
+{% for endpoint in ['query', 'query_range', 'labels', 'series', 'metadata', 'status/buildinfo'] %}
         location = /platform/api/v1/{{ endpoint }} {
             auth_basic "platform metrics";
             auth_basic_user_file {{ platform_query.htpasswd_path }};
@@ -51,6 +51,22 @@ http {
             proxy_pass {{ metrics_upstream }}/api/v1/{{ endpoint }};
         }
 {% endfor %}
+        # Conventional Prometheus label names only; no generic path proxy.
+        location ~ ^/platform/api/v1/label/[a-zA-Z_][a-zA-Z0-9_]*/values$ {
+            auth_basic "platform metrics";
+            auth_basic_user_file {{ platform_query.htpasswd_path }};
+            limit_except GET { deny all; }
+            proxy_pass_request_headers off;
+            proxy_set_header Content-Type $content_type;
+            proxy_ssl_verify on;
+            proxy_ssl_trusted_certificate {{ upstream_ca_path }};
+            proxy_ssl_certificate {{ upstream_client_cert_path }};
+            proxy_ssl_certificate_key {{ upstream_client_key_path }};
+            proxy_ssl_server_name on;
+            proxy_ssl_name {{ upstream_tls_name }};
+            rewrite ^/platform(/.*)$ $1 break;
+            proxy_pass {{ metrics_upstream }};
+        }
 {% endif %}
         location / { return 404; }
     }

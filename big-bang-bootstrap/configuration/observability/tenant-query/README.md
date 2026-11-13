@@ -309,3 +309,24 @@ Before making a deployment overlay selectable:
 This proof avoids the unsafe native `RequireAndVerifyClientCert` flip that would
 break ordinary kubelet probes. It is not permission to make that flip or a claim
 that the remaining PE consumer and egress migration is complete.
+
+### Authenticated platform variable and health reads
+
+The PE route now also permits `/api/v1/labels`, `/series`, `/metadata`,
+`/status/buildinfo`, and `/label/<conventional-label-name>/values` through the
+same distinct platform credential and verified upstream TLS client. The inactive
+backend frontend permits these matching read paths. There is no general-purpose
+proxy, runtime configuration endpoint, lifecycle endpoint or admin API. Label-value
+requests allow GET only; other listed read APIs accept GET/POST (unsupported
+Prometheus methods still fail upstream); DELETE remains denied. Names outside
+`[a-zA-Z_][a-zA-Z0-9_]*` are intentionally unsupported by this slice.
+
+Real Grafana datasource requests validate the basic variable/health paths against
+both direct-mTLS Prometheus and the loopback frontend. Platform series queries
+include all synthetic namespaces plus unmapped series. Tenant credentials cannot
+access these platform routes, and tenant routes still reject unimplemented
+metadata/variable paths. This updates the query-only PE limitation noted above,
+**not** the tenant API coverage or full existing dashboard compatibility claim.
+Loki/log datasource routes, exemplars and other read APIs are not implemented;
+keep existing PE datasources and live network settings unchanged until their
+compatibility and isolation are tested. The inactive package is still not selected.
