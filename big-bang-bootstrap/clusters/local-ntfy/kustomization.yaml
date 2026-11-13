@@ -1,0 +1,6 @@
+# Select only after approved TLS, namespace permission and DNS preparation.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-velero
+- ../../configuration/packages/ntfy/local
