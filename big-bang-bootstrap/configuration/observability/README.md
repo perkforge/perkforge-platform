@@ -171,3 +171,10 @@ requires owner confirmation. [Dedicated input delivery](../authorization/sso/gra
 changes only the approved immutable Secret/public-CA objects. Publication does not
 authorize credentials, grants, deployment or activation; live MFA/denial/recovery
 and existing-session acceptance remain gates.
+
+## Portal tenant observability pilot
+
+The [tenant access boundary review](tenant-access.md) records #218’s current
+pins, data/query enforcement options, role decisions and native acceptance gates.
+It coordinates #16/#43 identity and #39 notifications without enabling tenant
+access to the shared platform datasources. No runtime change follows from it.
