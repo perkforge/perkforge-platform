@@ -116,5 +116,5 @@ with exact target identities, native IDs and resources resolved. Suggested scope
   channel with history. Do not grant native administrator roles as a shortcut.
 
 These are approval templates, not requests already approved or executable
-commands. Stop at the relevant boundary without waking the owner for optional
-naming or sizing details. Preserve existing live applications and data throughout.
+commands. Stop at the relevant approval boundary. Preserve existing live
+applications and data throughout.
