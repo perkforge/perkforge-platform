@@ -1,0 +1,39 @@
+- ansible.builtin.set_fact:
+    pr_expected_role: "{{ (paas_context.keycloak.groups | dict2items | selectattr('value', 'equalto', pr_group.key) | map(attribute='key') | list | first) | default('') }}"
+- ansible.builtin.uri:
+    url: '{{ pr_api }}/group-by-path{{ pr_group.key }}'
+    headers: '{{ pr_headers }}'
+  register: pr_group_current
+- name: Require pinned group identity and original foundation ownership
+  ansible.builtin.assert:
+    that:
+    - pr_group_current.json.id == pr_group.value
+    - pr_group_current.json.path == pr_group.key
+    - pr_group_current.json.name == pr_group.key.split('/')[-1]
+    - pr_group_current.json.attributes == ({'perkforge-managed':['true'], 'perkforge-foundation':['v1']} | combine({'perkforge-role':[pr_expected_role]} if pr_expected_role else {}))
+- ansible.builtin.uri:
+    url: '{{ pr_api }}/groups/{{ pr_group.value }}/role-mappings'
+    headers: '{{ pr_headers }}'
+  register: pr_mappings
+- name: Reject foreign direct mappings and all client-role grants
+  ansible.builtin.assert:
+    that:
+    - pr_mappings.json.clientMappings | default({}) | length == 0
+    - pr_mappings.json.realmMappings | default([]) | map(attribute='name') | list | difference([pr_expected_role] if pr_expected_role else []) | length == 0
+    - pr_mappings.json.realmMappings | default([]) | length <= (1 if pr_expected_role else 0)
+- ansible.builtin.uri:
+    url: '{{ pr_api }}/groups/{{ pr_group.value }}/role-mappings/realm/composite'
+    headers: '{{ pr_headers }}'
+  register: pr_effective
+- name: Reject inherited or composite extra realm roles
+  ansible.builtin.assert:
+    that:
+    - pr_effective.json | map(attribute='name') | list | sort == pr_mappings.json.realmMappings | default([]) | map(attribute='name') | list | sort
+- ansible.builtin.set_fact:
+    pr_missing_mappings: '{{ (pr_missing_mappings + [pr_expected_role]) | unique | list }}'
+  when: pr_expected_role | length > 0 and pr_mappings.json.realmMappings | default([]) | length == 0
+- name: Post-write direct mapping must point to the re-read role ID
+  ansible.builtin.assert:
+    that:
+    - pr_mappings.json.realmMappings | default([]) | map(attribute='id') | list == ([pr_role_objects[pr_expected_role].id] if pr_expected_role else [])
+  when: pr_verify | default(false) | bool

@@ -1,0 +1,160 @@
+- name: Map approved generic tenant roles to exact Portal groups
+  hosts: bootstrap_clusters
+  gather_facts: false
+  vars_files: [contexts/portal.yaml]
+  vars:
+    pr_apply: false
+    pr_inspect: false
+    pr_scope: UNAPPROVED
+    pr_recovery_preserved: false
+    pr_url: https://keycloak.perkforge.home.arpa/auth
+    pr_ca: /UNCONFIGURED/root-ca.crt
+    pr_username_file: /UNCONFIGURED/master-username
+    pr_password_file: /UNCONFIGURED/master-password
+    pr_realm_id: UNCONFIGURED
+    # Exact reviewed immutable IDs, including both parent groups. No discovery/adoption.
+    pr_group_ids: {}
+    pr_roles: [tenant-admin, tenant-developer, tenant-viewer]
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ pr_ca }}'
+      follow_redirects: none
+      unredirected_headers: [Authorization]
+      use_netrc: false
+      use_proxy: false
+      timeout: 20
+  tasks:
+  - name: Validate approved generic-role and exact-context source
+    ansible.builtin.assert:
+      that:
+      - paas_context.id == 'portal' and paas_context.keycloak.realm == 'perkforge'
+      - not paas_context.activation | bool
+      - pr_roles == ['tenant-admin', 'tenant-developer', 'tenant-viewer']
+      - paas_context.keycloak.groups == {'tenant-admin':'/tenants/portal/admins', 'tenant-developer':'/tenants/portal/developers', 'tenant-viewer':'/tenants/portal/viewers'}
+  - name: Default and check modes do not read credentials or contact APIs
+    ansible.builtin.debug:
+      msg: 'Generic roles plus exact tenant groups; no users, clients or native grants. apply={{ pr_apply | bool }} inspect={{ pr_inspect | bool }} check={{ ansible_check_mode }}'
+  - name: Inspect or apply only with a separately approved pinned target
+    when: (pr_apply | bool or pr_inspect | bool) and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - ansible_play_hosts_all == ['local']
+        - deployment_environment == 'local' and impact_profile == 'il2'
+        - pr_scope == 'portal-generic-group-role-mapping-v1'
+        - pr_recovery_preserved | bool
+        - pr_realm_id != 'UNCONFIGURED' and pr_realm_id is match('^[A-Za-z0-9-]+$')
+        - pr_url is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?/auth$')
+        - pr_ca is match('^/') and not pr_ca.startswith('/UNCONFIGURED/')
+        - expected_cluster_uid != 'UNCONFIGURED'
+        - target_kubeconfig != '/UNCONFIGURED/kubeconfig' and target_context != 'UNCONFIGURED'
+        - pr_group_ids.keys() | list | sort == ['/tenants', '/tenants/portal', '/tenants/portal/admins', '/tenants/portal/developers', '/tenants/portal/viewers'] | sort
+        - pr_group_ids.values() | unique | length == 5
+    - ansible.builtin.assert:
+        that: item is string and item != 'UNCONFIGURED' and item is match('^[A-Za-z0-9-]+$')
+      loop: '{{ pr_group_ids.values() | list }}'
+    - name: Verify physical cluster before authenticating
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, '{{ target_kubeconfig }}', --context, '{{ target_context }}', get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: pr_cluster
+      changed_when: false
+    - ansible.builtin.assert:
+        that: pr_cluster.stdout == expected_cluster_uid
+    - name: Keep credentials and API payloads out of logs and diffs
+      no_log: true
+      block:
+      - ansible.builtin.stat:
+          path: '{{ item }}'
+          follow: false
+        loop: ['{{ pr_username_file }}', '{{ pr_password_file }}']
+        register: pr_credentials
+      - ansible.builtin.assert:
+          that:
+          - item.stat.isreg | default(false)
+          - not (item.stat.islnk | default(false))
+          - item.stat.mode == '0600'
+          - item.stat.pw_name == lookup('env', 'USER')
+          - item.stat.size > 0
+        loop: '{{ pr_credentials.results }}'
+      - name: Authenticate existing master administrator; never create or reset one
+        ansible.builtin.uri:
+          url: '{{ pr_url }}/realms/master/protocol/openid-connect/token'
+          method: POST
+          body_format: form-urlencoded
+          body:
+            client_id: admin-cli
+            grant_type: password
+            username: "{{ lookup('file', pr_username_file) | trim }}"
+            password: "{{ lookup('file', pr_password_file) | trim }}"
+        register: pr_login
+      - ansible.builtin.set_fact:
+          pr_headers: {Authorization: 'Bearer {{ pr_login.json.access_token }}'}
+          pr_api: '{{ pr_url }}/admin/realms/perkforge'
+          pr_missing_roles: []
+          pr_missing_mappings: []
+          pr_role_objects: {}
+      - ansible.builtin.uri:
+          url: '{{ pr_api }}'
+          headers: '{{ pr_headers }}'
+        register: pr_realm
+      - ansible.builtin.assert:
+          that:
+          - pr_realm.json.id == pr_realm_id
+          - pr_realm.json.realm == 'perkforge'
+          - pr_realm.json.enabled | bool
+          - pr_realm.json.attributes.get('perkforge-managed') == 'true'
+      - name: Inspect every group and parent before any writes
+        ansible.builtin.include_tasks: tasks/portal-role-group.yaml
+        loop: '{{ pr_group_ids | dict2items }}'
+        loop_control: {loop_var: pr_group}
+      - name: Inspect generic role definitions before any writes
+        ansible.builtin.include_tasks: tasks/portal-role-definition.yaml
+        loop: '{{ pr_roles }}'
+        loop_control: {loop_var: pr_role}
+      - name: Create only missing managed non-composite roles
+        ansible.builtin.uri:
+          url: '{{ pr_api }}/roles'
+          method: POST
+          headers: '{{ pr_headers }}'
+          body_format: json
+          body:
+            name: '{{ item }}'
+            composite: false
+            clientRole: false
+            attributes: {perkforge-managed: ['true'], perkforge-purpose: [tenant-context-role-v1]}
+          status_code: 201
+        loop: '{{ pr_missing_roles }}'
+        when: pr_apply | bool
+        changed_when: true
+      - name: Re-read definitions including assigned immutable role IDs
+        ansible.builtin.include_tasks: tasks/portal-role-definition.yaml
+        loop: '{{ pr_roles }}'
+        loop_control: {loop_var: pr_role}
+        vars: {pr_verify: true}
+        when: pr_apply | bool
+      - name: Add only the reviewed role to its exact tenant group
+        ansible.builtin.uri:
+          url: '{{ pr_api }}/groups/{{ pr_group_ids[paas_context.keycloak.groups[item]] }}/role-mappings/realm'
+          method: POST
+          headers: '{{ pr_headers }}'
+          body_format: json
+          body: '{{ [pr_role_objects[item]] }}'
+          status_code: 204
+        loop: '{{ pr_missing_mappings }}'
+        when: pr_apply | bool
+        changed_when: true
+      - name: Verify exact direct and effective group mappings after writes
+        ansible.builtin.include_tasks: tasks/portal-role-group.yaml
+        loop: '{{ pr_group_ids | dict2items }}'
+        loop_control: {loop_var: pr_group}
+        vars: {pr_verify: true}
+        when: pr_apply | bool
+      always:
+      - ansible.builtin.set_fact:
+          pr_login: {}
+          pr_headers: {}
+          cacheable: false
+        no_log: true
+    - ansible.builtin.debug:
+        msg: 'Portal group role mapping inspection complete; apply={{ pr_apply | bool }}. No user memberships, application grants, client scopes or token mappers changed.'
