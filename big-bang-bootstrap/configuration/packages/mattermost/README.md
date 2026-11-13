@@ -61,3 +61,13 @@ Secret references, no license and closed-signup OIDC. The SSO modules also execu
 Ansible against disposable HTTPS and kubectl fixtures for client/input lifecycle.
 They do not execute the
 operator or prove live storage, network enforcement, login or restore acceptance.
+
+## Integrated Portal pilot
+
+The [native context acceptance check](../../authorization/sso/mattermost/context/README.md)
+verifies the configured private team/channel, exact reviewed membership and
+channel-locked incoming webhook without changing access. Portal shares its tenant
+context with GitLab, Grafana and ntfy; tenant viewers may participate in channels
+and see their alerts but are not direct notification subscribers. Native
+provisioning, identity linkage and cross-tenant denial remain live acceptance,
+not capabilities implied by Keycloak login or source-only fixture checks.

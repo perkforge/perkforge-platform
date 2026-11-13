@@ -1,0 +1,65 @@
+- name: Verify one native Mattermost context without granting or revoking access
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    mattermost_context_inspect: false
+    mattermost_context_origin: https://UNCONFIGURED.invalid
+    mattermost_context_contract_file: /UNCONFIGURED/context.json
+    mattermost_context_token_file: /UNCONFIGURED/token
+    mattermost_context_ca_file: /UNCONFIGURED/ca.pem
+  module_defaults:
+    ansible.builtin.uri:
+      method: GET
+      validate_certs: true
+      ca_path: '{{ mattermost_context_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      unredirected_headers: [Authorization]
+      timeout: 20
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Read-only context inspection. Default/check modes contact no API or private input; no membership, webhook or message changes.'
+  - when: mattermost_context_inspect | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - mattermost_context_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - mattermost_context_origin is not search('[\\x00-\\x20\\x7f]')
+        - (mattermost_context_origin | urlsplit('port')) is none or 1 <= (mattermost_context_origin | urlsplit('port')) <= 65535
+        - (mattermost_context_origin | urlsplit('hostname') | lower | regex_replace('\\.$', '')) is not search('\\.invalid$')
+    - no_log: true
+      block:
+      - ansible.builtin.command: {argv: [id, -u]}
+        register: mc_uid
+        changed_when: false
+      - ansible.builtin.stat: {path: '{{ item }}', follow: false}
+        loop: ['{{ mattermost_context_contract_file }}', '{{ mattermost_context_token_file }}', '{{ mattermost_context_ca_file }}']
+        register: mc_files
+      - ansible.builtin.assert:
+          that:
+          - item.item is match('^/') and item.item | realpath == item.item
+          - item.stat.isreg | default(false)
+          - not (item.stat.islnk | default(false))
+          - item.stat.size > 0
+          - item.item == mattermost_context_ca_file or (item.stat.mode == '0600' and item.stat.uid == (mc_uid.stdout | int))
+        loop: '{{ mc_files.results }}'
+      - ansible.builtin.stat: {path: '{{ item | dirname }}', follow: false}
+        loop: ['{{ mattermost_context_contract_file }}', '{{ mattermost_context_token_file }}']
+        register: mc_parents
+      - ansible.builtin.assert:
+          that:
+          - item.stat.isdir | default(false)
+          - not (item.stat.islnk | default(false))
+          - item.stat.mode == '0700' and item.stat.uid == (mc_uid.stdout | int)
+        loop: '{{ mc_parents.results }}'
+      - ansible.builtin.set_fact:
+          mc: '{{ lookup("file", mattermost_context_contract_file) | from_json }}'
+          mc_headers: {Authorization: 'Bearer {{ lookup("file", mattermost_context_token_file) | trim }}'}
+      - ansible.builtin.include_tasks: inspect-tasks.yaml
+      always:
+      - ansible.builtin.set_fact: {mc: {}, mc_headers: {}, mc_hook: {}, cacheable: false}
+        no_log: true
+    - ansible.builtin.debug:
+        msg: 'PASS: exact private team/channel, complete bounded membership and channel-locked webhook metadata. No changes; this is not login, delivery or cross-tenant denial proof.'
