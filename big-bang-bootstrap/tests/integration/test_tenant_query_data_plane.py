@@ -31,6 +31,7 @@ class Metrics(BaseHTTPRequestHandler):
 
 
 class NativeTenantDataPlane(unittest.TestCase):
+    backend_sidecar = False
     @classmethod
     def setUpClass(cls):
         names = {'prom_label_proxy': 'PROM_LABEL_PROXY_BIN', 'prometheus': 'PROMETHEUS_VALIDATE_BIN', 'grafana': 'GRAFANA_VALIDATE_BIN'}
@@ -66,7 +67,19 @@ class NativeTenantDataPlane(unittest.TestCase):
                          'static_configs': [{'targets': ['127.0.0.1:' + str(cls.exporter.server_port)], 'labels': labels}]})
         (cls.folder / 'prometheus.yaml').write_text(yaml.safe_dump({'global': {'scrape_interval': '1s'}, 'scrape_configs': jobs}))
         (cls.folder / 'web.yaml').write_text(yaml.safe_dump({'tls_server_config': {'cert_file': str(cert), 'key_file': str(key), 'client_auth_type': 'RequireAndVerifyClientCert', 'client_ca_file': str(cert)}}))
-        cls.start([binaries['prometheus'], '--config.file=' + str(cls.folder / 'prometheus.yaml'), '--web.config.file=' + str(cls.folder / 'web.yaml'), '--storage.tsdb.path=' + str(cls.folder / 'tsdb'), '--web.listen-address=127.0.0.1:' + str(cls.prom_port)], 'prometheus')
+        cls.local_prom_port = port() if cls.backend_sidecar else cls.prom_port
+        prom_args = [binaries['prometheus'], '--config.file=' + str(cls.folder / 'prometheus.yaml'), '--web.enable-lifecycle', '--storage.tsdb.path=' + str(cls.folder / 'tsdb'), '--web.listen-address=127.0.0.1:' + str(cls.local_prom_port)]
+        if not cls.backend_sidecar:
+            prom_args.append('--web.config.file=' + str(cls.folder / 'web.yaml'))
+        cls.start(prom_args, 'prometheus')
+        if cls.backend_sidecar:
+            from jinja2 import Environment, StrictUndefined
+            config = Environment(undefined=StrictUndefined).from_string((SOURCE / 'backend-nginx.conf.j2').read_text()).render(
+                runtime_dir=str(cls.folder), backend_listen_address='127.0.0.1:' + str(cls.prom_port),
+                certificate_path=str(cert), private_key_path=str(key), client_ca_path=str(cert),
+                prometheus_loopback_port=cls.local_prom_port)
+            backend_config = cls.folder / 'backend-nginx.conf'; backend_config.write_text(config)
+            cls.start([os.environ.get('NGINX_VALIDATE_BIN', '/usr/sbin/nginx'), '-c', str(backend_config), '-p', str(cls.folder), '-g', 'daemon off;'], 'backend-nginx')
         contexts = []
         for name in ['portal', 'other', 'platform']:
             hashed = subprocess.run(['openssl', 'passwd', '-apr1', '-stdin'], input='synthetic-' + name, text=True, capture_output=True, check=True).stdout.strip()
@@ -95,7 +108,8 @@ class NativeTenantDataPlane(unittest.TestCase):
                 status, _ = cls.http(cls.grafana + '/api/health')
                 if status == 200: break
             except (OSError, urllib.error.URLError): pass
-            if any(p.poll() is not None for p in cls.processes): raise AssertionError('Fixture process exited; inspect temporary logs')
+            if any(p.poll() is not None for p in cls.processes):
+                raise AssertionError('Synthetic fixture process exited: ' + '\n'.join(p.name + ': ' + p.read_text()[-3000:] for p in cls.folder.glob('*.log')))
             time.sleep(.1)
         else: raise AssertionError('Grafana failed to become healthy')
         status, org = cls.api('/api/orgs', data={'name': 'synthetic-portal'})
@@ -181,8 +195,12 @@ class NativeTenantDataPlane(unittest.TestCase):
         self.assertEqual(self.query('attempt-direct', user='tenant-admin')[0], 403)
 
     def test_raw_backend_requires_client_certificate(self):
-        with self.assertRaises((urllib.error.URLError, ssl.SSLError, OSError)):
-            self.http('https://localhost:' + str(self.prom_port) + '/api/v1/query?query=fixture_value')
+        if self.backend_sidecar:
+            # Nginx completes TLS then rejects absent client authentication with 400.
+            self.assertEqual(self.http('https://localhost:' + str(self.prom_port) + '/api/v1/query?query=fixture_value')[0], 400)
+        else:
+            with self.assertRaises((urllib.error.URLError, ssl.SSLError, OSError)):
+                self.http('https://localhost:' + str(self.prom_port) + '/api/v1/query?query=fixture_value')
 
     def test_tenant_cannot_select_platform_org_header(self):
         code, _ = self.api('/api/datasources', user='tenant-admin', org=1)
@@ -192,7 +210,10 @@ class NativeTenantDataPlane(unittest.TestCase):
         self.create_source('model-direct', 'https://localhost:' + str(self.prom_port), 'portal', user='tenant-admin')
         code, result = self.api('/api/ds/query', user='tenant-admin', data={'from': 'now-5m', 'to': 'now', 'queries': [{'refId': 'A', 'datasource': {'type': 'prometheus', 'uid': 'model-direct'}, 'expr': 'fixture_value', 'instant': True, 'range': False, 'intervalMs': 1000, 'maxDataPoints': 1000}]})
         self.assertNotEqual(code, 200, result)
-        self.assertFalse(result.get('results', {}).get('A', {}).get('frames'))
+        # Grafana may attach an empty diagnostic frame on HTTP auth errors.
+        for frame in result.get('results', {}).get('A', {}).get('frames', []):
+            self.assertFalse(frame.get('schema', {}).get('fields'))
+            self.assertFalse(frame.get('data', {}).get('values'))
         self.assertIn('error', result.get('results', {}).get('A', {}))
 
     def test_query_model_api_is_also_scoped(self):
@@ -202,6 +223,30 @@ class NativeTenantDataPlane(unittest.TestCase):
         labels = [field['labels'] for frame in frames for field in frame['schema']['fields'] if field.get('labels')]
         self.assertTrue(labels)
         self.assertEqual({x['namespace'] for x in labels}, {'tenant-portal'})
+
+
+
+
+class NativeLoopbackBackend(NativeTenantDataPlane):
+    """Same Grafana bypass suite behind loopback HTTP + authenticated TLS sidecar.
+
+    This is a localhost process proof, not an Operator reconciliation/CNI test.
+    """
+    backend_sidecar = True
+
+    def test_local_operator_probe_and_reload_paths_work(self):
+        for path in ['/-/ready', '/-/healthy']:
+            self.assertEqual(self.http('http://127.0.0.1:' + str(self.local_prom_port) + path)[0], 200)
+        self.assertEqual(self.http('http://127.0.0.1:' + str(self.local_prom_port) + '/-/reload', method='POST')[0], 200)
+
+    def test_authenticated_self_scrape_and_lifecycle_denial(self):
+        tls = ssl.create_default_context(cafile=str(self.cert))
+        tls.load_cert_chain(str(self.cert), str(self.folder / 'key.pem'))
+        url = 'https://localhost:' + str(self.prom_port)
+        code, metrics = self.http(url + '/metrics', tls=tls)
+        self.assertEqual(code, 200); self.assertIn('prometheus_build_info', metrics)
+        for path in ['/-/reload', '/-/quit', '/api/v1/admin/tsdb/delete_series']:
+            self.assertEqual(self.http(url + path, method='POST', tls=tls)[0], 404)
 
 
 if __name__ == '__main__': unittest.main()
