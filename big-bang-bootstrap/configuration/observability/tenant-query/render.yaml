@@ -11,10 +11,11 @@
           - tenant_query_render_enabled | default(false) | bool
           - query_contexts is sequence and query_contexts is not string and query_contexts | length > 0
           - runtime_dir is match('^/[A-Za-z0-9_./-]+$')
+          - (tenant_query_output_dir | default(runtime_dir)) is match('^/[A-Za-z0-9_./-]+$')
           - certificate_path is match('^/[A-Za-z0-9_./-]+$')
           - private_key_path is match('^/[A-Za-z0-9_./-]+$')
           - server_name is match('^[a-z0-9.-]+$')
-          - listen_address is match('^127[.]0[.]0[.]1:[0-9]+$')
+          - listen_address is match('^127[.]0[.]0[.]1:[0-9]+$') or ((tenant_query_package_enabled | default(false) | bool) and listen_address == '0.0.0.0:8443')
           - metrics_upstream is match('^https?://[a-zA-Z0-9.-]+:[0-9]+$')
           - listen_address.split(':')[-1] | int not in query_contexts | map(attribute='proxy_port') | map('int') | list
           - query_contexts | map(attribute='id') | unique | length == query_contexts | length
@@ -58,18 +59,65 @@
           - platform_query.htpasswd_path | realpath not in query_contexts | map(attribute='htpasswd_path') | map('realpath') | list
       when: platform_query is defined
 
+    - name: Validate unselected package inputs
+      when: tenant_query_package_enabled | default(false) | bool
+      block:
+        - ansible.builtin.assert:
+            that:
+              - metrics_upstream.startswith('https://')
+              - listen_address == '0.0.0.0:8443'
+              - runtime_dir == '/tmp/gateway'
+              - gateway_namespace is match('^[a-z]([a-z0-9-]{0,49}[a-z0-9])?$')
+              - gateway_namespace not in ['monitoring', 'kube-system', 'default']
+              - gateway_tls_secret is match('^[a-z]([a-z0-9-]{0,49}[a-z0-9])?$')
+              - upstream_client_secret is match('^[a-z]([a-z0-9-]{0,49}[a-z0-9])?$')
+              - certificate_path == '/etc/gateway/tls/tls.crt'
+              - private_key_path == '/etc/gateway/tls/tls.key'
+              - upstream_ca_path == '/etc/gateway/upstream/ca.crt'
+              - upstream_client_cert_path == '/etc/gateway/upstream/tls.crt'
+              - upstream_client_key_path == '/etc/gateway/upstream/tls.key'
+              - platform_query.htpasswd_path == '/etc/gateway/auth/platform/htpasswd'
+              - platform_query.auth_secret_name is match('^[a-z]([a-z0-9-]{0,49}[a-z0-9])?$')
+              - query_contexts | map(attribute='auth_secret_name') | unique | length == query_contexts | length
+              - platform_query.auth_secret_name not in query_contexts | map(attribute='auth_secret_name') | list
+              - query_contexts | map(attribute='health_port') | unique | length == query_contexts | length
+        - ansible.builtin.assert:
+            that:
+              - item.id | length <= 50
+              - item.id is match('^[a-z]([a-z0-9-]*[a-z0-9])?$')
+              - item.auth_secret_name is match('^[a-z]([a-z0-9-]{0,49}[a-z0-9])?$')
+              - item.htpasswd_path == '/etc/gateway/auth/' + item.id + '/htpasswd'
+              - item.health_port | type_debug == 'int'
+              - item.health_port > 1024 and item.health_port < 65536 and item.health_port != 8443
+              - item.health_port not in query_contexts | map(attribute='proxy_port') | list
+          loop: '{{ query_contexts }}'
+
     - name: Create private candidate rendering directory
       ansible.builtin.file:
-        path: '{{ runtime_dir }}'
+        path: '{{ tenant_query_output_dir | default(runtime_dir) }}'
         state: directory
         mode: '0700'
 
     - name: Render inactive gateway candidate files
       ansible.builtin.template:
         src: '{{ playbook_dir }}/{{ item.src }}'
-        dest: '{{ runtime_dir }}/{{ item.dest }}'
+        dest: '{{ tenant_query_output_dir | default(runtime_dir) }}/{{ item.dest }}'
         mode: '0600'
       loop:
         - {src: nginx.conf.j2, dest: nginx.conf}
         - {src: proxy-arguments.yaml.j2, dest: proxy-arguments.yaml}
         - {src: grafana-security.ini.j2, dest: grafana-security.ini}
+
+    - name: Render unselected Flux-compatible package
+      ansible.builtin.template:
+        src: '{{ playbook_dir }}/deployment.yaml.j2'
+        dest: '{{ tenant_query_output_dir | default(runtime_dir) }}/deployment.yaml'
+        mode: '0600'
+      when: tenant_query_package_enabled | default(false) | bool
+
+    - name: Render unselected package Kustomization
+      ansible.builtin.template:
+        src: '{{ playbook_dir }}/package-kustomization.yaml.j2'
+        dest: '{{ tenant_query_output_dir | default(runtime_dir) }}/kustomization.yaml'
+        mode: '0600'
+      when: tenant_query_package_enabled | default(false) | bool

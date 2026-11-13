@@ -3,8 +3,9 @@
 This tests the smallest candidate for the [tenant boundary](../tenant-access.md):
 shared Grafana organizations and existing telemetry stores, with authenticated
 context-bound query enforcement. It is **not deployed or selected by any cluster
-root**. It grants nobody access. No runtime package/image/install path is selected
-by this slice; `sources.yaml` pins the native test binaries only.
+root**. It grants nobody access. An unselected Flux-compatible package is included
+below; its images are digest-pinned, but no runtime installation is selected.
+`sources.yaml` pins the additional native test binaries.
 
 ## Implemented path
 
@@ -118,9 +119,9 @@ operator/source audit before runtime activation.
 
 ## Remaining activation work
 
-- Select/pin packaged deployment through existing Big Bang/Flux ownership; provide
-  authenticated TLS upstream configuration and reviewed secret delivery. The local
-  renderer currently binds TLS to loopback only and has no deployment consumer.
+- Select the unselected package through existing Big Bang/Flux ownership; provide
+  authenticated TLS upstream configuration and reviewed secret delivery. Native
+  fixture rendering defaults to loopback; package rendering is an explicit opt-in.
 - The gateway must be separate from Grafana. Internal proxy ports are not exposed
   as Services. Grafana and tenant workloads cannot reach raw Prometheus/Loki or
   bypass gateways. Apply backend auth and actual network/egress enforcement.
@@ -148,3 +149,108 @@ These gates keep #218 open. No tenant grant is justified by these component test
 References: [prom-label-proxy](https://github.com/prometheus-community/prom-label-proxy),
 [Grafana security](https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/),
 [Prometheus security model](https://prometheus.io/docs/operating/security/).
+
+## Unselected Flux-compatible package
+
+Set `tenant_query_package_enabled: true` only to **render** the package, supplying
+`tenant_query_output_dir` separately from the container's fixed `/tmp/gateway`.
+The renderer emits `deployment.yaml` and `kustomization.yaml`; `kubectl kustomize`
+composes them offline. No Flux root, HelmRelease or running service is changed.
+The generated nonsecret manifests can enter a separately reviewed Flux path; do
+not commit protected htpasswd, certificate keys or generated secret contents.
+
+The candidate uses a dedicated platform-owned namespace, not `monitoring`,
+`kube-system` or `default`. Tenant workload/editor rights must not extend there.
+Required package inputs are `gateway_namespace`, `gateway_tls_secret`,
+`upstream_client_secret`, each context's `auth_secret_name` and integer
+`health_port`, plus `platform_query.auth_secret_name`. All protected paths are
+fixed under `/etc/gateway` and validated by `render.yaml`. Secret keys are:
+
+- gateway TLS: `tls.crt`, `tls.key`;
+- upstream identity: `ca.crt`, `tls.crt`, `tls.key`;
+- every distinct context and PE auth Secret: `htpasswd`.
+
+Distinct Secret names/files must contain distinct scoped credentials; filenames
+alone do not prove that. No ESO grant/delivery or Secret creation occurs here.
+
+One replica, nonroot UID/GID 1000, read-only filesystems, dropped capabilities and
+no Kubernetes token. Official Nginx 1.31.6-alpine reuses the existing repository
+TLS-proxy digest; prom-label-proxy v0.16.2 uses its inspected linux/amd64 manifest
+digest. Nodes are constrained to amd64. There is one Nginx container plus one
+namespace proxy per context, not another metrics store. For the single Portal
+fixture, proposed requests total 40m CPU and 128Mi RAM, limits 1 CPU and 384Mi RAM;
+these are starting budgets, not measured capacity or HA guarantees. No PVC.
+
+Only TLS 8443 is exposed by the ClusterIP Service. Query proxy ports stay on Pod
+loopback. Per-proxy internal metrics ports are only for kubelet readiness; the
+NetworkPolicy does not allow peers to those ports. Readiness proves processes are
+listening, not successful upstream queries or tenant isolation. Effective policies
+must be audited because Kubernetes NetworkPolicies are additive.
+
+The gateway policy allows ingress only from the selected monitoring Grafana Pods,
+and egress only to selected monitoring Prometheus Pods on 9090 and kube-system DNS
+on UDP/TCP 53. A second policy allows those gateway Pods into Prometheus. Neither
+policy removes the existing monitoring-namespace ingress allowance. Existing
+Grafana raw-backend bypass remains open until its separately reviewed backend/
+egress migration; therefore **no tenant grants accompany package deployment**.
+
+The package smoke runs actual pinned containers with no external network, as
+nonroot/read-only, and verifies internal metrics readiness. It is not Kubernetes
+Secret/fsGroup/CNI/Flux acceptance. Run all source/package checks with:
+
+```sh
+RUN_QUERY_PACKAGE_NATIVE=1 \
+QUERY_MONITORING_CHART=/path/to/verified/monitoring/chart \
+HELM_VALIDATE_BIN=/path/to/verified/helm \
+  PYTHONPATH=big-bang-bootstrap/tests \
+  python3 -m unittest configuration.test_tenant_query_package -v
+```
+
+Native containers must already be pulled by their exact digests. Chart input is
+verified monitoring 91.4.1-bb.1; Helm is the repository's 3.19.0 pin. The real Helm
+comparison proves `discovery-values.yaml` changes only five definition namespace
+selectors and preserves every other rendered object, including exporter labels.
+
+## Read-only live audit and bounded activation scope
+
+The 2026-11-13 read-only audit found 8 ServiceMonitors, 1 PodMonitor and 36
+PrometheusRules (94 recording rules), all defined in `monitoring`; no Probe or
+ScrapeConfig objects. Prometheus currently selects definitions from all namespaces,
+with no namespace enforcement or web TLS config. Kubelet and kube-state-metrics
+use `honorLabels: true` to preserve actual resource namespaces. Portal's inspected
+`portal-workloads` Role has no monitor/rule permissions; this is not a full
+cluster-wide effective-RBAC audit. No credentials or raw private topology are
+recorded here.
+
+The observed monitoring-namespace ingress allowance and absence of Grafana egress
+restrictions leave a raw Prometheus bypass today. Synthetic test success does not
+change that live fact. `discovery-values.yaml` is the smallest ownership fix:
+limit definition discovery to platform-owned `monitoring`, preserving trusted
+exporter resource labels. It does not authorize tenant-supplied rules/monitors and
+does not replace the remaining label/rule ownership audit.
+
+Before requesting deployment approval, finish the following bounded gates:
+
+1. Verify namespace protection, image pull/provenance, secret custody, backend TLS
+   identity, effective network policies and current datasource consumers. Render
+   against the selected released source. No broad new PE/OpenBao permissions.
+2. Validate the **Operator-generated** Prometheus configuration, startup/readiness
+   probes, config-reloader, self-scrape and existing consumers with authenticated
+   backend access. Native standalone mTLS is not drop-in Operator evidence:
+   [upstream tracks client-cert probe compatibility](https://github.com/prometheus-operator/prometheus-operator/issues/5419).
+   Do not flip `RequireAndVerifyClientCert` live until that path is proven.
+3. Ask for action-time approval of the exact namespace/Secret delivery and network
+   changes: gateway ingress from Grafana on 8443; gateway egress to the selected
+   backend on 9090 and DNS on 53; backend ingress from that gateway. Apply the
+   five discovery selectors only after verifying no selected definitions moved.
+   Keep tenant access closed and current PE datasource working during staging.
+4. Once equivalent authenticated PE metrics/log paths are ready, separately approve
+   the concrete Grafana datasource/egress migration closing raw backends while
+   preserving Keycloak and existing platform functionality. This package does not
+   yet supply that migration or a Loki route. Test custom URLs, query API, direct
+   backend, wrong credentials/context, and unchanged PE views on the actual target.
+5. Only after those denials pass request scoped tenant org/role activation. On a
+   failed denial, leave/revoke tenant access first; do not regain availability by
+   reopening raw backends while tenants still have access. Staging rollback removes
+   only the new candidate objects and restores the reviewed values selection,
+   preserving telemetry, existing credentials and the working platform app.

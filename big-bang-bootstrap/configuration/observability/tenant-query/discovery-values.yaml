@@ -1,0 +1,19 @@
+# Unselected Big Bang values overlay: restrict definition ownership, not resource labels.
+# All observed monitor/rule definitions are platform-owned in monitoring.
+monitoring:
+  values:
+    upstream:
+      prometheus:
+        prometheusSpec:
+          serviceMonitorNamespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: monitoring}
+          podMonitorNamespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: monitoring}
+          probeNamespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: monitoring}
+          scrapeConfigNamespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: monitoring}
+          ruleNamespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: monitoring}
+# Deliberately no overrideHonorLabels, enforcedNamespaceLabel or ignoreNamespaceSelectors:
+# KSM/kubelet resource namespaces must remain intact. Platform reviews owned monitors.
