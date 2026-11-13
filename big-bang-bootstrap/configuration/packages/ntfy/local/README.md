@@ -12,7 +12,12 @@ Service with the annotated HTTPS version. Namespace-only `prerequisites.yaml`
 is deliberately outside the Flux root: owner applies it once, not the receiving
 reconciler. The role adds get/list/watch/create/patch/update for ConfigMap,
 Service, ServiceAccount, PVC, StatefulSet, Ingress, NetworkPolicy and
-ServersTransport **only in ntfy**; no Secret, RBAC, delete or cluster authority.
+ServersTransport **only in ntfy**; no direct Secret API, RBAC-write, delete or
+cluster authority. Workload creation inherently permits mounting any Secret in
+this dedicated namespace (including the approved ntfy TLS leaf), choosing its
+service account and editing its network policy. Treat this reconciler as trusted
+for ntfy namespace workload/secret use; do not place unrelated credentials or
+privileged service accounts here. This is not a zero-secret-access boundary.
 Kubernetes cannot restrict create to exact resource names.
 
 Before selecting the root:
@@ -25,8 +30,9 @@ Before selecting the root:
   reviewed private ingress address. Preserve other records and service settings.
 - Verify existing Traefik supports ServersTransport rootCAs; verify private-only
   reachability and effective additive policies, not just the policy in this file.
-- Preserve prune=false and existing platform-reconciler. Verify no Secret/RBAC
-  authority is gained through the namespace binding.
+- Preserve prune=false and existing platform-reconciler. Verify no direct Secret API or RBAC-write
+  authority is gained through the namespace binding; confirm the namespace has
+  no unrelated Secrets or privileged service accounts.
 
 Acceptance: one healthy ntfy pod and bound PVC; correct TLS chain/hostname through
 Traefik; anonymous publish/read denied; no effective egress permission; existing
