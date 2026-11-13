@@ -15,7 +15,7 @@ PLAY = ROOT / 'big-bang-bootstrap/configuration/authorization/sso/mattermost/con
 T, C, U, H = (x * 26 for x in 'tcuh')
 
 
-class MattermostContext(unittest.TestCase):
+class MattermostFixture(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -46,16 +46,27 @@ class MattermostContext(unittest.TestCase):
                              f'/api/v4/teams/{T}/members?page=0&per_page=200':'team_members',
                              f'/api/v4/channels/{C}/members?page=0&per_page=200':'channel_members',
                              f'/api/v4/hooks/incoming/{H}':'hook'}
-                    data = s.get(paths.get(self.path))
+                    data = s.get('extra_paths', {}).get(self.path, s.get(paths.get(self.path)))
                     if data is None: status, data = 404, {}
                 self.send_response(status)
                 self.send_header('Content-Type', 'application/json')
                 if status == 302: self.send_header('Location', '/credential-leak')
                 self.end_headers(); self.wfile.write(json.dumps(data).encode())
             def do_POST(self):
-                s['calls'].append(('POST', self.path)); self.send_error(405)
+                s['calls'].append(('POST', self.path))
+                if s.get('apply_fixture') and self.path == f'/api/v4/channels/{C}/members':
+                    body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+                    s['channel_members'].append(dict(channel_id=C,user_id=body['user_id'],roles='channel_user channel_admin' if s.get('elevate_after_add') else 'channel_user'))
+                    self.send_response(201); self.send_header('Content-Type','application/json'); self.end_headers(); self.wfile.write(b'{}')
+                else: self.send_error(405)
             do_PUT = do_POST
-            do_DELETE = do_POST
+            def do_DELETE(self):
+                s['calls'].append(('DELETE', self.path))
+                if s.get('apply_fixture') and self.path.startswith(f'/api/v4/channels/{C}/members/'):
+                    uid=self.path.rsplit('/',1)[1]
+                    s['channel_members'][:]=[m for m in s['channel_members'] if m['user_id'] != uid]
+                    self.send_response(200); self.send_header('Content-Type','application/json'); self.end_headers(); self.wfile.write(b'{}')
+                else: self.send_error(405)
         self.server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.load_cert_chain(self.d/'ca', self.d/'key')
@@ -70,15 +81,17 @@ class MattermostContext(unittest.TestCase):
 
     def run_play(self, changes=None, success=True, check=False):
         (self.d/'contract').write_text(json.dumps(self.contract)); (self.d/'contract').chmod(0o600)
-        p = subprocess.run(['ansible-playbook', str(PLAY), '-e', json.dumps(self.v | (changes or {}))] + (['--check'] if check else []),
+        p = subprocess.run(['ansible-playbook', str(getattr(self, 'play', PLAY)), '-e', json.dumps(self.v | (changes or {}))] + (['--check'] if check else []),
                            capture_output=True, text=True, timeout=90,
                            env=dict(os.environ, KUBECONFIG='/dev/null', ANSIBLE_LOCAL_TEMP=str(self.d/'local'), ANSIBLE_REMOTE_TEMP=str(self.d/'remote')))
         self.assertEqual(p.returncode == 0, success, p.stdout+p.stderr)
         self.assertNotIn('fixture-secret-token',p.stdout+p.stderr)
         self.assertNotIn(H,p.stdout+p.stderr)
-        self.assertTrue(all(m=='GET' for m,_ in self.s['calls']))
+        self.assertTrue(all(m=='GET' or self.s.get('apply_fixture',False) for m,_ in self.s['calls']))
         return p
 
+
+class MattermostContext(MattermostFixture):
     def test_default_and_check_no_contact_or_private_input(self):
         self.run_play(dict(mattermost_context_inspect=False, mattermost_context_token_file='/missing'))
         self.run_play(dict(mattermost_context_token_file='/missing'),check=True)
