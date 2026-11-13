@@ -15,6 +15,7 @@ spec:
   endpoints:
   - port: http-web
     path: /metrics
+    relabelings: [{targetLabel: component, replacement: prometheus}]
     scheme: https
     tlsConfig:
       serverName: monitoring-monitoring-kube-prometheus.monitoring.svc
@@ -23,6 +24,7 @@ spec:
       keySecret: {name: query-backend-self-client, key: tls.key}
   - port: http-web
     path: /reloader/metrics
+    relabelings: [{targetLabel: component, replacement: config-reloader}]
     scheme: https
     tlsConfig:
       serverName: monitoring-monitoring-kube-prometheus.monitoring.svc

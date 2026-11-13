@@ -347,7 +347,9 @@ self-monitor and pairs it with `backend-self-monitor.yaml`: Prometheus `/metrics
 and `/reloader/metrics` use the dedicated client Secret and HTTPS. The frontend
 forwards reloader metrics to HTTP localhost8080. Operator `ListenLocal` also binds
 reloader metrics locally and removes its named container port, so the obsolete
-public reloader Service port is disabled. The reloader itself remains HTTP.
+public reloader Service port is disabled. The reloader itself remains HTTP. Each endpoint sets a distinct static `component`
+target label (`prometheus` or `config-reloader`) so shared `go_*`/`process_*`
+metric names cannot collide behind the same TLS Service/port.
 The monitor selector matches the actual chart-rendered Service labels. It does
 not change other kubelet/KSM/resource labels or discovery settings.
 

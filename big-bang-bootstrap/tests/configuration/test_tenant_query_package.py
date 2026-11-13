@@ -172,6 +172,8 @@ class TenantQueryPackage(unittest.TestCase):
         self.assertEqual(reloader['path'], '/reloader/metrics')
         self.assertEqual(reloader['scheme'], 'https')
         self.assertEqual(reloader['tlsConfig'], endpoint['tlsConfig'])
+        self.assertEqual(endpoint['relabelings'], [{'targetLabel': 'component', 'replacement': 'prometheus'}])
+        self.assertEqual(reloader['relabelings'], [{'targetLabel': 'component', 'replacement': 'config-reloader'}])
         self.assertEqual(set(monitor['spec']['namespaceSelector']['matchNames']), {'monitoring'})
         self.assertFalse(any(obj['kind'] == 'Secret' and obj['metadata']['name'].startswith('query-backend') for obj in docs))
 
