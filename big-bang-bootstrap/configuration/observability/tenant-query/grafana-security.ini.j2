@@ -1,0 +1,3 @@
+# Inactive datasource origin restriction, not a substitute for backend auth/egress.
+[security]
+data_source_proxy_whitelist={{ server_name }}:{{ listen_address.split(':')[-1] }}

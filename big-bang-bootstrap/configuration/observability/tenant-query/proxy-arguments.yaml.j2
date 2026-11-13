@@ -5,6 +5,11 @@
   arguments:
     - -insecure-listen-address=127.0.0.1:{{ context.proxy_port }}
     - -upstream={{ metrics_upstream }}
+{% if metrics_upstream.startswith('https://') %}
+    - -upstream-ca-cert={{ upstream_ca_path }}
+    - -upstream-client-cert={{ upstream_client_cert_path }}
+    - -upstream-client-key={{ upstream_client_key_path }}
+{% endif %}
     - -label=namespace
     - -error-on-replace
 {% for namespace in context.namespaces %}

@@ -137,3 +137,8 @@ synthetic recording backend. Supply `PROM_LABEL_PROXY_BIN` as documented in
 [the gateway slice](../configuration/observability/tenant-query/README.md).
 It tests query rewriting and authentication, not real Prometheus data, Grafana
 org boundaries, ingestion authenticity or deployed network isolation.
+
+`integration/test_tenant_query_data_plane.py` extends that evidence with pinned
+Grafana 13.2.1 and Prometheus 3.14.0: real synthetic series, upstream mTLS,
+per-org roles, custom-datasource attacks and query-model API denials. See the same
+gateway README for binary inputs and the remaining deployed/plugin/ingestion gaps.

@@ -4,7 +4,7 @@ This tests the smallest candidate for the [tenant boundary](../tenant-access.md)
 shared Grafana organizations and existing telemetry stores, with authenticated
 context-bound query enforcement. It is **not deployed or selected by any cluster
 root**. It grants nobody access. No runtime package/image/install path is selected
-by this slice; `sources.yaml` pins the native test binary only.
+by this slice; `sources.yaml` pins the native test binaries only.
 
 ## Implemented path
 
@@ -32,6 +32,15 @@ not silently added. A second synthetic context proves credential separation.
    tenant headers are stripped before upstream forwarding. Every PromQL selector
    receives the fixed scope; conflicting selectors fail, broad selectors narrow.
 
+The optional `platform_query.htpasswd_path` adds separate `/platform` query/range
+routes. Its auth file must differ from every tenant's, and it requires authenticated
+TLS upstream configuration. HTTPS upstreams require `upstream_ca_path`,
+`upstream_client_cert_path` and `upstream_client_key_path`; platform Nginx routing
+also requires `upstream_tls_name`. Only isolated loopback fixtures may use HTTP.
+The renderer additionally emits an inactive `grafana-security.ini` origin
+restriction. Merge it into selected Grafana configuration only after review; it
+is not automatically applied and does not replace backend mTLS or egress policy.
+
 No generic passthrough exists. Labels, series, metadata, rules, alerts, exemplars,
 remote-read, admin, debug and federation endpoints remain denied. Consequently
 label-discovery dashboard variables are not supported by this initial slice.
@@ -44,8 +53,8 @@ values, never namespace-name wildcard policies.
 Tests run actual Nginx (observed 1.26.3), real pinned prom-label-proxy, actual
 Ansible rendering, synthetic TLS/auth and a recording loopback backend. They prove
 credential/route isolation, header/form override resistance, selector rewriting,
-method/endpoint denials and empty-scope rejection. The backend does not execute
-PromQL: these tests do **not** prove returned-series isolation or data authenticity.
+method/endpoint denials and empty-scope rejection. The first suite uses a recording
+backend, not PromQL evaluation. The separate data-plane suite below exercises real Prometheus and Grafana.
 No downloads occur during tests. Provide the independently checksummed official
 Linux amd64 v0.16.2 binary and Nginx; the binary hash is checked again at startup.
 
@@ -59,7 +68,55 @@ PROM_LABEL_PROXY_BIN=/path/to/verified/prom-label-proxy \
 keys, htpasswd files and child processes are removed when the test finishes.
 No production configuration, kubeconfig, user credentials or services are used.
 
-## Mandatory before activation
+### Real synthetic data-plane evidence
+
+`integration/test_tenant_query_data_plane.py` runs checksum-pinned Grafana 13.2.1
+and Prometheus 3.14.0, matching reviewed app versions, with temporary organizations,
+users and metrics. It exercises both the datasource proxy and `/api/ds/query`
+used for arbitrary query requests. It proves in that fixture:
+
+- All three tenant roles receive Portal data only; the separately authenticated
+  PE datasource sees both tenants and unlabelled data.
+- Native tenant org Admin can create a datasource, but Portal credentials fail
+  against the PE/other-context route. Cross-org IDs and org-header switching fail.
+- Direct backend access lacks the mandatory client certificate. Grafana's source
+  origin restriction and backend mTLS both participate in preventing bypass.
+- Trusted scrape target labels with `honor_labels: false` prevent an application
+  from claiming another namespace; its conflicting label becomes `exported_namespace`.
+
+```sh
+PROM_LABEL_PROXY_BIN=/path/to/verified/prom-label-proxy \
+PROMETHEUS_VALIDATE_BIN=/path/to/verified/prometheus \
+GRAFANA_VALIDATE_BIN=/path/to/verified/grafana/bin/grafana \
+  PYTHONPATH=big-bang-bootstrap/tests \
+  python3 -m unittest integration.test_tenant_query_gateway integration.test_tenant_query_data_plane -v
+```
+
+This is synthetic data-plane evidence, not a deployed network test, frontend UI
+session test, full plugin/redirect surface audit, cluster rule audit or ingestion
+policy rollout. Grafana's public distribution fixture is not the Iron Bank plugin
+bundle. TLS certificates are disposable test inputs; runtime custody is unchanged.
+
+### Ingestion audit findings
+
+The checked-in limited metrics overlay does not yet enforce the trusted
+resource-to-namespace mapping needed for tenant query access. Do not infer it
+from a dashboard filter or from a ServiceMonitor's placement:
+
+- An application scrape can use its platform-owned target namespace with
+  `honor_labels: false`, as the native fixture proves. Tenant-controlled scrape
+  relabelling must not be able to replace this boundary.
+- Cluster exporters such as kube-state-metrics and kubelet/cAdvisor describe
+  resources across namespaces. Their legitimate **resource** namespace must be
+  retained and audited; stamping the exporter's own namespace is incorrect.
+- Rules can manufacture namespace-labelled aggregates. Review tenant-exposed
+  recording rules for mixed-context input; a namespace label alone proves nothing.
+
+The fixture does not claim the existing cluster already meets those conditions.
+Current source data ownership and selected monitoring rules still need an
+operator/source audit before runtime activation.
+
+## Remaining activation work
 
 - Select/pin packaged deployment through existing Big Bang/Flux ownership; provide
   authenticated TLS upstream configuration and reviewed secret delivery. The local
@@ -73,7 +130,8 @@ No production configuration, kubeconfig, user credentials or services are used.
 - Native Grafana org Admin can create datasources. Test arbitrary URLs, redirects,
   alternate DNS/IP/ports, self/metadata/internal endpoints, plugin resource APIs,
   cross-org datasource IDs and credential reuse. Folder/UI restrictions do not
-  close those paths. Neither network rules nor these Grafana tests exist here yet.
+  close those paths. Network rules and complete plugin/redirect coverage do not
+  exist here yet; the native tests cover the concrete datasource/query API attempts listed above.
 - Enforce authentic namespace/resource ownership at ingestion, including tenant
   scrape configuration and `honor_labels` controls. A namespaced scrape endpoint
   can expose other resources: do not stamp its namespace over cluster-exporter
@@ -82,7 +140,7 @@ No production configuration, kubeconfig, user credentials or services are used.
   backend before enabling access. Missing namespace has no tenant fallback.
 - Integrate the existing authenticated Loki tenant gateway separately. This slice
   adds no Loki routes and proves no log isolation.
-- Prove dashboard/Explore/API allow/deny behavior using tenant Admin/Editor/Viewer
+- Complete dashboard/Explore/UI/API allow/deny behavior using tenant Admin/Editor/Viewer
   and PE roles; preserve PE access and remove grants on failed isolation evidence.
 
 These gates keep #218 open. No tenant grant is justified by these component tests.
