@@ -63,6 +63,8 @@ Every playbook defaults off and contacts no API in check mode.
 - `reconcile-client.yaml`: dedicated disabled GitLab client lifecycle with no
   role/group grants. It reuses exact shared canonical mapper validation.
 - `reconcile-membership.yaml`: bounded native private tenant-group membership.
+- `inspect-context.yaml`: default-off read-only exact project/group identity check;
+  see [Portal context prerequisite](context.md) and its explicit remaining gates.
 - `prepare-runner-network.yaml`: private endpoint-specific NetworkPolicy manifest;
   no DNS lookup or policy application.
 - Runner `../gitlab-runner/reconcile-registration.yaml`: paused modern native

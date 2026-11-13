@@ -1,0 +1,11 @@
+# Copy to a private operator file; use real reviewed native IDs, never infer from GitHub names.
+gitlab_context_run: false
+gitlab_context_scope: UNAPPROVED
+gitlab_context_id: portal
+gitlab_native_origin: https://gitlab.UNCONFIGURED.invalid
+gitlab_native_ca_file: /UNCONFIGURED/public-ca
+gitlab_native_token_file: /UNCONFIGURED/read-api-token
+gitlab_context_group_id: 0
+gitlab_context_group_path: UNCONFIGURED
+gitlab_context_project_id: 0
+gitlab_context_project_path: UNCONFIGURED
