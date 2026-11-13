@@ -71,3 +71,50 @@ context with GitLab, Grafana and ntfy; tenant viewers may participate in channel
 and see their alerts but are not direct notification subscribers. Native
 provisioning, identity linkage and cross-tenant denial remain live acceptance,
 not capabilities implied by Keycloak login or source-only fixture checks.
+
+
+## Pragmatic rollout order and approval scope
+
+**Staged, not deployed:** app/operator remain disabled and suspended; neither is
+selected by a cluster root. Context inspection/reconciliation source and a
+disposable vendor-binary permission test do not change that status.
+
+1. Resolve the patched release/image and evaluation-versus-production entitlement
+   in the [edition review](edition-review.md). Keep a morning walkthrough clearly
+   separate from production tenant enablement.
+2. Stage dedicated app data using the repository's CNPG/PostgreSQL and S3-compatible
+   storage patterns. Do not reuse GitLab credentials, database or bucket. Confirm
+   actual deployed provider availability, free Longhorn capacity and compatible
+   PostgreSQL version before choosing the app DB footprint. Current app requests
+   alone are 2 CPU/4 GiB; database, filestore and operator capacity are additional.
+3. Render the exact operator/installer RBAC and readiness network policy.
+   Upstream runtime permissions span cluster-wide Secrets, workloads and native
+   Mattermost resources. Readiness emits unrestricted egress; replace that with
+   reviewed API/DNS destinations from protected environment inputs before rollout.
+   Keep the readiness job, rather than disabling checks to make installation pass.
+4. Deliver dedicated DB/filestore/OIDC inputs through approved OpenBao/ESO scopes,
+   with independent local-admin recovery custody. Resolve TLS, public CA trust,
+   restricted routing and registry delivery. Keep signup closed.
+5. After baseline acceptance, apply the approved global ordinary-member invitation
+   restriction and exact channel memberships; verify actual tenant denial,
+   linked login, PE visibility/history and scoped webhook delivery.
+
+Ask for concrete approval **immediately before** each security-sensitive live batch,
+with exact target identities, native IDs and resources resolved. Suggested scopes:
+
+- Install the reviewed Mattermost operator in its dedicated namespace, explicitly
+  disclosing its rendered cluster-wide Secret/workload authority and installer
+  role bindings; apply the reviewed readiness network rules. This is not a claim
+  of namespace-confined operator trust.
+- Deliver only the named Mattermost runtime credentials to its namespace and
+  configure the specific Keycloak client/redirect/TLS endpoint. Identify storage
+  destinations and consumers; never bundle unrelated secrets or applications.
+- Remove private-channel invitation management from the global ordinary
+  `channel_user` role, affecting ordinary members across the Mattermost server,
+  then apply the reviewed exact channel membership diff. Tenant viewers still
+  participate and see channel alerts; all platform engineers join each tenant
+  channel with history. Do not grant native administrator roles as a shortcut.
+
+These are approval templates, not requests already approved or executable
+commands. Stop at the relevant approval boundary. Preserve existing live
+applications and data throughout.
