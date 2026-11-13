@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.41.0](https://github.com/perkforge/perkforge-platform/compare/v0.40.0...v0.41.0) (2026-11-13)
+
+
+### Features
+
+* **observability:** package inactive tenant query gateway ([#355](https://github.com/perkforge/perkforge-platform/issues/355)) ([d581cc9](https://github.com/perkforge/perkforge-platform/commit/d581cc997eb5de0e16a4219ff5dc1ba4019e6b9b))
+
+
+### Bug Fixes
+
+* **ntfy:** add fixed DNS maintenance scope ([#354](https://github.com/perkforge/perkforge-platform/issues/354)) ([399f9ee](https://github.com/perkforge/perkforge-platform/commit/399f9ee0570faba8c61fd6523dbfa26dfddcb7a1))
+* **ntfy:** place persistent workload on storage workers ([#352](https://github.com/perkforge/perkforge-platform/issues/352)) ([586752b](https://github.com/perkforge/perkforge-platform/commit/586752b6cecdc1518a470ab1ab7a02233aaddbb9))
+
 ## [0.40.0](https://github.com/perkforge/perkforge-platform/compare/v0.39.0...v0.40.0) (2026-11-13)
 
 
