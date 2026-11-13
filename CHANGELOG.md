@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.42.0](https://github.com/perkforge/perkforge-platform/compare/v0.41.0...v0.42.0) (2026-11-13)
+
+
+### Features
+
+* **observability:** authenticate platform variable read APIs ([#360](https://github.com/perkforge/perkforge-platform/issues/360)) ([41ecb44](https://github.com/perkforge/perkforge-platform/commit/41ecb44b7db650e33b14e35a1ba76163a3b3537a))
+
+
+### Bug Fixes
+
+* **ntfy:** decouple DNS prerequisite from Portal rollout ([#359](https://github.com/perkforge/perkforge-platform/issues/359)) ([73cf204](https://github.com/perkforge/perkforge-platform/commit/73cf204d8c6ccba7d3224de30d9c3aed1e5ad61c))
+* **ntfy:** permit read-only Flux pod health checks ([#356](https://github.com/perkforge/perkforge-platform/issues/356)) ([c9502e8](https://github.com/perkforge/perkforge-platform/commit/c9502e8a6d6638c788a2207095274bc6999149d9))
+
 ## [0.41.0](https://github.com/perkforge/perkforge-platform/compare/v0.40.0...v0.41.0) (2026-11-13)
 
 
