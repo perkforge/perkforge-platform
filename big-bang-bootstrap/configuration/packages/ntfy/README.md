@@ -39,3 +39,41 @@ still required. Cleanup is attempted in `finally`; no real credential is read.
 
 Source: [official ntfy configuration](https://docs.ntfy.sh/config/) and the
 existing native v2.37.2 TLS/ACL tests in `tests/integration/test_ntfy_native_webhook.py`.
+
+## Trusted ingress candidate
+
+`routing.yaml.j2` follows the existing Harbor HTTPS backend pattern. It defines a
+named Traefik ServersTransport with explicit certificate server name and CA
+Secret, websecure-only ingress, and a pod policy admitting only the named ingress
+controller on 8443. The namespace and pod selectors are in the same peer (AND).
+This policy allows no egress; Kubernetes policies are additive, so inspect all
+matching policies before claiming effective denial. No external push provider or
+attachments is enabled.
+This permits responses on established connections but not ntfy-originated network
+connections. Actual CNI, ingress and mobile streaming behavior still need testing.
+
+Additional reviewed inputs: `ntfy_hostname`, `ntfy_ingress_tls_secret`,
+`ntfy_backend_server_name`, `ntfy_backend_ca_secret`, `ntfy_ingress_namespace`,
+`ntfy_ingress_app`. The backend CA Secret contains the public trust certificate in
+`ca.crt`; the backend TLS certificate SAN must match `ntfy_backend_server_name`.
+`ntfy_base_url` must equal `https://` plus `ntfy_hostname`. Protect the frontend and
+backend private keys through the existing approved secret-delivery process. Do
+not disable verification or enable plaintext to bypass a routing failure.
+
+The routing Service is an annotated replacement of the deployment Service, not
+an additional resource. A future owner must compose/merge these before submission
+rather than give two reconcilers the same Service. Neither template is selected or
+installed by this source change. Grafana uses the same trusted HTTPS hostname;
+its outbound CNI path must be checked separately rather than opening broad egress.
+
+Minimal activation approval batch: selected namespace/PVC and TLS delivery;
+ntfy ingress plus pod NetworkPolicy and exact HTTPS backend trust; exact-topic
+publisher/subscriber identities and protected runtime custody; then approved
+Grafana contact-point/route binding and synthetic firing/resolved acceptance.
+No user membership, cross-tenant read, platform administration, public internet
+exposure or controller-wide change is implied. Choose local hostname/storage
+values in the home-lab configuration, not in this reusable platform template.
+
+Before activation verify the installed Traefik CRD supports `rootCAs` and the
+controller resolves the named ServersTransport reference. The existing Harbor
+source uses this form; source similarity is not live controller evidence.

@@ -1,0 +1,58 @@
+# Unselected: complements deployment.yaml.j2, no controller-wide settings.
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata: {name: ntfy-tls, namespace: {{ ntfy_namespace | to_json }}}
+spec:
+  serverName: {{ ntfy_backend_server_name | to_json }}
+  insecureSkipVerify: false
+  rootCAs: [{secret: {{ ntfy_backend_ca_secret | to_json }}}]
+---
+# Apply annotations to the same service; do not create a parallel plaintext service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ntfy
+  namespace: {{ ntfy_namespace | to_json }}
+  annotations:
+    traefik.ingress.kubernetes.io/service.serversscheme: https
+    traefik.ingress.kubernetes.io/service.serverstransport: {{ (ntfy_namespace ~ '-ntfy-tls@kubernetescrd') | to_json }}
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: ntfy}
+  ports: [{name: https, port: 8443, targetPort: https}]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ntfy
+  namespace: {{ ntfy_namespace | to_json }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: 'true'
+spec:
+  ingressClassName: traefik
+  tls:
+  - hosts: [{{ ntfy_hostname | to_json }}]
+    secretName: {{ ntfy_ingress_tls_secret | to_json }}
+  rules:
+  - host: {{ ntfy_hostname | to_json }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend: {service: {name: ntfy, port: {number: 8443}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: ntfy-isolation, namespace: {{ ntfy_namespace | to_json }}}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: ntfy}}
+  policyTypes: [Ingress, Egress]
+  egress: []
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: {{ ntfy_ingress_namespace | to_json }}}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: {{ ntfy_ingress_app | to_json }}}
+    ports: [{protocol: TCP, port: 8443}]
