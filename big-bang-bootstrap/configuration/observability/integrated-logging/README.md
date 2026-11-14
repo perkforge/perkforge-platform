@@ -110,3 +110,18 @@ remains mandatory. Upstream Helm NOTES additionally reads the release Namespace
 for Istio metadata; the metadata role permits **get only** on the single
 `alloy` Namespace, not list/watch or any Namespace mutation. This grant is only
 for `bigbang:alloy-installer`, never the operator/collector.
+
+### Restricted synthetic acceptance images
+
+The `logging-pilot` namespace needs its own pull credential even when the pinned
+Registry1 test image appears cached. Do not bypass kubelet credential checks.
+After approval, `configuration/ansible/logging-canary-registry.yaml` copies only
+the existing immutable Registry1 payload from `logging/private-registry` into
+`logging-pilot/private-registry`, with hidden stdin, exact namespace/cluster
+checks, immutable owned-repeat equality and readback. Default/check mode does
+nothing. Set `logging_canary_registry_apply=true` and the independently verified
+`logging_expected_cluster_uid`. No password rotation, new registry authority,
+operator/collector permission, or automatic ServiceAccount modification occurs.
+Bounded restricted synthetic pods explicitly reference this Secret; clean up only
+the temporary test pods after acceptance. The pull Secret remains for repeatable
+acceptance and must never be committed or printed.

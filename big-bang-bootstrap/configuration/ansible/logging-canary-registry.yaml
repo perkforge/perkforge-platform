@@ -1,0 +1,80 @@
+- name: Deliver the existing approved Registry1 pull credential only to logging acceptance
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    logging_canary_registry_apply: false
+    logging_expected_cluster_uid: UNCONFIGURED
+  tasks:
+  - name: Default and check mode read no credentials or API
+    ansible.builtin.debug:
+      msg: 'Canary registry delivery={{ logging_canary_registry_apply | bool }}; check={{ ansible_check_mode }}'
+  - name: Deliver same immutable credential without adoption or rotation
+    when: logging_canary_registry_apply | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.command:
+        argv: [kubectl, get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: canary_cluster
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - logging_expected_cluster_uid != 'UNCONFIGURED'
+        - canary_cluster.stdout == logging_expected_cluster_uid
+    - ansible.builtin.command:
+        argv: [kubectl, get, namespace, logging-pilot, -o, json]
+      register: canary_namespace
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (canary_namespace.stdout | from_json).metadata.labels['perkforge.io/owner'] == 'logging-foundation-v1'
+        - (canary_namespace.stdout | from_json).metadata.labels['pod-security.kubernetes.io/enforce'] == 'restricted'
+    - ansible.builtin.command:
+        argv: [kubectl, get, secret, private-registry, -n, logging, -o, json]
+      register: canary_source
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (canary_source.stdout | from_json).immutable
+        - (canary_source.stdout | from_json).type == 'kubernetes.io/dockerconfigjson'
+        - (canary_source.stdout | from_json).metadata.labels['perkforge.io/owner'] == 'logging-inputs-v1'
+        - ((canary_source.stdout | from_json).data['.dockerconfigjson'] | b64decode | from_json).auths.keys() | list == ['registry1.dso.mil']
+    - ansible.builtin.set_fact:
+        canary_desired:
+          apiVersion: v1
+          kind: Secret
+          metadata: {name: private-registry, namespace: logging-pilot, labels: {perkforge.io/owner: logging-canary-registry-v1}}
+          immutable: true
+          type: kubernetes.io/dockerconfigjson
+          data: '{{ (canary_source.stdout | from_json).data }}'
+    - ansible.builtin.command:
+        argv: [kubectl, get, secret, private-registry, -n, logging-pilot, --ignore-not-found, -o, json]
+      register: canary_existing
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (canary_existing.stdout | from_json).metadata.labels['perkforge.io/owner'] | default('') == 'logging-canary-registry-v1'
+        - (canary_existing.stdout | from_json).immutable
+        - (canary_existing.stdout | from_json).type == canary_desired.type
+        - (canary_existing.stdout | from_json).data == canary_desired.data
+      when: canary_existing.stdout | trim | length > 0
+    - ansible.builtin.command:
+        argv: [kubectl, create, -f, '-']
+        stdin: '{{ canary_desired | to_json }}'
+      when: canary_existing.stdout | trim | length == 0
+      changed_when: true
+    - ansible.builtin.command:
+        argv: [kubectl, get, secret, private-registry, -n, logging-pilot, -o, json]
+      register: canary_readback
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (canary_readback.stdout | from_json).data == canary_desired.data
+        - (canary_readback.stdout | from_json).immutable
+    always:
+    - ansible.builtin.set_fact:
+        canary_source: {}
+        canary_desired: {}
+        canary_existing: {}
+        canary_readback: {}
+      no_log: true
