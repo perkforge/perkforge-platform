@@ -1,0 +1,68 @@
+# Operator prerequisite: not included in the root receiving this authority.
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: eso-ntfy-runtime, namespace: {{ ntfy_namespace }}}
+automountServiceAccountToken: false
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata: {name: ntfy-runtime, namespace: {{ ntfy_namespace }}}
+spec:
+  controller: perkforge
+  provider:
+    vault:
+      server: {{ ntfy_bao_server | to_json }}
+      path: platform
+      version: v2
+      caProvider: {type: ConfigMap, name: ntfy-openbao-ca, key: ca.crt}
+      auth:
+        kubernetes:
+          mountPath: kubernetes-eso
+          role: eso-ntfy-runtime
+          serviceAccountRef: {name: eso-ntfy-runtime, audiences: [openbao-eso]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: eso-ntfy-runtime, namespace: {{ ntfy_namespace }}}
+rules:
+- apiGroups: ['']
+  resources: [secrets]
+  verbs: [create]
+- apiGroups: ['']
+  resources: [secrets]
+  resourceNames: [ntfy-runtime-config]
+  verbs: [get, update, patch]
+- apiGroups: ['']
+  resources: [configmaps]
+  resourceNames: [ntfy-openbao-ca]
+  verbs: [get]
+- apiGroups: ['']
+  resources: [serviceaccounts/token]
+  resourceNames: [eso-ntfy-runtime]
+  verbs: [create]
+- apiGroups: [external-secrets.io]
+  resources: [externalsecrets, externalsecrets/status, secretstores/status]
+  verbs: [patch, update]
+- apiGroups: ['']
+  resources: [events]
+  verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: eso-ntfy-runtime, namespace: {{ ntfy_namespace }}}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: eso-ntfy-runtime}
+subjects: [{kind: ServiceAccount, name: external-secrets, namespace: external-secrets}]
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: {name: ntfy-runtime-config, namespace: {{ ntfy_namespace }}}
+spec:
+  refreshInterval: 1h
+  secretStoreRef: {kind: SecretStore, name: ntfy-runtime}
+  target:
+    name: ntfy-runtime-config
+    creationPolicy: Orphan
+    deletionPolicy: Retain
+  data:
+  - secretKey: server.yml
+    remoteRef: {key: {{ ntfy_record | to_json }}, property: server.yml}

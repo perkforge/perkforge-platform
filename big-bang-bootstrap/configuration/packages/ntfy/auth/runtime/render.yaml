@@ -1,0 +1,77 @@
+# Offline full-config assembly. Runtime values and credentials stay outside Git.
+- name: Render publisher-only native ntfy runtime
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ntfy_native_image: docker.io/binwiederhier/ntfy:v2.37.2@sha256:1875ddcf815c8a3c981d6d78c67a93452d0abba79b1ab9520b1f5f5238902bd7
+  tasks:
+  - ansible.builtin.assert:
+      that:
+      - ntfy_publisher_render | default(false) | bool
+      - ntfy_runtime_dir is match('^/[A-Za-z0-9_./-]+$')
+      - ntfy_runtime_dir == (ntfy_runtime_dir | realpath)
+      - ntfy_publisher is match('^[a-z][a-z0-9-]{0,63}$')
+      - ntfy_topic is match('^[a-z][a-z0-9-]{0,63}$')
+      - ntfy_namespace is match('^[a-z][a-z0-9-]{0,62}$')
+      - ntfy_record is match('^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$')
+      - ntfy_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+      - ntfy_existing_users == []
+      - ntfy_previous_managed == []
+  - ansible.builtin.file:
+      path: '{{ ntfy_runtime_dir }}'
+      state: directory
+      mode: '0700'
+  - name: Build credentials locally and preserve one full native server configuration
+    no_log: true
+    block:
+    - ansible.builtin.set_fact:
+        ntfy_base: '{{ lookup("file", ntfy_base_config_file) | from_yaml }}'
+    - ansible.builtin.assert:
+        that:
+        - ntfy_base['auth-default-access'] == 'deny-all'
+        - ntfy_base['auth-file'] == '/data/auth.db'
+        - ntfy_base['enable-signup'] == false
+        - ntfy_base['listen-http'] == '-'
+        - ntfy_base.get('auth-users', []) == []
+        - ntfy_base.get('auth-access', []) == []
+        - ntfy_base.get('auth-tokens', []) == []
+    - ansible.builtin.shell: 'umask 077; openssl rand -hex 32 > {{ ntfy_runtime_dir }}/publisher.password'
+      args: {creates: '{{ ntfy_runtime_dir }}/publisher.password'}
+    - ansible.builtin.shell: 'umask 077; printf tk_ > {{ ntfy_runtime_dir }}/publisher.token; openssl rand -hex 15 | cut -c1-29 >> {{ ntfy_runtime_dir }}/publisher.token'
+      args: {creates: '{{ ntfy_runtime_dir }}/publisher.token'}
+    - ansible.builtin.command:
+        argv: [podman, run, -i, --rm, --pull=never, --network, none, --entrypoint, ntfy, '{{ ntfy_native_image }}', user, hash]
+        stdin: "{{ lookup('file', ntfy_runtime_dir + '/publisher.password') }}\n{{ lookup('file', ntfy_runtime_dir + '/publisher.password') }}"
+      register: ntfy_hash
+      changed_when: false
+    - ansible.builtin.set_fact:
+        ntfy_accounts:
+        - username: '{{ ntfy_publisher }}'
+          kind: publisher
+          role: service
+          subject_id: null
+          approved: true
+          topics: ['{{ ntfy_topic }}']
+          password_hash: '{{ ntfy_hash.stdout | trim }}'
+          token: '{{ lookup("file", ntfy_runtime_dir + "/publisher.token") | trim }}'
+    - ansible.builtin.copy:
+        dest: '{{ ntfy_runtime_dir }}/validation.json'
+        mode: '0600'
+        content: '{{ {"accounts": ntfy_accounts, "previous_managed": [], "existing_users": [], "approved_removals": [], "approved_entitlements": {ntfy_publisher: {"kind": "publisher", "role": "service", "topics": [ntfy_topic]}}} | to_json }}'
+    - name: Validate using the existing native ownership and entitlement guard
+      ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/validate.py', '{{ ntfy_runtime_dir }}/validation.json']
+      changed_when: false
+    - ansible.builtin.set_fact:
+        ntfy_fragment: '{{ lookup("template", "../native-auth.yaml.j2") | from_yaml }}'
+    - ansible.builtin.copy:
+        dest: '{{ ntfy_runtime_dir }}/server.yml'
+        mode: '0600'
+        content: '{{ ntfy_base | combine(ntfy_fragment) | to_nice_yaml }}'
+    always:
+    - ansible.builtin.set_fact: {ntfy_accounts: [], ntfy_hash: {}, ntfy_fragment: {}}
+  - ansible.builtin.template:
+      src: consumers.yaml.j2
+      dest: '{{ ntfy_runtime_dir }}/consumers.yaml'
+      mode: '0600'

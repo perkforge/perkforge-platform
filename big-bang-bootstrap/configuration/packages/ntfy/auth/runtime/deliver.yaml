@@ -1,0 +1,92 @@
+# Create-only exact runtime record and dedicated machine identity. No pod rollout.
+- name: Deliver protected ntfy publisher configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+  - ansible.builtin.assert:
+      that:
+      - ntfy_publisher_deliver | default(false) | bool
+      - ntfy_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+      - ntfy_record is match('^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$')
+      - ntfy_namespace is match('^[a-z][a-z0-9-]{0,62}$')
+  - ansible.builtin.uri:
+      url: '{{ ntfy_bao_server }}/v1/sys/health'
+      ca_path: '{{ ntfy_bao_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+    register: health
+  - ansible.builtin.assert:
+      that: health.json.cluster_id == ntfy_bao_cluster_id and health.json.initialized and not health.json.sealed
+  - name: Refuse target Secret collision before any credential writes
+    ansible.builtin.command:
+      argv: [kubectl, -n, '{{ ntfy_namespace }}', get, secret, ntfy-runtime-config, --ignore-not-found, -o, name]
+    register: collision
+    changed_when: false
+  - ansible.builtin.assert:
+      that: collision.stdout == ''
+  - no_log: true
+    block:
+    - ansible.builtin.set_fact:
+        headers: {X-Vault-Token: '{{ lookup("file", ntfy_bao_token_file) | trim }}'}
+    - name: Refuse existing dedicated record or identity; no adoption
+      ansible.builtin.uri:
+        url: '{{ ntfy_bao_server }}/v1/{{ item }}'
+        headers: '{{ headers }}'
+        ca_path: '{{ ntfy_bao_ca_file }}'
+        use_proxy: false
+        use_netrc: false
+        follow_redirects: none
+        status_code: 404
+      loop:
+      - 'platform/data/{{ ntfy_record }}'
+      - sys/policies/acl/eso-ntfy-runtime
+      - auth/kubernetes-eso/role/eso-ntfy-runtime
+    - ansible.builtin.uri:
+        url: '{{ ntfy_bao_server }}/v1/platform/data/{{ ntfy_record }}'
+        method: POST
+        headers: '{{ headers }}'
+        ca_path: '{{ ntfy_bao_ca_file }}'
+        use_proxy: false
+        use_netrc: false
+        follow_redirects: none
+        body_format: json
+        body: {options: {cas: 0}, data: {server.yml: '{{ lookup("file", ntfy_runtime_dir + "/server.yml") }}'}}
+    - ansible.builtin.uri:
+        url: '{{ ntfy_bao_server }}/v1/sys/policies/acl/eso-ntfy-runtime'
+        method: PUT
+        headers: '{{ headers }}'
+        ca_path: '{{ ntfy_bao_ca_file }}'
+        use_proxy: false
+        use_netrc: false
+        follow_redirects: none
+        status_code: 204
+        body_format: json
+        body: {policy: 'path "platform/data/{{ ntfy_record }}" { capabilities = ["read"] }'}
+    - ansible.builtin.uri:
+        url: '{{ ntfy_bao_server }}/v1/auth/kubernetes-eso/role/eso-ntfy-runtime'
+        method: POST
+        headers: '{{ headers }}'
+        ca_path: '{{ ntfy_bao_ca_file }}'
+        use_proxy: false
+        use_netrc: false
+        follow_redirects: none
+        status_code: 204
+        body_format: json
+        body:
+          bound_service_account_names: [eso-ntfy-runtime]
+          bound_service_account_namespaces: ['{{ ntfy_namespace }}']
+          audience: openbao-eso
+          token_policies: [eso-ntfy-runtime]
+          token_ttl: 300
+          token_max_ttl: 900
+          token_explicit_max_ttl: 900
+          token_no_default_policy: true
+    always:
+    - ansible.builtin.set_fact: {headers: {}}
+  - name: Supply verified public CA without signing material
+    ansible.builtin.command:
+      argv: [kubectl, -n, '{{ ntfy_namespace }}', create, configmap, ntfy-openbao-ca, '--from-file=ca.crt={{ ntfy_bao_ca_file }}']
+  - ansible.builtin.command:
+      argv: [kubectl, create, -f, '{{ ntfy_runtime_dir }}/consumers.yaml']
