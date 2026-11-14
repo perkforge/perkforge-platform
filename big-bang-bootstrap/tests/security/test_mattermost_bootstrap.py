@@ -26,8 +26,8 @@ class NativeBootstrap(fixture.MattermostFixture):
                 self.reply(200 if obj else 404,obj or {})
             def do_POST(self):
                 s['calls'].append(('POST',self.path)); body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
-                if self.path.startswith('/api/v4/users?'):
-                    assert body['roles']=='system_user' and body['email_verified'] is False
+                if self.path=='/api/v4/users':
+                    assert body['disable_welcome_email'] is True and body['roles']=='system_user' and body['email_verified'] is False
                     obj=dict(body,id=fixture.U,delete_at=0); s['objects']['user']=obj
                 elif self.path=='/api/v4/teams':
                     obj=dict(body,id=fixture.T,delete_at=0); s['objects']['team']=obj
@@ -38,6 +38,7 @@ class NativeBootstrap(fixture.MattermostFixture):
                 else:
                     assert self.path.endswith('/members')
                     role='team_user' if '/teams/' in self.path else 'channel_user'
+                    if '/teams/' in self.path: assert body['team_id']==fixture.T
                     obj=dict(body,roles=role,delete_at=0); s['members'][self.path+'/'+body['user_id']]=obj
                 self.reply(201,obj)
         self.server.RequestHandlerClass=Handler

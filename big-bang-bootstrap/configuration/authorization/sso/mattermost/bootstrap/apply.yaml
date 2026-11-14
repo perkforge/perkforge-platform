@@ -2,11 +2,11 @@
 - when: mb_user.status == 404
   block:
   - ansible.builtin.uri:
-      url: '{{ mattermost_context_origin }}/api/v4/users?disable_welcome_email=true'
+      url: '{{ mattermost_context_origin }}/api/v4/users'
       headers: '{{ mb_headers }}'
       method: POST
       body_format: json
-      body: {username: '{{ mb.username }}', email: '{{ mb.email }}', auth_service: openid, auth_data: '{{ mb.subject }}', email_verified: '{{ mb.email_verified }}', roles: system_user}
+      body: {disable_welcome_email: true, username: '{{ mb.username }}', email: '{{ mb.email }}', auth_service: openid, auth_data: '{{ mb.subject }}', email_verified: '{{ mb.email_verified }}', roles: system_user}
       status_code: 201
     register: mb_created
   - ansible.builtin.set_fact:

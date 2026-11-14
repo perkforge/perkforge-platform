@@ -17,7 +17,7 @@
     headers: '{{ mb_headers }}'
     method: POST
     body_format: json
-    body: {user_id: '{{ mb_receipt.ids.user_id }}'}
+    body: '{{ {"user_id":mb_receipt.ids.user_id} | combine({"team_id":mb_target.id} if mb_target.resource == "teams" else {}) }}'
     status_code: 201
 - ansible.builtin.uri:
     url: '{{ mattermost_context_origin }}/api/v4/{{ mb_target.resource }}/{{ mb_target.id }}/members/{{ mb_receipt.ids.user_id }}'

@@ -68,3 +68,9 @@ Offline test: `PYTHONPATH=big-bang-bootstrap/tests python3 -m unittest
 security.test_mattermost_bootstrap -v`. Real Ansible uses synthetic HTTPS responses
 for create/readback, receipt repeat with no POST, foreign collision refusal, and
 default/check inactivity. No real credentials, account or network grant is tested.
+
+For a private Keycloak endpoint, the reviewed SSO values derive
+`MM_SERVICESETTINGS_ALLOWEDUNTRUSTEDINTERNALCONNECTIONS` from only the configured
+issuer hostname. Live activation needs exact-host approval. This is Mattermost's
+native SSRF exception for discovery/token traffic, not a CIDR/wildcard, network
+route, or TLS verification bypass. The trusted CA mount remains required.
