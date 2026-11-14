@@ -1,0 +1,15 @@
+# Select only after reviewed exact-topic runtime record and ESO sync; preserves Portal.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-portal-pilot
+patches:
+- target: {group: helm.toolkit.fluxcd.io, version: v2, kind: HelmRelease, name: bigbang, namespace: bigbang}
+  patch: |-
+    - op: add
+      path: /spec/valuesFrom/-
+      value:
+        kind: ConfigMap
+        name: grafana-ntfy-values
+        valuesKey: values.yaml
+        optional: false

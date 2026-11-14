@@ -1,0 +1,54 @@
+# Source-only protected rendering. No API calls, credential generation or notifications.
+- name: Render one approved Grafana ntfy audience
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    grafana_ntfy_render: false
+    grafana_ntfy_org_id: 1
+    grafana_ntfy_secret: grafana-ntfy-alerting
+    grafana_ntfy_auth_identity: eso-grafana-alerts
+    grafana_ntfy_ca_configmap: query-openbao-ca
+  tasks:
+  - when: grafana_ntfy_render | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - grafana_ntfy_context is match('^[a-z][a-z0-9-]{0,23}$')
+        - grafana_ntfy_namespace is match('^[a-z][a-z0-9-]{0,62}$')
+        - grafana_ntfy_monitoring_namespace is match('^[a-z][a-z0-9-]{0,62}$')
+        - grafana_ntfy_topic is match('^[a-z][a-z0-9-]{0,63}$')
+        - grafana_ntfy_url is match('^https://[a-z0-9.-]+(:[0-9]+)?/$')
+        - grafana_ntfy_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+        - grafana_ntfy_record is match('^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$')
+        - grafana_ntfy_org_id | int > 0
+        - grafana_ntfy_secret == 'grafana-ntfy-alerting'
+        - grafana_ntfy_auth_identity == 'eso-grafana-alerts'
+        - grafana_ntfy_ca_configmap == 'query-openbao-ca'
+        - grafana_ntfy_output_dir is match('^/[A-Za-z0-9_./-]+$')
+        - grafana_ntfy_output_dir == grafana_ntfy_output_dir | realpath
+    - ansible.builtin.stat:
+        path: '{{ grafana_ntfy_token_file }}'
+        follow: false
+      register: token_stat
+    - ansible.builtin.assert:
+        that:
+        - token_stat.stat.isreg and not token_stat.stat.islnk
+        - token_stat.stat.mode == '0600'
+    - ansible.builtin.assert:
+        that: lookup('file', grafana_ntfy_ca_file, rstrip=false) | hash('sha256') == grafana_ntfy_ca_sha256
+    - ansible.builtin.file:
+        path: '{{ grafana_ntfy_output_dir }}'
+        state: directory
+        mode: '0700'
+    - name: Render secret-bearing native alerting configuration privately
+      ansible.builtin.template:
+        src: '{{ playbook_dir }}/alerting.yaml.j2'
+        dest: '{{ grafana_ntfy_output_dir }}/alerting.yaml'
+        mode: '0600'
+      no_log: true
+    - ansible.builtin.template:
+        src: '{{ playbook_dir }}/{{ item }}.j2'
+        dest: '{{ grafana_ntfy_output_dir }}/{{ item }}'
+        mode: '0600'
+      loop: [consumers.yaml, values.yaml]

@@ -1,0 +1,11 @@
+# Big Bang native child values. Existing OIDC, datasource, mounts and dashboards remain.
+grafana:
+  values:
+    upstream:
+      extraSecretMounts:
+      - name: ntfy-alerting
+        mountPath: /etc/grafana/provisioning/alerting/ntfy.yaml
+        subPath: alerting.yaml
+        secretName: {{ grafana_ntfy_secret }}
+        defaultMode: 288
+        readOnly: true

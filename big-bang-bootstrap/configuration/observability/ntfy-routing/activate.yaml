@@ -1,0 +1,112 @@
+# Separately approved delivery only. Never rotates existing credentials or sends an alert.
+- name: Deliver one dedicated Grafana alerting record
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    grafana_ntfy_activate: false
+    grafana_ntfy_secret: grafana-ntfy-alerting
+    grafana_ntfy_auth_identity: eso-grafana-alerts
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ grafana_ntfy_bao_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      timeout: 20
+  tasks:
+  - when: grafana_ntfy_activate | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - grafana_ntfy_record is match('^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$')
+        - grafana_ntfy_monitoring_namespace is match('^[a-z][a-z0-9-]{0,62}$')
+        - grafana_ntfy_auth_identity == 'eso-grafana-alerts'
+        - grafana_ntfy_secret == 'grafana-ntfy-alerting'
+        - grafana_ntfy_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+    - ansible.builtin.uri:
+        url: '{{ grafana_ntfy_bao_server }}/v1/sys/health'
+      register: bao_health
+    - ansible.builtin.assert:
+        that: bao_health.json.cluster_id == grafana_ntfy_bao_cluster_id and not bao_health.json.sealed
+    - name: Refuse target collision before reading operator credentials
+      ansible.builtin.command:
+        argv: [kubectl, -n, '{{ grafana_ntfy_monitoring_namespace }}', get, secret, '{{ grafana_ntfy_secret }}', --ignore-not-found, -o, name]
+      register: target
+      changed_when: false
+    - ansible.builtin.assert: {that: target.stdout == ''}
+    - name: Create or verify exact partial-retry records without exposing secrets
+      no_log: true
+      block:
+      - ansible.builtin.set_fact:
+          bao_headers: {X-Vault-Token: '{{ lookup("file", grafana_ntfy_bao_token_file) | trim }}'}
+          desired_record: {alerting.yaml: '{{ lookup("file", grafana_ntfy_output_dir + "/alerting.yaml", rstrip=false) }}'}
+          desired_policy: 'path "platform/data/{{ grafana_ntfy_record }}" { capabilities = ["read"] } path "auth/token/lookup-self" { capabilities = ["read"] }'
+          desired_role:
+            bound_service_account_names: ['{{ grafana_ntfy_auth_identity }}']
+            bound_service_account_namespaces: ['{{ grafana_ntfy_monitoring_namespace }}']
+            audience: openbao-eso
+            token_policies: ['{{ grafana_ntfy_auth_identity }}']
+            token_ttl: 300
+            token_max_ttl: 900
+            token_explicit_max_ttl: 900
+            token_no_default_policy: true
+      - ansible.builtin.uri:
+          url: '{{ grafana_ntfy_bao_server }}/v1/platform/data/{{ grafana_ntfy_record }}'
+          headers: '{{ bao_headers }}'
+          status_code: [200, 404]
+        register: record_before
+      - ansible.builtin.assert:
+          that: record_before.json.data.data == desired_record
+        when: record_before.status == 200
+      - ansible.builtin.uri:
+          url: '{{ grafana_ntfy_bao_server }}/v1/sys/policies/acl/{{ grafana_ntfy_auth_identity }}'
+          headers: '{{ bao_headers }}'
+          status_code: [200, 404]
+        register: policy_before
+      - ansible.builtin.assert:
+          that: policy_before.json.data.policy == desired_policy
+        when: policy_before.status == 200
+      - ansible.builtin.uri:
+          url: '{{ grafana_ntfy_bao_server }}/v1/auth/kubernetes-eso/role/{{ grafana_ntfy_auth_identity }}'
+          headers: '{{ bao_headers }}'
+          status_code: [200, 404]
+        register: role_before
+      - ansible.builtin.assert:
+          that: role_before.json.data[item.key] == item.value
+        loop: '{{ desired_role | dict2items }}'
+        when: role_before.status == 200
+      - ansible.builtin.uri:
+          url: '{{ grafana_ntfy_bao_server }}/v1/platform/data/{{ grafana_ntfy_record }}'
+          method: POST
+          headers: '{{ bao_headers }}'
+          body_format: json
+          body: {options: {cas: 0}, data: '{{ desired_record }}'}
+        when: record_before.status == 404
+      - ansible.builtin.uri:
+          url: '{{ grafana_ntfy_bao_server }}/v1/sys/policies/acl/{{ grafana_ntfy_auth_identity }}'
+          method: PUT
+          headers: '{{ bao_headers }}'
+          body_format: json
+          body: {policy: '{{ desired_policy }}'}
+          status_code: 204
+        when: policy_before.status == 404
+      - ansible.builtin.uri:
+          url: '{{ grafana_ntfy_bao_server }}/v1/auth/kubernetes-eso/role/{{ grafana_ntfy_auth_identity }}'
+          method: POST
+          headers: '{{ bao_headers }}'
+          body_format: json
+          body: '{{ desired_role }}'
+          status_code: 204
+        when: role_before.status == 404
+      always:
+      - ansible.builtin.set_fact: {bao_headers: {}, desired_record: {}}
+    - name: Apply only reviewed dedicated auth token grant and ESO consumer
+      ansible.builtin.command:
+        argv: [kubectl, apply, --server-side, --field-manager=grafana-ntfy, -f, '{{ grafana_ntfy_output_dir }}/consumers.yaml']
+    - ansible.builtin.command:
+        argv: [kubectl, -n, '{{ grafana_ntfy_monitoring_namespace }}', wait, 'externalsecret/{{ grafana_ntfy_secret }}', --for=condition=Ready, --timeout=90s]
+    - name: Create nonsecret native mount values; never select or roll a root here
+      ansible.builtin.command:
+        argv: [kubectl, -n, bigbang, create, configmap, grafana-ntfy-values, '--from-file=values.yaml={{ grafana_ntfy_output_dir }}/values.yaml']

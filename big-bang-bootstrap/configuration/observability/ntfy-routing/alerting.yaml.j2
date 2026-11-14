@@ -1,0 +1,66 @@
+apiVersion: 1
+contactPoints:
+- orgId: {{ grafana_ntfy_org_id }}
+  name: {{ ('context-' ~ grafana_ntfy_context ~ '-ntfy') | to_json }}
+  receivers:
+  - uid: {{ ('ctx-' ~ grafana_ntfy_context ~ '-ntfy') | to_json }}
+    type: webhook
+    disableResolveMessage: false
+    settings:
+      url: {{ grafana_ntfy_url | to_json }}
+      httpMethod: POST
+      authorization_scheme: Bearer
+      authorization_credentials: {{ lookup('file', grafana_ntfy_token_file) | trim | to_json }}
+      tlsConfig:
+        insecureSkipVerify: false
+        caCertificate: {{ lookup('file', grafana_ntfy_ca_file) | to_json }}
+      payload:
+        template: >-
+          {% raw %}{"topic":"{% endraw %}{{ grafana_ntfy_topic }}{% raw %}","title":"{% endraw %}{{ grafana_ntfy_context }}{% raw %} alerts","message":"{% endraw %}{{ grafana_ntfy_context }}{% raw %}: {{ if eq .Status "firing" }}firing{{ else if eq .Status "resolved" }}resolved{{ else }}unknown{{ end }}; {{ len .Alerts }} grouped alert(s)."}{% endraw %}
+
+groups:
+- orgId: {{ grafana_ntfy_org_id }}
+  name: {{ grafana_ntfy_context }}-availability
+  folder: PerkForge managed availability
+  interval: 30s
+  rules:
+{% for rule in [{'id':'availability','title':'deployment availability','expr':'(sum(kube_deployment_spec_replicas{namespace="' ~ grafana_ntfy_namespace ~ '"}) - sum(kube_deployment_status_replicas_available{namespace="' ~ grafana_ntfy_namespace ~ '"})) or vector(0)'}, {'id':'crashloop','title':'pod crash loop','expr':'sum(kube_pod_container_status_waiting_reason{namespace="' ~ grafana_ntfy_namespace ~ '",reason="CrashLoopBackOff"}) or vector(0)'}] %}
+  - uid: {{ ('pf-' ~ grafana_ntfy_context ~ '-' ~ rule.id) | to_json }}
+    title: {{ (grafana_ntfy_context ~ ' ' ~ rule.title) | to_json }}
+    condition: C
+    for: 5m
+    noDataState: KeepLast
+    execErrState: KeepLast
+    isPaused: false
+    labels:
+      context: {{ grafana_ntfy_context | to_json }}
+      namespace: {{ grafana_ntfy_namespace | to_json }}
+    notification_settings:
+      receiver: {{ ('context-' ~ grafana_ntfy_context ~ '-ntfy') | to_json }}
+      group_by: [context, namespace, alertname]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange: {from: 600, to: 0}
+      model:
+        datasource: {type: prometheus, uid: prometheus}
+        refId: A
+        instant: true
+        range: false
+        expr: {{ rule.expr | to_json }}
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange: {from: 0, to: 0}
+      model:
+        type: threshold
+        refId: C
+        expression: A
+        conditions:
+        - evaluator: {type: gt, params: [0]}
+          operator: {type: and}
+          reducer: {type: last, params: []}
+          type: query
+{% endfor %}
