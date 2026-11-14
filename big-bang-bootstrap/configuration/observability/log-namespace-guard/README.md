@@ -105,4 +105,39 @@ has `TestLogNamespaceGuard`; run from `tests/security/cel` with
 and evaluates the actual rendered expression, including CREATE/DELETE denial.
 The existing CI job includes this test when its already-paused workflow is resumed;
 this change does not unpause it. Local Go is unavailable, so native compilation
-is pending. Both synthetic manifests passed Kubernetes server-side dry-run structure validation without persistence; that does not compile/evaluate bound admission. No live policy installation or actual admission/SSA claim is made.
+is pending as an independent offline check. Both synthetic manifests passed Kubernetes server-side dry-run structure validation without persistence. Subsequent separately approved physical activation and actual native admission evidence are recorded below, not inferred from these fixtures.
+
+
+## Approved Portal activation evidence (2026-11-14)
+
+Reviewed source PR430 was merged, then the exact Portal runtime guard was installed
+through the approved platform foundation procedure. Protected environment-owned
+inputs, rendered desired manifests, source revision/checksums and admission receipt
+are retained separately from Git. This is a source-owned operator foundation step,
+not a claim of a new continuous reconciler or automatic drift repair.
+
+The unbound native policy reached generation1/observedGeneration1 with empty
+`status.typeChecking`; only then were the two ownership annotations seeded by CAS,
+verified and the named Deny binding created. Native API defaulting adds precisely
+empty `matchConstraints.namespaceSelector` and `objectSelector`. Repeat verification
+must compare the entire expected spec after adding those two known empty defaults;
+reject nonempty selectors or any other divergence. Never skip spec comparison.
+
+Actual server-side dry-run evidence:
+- Existing UID/epoch-preserving updates, unrelated metadata and the existing
+  enrollment foundation's Namespace SSA were accepted.
+- Ownership annotation removal, changed context/epoch and DELETE were denied
+  explicitly by the named policy and binding.
+- UID spoofing was denied earlier by Kubernetes immutable-field validation, not
+  falsely reported as an evaluated VAP UID assertion.
+- The separate Portal configuration namespace remained outside this policy's
+  scope. Existing runtime labels, PSA, Namespace spec and UID were preserved.
+
+No Namespace deletion occurred; no dry-run marker persisted. CREATE against the
+existing name is not a tested admission denial and no destructive recreation test
+was attempted. Independent offline CEL fixture execution remains pending; actual
+API typechecking and positive/negative admission above are distinct native proof.
+This closes the ordinary name-reuse path while the exact guard remains bound,
+not every tenant log authorization criterion. Tenant log access was not enabled
+by this operation; gateway/Grafana scope denial and credential/session revocation
+remain separate gates. Trusted platform administrators can still alter policy.
