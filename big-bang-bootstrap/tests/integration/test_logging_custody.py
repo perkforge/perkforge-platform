@@ -18,7 +18,11 @@ class LoggingCustody(unittest.TestCase):
    for role in [x for x in pre if x['kind']=='Role']:
     for rule in role['rules']:
      self.assertEqual(len(rule['resourceNames']),1)
-     if rule['resources']==['secrets']:self.assertEqual(rule['verbs'],['get','update','patch'])
+     if rule['resources']==['secrets']:
+      if role['metadata']['name']=='alloy-scoped-client-secret-reader':
+       self.assertEqual(rule['verbs'],['get','watch']);self.assertEqual(rule['resourceNames'],['loki-boundary-collector-v1']);self.assertEqual(role['metadata']['namespace'],'alloy')
+      else:self.assertEqual(rule['verbs'],['get','update','patch'])
+   binding=next(x for x in pre if x['kind']=='RoleBinding' and x['metadata']['name']=='alloy-scoped-client-secret-reader');self.assertEqual(binding['subjects'],[{'kind':'ServiceAccount','name':'alloy-log-reader','namespace':'alloy'}])
    external=[x for x in consumers if x['kind']=='ExternalSecret'];self.assertEqual(len(external),4)
    for obj in external:
     self.assertEqual(obj['spec']['target']['creationPolicy'],'Merge');self.assertEqual(obj['spec']['target']['deletionPolicy'],'Retain')

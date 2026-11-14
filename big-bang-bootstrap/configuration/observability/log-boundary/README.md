@@ -128,3 +128,10 @@ window after verifying the old opt-in pilot has no live producers; otherwise
 review buffering/collection impact before proceeding. The tenant lifecycle guard
 and actual cross-scope denials remain mandatory before tenant exposure, not a
 reason to block reviewed platform-only collection.
+
+Native Alloy also needs its own namespaced `get/watch` on the exact
+`alloy/loki-boundary-collector-v1` Secret for `remote.kubernetes.secret`.
+The separate `alloy-scoped-client-secret-reader` Role/Binding grants only that
+consumer identity, not cluster-wide Secret reads or any query credential. ESO
+success alone does not prove the collector can read its destination credential.
+Verify both `auth can-i` and actual component reload/ingestion before acceptance.
