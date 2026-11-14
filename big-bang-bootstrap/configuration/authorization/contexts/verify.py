@@ -81,7 +81,7 @@ def validate(document):
     keys(t['ntfy'], 'topic', 'ntfy')
     require(t['ntfy']['topic'] == f'tenant-{tenant}-alerts', 'ntfy topic must be exact and context qualified')
     keys(t['mattermost'], 'team_name channel_name channel_type', 'mattermost')
-    require(t['mattermost'] == {'team_name': None, 'channel_name': 'alerts', 'channel_type': 'P'},
+    require(t['mattermost'] == {'team_name': 'perkforge', 'channel_name': f'{tenant}-alerts', 'channel_type': 'P'},
             'Mattermost requires the dedicated private alert channel')
     keys(t['gitlab'], 'group_id project_ids role_mappings', 'gitlab')
     require(t['gitlab']['role_mappings'] == {'tenant-admin': 'Owner', 'tenant-developer': 'Developer', 'tenant-viewer': 'Reporter'},

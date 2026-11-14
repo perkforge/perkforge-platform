@@ -308,7 +308,7 @@ model {
           link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
         }
         mattermost = component 'Mattermost team and channel membership' {
-          description 'Design: PA System Admin; TA own Team Admin; PV/TD/TV assigned ordinary Member, chat allowed. No automatic private-channel visibility. Verify pinned 11.11 edition/OIDC entitlement; group claims are not native team-role synchronization. No assumed 12.1 ABAC. PE: ordinary assigned member, no team/system administration.'
+          description 'Approved topology: one shared PerkForge team and private context-alerts channels, with platform-managed membership. TA/TD/TV ordinary scoped members; no tenant Team Admin or invite authority. PE approved cross-context visibility, not team/system administration. Independent recovery System Admin is an explicit exception. Shared contract remains inactive; native IDs, invitation boundary and continuous membership enforcement require separate verification.'
           link https://github.com/perkforge/perkforge-platform/blob/feat/authorization-proposal/big-bang-bootstrap/configuration/authorization/MATRIX.md 'Role matrix, implementation state and primary guidance'
         }
         gitlab = component 'GitLab group/project authorization' {

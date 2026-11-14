@@ -22,6 +22,7 @@ class ContextContractTest(unittest.TestCase):
     def test_approved_portal_is_inactive(self):
         self.assertEqual(verify.load(CONTEXT / 'portal.yaml')['id'], 'portal')
         self.assertIs(self.c['activation'], False)
+        self.assertEqual(self.c['targets']['mattermost'], {'team_name': 'perkforge', 'channel_name': 'portal-alerts', 'channel_type': 'P'})
         self.assertEqual(self.c['kubernetes']['runtime_namespaces'], ['tenant-portal'])
         self.assertEqual(self.c['kubernetes']['control_namespaces'], ['tenant-portal-config', 'tenant-portal-release'])
 
@@ -60,7 +61,7 @@ class ContextContractTest(unittest.TestCase):
             verify.validate(self.document)
 
     def test_rejects_topic_and_channel_escape(self):
-        cases = [('ntfy', 'topic', '*'), ('ntfy', 'topic', 'platform-alerts'), ('mattermost', 'channel_type', 'O'), ('mattermost', 'team_name', 'platform'), ('mattermost', 'channel_name', 'town-square')]
+        cases = [('ntfy', 'topic', '*'), ('ntfy', 'topic', 'platform-alerts'), ('mattermost', 'channel_type', 'O'), ('mattermost', 'team_name', 'platform'), ('mattermost', 'team_name', None), ('mattermost', 'channel_name', 'other-alerts'), ('mattermost', 'channel_name', 'town-square')]
         for target, key, value in cases:
             with self.subTest(target=target, key=key, value=value):
                 doc = deepcopy(self.document)

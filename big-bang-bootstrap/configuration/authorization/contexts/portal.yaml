@@ -24,8 +24,8 @@ paas_context:
     ntfy:
       topic: tenant-portal-alerts
     mattermost:
-      team_name: null
-      channel_name: alerts
+      team_name: perkforge
+      channel_name: portal-alerts
       channel_type: P
     gitlab:
       group_id: null
