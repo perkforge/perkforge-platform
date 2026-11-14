@@ -1,0 +1,98 @@
+# Native owner-pilot bootstrap, not a membership controller or signup policy.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    mattermost_bootstrap_apply: false
+    mattermost_bootstrap_approved: false
+  module_defaults:
+    ansible.builtin.uri:
+      method: GET
+      validate_certs: true
+      ca_path: '{{ mattermost_context_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      unredirected_headers: [Authorization]
+      timeout: 20
+  tasks:
+  - when: mattermost_bootstrap_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - mattermost_bootstrap_approved | bool
+        - mattermost_context_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - mattermost_context_origin is not search('[\\x00-\\x20\\x7f]')
+    - no_log: true
+      block:
+      - ansible.builtin.command: {argv: [id, -u]}
+        register: mb_uid
+        changed_when: false
+      - ansible.builtin.stat: {path: '{{ item }}', follow: false}
+        loop: ['{{ mattermost_context_contract_file }}', '{{ mattermost_context_token_file }}', '{{ mattermost_context_ca_file }}']
+        register: mb_files
+      - ansible.builtin.assert:
+          that:
+          - item.item is match('^/') and item.item | realpath == item.item
+          - item.stat.isreg | default(false)
+          - not (item.stat.islnk | default(false))
+          - item.stat.size > 0
+          - item.item == mattermost_context_ca_file or (item.stat.mode == '0600' and item.stat.uid == (mb_uid.stdout | int))
+        loop: '{{ mb_files.results }}'
+      - ansible.builtin.stat: {path: '{{ item | dirname }}', follow: false}
+        loop: ['{{ mattermost_context_contract_file }}', '{{ mattermost_context_token_file }}']
+        register: mb_dirs
+      - ansible.builtin.assert:
+          that:
+          - item.stat.isdir | default(false)
+          - not (item.stat.islnk | default(false))
+          - item.stat.mode == '0700' and item.stat.uid == (mb_uid.stdout | int)
+        loop: '{{ mb_dirs.results }}'
+      - ansible.builtin.set_fact:
+          mb: '{{ lookup("file", mattermost_context_contract_file) | from_json }}'
+          mb_headers: {Authorization: 'Bearer {{ lookup("file", mattermost_context_token_file) | trim }}'}
+          mb_receipt_file: '{{ mattermost_context_contract_file | dirname }}/bootstrap-receipt.json'
+      - ansible.builtin.assert:
+          that:
+          - mb.schema_version == 1
+          - mb.subject is match('^[A-Za-z0-9-]{1,64}$')
+          - mb.username is match('^[a-z0-9][a-z0-9._-]{2,63}$')
+          - mb.email is match('^[A-Za-z0-9._+@-]+$') and '@' in mb.email
+          - mb.team_name == 'perkforge'
+          - mb.channel_name == 'portal-alerts'
+          - mb.operator_id is match('^[a-z0-9]{26}$')
+          - mb.subject_verified is sameas true
+          - mb.email_verified is boolean
+          - mb.operator_exception_approved is sameas true
+      - ansible.builtin.stat: {path: '{{ mb_receipt_file }}', follow: false}
+        register: mb_saved
+      - when: mb_saved.stat.exists
+        ansible.builtin.assert:
+          that:
+          - mb_saved.stat.isreg and not mb_saved.stat.islnk
+          - mb_saved.stat.mode == '0600' and mb_saved.stat.uid == (mb_uid.stdout | int)
+      - ansible.builtin.set_fact:
+          mb_receipt: '{{ (lookup("file", mb_receipt_file) | from_json) if mb_saved.stat.exists else {"origin":mattermost_context_origin,"subject":mb.subject,"username":mb.username,"email":mb.email,"operator_id":mb.operator_id,"team_name":mb.team_name,"channel_name":mb.channel_name,"ids":mb.get("existing_ids",{})} }}'
+      - ansible.builtin.assert:
+          that:
+          - mb_receipt.origin == mattermost_context_origin
+          - mb_receipt.subject == mb.subject and mb_receipt.username == mb.username and mb_receipt.email == mb.email
+          - mb_receipt.operator_id == mb.operator_id and mb_receipt.team_name == mb.team_name and mb_receipt.channel_name == mb.channel_name
+      - ansible.builtin.include_tasks: inspect.yaml
+      - ansible.builtin.include_tasks: apply.yaml
+      - ansible.builtin.include_tasks: inspect.yaml
+      - ansible.builtin.assert:
+          that: mb_user.status == 200 and mb_team.status == 200 and mb_channel.status == 200
+      always:
+      - ansible.builtin.set_fact:
+          mb: {}
+          mb_headers: {}
+          mb_receipt: {}
+          mb_user: {}
+          mb_email: {}
+          mb_team: {}
+          mb_channel: {}
+          mb_created: {}
+          mb_me: {}
+          mb_membership: {}
+          cacheable: false

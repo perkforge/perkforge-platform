@@ -15,6 +15,8 @@ addons:
       - {name: identity-ca, mountPath: /etc/mattermost-identity-ca, readOnly: true}
       existingSecretEnvs:
       - {name: SSL_CERT_FILE, value: /etc/mattermost-identity-ca/ca.crt}
+      - name: MM_SERVICESETTINGS_ALLOWEDUNTRUSTEDINTERNALCONNECTIONS
+        value: {{ mattermost_sso_issuer | urlsplit("hostname") | to_json }}
       - {name: MM_GITLABSETTINGS_ENABLE, value: 'false'}
       - {name: MM_OPENIDSETTINGS_ENABLE, value: 'true'}
       - {name: MM_OPENIDSETTINGS_ID, value: mattermost}

@@ -1,0 +1,4 @@
+- ansible.builtin.copy:
+    dest: '{{ mb_receipt_file }}'
+    mode: '0600'
+    content: '{{ mb_receipt | to_json }}'

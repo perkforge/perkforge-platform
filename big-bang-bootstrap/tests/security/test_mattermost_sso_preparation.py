@@ -54,6 +54,7 @@ class MattermostPreparation(unittest.TestCase):
         self.assertEqual(env['MM_OPENIDSETTINGS_SECRET']['valueFrom']['secretKeyRef'],dict(name='mattermost-oidc-client',key='client-secret'))
         self.assertEqual(env['MM_TEAMSETTINGS_ENABLEUSERCREATION']['value'],'false')
         self.assertEqual(env['SSL_CERT_FILE']['value'],'/etc/mattermost-identity-ca/ca.crt')
+        self.assertEqual(env['MM_SERVICESETTINGS_ALLOWEDUNTRUSTEDINTERNALCONNECTIONS']['value'], 'identity.example.test')
         self.assertEqual(self.output.stat().st_mode & 0o777,0o700)
         self.assertTrue(all(p.stat().st_mode & 0o777 == 0o600 for p in self.output.iterdir()))
 
