@@ -18,6 +18,8 @@ loki:
     suspend: false
   values:
     imagePullSecrets: [{name: private-registry}]
+    global:
+      dnsService: rke2-coredns-rke2-coredns
     monitoring:
       enabled: false
       dashboards: {enabled: false}
