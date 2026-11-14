@@ -1,0 +1,22 @@
+# ntfy v2.37.2 named YAML template. Never print message, token, annotations or error logs.
+title: >-
+  {{- if or (eq .reason "InstallFailed") (eq .reason "UpgradeFailed") -}}
+  Helm release failed
+  {{- else if eq .reason "InstallSucceeded" -}}
+  Helm release installed
+  {{- else if eq .reason "UpgradeSucceeded" -}}
+  Helm release upgraded
+  {{- else -}}Helm release update{{- end -}}
+message: >-
+  App: {{ printf "%.63s" .involvedObject.name }}.
+  Environment: {{ with .metadata.environment }}{{ printf "%.40s" . }}{{ else }}unspecified{{ end }}.
+  Chart version: {{ with .metadata.revision }}{{ printf "%.96s" . }}{{ else }}unavailable{{ end }}.
+  App version (chart metadata): {{ with index .metadata "app-version" }}{{ printf "%.64s" . }}{{ else }}unavailable{{ end }}.
+  {{ if or (eq .reason "InstallFailed") (eq .reason "UpgradeFailed") -}}
+  Helm action failed. Inspect the release in Flux; error details are withheld.
+  {{- else -}}
+  Helm action completed. Workload health follows that release's wait/test settings; this is not end-to-end app acceptance.
+  {{- end }}
+  Source: https://github.com/perkforge/perkforge-platform
+priority: >-
+  {{- if or (eq .reason "InstallFailed") (eq .reason "UpgradeFailed") -}}4{{- else -}}3{{- end -}}
