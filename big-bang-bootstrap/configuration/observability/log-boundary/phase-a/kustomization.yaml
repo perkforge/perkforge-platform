@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+configMapGenerator:
+- name: values-scoped-logging
+  namespace: bigbang
+  files: [values.yaml=boundary-values.yaml]
+- name: values-scoped-logging-grafana
+  namespace: bigbang
+  files: [values.yaml=grafana-values.yaml]
+- name: values-platform-log-dashboard
+  namespace: bigbang
+  files: [values.yaml=dashboard-values.yaml]
+generatorOptions:
+  disableNameSuffixHash: true

@@ -1,0 +1,8 @@
+# Selected only by the explicit platform-only logging root.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+configMapGenerator:
+- name: values-platform-log-oauth
+  namespace: bigbang
+  files: [values.yaml=platform-only-values.yaml]
+generatorOptions: {disableNameSuffixHash: true}

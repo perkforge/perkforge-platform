@@ -1,0 +1,4 @@
+# Exact reviewed platform-only native child values, wrapped for Big Bang.
+grafana:
+  values:
+{{ lookup('file', phase_a_dashboard_output + '/helm-values.yaml') | indent(4, true) }}

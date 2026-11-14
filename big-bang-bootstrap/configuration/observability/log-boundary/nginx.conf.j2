@@ -9,7 +9,7 @@ http {
   uwsgi_temp_path {{ log_runtime_dir }}/uwsgi_temp;
   scgi_temp_path {{ log_runtime_dir }}/scgi_temp;
   log_format scoped '$remote_user $request_method $uri $status';
-  access_log {{ log_runtime_dir }}/access.log scoped;
+  access_log /dev/stdout scoped;
   client_max_body_size 4m;
   map $remote_user $read_scope {
     default "";

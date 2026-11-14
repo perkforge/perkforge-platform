@@ -1,0 +1,22 @@
+# Platform-only staged logs; no tenant query mapping or datasource.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-integrated-logging
+- ../../configuration/observability/log-boundary/phase-a
+- ../../configuration/authorization/sso/grafana/orgs
+patches:
+- target: {group: helm.toolkit.fluxcd.io, version: v2, kind: HelmRelease, name: bigbang}
+  patch: |-
+    - op: add
+      path: /spec/valuesFrom/-
+      value: {kind: ConfigMap, name: values-scoped-logging, valuesKey: values.yaml}
+    - op: add
+      path: /spec/valuesFrom/-
+      value: {kind: ConfigMap, name: values-scoped-logging-grafana, valuesKey: values.yaml}
+    - op: add
+      path: /spec/valuesFrom/-
+      value: {kind: ConfigMap, name: values-platform-log-oauth, valuesKey: values.yaml}
+    - op: add
+      path: /spec/valuesFrom/-
+      value: {kind: ConfigMap, name: values-platform-log-dashboard, valuesKey: values.yaml}
