@@ -36,9 +36,20 @@ class FoundationFixture(unittest.TestCase):
             play=[{'hosts':'localhost','connection':'local','gather_facts':False,'vars':vars,'module_defaults':{'ansible.builtin.uri':{'ca_path':str(cert),'validate_certs':True,'use_proxy':False,'use_netrc':False,'follow_redirects':'none'}},'tasks':[{'ansible.builtin.include_tasks':str(SOURCE/'ensure-foundation.yaml')}]}]
             def run():
                 (folder/'play.yaml').write_text(yaml.safe_dump(play));return subprocess.run(['ansible-playbook','-i','localhost,',str(folder/'play.yaml')],capture_output=True,text=True)
+            FoundationApi.groups['/tenants']['attributes']['perkforge-managed']=['false']
+            result=run();self.assertNotEqual(result.returncode,0);self.assertEqual(FoundationApi.writes,[])
+            FoundationApi.groups['/tenants']['attributes']['perkforge-managed']=['true']
+            FoundationApi.mapped[parent]=[{'id':'unexpected','name':'tenant-admin'}]
+            result=run();self.assertNotEqual(result.returncode,0);self.assertEqual(FoundationApi.writes,[])
+            FoundationApi.mapped={}
             result=run();self.assertEqual(result.returncode,0,result.stdout+result.stderr)
             self.assertEqual(len(FoundationApi.writes),10);self.assertEqual(len(FoundationApi.groups),5);self.assertEqual(len(FoundationApi.roles),3)
             # Retry requires reviewed newly assigned IDs, never silently adopt by name.
             result=run();self.assertNotEqual(result.returncode,0);self.assertEqual(len(FoundationApi.writes),10)
             vars['foundation_expected_ids']={p:FoundationApi.groups[p]['id'] for p in vars['foundation_expected_ids']}
             result=run();self.assertEqual(result.returncode,0,result.stdout+result.stderr);self.assertEqual(len(FoundationApi.writes),10)
+            FoundationApi.roles['tenant-admin']['composite']=True
+            result=run();self.assertNotEqual(result.returncode,0);self.assertEqual(len(FoundationApi.writes),10)
+            FoundationApi.roles['tenant-admin']['composite']=False
+            FoundationApi.groups['/tenants/portal/admins']['attributes']['perkforge-role']=['platform-admin']
+            result=run();self.assertNotEqual(result.returncode,0);self.assertEqual(len(FoundationApi.writes),10)

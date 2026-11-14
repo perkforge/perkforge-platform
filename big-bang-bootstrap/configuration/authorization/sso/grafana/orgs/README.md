@@ -6,7 +6,8 @@ entries: `context` is an entire reviewed `paas_context`, `org_id` a separately
 verified native integer greater than 1, and `query_identity` the exact
 `pf-log-<context>-read`. Set `grafana_org_render=true` and a fresh absolute
 `grafana_org_output` only to write review files. No API calls, credentials,
-organization creation, group mapping or live activation are implemented here.
+organization creation, group mapping or live activation are implemented by the renderer.
+Separately gated, unconnected adapter includes are described below.
 
 The existing Grafana own-client role mapper remains the claim authority. The
 rendered entitlement proposal attaches new noncomposite Grafana client roles to
@@ -174,3 +175,9 @@ group plus the same owned client's scope. Never map the platform-admin role onto
 PE. No human membership changes. Verify native login and direct API/data-source
 access as PE, preserve PA and dashboards; a group with no users is not evidence of
 successful real-user login. Tenant activation remains a separately gated phase.
+
+Entitlement preflight also pins the complete client-local mapper set/config and
+reuses the maintained basic/profile/email shared-scope mapper verifier. Optional
+scopes must be empty; keep requested OAuth scopes `openid profile email`. A second
+client or shared-scope `groups` mapper is refused before any grant. Read-only pilot
+preflight verified exactly this effective authority, not merely local mapper names.
