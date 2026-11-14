@@ -36,7 +36,7 @@ pod_logs_output: /absolute/operator-local/render-directory
 ```
 
 Run `ansible-playbook -i localhost, render.yaml -e @approved-inputs.yaml`.
-The output contains only `dashboard.json` and a native `provider.yaml`. Missing
+The output contains `dashboard.json`, native `provider.yaml`, and additive child-chart `helm-values.yaml`. Missing
 inputs fail closed. No default data source or identity is inferred.
 
 After query authorization and negative tenant-boundary tests pass under separately
@@ -83,3 +83,36 @@ GRAFANA_VALIDATE_BIN=/path/to/grafana PYTHONPATH=big-bang-bootstrap/tests \
 The native fixture runs only on loopback with temporary synthetic credentials and
 checks file provisioning, panel types and datasource/variable bindings. It does
 not create a live datasource or validate LogQL against production streams.
+
+## Platform-only activation handoff (not selected)
+
+`platform-profile.yaml` explicitly binds org **1** to the proposed read-only
+`loki-platform` datasource. It remains disabled and is not referenced by any
+cluster selection. Do not substitute `loki-pilot`: its existing pilot credential
+is not the new read-only federation identity. Tenant dashboard activation is
+outside this profile.
+
+After the datasource and server-side boundary pass their separately reviewed
+acceptance, render this profile with an operator-local output directory and an
+explicit `pod_logs_render=true`. Merge the resulting `helm-values.yaml` into the
+**existing** complete Grafana values using recursive map merge. Do not replace
+existing values or install a second Grafana. Unique provider filename and
+`pf-pod-logs-org-1` dashboard key avoid overwriting existing providers/dashboards.
+Native chart provisioning mounts the generated ConfigMap at its matching provider
+path; no extra manual ConfigMap or broad sidecar label is required.
+
+Compatibility test uses Big Bang Grafana chart `13.2.4-bb.0` / upstream chart
+`13.2.4`, whose **application** version is `13.2.1`. It proves generated ConfigMap,
+mount and provider wiring while preserving pre-existing rendered ConfigMap data,
+container settings/mounts and unrelated objects. It does not prove the live count
+of 41 existing dashboards: activation must record their UIDs before/after and
+verify all remain, with exactly one intended new platform dashboard. Also verify
+actual LogQL volume/log queries, chained label choices, All/multi-select, empty
+results and native browser behavior against the new datasource before acceptance.
+
+Optional exact-chart source test (no download):
+
+```sh
+GRAFANA_CHART_DIR=/existing/grafana/chart HELM_BIN=/existing/helm \
+  PYTHONPATH=big-bang-bootstrap/tests python3 -m unittest configuration.test_pod_log_dashboard -v
+```

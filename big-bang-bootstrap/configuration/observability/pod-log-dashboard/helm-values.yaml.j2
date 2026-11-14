@@ -1,0 +1,22 @@
+# Additive native child-chart values, not selected or applied by this renderer.
+upstream:
+  dashboardProviders:
+    perkforge-pod-logs-org-{{ pod_logs_org_id }}.yaml:
+      apiVersion: 1
+      providers:
+      - name: perkforge-pod-logs-org-{{ pod_logs_org_id }}
+        orgId: {{ pod_logs_org_id }}
+        folder: Workload Logs
+        folderUid: pf-workload-logs
+        type: file
+        disableDeletion: true
+        allowUiUpdates: false
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards/pf-pod-logs-org-{{ pod_logs_org_id }}
+          foldersFromFilesStructure: false
+  dashboards:
+    pf-pod-logs-org-{{ pod_logs_org_id }}:
+      pod-logs:
+        json: |
+{{ lookup('ansible.builtin.template', 'dashboard.json.j2') | indent(10, true) }}
