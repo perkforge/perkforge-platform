@@ -54,6 +54,19 @@ class GrafanaNtfyRouting(unittest.TestCase):
             for change in ({'grafana_ntfy_topic':'*'},{'grafana_ntfy_url':'http://notify.example.test/'},{'grafana_ntfy_namespace':'tenant-.*'}):
                 rejected=run({**values,**change});self.assertNotEqual(rejected.returncode,0)
 
+    def test_effective_mount_guard_rejects_valuesfrom_mounts_without_logging(self):
+        play=yaml.safe_load((MODULE/'activate.yaml').read_text())[0]
+        guard=next(t for t in play['tasks'][0]['block'] if 'effective native extraSecretMounts' in t.get('name',''))
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp);binary=path/'helm'
+            for mounts,expected in [([],0),([{'name':'existing-secret'}],2)]:
+                payload=json.dumps({'upstream':{'extraSecretMounts':mounts},'private':'synthetic-must-not-leak'})
+                binary.write_text('#!/bin/sh\ncat <<\'DATA\'\n'+payload+'\nDATA\n');binary.chmod(0o700)
+                wrapper=path/'guard.yaml';wrapper.write_text(yaml.safe_dump([{'hosts':'localhost','connection':'local','gather_facts':False,'vars':{'grafana_ntfy_helm_release':'monitoring-grafana','grafana_ntfy_monitoring_namespace':'monitoring'},'tasks':[guard]}]))
+                result=subprocess.run(['ansible-playbook','-i','localhost,',str(wrapper)],capture_output=True,text=True,timeout=20,env={**os.environ,'PATH':str(path)+':'+os.environ['PATH']})
+                self.assertEqual(result.returncode,expected,result.stdout+result.stderr)
+                self.assertNotIn('synthetic-must-not-leak',result.stdout+result.stderr)
+
     def test_default_and_check_are_inert(self):
         for name,flag in [('render.yaml','grafana_ntfy_render'),('activate.yaml','grafana_ntfy_activate')]:
             for args in ([],['--check','-e',flag+'=true']):
