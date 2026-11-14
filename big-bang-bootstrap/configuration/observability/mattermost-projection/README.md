@@ -63,8 +63,9 @@ metric evaluator or global notification-policy rewrite.
 
 `render.yaml` additionally emits `source.yaml` and `target-prerequisites.yaml`.
 The checked-in `runtime/` is the selected local portable rendering: application,
-source configuration, exact pod network policy and initially suspended Flux
-routes. `clusters/local-scoped-logging-mattermost` includes the existing logging
+source configuration, exact pod network policy and Flux routes enabled only after the native delivery and denial acceptance.
+The generic renderer remains suspended unless `projection_routes_active: true`
+is explicitly supplied. `clusters/local-scoped-logging-mattermost` includes the existing logging
 root unchanged and adds this package. The public CA/DNS ConfigMap and exact
 physical ingress /32 policy remain operator-maintained target prerequisites,
 along with the dedicated custody resources. Do not claim these prerequisites
@@ -75,3 +76,8 @@ Big Bang/Registry1 default: its bundled njs was verified for this minimal adapte
 no equivalent Registry1 build has been verified here. The immutable image digest
 is shared across targets, not rebuilt per environment. Review this exception and
 the enumerated release-source allowlist at Big Bang upgrades.
+
+Activation acceptance: both deployment channels received bounded replay of actual
+current successful Helm conditions, verified by native channel readback. Wrong
+route credentials and foreign sources were denied. This replay is not evidence
+of a new deployment event; observe a subsequent real Flux outcome separately.

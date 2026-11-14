@@ -106,7 +106,7 @@ spec:
   address: https://mattermost-event-projection.ntfy.svc:8443/{{ audience }}
   secretRef: {name: flux-mattermost-{{ audience }}-v1}
   certSecretRef: {name: flux-mattermost-{{ audience }}-v1}
-  suspend: true
+  suspend: {{ (not (projection_routes_active | default(false) | bool)) | to_json }}
   timeout: 15s
 ---
 apiVersion: notification.toolkit.fluxcd.io/v1beta3
@@ -114,7 +114,7 @@ kind: Alert
 metadata: {name: mattermost-{{ audience }}-deployments, namespace: flux-system}
 spec:
   providerRef: {name: mattermost-{{ audience }}-deployments}
-  suspend: true
+  suspend: {{ (not (projection_routes_active | default(false) | bool)) | to_json }}
   eventSeverity: info
   eventSources:
 {% for source in projection_sources[audience] %}
