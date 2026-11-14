@@ -13,7 +13,7 @@ rules:
   verbs: [get, list, watch, update, patch, delete]
 - apiGroups: ['']
   resources: [configmaps]
-  resourceNames: [mattermost-event-projection, mattermost-projection-public]
+  resourceNames: [mattermost-event-projection]
   verbs: [get, list, watch, update, patch, delete]
 - apiGroups: [networking.k8s.io]
   resources: [networkpolicies]

@@ -89,7 +89,7 @@ spec:
   address: https://mattermost-event-projection.ntfy.svc:8443/platform
   secretRef: {name: flux-mattermost-platform-v1}
   certSecretRef: {name: flux-mattermost-platform-v1}
-  suspend: true
+  suspend: false
   timeout: 15s
 ---
 apiVersion: notification.toolkit.fluxcd.io/v1beta3
@@ -97,7 +97,7 @@ kind: Alert
 metadata: {name: mattermost-platform-deployments, namespace: flux-system}
 spec:
   providerRef: {name: mattermost-platform-deployments}
-  suspend: true
+  suspend: false
   eventSeverity: info
   eventSources:
   - {kind: HelmRelease, namespace: bigbang, name: alloy}
@@ -132,7 +132,7 @@ spec:
   address: https://mattermost-event-projection.ntfy.svc:8443/portal
   secretRef: {name: flux-mattermost-portal-v1}
   certSecretRef: {name: flux-mattermost-portal-v1}
-  suspend: true
+  suspend: false
   timeout: 15s
 ---
 apiVersion: notification.toolkit.fluxcd.io/v1beta3
@@ -140,7 +140,7 @@ kind: Alert
 metadata: {name: mattermost-portal-deployments, namespace: flux-system}
 spec:
   providerRef: {name: mattermost-portal-deployments}
-  suspend: true
+  suspend: false
   eventSeverity: info
   eventSources:
   - {kind: HelmRelease, namespace: tenant-portal-config, name: portal}

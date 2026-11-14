@@ -88,6 +88,9 @@ class Manifests(unittest.TestCase):
    self.assertEqual(len(target),2);self.assertNotIn('192.0.2.4',json.dumps(portable));self.assertNotIn('FIXTURE',json.dumps(portable))
    self.assertFalse(any(x['kind']=='ConfigMap' and x['metadata']['name']=='mattermost-projection-public' for x in portable))
    deploy=next(x for x in docs if x['kind']=='Deployment');self.assertFalse(deploy['spec']['template']['spec']['automountServiceAccountToken'])
+   active=dict(v,projection_output=str(d/'active'),projection_routes_active=True)
+   r=subprocess.run(['ansible-playbook',str(source/'render.yaml'),'-e',json.dumps(active)],capture_output=True,text=True);self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+   self.assertTrue(all(not x['spec']['suspend'] for x in yaml.safe_load_all((d/'active/source.yaml').read_text()) if x and x['kind'] in ['Provider','Alert']))
    private=d/'private';private.mkdir(mode=0o700)
    for name,value in {'tls.crt':ca,'tls.key':'FIXTURE','platform-hook':'https://chat.example.invalid/hooks/'+('a'*26),'portal-hook':'https://chat.example.invalid/hooks/'+('b'*26)}.items():
     f=private/name;f.write_text(value);f.chmod(0o600)
