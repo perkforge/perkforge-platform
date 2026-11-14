@@ -22,3 +22,5 @@ log_readers: []
 # Tenant query exposure remains disabled; unknown namespaces use platform fallback.
 log_collect_all_namespaces: true
 log_collection_namespaces: []
+# Match verified Loki rejection bound, NOT its shorter retention duration.
+log_ingestion_max_age_hours: 168

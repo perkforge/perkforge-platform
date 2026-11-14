@@ -100,3 +100,28 @@ node had about 5.7Gi of unrequested memory and over 1 CPU free; one surge pod
 requires only 306Mi/60m including the unchanged reloader. No Nextcloud workload
 move or sizing change is involved. This corrects measured headroom, not old-log
 HTTP400 rejection. Repeat fresh delivery and 75%-of-limit memory gates afterward.
+
+### Explicit out-of-window history handling
+
+Pinned Alloy 1.18.0's Kubernetes API source provides no configurable initial
+lookback; it separates the Kubernetes-provided timestamp from application bytes.
+The selected profile explicitly excludes entries older than **168h**, matching
+the verified existing Loki rejection window, not its 72h retention duration.
+This happens per entry before batching, avoiding old entries poisoning mixed-age
+batches. `loki_process_dropped_lines_total{reason="outside_loki_ingestion_window"}`
+counts these intentional historical exclusions separately from transport drops.
+The Loki policy is unchanged. There is no general debug/content filter added.
+
+The pinned chart shares CRI/Docker parsing with file collection. For this API-only
+source, final trusted discovery sets temporary runtime to `api_plain`, preventing
+application text shaped like a CRI/Docker envelope from overwriting its API
+timestamp. The native processing removes that temporary label; namespace/pod/
+container reset, redaction and tenant scope mapping remain intact. Native Alloy
+regression retains fresh CRI/Docker-shaped payloads and just-inside-window records
+while excluding old/just-outside-window entries and incrementing the explicit
+reason counter. Clock skew and transit delay near the exact boundary can still
+cause rejection; this is not a lossless-backfill promise. Verify server bound
+continues matching the selected profile before promotion or changing either.
+
+Primary pinned implementation: [API tailer](https://github.com/grafana/alloy/blob/v1.18.0/internal/component/loki/source/kubernetes/kubetail/tailer.go)
+and [native drop stage](https://github.com/grafana/alloy/blob/v1.18.0/docs/sources/reference/components/loki/loki.process.md#stagedrop).
