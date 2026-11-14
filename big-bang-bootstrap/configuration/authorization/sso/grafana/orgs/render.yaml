@@ -6,11 +6,13 @@
     grafana_org_render: false
     grafana_org_output: /UNCONFIGURED/grafana-orgs
     grafana_org_contexts: []
+    grafana_org_platform_only: false
   tasks:
   - name: Validate unique explicit organization identities
     ansible.builtin.assert:
       that:
-      - grafana_org_contexts | length > 0
+      - grafana_org_contexts | length > 0 or grafana_org_platform_only | bool
+      - not (grafana_org_platform_only | bool) or grafana_org_contexts | length == 0
       - grafana_org_contexts | map(attribute='org_id') | unique | length == grafana_org_contexts | length
       - grafana_org_contexts | map(attribute='context.id') | unique | length == grafana_org_contexts | length
     when: grafana_org_render | bool

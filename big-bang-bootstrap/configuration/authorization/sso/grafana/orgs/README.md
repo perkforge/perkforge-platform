@@ -154,3 +154,23 @@ recovery creator as native org Admin. This is the already-global recovery except
 not a claim of zero membership side effects or a Keycloak-derived new human grant.
 Keep tenant exposure gated until real gateway namespace/ownership-epoch isolation
 and negative query APIs pass; managed empty groups alone grant nobody access.
+
+## Phase A: platform-only real logs
+
+Set `grafana_org_platform_only=true` with **empty** `grafana_org_contexts` for
+review rendering. Default remains false; platform-only mode rejects any tenant
+context, produces only PA/PE org1 mappings and recognizes no tenant entitlement
+in its role expression. The pinned native platform-only fixture verifies PE Viewer,
+PA recovery and denial of a tenant-only claim. This is the first activation stage:
+no tenant org/group creation or tenant entitlement is required for platform logs.
+
+Before applying the exact PE entitlement, independently verify the platform-only
+Loki datasource in org1 uses the dedicated read-only identity and trusted gateway,
+not the legacy writer credential. Keep all current Grafana OAuth issuer/client/CA,
+PKCE, recovery and PA settings; the reviewed platform-only overlay may change only
+role_attribute_path, org_attribute_path and org_mapping, retaining strict sync.
+Apply only `pf-observability-platform-viewer` on existing verified canonical PE
+group plus the same owned client's scope. Never map the platform-admin role onto
+PE. No human membership changes. Verify native login and direct API/data-source
+access as PE, preserve PA and dashboards; a group with no users is not evidence of
+successful real-user login. Tenant activation remains a separately gated phase.

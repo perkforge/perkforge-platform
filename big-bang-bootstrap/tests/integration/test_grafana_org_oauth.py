@@ -36,6 +36,7 @@ def port():
     with socket.socket() as sock: sock.bind(('127.0.0.1',0)); return sock.getsockname()[1]
 
 class NativeGrafanaOrgOAuth(unittest.TestCase):
+    platform_only=False
     def test_native_mixed_roles_engineer_and_owner(self):
         binary = os.environ.get('GRAFANA_VALIDATE_BIN')
         if not binary: self.skipTest('Set checksum-pinned GRAFANA_VALIDATE_BIN; no download')
@@ -46,6 +47,7 @@ class NativeGrafanaOrgOAuth(unittest.TestCase):
             other=json.loads(json.dumps(context).replace('portal','other'))
             inputs={'grafana_org_render':True,'grafana_org_output':str(folder/'render'), 'grafana_org_contexts':[
                 {'context':context,'org_id':2,'query_identity':'pf-log-portal-read'}, {'context':other,'org_id':3,'query_identity':'pf-log-other-read'}]}
+            if self.platform_only: inputs.update(grafana_org_contexts=[],grafana_org_platform_only=True)
             run=subprocess.run(['ansible-playbook','-i','localhost,',str(SOURCE/'render.yaml'),'-e',json.dumps(inputs)], capture_output=True,text=True)
             self.assertEqual(run.returncode,0,run.stdout+run.stderr)
             oauth=yaml.safe_load((folder/'render/oauth.yaml').read_text())
@@ -74,7 +76,8 @@ class NativeGrafanaOrgOAuth(unittest.TestCase):
 
                     source=urllib.request.Request(base+'/api/datasources',data=json.dumps({'uid':'platform-only','name':'platform-only','type':'prometheus','access':'proxy','url':'http://127.0.0.1:1'}).encode(),headers=admin|{'Content-Type':'application/json'})
                     urllib.request.urlopen(source).close()
-                    for actor,expected in [('mixed',{2:'Admin',3:'Viewer'}),('engineer',{1:'Viewer'}),('owner',{1:'Admin'})]:
+                    cases=[('engineer',{1:'Viewer'}),('owner',{1:'Admin'})] if self.platform_only else [('mixed',{2:'Admin',3:'Viewer'}),('engineer',{1:'Viewer'}),('owner',{1:'Admin'})]
+                    for actor,expected in cases:
                         Issuer.subject=actor
                         browser=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
                         browser.open(base+'/login/generic_oauth').close()
@@ -108,6 +111,11 @@ class NativeGrafanaOrgOAuth(unittest.TestCase):
 
 
                     # An authenticated but unmapped identity must gain no org access.
+                    if self.platform_only:
+                        Issuer.subject='tenant-only'; Issuer.claims['tenant-only']=['pf-observability-portal-tenant-admin']
+                        browser=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+                        browser.open(base+'/login/generic_oauth').close()
+                        with self.assertRaises(urllib.error.HTTPError): browser.open(base+'/api/user')
                     Issuer.subject='unknown'
                     browser=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
                     browser.open(base+'/login/generic_oauth').close()
@@ -116,3 +124,6 @@ class NativeGrafanaOrgOAuth(unittest.TestCase):
                     proc.terminate()
                     try: proc.wait(timeout=10)
                     except subprocess.TimeoutExpired: proc.kill(); proc.wait()
+
+class NativeGrafanaPlatformOnlyOAuth(NativeGrafanaOrgOAuth):
+    platform_only=True
