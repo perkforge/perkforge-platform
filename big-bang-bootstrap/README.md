@@ -30,9 +30,13 @@ selection is historical, not the current runtime.
 Grafana SSO, ntfy contact points and the Mattermost baseline are deployed; this
 does not close the broader alert lifecycle/tenant work in #39, unresolved host
 collector coverage in #383, or full logging acceptance in #38. Portal's read-only
-enrollment baseline is live; its final architecture-auth release is underway,
-not yet verified live in this dated snapshot. Do not infer deployment from a PR,
-release or offline render. Keep the same pinned images/charts across environments
+enrollment baseline and final Portal v0.6.1 architecture-auth release are live
+through platform `947f99cc`, enrollment v2.5.2 and configuration v2.3.2. The
+[current handoff](../HANDOFF.md#mattermost-and-portal-baseline) records actual
+anonymous asset/API denial and exact-artifact isolated browser checks; fresh
+signed-in owner-browser acceptance remains pending. This supersedes the earlier
+same-day publication-only checkpoint, not the remaining Portal #12/#10 criteria.
+Do not infer deployment from a PR, release or offline render. Keep the same pinned images/charts across environments
 and vary reviewed configuration only (BODA).
 
 See [ordered app stages](configuration/ansible/README.md#ordered-app-stages)

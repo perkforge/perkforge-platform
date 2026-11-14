@@ -59,12 +59,29 @@ Portal alert test post verified. These do not establish universal tenant
 membership synchronization or every alert lifecycle scenario.
 
 Portal's deployed baseline includes the read-only, immutable-provenance enrollment
-inventory and current architecture view. The final architecture-auth release is
-underway, **not yet verified live in this snapshot**; source merge/publication is
-not runtime protection. Do not describe the previously published sanitized static
-architecture model as confidential retroactively. Coordinate its final promotion
-through the existing application/enrollment/platform source chain and record
-actual authenticated/unauthenticated acceptance separately.
+inventory and current architecture view. The earlier 2026-11-14 checkpoint recorded
+architecture-auth publication as pending live verification. That checkpoint is
+superseded by the verified final promotion: platform `947f99cc` at
+`local-integrated-logging` selects enrollment v2.5.2 (`b026fbc4`), configuration
+v2.3.2 (`35d9894e`) and Portal v0.6.1, image digest
+`sha256:0717d4ac19910c58af20073ccd70b97af5a5cd1bae8dcde5c30127c95d02d88f`.
+
+[Live acceptance](https://github.com/perkforge/perkforge-portal/issues/12#issuecomment-6874166724)
+verified sign-in-only public HTML and HTTP 401/no-store for anonymous GET/HEAD of
+the current compiled assets, including encoded aliases. Anonymous workspace APIs
+and malformed/stale/revoked guest cookies are denied. The exact deployed artifact
+also passed isolated authorized-browser rendering, mobile, logout and history
+checks. Genuine expired-session behavior is covered by isolated tests, not an
+invented owner session. **Fresh signed-in owner-browser acceptance remains
+pending**, so Portal #12 stays open. The broader private role-specific model
+criterion in [#10](https://github.com/perkforge/perkforge-portal/issues/10) remains
+separate. No tenant preview/mutation capability was enabled. Previously published
+sanitized static architecture bytes cannot be made confidential retroactively.
+
+The [07:37 UTC Loki storage check](https://github.com/perkforge/perkforge-platform/issues/38#issuecomment-6873992683)
+verified 332KiB used, 9.73GiB available (99.84% free), fresh kubelet PVC metrics
+and an already-active platform-alerts rule for less than 15% free over 15 minutes.
+This required no alert change and does not establish retention deletion proof.
 
 ## Historical checkpoints
 
