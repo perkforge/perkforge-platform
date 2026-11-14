@@ -13,3 +13,6 @@ patches:
     - op: add
       path: /spec/valuesFrom/-
       value: {kind: ConfigMap, name: values-portal-log-datasource, valuesKey: values.yaml}
+    - op: add
+      path: /spec/valuesFrom/-
+      value: {kind: ConfigMap, name: values-portal-log-dashboard, valuesKey: values.yaml}

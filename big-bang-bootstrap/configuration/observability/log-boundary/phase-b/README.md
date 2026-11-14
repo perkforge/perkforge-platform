@@ -9,7 +9,7 @@ scope. Reverify that binding before activation; namespace reuse is not migration
 
 Layer `profile.yaml` after the Phase A profile using the same boundary renderer.
 Its complete generated boundary values must differ only in the exact reader map.
-The datasource adds unique environment/map keys; existing platform, legacy pilot,
+The datasource and native org2 pod-log dashboard add unique environment/map/provider keys; existing platform, legacy pilot,
 Prometheus, OAuth, dashboards and alert routing remain unchanged. Organization ID
 is target configuration, not embedded into a rebuilt application image.
 

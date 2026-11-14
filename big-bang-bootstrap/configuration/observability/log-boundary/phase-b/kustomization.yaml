@@ -7,5 +7,8 @@ configMapGenerator:
 - name: values-portal-log-datasource
   namespace: bigbang
   files: [values.yaml=grafana-values.yaml]
+- name: values-portal-log-dashboard
+  namespace: bigbang
+  files: [values.yaml=dashboard-values.yaml]
 generatorOptions:
   disableNameSuffixHash: true

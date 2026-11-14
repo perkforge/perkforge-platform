@@ -20,10 +20,19 @@ class PortalLogQuery(unittest.TestCase):
  def test_root_keeps_mattermost_and_platform_objects(self):
   def index(name):return {(x['kind'],x.get('metadata',{}).get('namespace'),x['metadata']['name']):x for x in build(ROOT/'clusters'/name)}
   a=index('local-scoped-logging-mattermost');b=index('local-portal-log-acceptance')
-  self.assertEqual(set(b)-set(a),{('ConfigMap','bigbang','values-portal-log-query'),('ConfigMap','bigbang','values-portal-log-datasource')})
+  self.assertEqual(set(b)-set(a),{('ConfigMap','bigbang','values-portal-log-query'),('ConfigMap','bigbang','values-portal-log-datasource'),('ConfigMap','bigbang','values-portal-log-dashboard')})
   key=('HelmRelease','bigbang','bigbang');old=a.pop(key);new=b.pop(key)
-  self.assertEqual(new['spec']['valuesFrom'][:-2],old['spec']['valuesFrom']);new['spec']['valuesFrom']=old['spec']['valuesFrom'];self.assertEqual(old,new)
+  self.assertEqual(new['spec']['valuesFrom'][:-3],old['spec']['valuesFrom']);new['spec']['valuesFrom']=old['spec']['valuesFrom'];self.assertEqual(old,new)
   for key,value in a.items():self.assertEqual(value,b[key],key)
+ def test_dashboard_is_exact_org2_renderer_output(self):
+  with tempfile.TemporaryDirectory() as t:
+   out=Path(t)/'out'
+   r=subprocess.run(['ansible-playbook','-i','localhost,',str(ROOT/'configuration/observability/pod-log-dashboard/render.yaml'),'-e','@'+str(SOURCE/'phase-b/dashboard-profile.yaml'),'-e','pod_logs_render=true','-e','pod_logs_output='+str(out)],capture_output=True,text=True)
+   self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+   actual=yaml.safe_load((SOURCE/'phase-b/dashboard-values.yaml').read_text())['grafana']['values']
+   self.assertEqual(actual,yaml.safe_load((out/'helm-values.yaml').read_text()))
+   provider=actual['upstream']['dashboardProviders']['perkforge-pod-logs-org-2.yaml']['providers'][0]
+   self.assertEqual(provider['orgId'],2)
  def test_datasource_is_exact_read_only_org_binding(self):
   v=yaml.safe_load((SOURCE/'phase-b/grafana-values.yaml').read_text())['grafana']['values']['upstream']
   self.assertEqual(set(v),{'envValueFrom','datasources'})
@@ -37,12 +46,13 @@ class PortalLogQuery(unittest.TestCase):
   if not sources:self.skipTest('Exact pinned source required')
   src=Path(sources);objects=build(ROOT/'clusters/local');parent=next(x for x in objects if x['kind']=='HelmRelease')
   values=ordered_values(objects,parent)+[(ROOT/'configuration/observability/candidate-values.yaml').read_text(),(ROOT/'configuration/observability/integrated-logging/values.yaml').read_text()]
-  for file in [SOURCE/'phase-a/boundary-values.yaml',SOURCE/'phase-a/grafana-values.yaml',ROOT/'configuration/authorization/sso/grafana/orgs/platform-only-values.yaml',SOURCE/'phase-a/dashboard-values.yaml',SOURCE/'phase-b/boundary-values.yaml',SOURCE/'phase-b/grafana-values.yaml']:values.append(file.read_text())
+  for file in [SOURCE/'phase-a/boundary-values.yaml',SOURCE/'phase-a/grafana-values.yaml',ROOT/'configuration/authorization/sso/grafana/orgs/platform-only-values.yaml',SOURCE/'phase-a/dashboard-values.yaml',SOURCE/'phase-b/boundary-values.yaml',SOURCE/'phase-b/grafana-values.yaml',SOURCE/'phase-b/dashboard-values.yaml']:values.append(file.read_text())
   outer=helm(src/'bigbang/chart','bigbang','bigbang',values,('--set','monitoring.enabled=true','--set','grafana.enabled=true'))
   hr=next(x for x in outer if x['kind']=='HelmRelease' and x['metadata']['name']=='grafana')
   rendered=helm(src/'grafana/chart',release_name(hr),hr['spec']['targetNamespace'],child_values(outer,'grafana'))
   data={k:v for x in rendered if x['kind']=='ConfigMap' for k,v in x.get('data',{}).items()}
   for name in ['datasources-loki-platform.yaml','datasources-loki-portal.yaml']:self.assertIn(name,data)
   self.assertIn('pf-observability-platform-viewer:1:Viewer',data['grafana.ini']);self.assertNotIn('pf-observability-portal',data['grafana.ini'])
+  dashboards=[v for x in rendered if x['kind']=='ConfigMap' for v in x.get('data',{}).values() if '"uid": "pf-pod-logs"' in v];self.assertEqual(len(dashboards),2);self.assertTrue(any('loki-portal' in d for d in dashboards));self.assertTrue(any('loki-platform' in d for d in dashboards))
   dep=next(x for x in rendered if x['kind']=='Deployment');env=next(c for c in dep['spec']['template']['spec']['containers'] if c['name']=='grafana')['env'];names={x['name'] for x in env}
   self.assertTrue({'PF_LOKI_USERNAME','PF_LOKI_PASSWORD','PF_LOKI_CA_CERT','PF_PORTAL_LOKI_USERNAME','PF_PORTAL_LOKI_PASSWORD'}<=names)
