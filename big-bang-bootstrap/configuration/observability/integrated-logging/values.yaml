@@ -7,6 +7,28 @@ alloy:
     suspend: false
   values:
     upstream:
+      collectors:
+        alloy-logs:
+          # Match the pinned Big Bang singleton collector's restricted defaults.
+          configReloader:
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: {drop: [ALL]}
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 65534
+              runAsGroup: 65534
+              seccompProfile: {type: RuntimeDefault}
+          alloy:
+            mounts:
+              extra:
+              - {name: loki-ca, mountPath: /loki-ca, readOnly: true}
+              - {name: alloy-storage, mountPath: /tmp/alloy}
+          controller:
+            volumes:
+              extra:
+              - {name: loki-ca, configMap: {name: loki-ca}}
+              - {name: alloy-storage, emptyDir: {sizeLimit: 64Mi}}
       alloy-operator:
         conflictCheck: false
     global:
