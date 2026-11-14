@@ -84,6 +84,14 @@
               payload:
                 template: >-
                   {% raw %}{{ coll.Dict "text" (printf "%s: %d grouped platform alert(s). Triage: {% endraw %}{{ grafana_mattermost_triage_url }}{% raw %}" .Status (len .Alerts)) | data.ToJSON }}{% endraw %}
+      - name: An existing owned receiver may change only its payload template
+        ansible.builtin.assert:
+          that:
+          - >-
+            (prior.contactPoints[0].receivers[1] | combine({'settings':
+              prior.contactPoints[0].receivers[1].settings | combine({'payload':
+                prior.contactPoints[0].receivers[1].settings.payload | combine({'template': mm_receiver.settings.payload.template})})})) == mm_receiver
+        when: prior.contactPoints[0].receivers | length == 2
       - ansible.builtin.set_fact:
           desired: '{{ prior | combine({"contactPoints":[prior.contactPoints[0] | combine({"receivers":[prior.contactPoints[0].receivers[0], mm_receiver]})]}) }}'
       - ansible.builtin.set_fact:

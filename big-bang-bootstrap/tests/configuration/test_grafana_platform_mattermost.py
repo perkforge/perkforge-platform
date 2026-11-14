@@ -65,6 +65,13 @@ else: assert 'annotate' in a or 'wait' in a
         r=run({'grafana_ntfy_previous_sha256':hashlib.sha256(broken.encode()).hexdigest()});self.assertEqual(r.returncode,0,r.stdout+r.stderr);self.assertEqual(json.loads(state.read_text())['writes'],2)
         current=yaml.safe_load(json.loads(state.read_text())['text']);self.assertEqual(current['groups'],prior['groups']);self.assertEqual(current['contactPoints'][0]['receivers'][0],prior['contactPoints'][0]['receivers'][0])
 
+        good=json.loads(state.read_text())
+        for field,value in [('url',self.origin+'/hooks/'+('z'*26)),('maxAlerts',99)]:
+            changed=json.loads(json.dumps(current));changed['contactPoints'][0]['receivers'][1]['settings'][field]=value
+            bad=yaml.safe_dump(changed);state.write_text(json.dumps(good|{'text':bad,'version':good['version']+1}))
+            r=run({'grafana_ntfy_previous_sha256':hashlib.sha256(bad.encode()).hexdigest()});self.assertNotEqual(r.returncode,0);self.assertEqual(json.loads(state.read_text())['writes'],2)
+        state.write_text(json.dumps(good))
+
         # Compile and execute the Ansible-produced Go template in pinned Grafana,
         # against this disposable HTTPS sink. No production endpoints or credentials.
         receiver=current['contactPoints'][0]['receivers'][1]
