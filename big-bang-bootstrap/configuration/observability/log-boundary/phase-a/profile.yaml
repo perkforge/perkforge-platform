@@ -18,7 +18,7 @@ log_scopes:
 - {namespace: tenant-portal, scope_id: portal-runtime-v1}
 # Tenant identity is not exposed in Phase A.
 log_readers: []
-# Begin real workload collection within current pilot resource/storage budget.
-# This is staged coverage, not a claim all namespaces are collected yet.
-log_collect_all_namespaces: false
-log_collection_namespaces: [tenant-portal, mattermost, flux-system, monitoring]
+# Explicit cluster-wide trial after representative monitoring observation.
+# Tenant query exposure remains disabled; unknown namespaces use platform fallback.
+log_collect_all_namespaces: true
+log_collection_namespaces: []

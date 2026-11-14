@@ -9,7 +9,13 @@ http {
   uwsgi_temp_path {{ log_runtime_dir }}/uwsgi_temp;
   scgi_temp_path {{ log_runtime_dir }}/scgi_temp;
   log_format scoped '$remote_user $request_method $uri $status';
-  access_log /dev/stdout scoped;
+  # Avoid self-ingestion feedback when the gateway namespace is collected.
+  # Only successful ingestion access metadata is suppressed, never app log content.
+  map "$request_method:$uri:$status" $log_access {
+    default 1;
+    ~^POST:/loki/api/v1/push:2[0-9][0-9]$ 0;
+  }
+  access_log /dev/stdout scoped if=$log_access;
   client_max_body_size 4m;
   map $remote_user $read_scope {
     default "";

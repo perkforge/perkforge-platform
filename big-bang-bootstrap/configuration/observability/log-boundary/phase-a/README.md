@@ -62,3 +62,29 @@ The next explicit source stage adds `monitoring` to the existing three namespace
 without grants, image/resource changes or tenant exposure. Observe at least another
 10 minutes with the same error/drop/retry, memory and PVC-growth checks before an
 all-namespace trial. Do not infer full-cluster capacity from quiet Portal workloads.
+
+### Cluster-wide observation stage
+
+The explicit all-namespace profile is the next controlled trial, not retrospective
+proof that all workloads were collected. Promote only after the representative
+10-minute monitoring window has stable fresh ingestion, no newly increasing
+retry/drop counters, collector cgroup/working-set usage below 75% of its 256Mi
+limit, and more than 30% PVC free with a measured 72-hour growth projection plus
+30% reserve fitting capacity. Observe at least 15 minutes after expansion; short
+windows cannot establish a steady-state capacity or retention guarantee. Keep
+existing requests/limits, credentials, routing and tenant query denial unchanged.
+
+The gateway suppresses only successful POST push access metadata, avoiding a
+self-collection feedback loop once `logging` is included. Failed push requests,
+authorization denials and query access metadata remain logged; application logs
+are not silently discarded by this rule. Native pod collection opt-out annotations
+still apply. The pre-expansion inventory had no opted-out active pods; future
+opt-outs must not be presented as complete coverage.
+
+Adding `monitoring` initially encountered five timestamp-too-old HTTP 400 batches
+at 14:50:36–37 UTC. Compared with the earlier window, dropped counters increased
+by 15,825 entries / 636,967 bytes and retry counters by 14. These are interval-wide
+counter deltas, not a claim each loss was an old record: a rejected batch can
+include mixed-age entries, and the exact per-entry disposition was not verified.
+No age policy was weakened and no lossless backfill claim is made. Acceptance
+uses a separate clean post-catch-up window beginning 14:54:46 UTC.

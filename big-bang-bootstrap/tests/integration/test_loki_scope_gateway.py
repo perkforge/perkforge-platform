@@ -33,7 +33,8 @@ class LokiScopeGateway(unittest.TestCase):
   config=cls.folder/'out/nginx.conf';binary=os.environ.get('NGINX_VALIDATE_BIN','/usr/sbin/nginx')
   check=subprocess.run([binary,'-t','-c',str(config)],capture_output=True,text=True)
   if check.returncode:raise AssertionError(check.stderr)
-  cls.process=subprocess.Popen([binary,'-c',str(config),'-g','daemon off;'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);cls.addClassCleanup(cls.stop)
+  cls.access_path=cls.folder/'access.log';cls.access_file=cls.access_path.open('w');cls.addClassCleanup(cls.access_file.close)
+  cls.process=subprocess.Popen([binary,'-c',str(config),'-g','daemon off;'],stdout=cls.access_file,stderr=subprocess.DEVNULL);cls.addClassCleanup(cls.stop)
   for _ in range(50):
    try:
     with socket.create_connection(('127.0.0.1',cls.port),timeout=.1):break
@@ -75,6 +76,16 @@ class LokiScopeGateway(unittest.TestCase):
   self.assertEqual(self.request('/loki/api/v1/query',password='wrong'),401)
   self.assertIn(self.request('/loki/api/v1/query',user=None),[401,403])
   self.assertEqual(self.request('/loki/api/v1/query',method='DELETE'),405)
+ def test_successful_ingestion_access_metadata_does_not_feed_itself(self):
+  offset=self.access_path.stat().st_size
+  self.assertEqual(self.request('/loki/api/v1/push',user='writer',method='POST',scope='portal-runtime-v1',body=b'{}'),200)
+  self.assertEqual(self.request('/loki/api/v1/push',user='portal-reader',method='POST',scope='portal-runtime-v1',body=b'{}'),403)
+  self.assertEqual(self.request('/loki/api/v1/query',user='platform-reader'),200)
+  time.sleep(.1)
+  with self.access_path.open() as f:f.seek(offset);text=f.read()
+  self.assertNotIn('writer POST /loki/api/v1/push 200',text)
+  self.assertIn('portal-reader POST /loki/api/v1/push 403',text)
+  self.assertIn('platform-reader GET /loki/api/v1/query 200',text)
  def test_scoped_label_and_series_routes(self):
   for path in ['/loki/api/v1/labels','/loki/api/v1/label/namespace/values','/loki/api/v1/series']:
    self.assertEqual(self.request(path),200);self.assertEqual(self.backend.received[-1]['tenant'],'portal-runtime-v1')
