@@ -1,0 +1,192 @@
+# Separately approved delivery only; never switches the active root or changes human memberships.
+- name: Stage dedicated native Mattermost runtime prerequisites
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files: [contract.yaml]
+  vars:
+    mattermost_runtime_activate: false
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ mattermost_runtime_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      timeout: 20
+  tasks:
+  - when: mattermost_runtime_activate | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - mattermost_runtime_record is match('^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$')
+        - mattermost_runtime_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+        - mattermost_runtime_storage_class | length > 0
+        - mattermost_runtime_output_dir is match('^/')
+    - ansible.builtin.command:
+        argv: [kubectl, get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: cluster
+      changed_when: false
+    - ansible.builtin.assert: {that: cluster.stdout == mattermost_runtime_cluster_uid}
+    - ansible.builtin.uri:
+        url: '{{ mattermost_runtime_bao_server }}/v1/sys/health'
+      register: bao_health
+    - ansible.builtin.assert:
+        that: bao_health.json.cluster_id == mattermost_runtime_bao_cluster_id and not bao_health.json.sealed
+    - name: Verify protected custody input ownership before reading
+      ansible.builtin.stat:
+        path: '{{ mattermost_runtime_record_file }}'
+        follow: false
+      register: custody_file
+    - ansible.builtin.command: {argv: [id, -u]}
+      register: owner_uid
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - custody_file.stat.isreg and not custody_file.stat.islnk
+        - custody_file.stat.mode == '0600'
+        - custody_file.stat.uid == owner_uid.stdout | int
+    - name: Seed exact record and dedicated machine identity, without rotating existing data
+      no_log: true
+      block:
+      - ansible.builtin.set_fact:
+          desired_record: '{{ lookup("file", mattermost_runtime_record_file) | from_yaml }}'
+          bao_headers: {X-Vault-Token: '{{ lookup("file", mattermost_runtime_bao_token_file) | trim }}'}
+          desired_policy: 'path "platform/data/{{ mattermost_runtime_record }}" { capabilities = ["read"] } path "auth/token/lookup-self" { capabilities = ["read"] }'
+          desired_role:
+            bound_service_account_names: [eso-mattermost]
+            bound_service_account_namespaces: [mattermost]
+            audience: openbao-eso
+            token_policies: [eso-mattermost]
+            token_ttl: 300
+            token_max_ttl: 900
+            token_explicit_max_ttl: 900
+            token_no_default_policy: true
+      - ansible.builtin.assert:
+          that:
+          - desired_record.keys() | sort == ['database_url','oidc_client_secret','postgres_admin_password','postgres_app_password','tls_certificate','tls_private_key']
+          - desired_record.postgres_admin_password | length >= 32
+          - desired_record.postgres_app_password | length >= 32
+          - desired_record.oidc_client_secret | length >= 32
+          - desired_record.postgres_admin_password != desired_record.postgres_app_password
+          - desired_record.database_url == 'postgres://mattermost:' + desired_record.postgres_app_password + '@mattermost-postgresql.mattermost.svc.cluster.local:5432/mattermost?connect_timeout=10&sslmode=disable'
+      - name: Refuse foreign target Secrets before any custody or controller change
+        ansible.builtin.include_tasks: verify-secret.yaml
+        vars:
+          mm_expected: '{{ desired_record }}'
+          mm_allow_absent: true
+        loop: '{{ mattermost_runtime_consumers }}'
+        loop_control: {loop_var: consumer}
+      - ansible.builtin.uri:
+          url: '{{ mattermost_runtime_bao_server }}/v1/platform/data/{{ mattermost_runtime_record }}'
+          headers: '{{ bao_headers }}'
+          status_code: [200, 404]
+        register: record_before
+      - ansible.builtin.assert: {that: record_before.json.data.data == desired_record}
+        when: record_before.status == 200
+      - ansible.builtin.uri:
+          url: '{{ mattermost_runtime_bao_server }}/v1/sys/policies/acl/eso-mattermost'
+          headers: '{{ bao_headers }}'
+          status_code: [200, 404]
+        register: policy_before
+      - ansible.builtin.assert: {that: policy_before.json.data.policy == desired_policy}
+        when: policy_before.status == 200
+      - ansible.builtin.uri:
+          url: '{{ mattermost_runtime_bao_server }}/v1/auth/kubernetes-eso/role/eso-mattermost'
+          headers: '{{ bao_headers }}'
+          status_code: [200, 404]
+        register: role_before
+      - ansible.builtin.assert:
+          that: role_before.json.data[item.key] == item.value
+        loop: '{{ desired_role | dict2items }}'
+        when: role_before.status == 200
+      - ansible.builtin.uri:
+          url: '{{ mattermost_runtime_bao_server }}/v1/platform/data/{{ mattermost_runtime_record }}'
+          method: POST
+          headers: '{{ bao_headers }}'
+          body_format: json
+          body: {options: {cas: 0}, data: '{{ desired_record }}'}
+        when: record_before.status == 404
+      - ansible.builtin.uri:
+          url: '{{ mattermost_runtime_bao_server }}/v1/sys/policies/acl/eso-mattermost'
+          method: PUT
+          headers: '{{ bao_headers }}'
+          body_format: json
+          body: {policy: '{{ desired_policy }}'}
+          status_code: 204
+        when: policy_before.status == 404
+      - ansible.builtin.uri:
+          url: '{{ mattermost_runtime_bao_server }}/v1/auth/kubernetes-eso/role/eso-mattermost'
+          method: POST
+          headers: '{{ bao_headers }}'
+          body_format: json
+          body: '{{ desired_role }}'
+          status_code: 204
+        when: role_before.status == 404
+      always:
+      - ansible.builtin.set_fact: {bao_headers: {}, desired_record: {}, record_before: {}}
+    - name: Apply approved native installer and scoped operator prerequisites
+      ansible.builtin.command:
+        argv: [kubectl, apply, --server-side, --field-manager=mattermost-runtime, -k, '{{ playbook_dir }}/../prerequisites']
+    - ansible.builtin.command:
+        argv: [kubectl, apply, --server-side, --field-manager=mattermost-runtime, -f, '{{ playbook_dir }}/../backend/installer.yaml']
+    - name: Render public dedicated ESO declarations
+      ansible.builtin.template:
+        src: consumers.yaml.j2
+        dest: '{{ mattermost_runtime_output_dir }}/consumers.yaml'
+        mode: '0600'
+    - ansible.builtin.command:
+        argv: [kubectl, apply, --server-side, --field-manager=mattermost-runtime, -f, '{{ mattermost_runtime_output_dir }}/consumers.yaml']
+    - ansible.builtin.command:
+        argv: [kubectl, -n, mattermost, wait, 'externalsecret/{{ item.name }}', --for=condition=Ready, --timeout=90s]
+      loop: '{{ mattermost_runtime_consumers }}'
+    - name: Verify decoded exact payload equality before exposing app values
+      no_log: true
+      block:
+      - ansible.builtin.set_fact:
+          expected: '{{ lookup("file", mattermost_runtime_record_file) | from_yaml }}'
+      - ansible.builtin.include_tasks: verify-secret.yaml
+        vars:
+          mm_expected: '{{ expected }}'
+          mm_allow_absent: false
+        loop: '{{ mattermost_runtime_consumers }}'
+        loop_control: {loop_var: consumer}
+      always:
+      - ansible.builtin.set_fact: {mm_synced: {}, expected: {}}
+    - name: Stage target-selected dedicated file PVC
+      ansible.builtin.copy:
+        content: '{{ (lookup("file", playbook_dir + "/../backend/files-pvc.yaml") | from_yaml) | combine({"spec": {"storageClassName": mattermost_runtime_storage_class}}, recursive=true) | to_nice_yaml }}'
+        dest: '{{ mattermost_runtime_output_dir }}/files-pvc.yaml'
+        mode: '0600'
+    - ansible.builtin.command:
+        argv: [kubectl, apply, --server-side, --field-manager=mattermost-runtime, -f, '{{ mattermost_runtime_output_dir }}/files-pvc.yaml']
+    - name: Deliver only existing exact Registry1 pull identity to approved namespaces
+      no_log: true
+      block:
+      - ansible.builtin.command:
+          argv: [kubectl, -n, flux-system, get, secret, private-registry, -o, json]
+        register: registry_source
+        changed_when: false
+      - ansible.builtin.set_fact:
+          registry_data: '{{ (registry_source.stdout | from_json).data }}'
+      - ansible.builtin.assert:
+          that: (registry_data['.dockerconfigjson'] | b64decode | from_json).auths.keys() | list == ['registry1.dso.mil']
+      - ansible.builtin.include_tasks: registry.yaml
+        loop: [mattermost, mattermost-operator]
+        loop_control: {loop_var: registry_namespace}
+      always:
+      - ansible.builtin.set_fact: {registry_source: {}, registry_data: {}, registry_target: {}}
+    - name: Apply approved target-specific network paths before app activation
+      ansible.builtin.command:
+        argv: [kubectl, apply, --server-side, --field-manager=mattermost-runtime, -f, '{{ mattermost_runtime_output_dir }}/network.yaml']
+    - name: Refuse changing already-staged native values implicitly
+      ansible.builtin.command:
+        argv: [kubectl, -n, bigbang, get, configmap, mattermost-runtime-values, --ignore-not-found, -o, json]
+      register: values_before
+      changed_when: false
+    - ansible.builtin.assert:
+        that: (values_before.stdout | from_json).data['values.yaml'] == lookup('file', mattermost_runtime_output_dir + '/values.yaml', rstrip=false)
+      when: values_before.stdout != ''
+    - ansible.builtin.command:
+        argv: [kubectl, -n, bigbang, create, configmap, mattermost-runtime-values, '--from-file=values.yaml={{ mattermost_runtime_output_dir }}/values.yaml']
+      when: values_before.stdout == ''

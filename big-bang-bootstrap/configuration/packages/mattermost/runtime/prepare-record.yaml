@@ -1,0 +1,56 @@
+# Owner-only local custody preparation. No API, signer access, or live changes.
+- name: Prepare dedicated Mattermost machine credentials from verified TLS inputs
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    mattermost_runtime_prepare_record: false
+  tasks:
+  - when: mattermost_runtime_prepare_record | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - mattermost_runtime_private_dir is match('^/')
+        - mattermost_runtime_origin is match('^https://[a-z0-9.-]+$')
+    - ansible.builtin.file:
+        path: '{{ mattermost_runtime_private_dir }}'
+        state: directory
+        mode: '0700'
+    - ansible.builtin.command:
+        argv: [openssl, verify, -CAfile, '{{ mattermost_runtime_ca_file }}', -verify_hostname, '{{ mattermost_runtime_origin | regex_replace("^https://", "") }}', -purpose, sslserver, '{{ mattermost_runtime_tls_certificate_file }}']
+      changed_when: false
+    - no_log: true
+      block:
+      - ansible.builtin.command:
+          argv: [openssl, x509, -in, '{{ mattermost_runtime_tls_certificate_file }}', -pubkey, -noout]
+        register: cert_public
+        changed_when: false
+      - ansible.builtin.command:
+          argv: [openssl, pkey, -in, '{{ mattermost_runtime_tls_private_key_file }}', -pubout]
+        register: key_public
+        changed_when: false
+      - ansible.builtin.assert: {that: cert_public.stdout == key_public.stdout}
+      - ansible.builtin.set_fact:
+          admin_password: '{{ lookup("password", mattermost_runtime_private_dir + "/postgres-admin", length=64, chars=["hexdigits"]) }}'
+          app_password: '{{ lookup("password", mattermost_runtime_private_dir + "/postgres-app", length=64, chars=["hexdigits"]) }}'
+          oidc_secret: '{{ lookup("password", mattermost_runtime_private_dir + "/oidc-client", length=64, chars=["hexdigits"]) }}'
+      - ansible.builtin.set_fact:
+          desired_record:
+            postgres_admin_password: '{{ admin_password }}'
+            postgres_app_password: '{{ app_password }}'
+            oidc_client_secret: '{{ oidc_secret }}'
+            database_url: 'postgres://mattermost:{{ app_password }}@mattermost-postgresql.mattermost.svc.cluster.local:5432/mattermost?connect_timeout=10&sslmode=disable'
+            tls_certificate: '{{ lookup("file", mattermost_runtime_tls_certificate_file, rstrip=false) }}'
+            tls_private_key: '{{ lookup("file", mattermost_runtime_tls_private_key_file, rstrip=false) }}'
+      - ansible.builtin.stat: {path: '{{ mattermost_runtime_private_dir }}/record.yaml'}
+        register: prior
+      - ansible.builtin.assert:
+          that: lookup('file', mattermost_runtime_private_dir + '/record.yaml') | from_yaml == desired_record
+        when: prior.stat.exists
+      - ansible.builtin.copy:
+          content: '{{ desired_record | to_nice_yaml }}'
+          dest: '{{ mattermost_runtime_private_dir }}/record.yaml'
+          mode: '0600'
+        when: not prior.stat.exists
+      always:
+      - ansible.builtin.set_fact: {admin_password: '', app_password: '', oidc_secret: '', desired_record: {}, cert_public: {}, key_public: {}}
