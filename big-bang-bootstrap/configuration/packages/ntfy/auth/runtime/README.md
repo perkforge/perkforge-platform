@@ -28,3 +28,15 @@ ACL inspection are safe acceptance here; do not publish an alert or grant humans
 without the approved destination/identity scope. Pair actual Grafana alert delivery
 with the ready locked Mattermost destination later. Rotation/removal is not covered
 by this create-only path and requires separate coordinated native lifecycle work.
+
+Fail-closed promotion gate (run before changing any Flux source/path):
+
+```sh
+set -eu
+kubectl -n ntfy wait secretstore/ntfy-runtime --for=condition=Ready --timeout=90s
+kubectl -n ntfy wait externalsecret/ntfy-runtime-config --for=condition=Ready --timeout=90s
+# Only after both commands return success: select the reviewed immutable root.
+```
+
+Never separate these waits from promotion with an unconditional semicolon. A
+cancelled/failed wait must terminate the promotion script, not proceed to restart.
