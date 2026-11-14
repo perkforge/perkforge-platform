@@ -52,3 +52,10 @@ stack and references that ConfigMap. Apply prerequisites, publish/review/merge t
 source, then select its immutable commit and this root. Other adopters can include
 the same native values and rendered package in their own root; no image changes
 are required. Do not use a mutable branch for the live source.
+
+The selected root includes the checked-in `runtime/` rendering for the default
+monitoring/tenant-observability/tenant-portal composition. Flux owns its gateway,
+backend ConfigMap and authenticated self-monitor, not an unmanaged shell patch.
+Regenerate this public package from the same templates for different namespace
+layouts. Private endpoint-CIDR Grafana egress remains a target-input application;
+no physical address or credential is included in the runtime package.

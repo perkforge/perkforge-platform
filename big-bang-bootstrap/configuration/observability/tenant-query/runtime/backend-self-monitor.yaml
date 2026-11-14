@@ -1,0 +1,33 @@
+# INACTIVE paired replacement: native chart applies one TLS setting to both
+# endpoints. Reloader HTTP is loopback-only, fronted by TLS. No credentials.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: query-backend-self
+  namespace: monitoring
+  labels: {release: monitoring-monitoring}
+spec:
+  namespaceSelector: {matchNames: [monitoring]}
+  selector:
+    matchLabels:
+      app: kube-prometheus-stack-prometheus
+      release: monitoring-monitoring
+  endpoints:
+  - port: http-web
+    path: /metrics
+    relabelings: [{targetLabel: component, replacement: prometheus}]
+    scheme: https
+    tlsConfig:
+      serverName: monitoring-monitoring-kube-prometheus.monitoring.svc
+      ca: {secret: {name: query-backend-self-client, key: ca.crt}}
+      cert: {secret: {name: query-backend-self-client, key: tls.crt}}
+      keySecret: {name: query-backend-self-client, key: tls.key}
+  - port: http-web
+    path: /reloader/metrics
+    relabelings: [{targetLabel: component, replacement: config-reloader}]
+    scheme: https
+    tlsConfig:
+      serverName: monitoring-monitoring-kube-prometheus.monitoring.svc
+      ca: {secret: {name: query-backend-self-client, key: ca.crt}}
+      cert: {secret: {name: query-backend-self-client, key: tls.crt}}
+      keySecret: {name: query-backend-self-client, key: tls.key}
