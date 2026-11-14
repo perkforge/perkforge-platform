@@ -144,3 +144,19 @@ class LokiScopeGateway(unittest.TestCase):
  def test_cluster_collection_requires_explicit_all_flag(self):
   x=copy.deepcopy(self.inputs);x['log_collection_namespaces']=[]
   self.render(x,expected=1)
+ def test_platform_only_keeps_legacy_reads_but_denies_tenant_and_legacy_writes(self):
+  inputs=copy.deepcopy(self.inputs);runtime=self.folder/'phase-a-runtime';runtime.mkdir()
+  inputs.update(log_output_dir=str(self.folder/'phase-a-out'),log_runtime_dir=str(runtime),log_listen=f'127.0.0.1:{freeport()}',log_readers=[],log_legacy_reader='other-reader')
+  self.render(inputs);binary=os.environ.get('NGINX_VALIDATE_BIN','/usr/sbin/nginx');config=self.folder/'phase-a-out/nginx.conf'
+  process=subprocess.Popen([binary,'-c',str(config),'-g','daemon off;'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+  old=self.port;self.port=int(inputs['log_listen'].split(':')[-1])
+  try:
+   for _ in range(50):
+    try:
+     with socket.create_connection(('127.0.0.1',self.port),timeout=.1):break
+    except OSError:time.sleep(.1)
+   self.assertEqual(self.request('/loki/api/v1/query',user='other-reader'),200);self.assertEqual(self.backend.received[-1]['tenant'],'legacy-pilot')
+   self.assertEqual(self.request('/loki/api/v1/query',user='portal-reader'),403)
+   self.assertEqual(self.request('/loki/api/v1/push',user='other-reader',method='POST',scope='legacy-pilot'),403)
+   self.assertEqual(self.request('/loki/api/v1/query',user='platform-reader'),200)
+  finally:self.port=old;process.terminate();process.wait(timeout=10)
