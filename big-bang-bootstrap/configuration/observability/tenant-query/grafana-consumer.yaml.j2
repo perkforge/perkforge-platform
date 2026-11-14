@@ -8,9 +8,18 @@ upstream:
 {% endif %}
   envFromSecrets:
   - name: grafana-query-auth
+{% if grafana_loki_enabled | default(false) | bool %}
+  envValueFrom:
+    LOKI_USERNAME:
+      secretKeyRef: {name: loki-query-auth, key: username}
+    LOKI_PASSWORD:
+      secretKeyRef: {name: loki-query-auth, key: password}
+    LOKI_CA_CERT:
+      configMapKeyRef: {name: loki-ca, key: ca.crt}
+{% endif %}
   grafana.ini:
     security:
-      data_source_proxy_whitelist: {{ gateway_service_host }}:8443
+      data_source_proxy_whitelist: {{ (gateway_service_host + ':8443' + (' ' + grafana_loki_gateway_host + ':443' if grafana_loki_enabled | default(false) | bool else '')) | to_json }}
   datasources:
     datasourcesbb.yaml:
       apiVersion: 1
@@ -29,3 +38,21 @@ upstream:
         secureJsonData:
           basicAuthPassword: $GRAFANA_QUERY_PASSWORD
           tlsCACert: $GRAFANA_QUERY_CA_PEM
+{% if grafana_loki_enabled | default(false) | bool %}
+    datasources-loki.yaml:
+      apiVersion: 1
+      datasources:
+      - name: Loki pilot
+        uid: loki-pilot
+        orgId: 1
+        type: loki
+        access: proxy
+        editable: false
+        url: https://{{ grafana_loki_gateway_host }}
+        basicAuth: true
+        basicAuthUser: $LOKI_USERNAME
+        jsonData: {tlsAuthWithCACert: true, tlsSkipVerify: false, timeout: 30, maxLines: 1000}
+        secureJsonData:
+          basicAuthPassword: $LOKI_PASSWORD
+          tlsCACert: $LOKI_CA_CERT
+{% endif %}

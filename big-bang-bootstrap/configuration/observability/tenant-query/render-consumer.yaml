@@ -17,6 +17,10 @@
       - item.port | int in [443, 6443]
       - item.purpose in ['identity', 'kubernetes-api']
     loop: '{{ grafana_required_endpoints }}'
+  - ansible.builtin.assert:
+      that:
+      - grafana_loki_gateway_host == 'logging-loki-gateway.logging.svc.cluster.local'
+    when: grafana_loki_enabled | default(false) | bool
   - ansible.builtin.file:
       path: '{{ consumer_output_dir }}'
       state: directory

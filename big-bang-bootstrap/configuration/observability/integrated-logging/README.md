@@ -22,3 +22,22 @@ Promote only in the coordinator's window after preservation review. Verify nativ
 readiness and controlled pilot ingestion/query before enabling Grafana log access.
 Keep the same images and chart source across environments (BODA). Source publication
 is not deployment, recovery proof, or completed #38 acceptance.
+
+## Separately approved Grafana pilot consumer
+
+`tenant-query/render-consumer.yaml` accepts explicit `grafana_loki_enabled: true`
+and `grafana_loki_gateway_host: logging-loki-gateway.logging.svc.cluster.local`.
+It preserves the authenticated Prometheus document and existing Secret references,
+adds a separate immutable Loki provisioning document, and references existing
+monitoring `loki-query-auth` and `loki-ca`. It appends only this gateway on port443
+to the proxy whitelist and one Grafana-pod egress rule to the exact logging gateway
+pods on target port8080. Default false leaves existing behavior unchanged.
+
+Corey approved this exact additive pilot access batch. Runtime rendering/apply must
+still be serialized with Mattermost's Grafana restart and retain both notification
+mounts. Verify actual existing input compatibility before apply, then native
+Prometheus health plus Loki ingestion/query and denied direct-backend access.
+Credentials are existing manually staged inputs, not claimed ESO-managed. The
+machine Loki identity has read/write tenant scope; this is platform-admin pilot
+access, not authorization to expose a datasource to customer tenants or broaden
+collection. No password/token value is rendered by this template or stored in Git.

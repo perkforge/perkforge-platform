@@ -19,3 +19,10 @@ spec:
   - to: [{ipBlock: {cidr: {{ endpoint.cidr | to_json }}}}]
     ports: [{protocol: TCP, port: {{ endpoint.port }}}]
 {% endfor %}
+{% if grafana_loki_enabled | default(false) | bool %}
+  - to:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: logging}}
+      podSelector:
+        matchLabels: {app.kubernetes.io/component: gateway, app.kubernetes.io/instance: logging-loki}
+    ports: [{protocol: TCP, port: 8080}]
+{% endif %}
