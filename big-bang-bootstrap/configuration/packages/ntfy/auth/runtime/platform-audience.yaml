@@ -63,6 +63,7 @@
           prior_fragment: '{{ lookup("template", "../native-auth.yaml.j2") | from_yaml }}'
       - ansible.builtin.assert:
           that:
+          - current.json.data.data.keys() | list == ['server.yml']
           - prior.accounts | map(attribute='username') | sort == platform_audience_expected_users | sort
           - base['auth-default-access'] == 'deny-all'
           - base['auth-users'] == prior_fragment['auth-users'] or base == (lookup('file', platform_audience_runtime_dir + '/server.yml', errors='ignore') | default('{}', true) | from_yaml)
