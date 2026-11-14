@@ -1,0 +1,7 @@
+# Proposed platform-only binding; this file does not enable rendering/deployment.
+pod_logs_render: false
+pod_logs_org_id: 1
+pod_logs_datasource_uid: loki-platform
+pod_logs_coverage: Platform read-only federation; only collected namespaces are visible. Coverage must be verified separately.
+# Supply operator-local pod_logs_output and explicit render=true only after review.
+# No tenant org selection and no loki-pilot fallback.

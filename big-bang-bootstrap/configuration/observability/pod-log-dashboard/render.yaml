@@ -31,4 +31,4 @@
             src: '{{ item }}.j2'
             dest: '{{ pod_logs_output }}/{{ item }}'
             mode: '0600'
-          loop: [dashboard.json, provider.yaml]
+          loop: [dashboard.json, provider.yaml, helm-values.yaml]
