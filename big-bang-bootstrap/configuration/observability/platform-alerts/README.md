@@ -85,7 +85,7 @@ For collector errors or missing data, restore metric coverage before treating
 an absent resource alert as healthy. Link out to the deployment's documented
 node/workload dashboards; account permissions still govern access.
 
-Payloads include at most3 alerts with explicit truncation count and bounded label
+Payloads include at most3 alerts with an explicit bounded-group notice and bounded label
 text; open Grafana for the complete group. Provisioning escapes Go `$` variables
 as `$$` because Grafana expands environment variables while loading YAML. Native
 Grafana13.2.1 import was verified with network disabled and synthetic paused
