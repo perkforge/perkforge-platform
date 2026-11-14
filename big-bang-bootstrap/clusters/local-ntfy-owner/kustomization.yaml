@@ -1,0 +1,11 @@
+# Select only after reviewed subscriber config is delivered and verified, not merely Ready from an earlier sync.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [../local-ntfy-publisher]
+patches:
+- target: {group: apps, version: v1, kind: StatefulSet, name: ntfy, namespace: ntfy}
+  patch: |-
+    - op: add
+      path: /spec/template/metadata/annotations
+      value:
+        perkforge.io/ntfy-auth-revision: owner-subscriber-v1

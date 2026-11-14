@@ -40,3 +40,22 @@ kubectl -n ntfy wait externalsecret/ntfy-runtime-config --for=condition=Ready --
 
 Never separate these waits from promotion with an unconditional semicolon. A
 cancelled/failed wait must terminate the promotion script, not proceed to restart.
+
+## Verified owner subscriber
+
+`subscriber.yaml` is a separate opt-in extension. Supply the verified Keycloak
+subject/role, native username and exact approved topic; it does not change Keycloak
+or infer entitlements from user input. It verifies the live native user set and
+existing publisher configuration before preparing one read-only subscriber. Native
+password hashing stays local. `ntfy_subscriber_apply` defaults false; true creates
+an owner-readable record containing only subscriber username/token/topic and updates
+the full runtime record using its read version as CAS. Publisher credentials and
+all non-auth settings are preserved. No deletion, contact point or message is sent.
+
+After writes, wait for a NEW ESO refresh and verify the delivered Secret matches
+`subscriber-server.yml` without printing it. Only then select the reviewed immutable
+`local-ntfy-owner` root to restart ntfy. Verify native exact-topic read-only access
+and denied cross-topic/publish rights before providing secure owner retrieval.
+The separate owner record must be readable through the owner's existing approved
+OpenBao identity; this play grants no human OpenBao rights. Partial writes require
+inspection and fix-forward, not blind rerun (owner record creation is CAS zero).
