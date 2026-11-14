@@ -1,0 +1,148 @@
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: mattermost-event-projection, namespace: ntfy}
+data:
+  nginx.conf: "load_module /usr/lib/nginx/modules/ngx_http_js_module.so;\nworker_processes 1;\npid /tmp/nginx.pid;\nerror_log /dev/stderr warn;\nevents { worker_connections 64; }\nhttp {\n  access_log off;\n  client_body_temp_path /tmp/body;\n  proxy_temp_path /tmp/proxy;\n  fastcgi_temp_path /tmp/fastcgi;\n  uwsgi_temp_path /tmp/uwsgi;\n  scgi_temp_path /tmp/scgi;\n  js_import projection from /etc/projection/project.js;\n  js_fetch_trusted_certificate /run/projection-ca/ca.crt;\n  js_fetch_verify on;\n  js_fetch_timeout 10s;\n  # Supplied by target overlay from observed cluster DNS, never public fallback.\n  include /run/projection-dns/resolver.conf;\n  server {\n    listen 8443 ssl;\n    ssl_certificate /run/projection-tls/tls.crt;\n    ssl_certificate_key /run/projection-tls/tls.key;\n    ssl_protocols TLSv1.2 TLSv1.3;\n    server_tokens off;\n    client_max_body_size 64k;\n    client_body_buffer_size 64k;\n    location = /healthz { return 200 'ok'; }\n    location = /platform { js_content projection.receive; }\n    location = /portal { js_content projection.receive; }\n    location / { return 404; }\n  }\n}\n"
+  project.js: "// Fixed audience projection: never forward Helm messages, annotations or metadata.\nimport fs from 'fs';\nimport crypto from 'crypto';\nfunction project(event, route) {\n    if (!event || typeof event !== 'object' || !event.involvedObject) throw Error('event');\n    const obj = event.involvedObject;\n    if (obj.kind !== 'HelmRelease' || !['helm.toolkit.fluxcd.io/v2', 'helm.toolkit.fluxcd.io/v2beta2'].includes(obj.apiVersion)) throw Error('kind');\n    const source = obj.namespace + '/' + obj.name;\n    if (!route.sources.includes(source)) throw Error('source');\n    const match = typeof event.message === 'string' && event.message.match(/^Helm (install|upgrade) (succeeded|failed) for release /);\n    if (!match || event.severity !== (match[2] === 'failed' ? 'error' : 'info')) throw Error('outcome');\n    return {text: route.title + ': Helm ' + match[1] + ' ' + match[2] + '.\\nRelease: ' + source + '\\n' + route.link};\n}\nfunction equal(a,b) {\n    const x=crypto.createHash('sha256').update(a).digest('hex');\n    const y=crypto.createHash('sha256').update(b).digest('hex');\n    let diff=0; for(let i=0;i<x.length;i++) diff |= x.charCodeAt(i)^y.charCodeAt(i); return diff===0;\n}\nasync function receive(r) {\n    if (r.method !== 'POST') { r.return(405); return; }\n    try {\n        const config=JSON.parse(fs.readFileSync('/run/projection/routes.json','utf8'));\n        const route=config[r.uri];\n        if (!route || r.variables.args || !equal(r.headersIn.Authorization || '', 'Bearer '+route.token)) { r.return(403); return; }\n        if (!/^https:\\/\\/[A-Za-z0-9.-]+(?::[0-9]+)?\\/hooks\\/[a-z0-9]{26}$/.test(route.hook)) throw Error('configuration');\n        const payload=project(JSON.parse(r.requestText),route);\n        const result=await ngx.fetch(route.hook, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),verify:true,max_response_body_size:1024});\n        if (result.status!==200 || (await result.text()).trim()!=='ok') {r.return(502,'Delivery failed');return;}\n        r.return(200,'Delivered');\n    } catch(e) {r.return(400,'Invalid event or delivery failure');}\n}\nexport default {receive,project};\n"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: mattermost-event-projection, namespace: ntfy}
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: mattermost-event-projection, namespace: ntfy}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app.kubernetes.io/name: mattermost-event-projection}}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: mattermost-event-projection}
+      annotations:
+        platform.perkforge.io/source-sha: "b22ce4bccf628b6f4912fdaf1c0780e019bbbda524579922632ebe13af3734df"
+    spec:
+      serviceAccountName: mattermost-event-projection
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 101, runAsGroup: 101, fsGroup: 101, seccompProfile: {type: RuntimeDefault}}
+      containers:
+      - name: projection
+        image: docker.io/library/nginx:1.31.6-alpine@sha256:0530961ff0592b58c10f767535cc0abdfccf9e389ff7cc90f87320c1bc7e8506
+        command: [nginx, -c, /etc/projection/nginx.conf, -g, 'daemon off;']
+        ports: [{name: https, containerPort: 8443}]
+        securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+        resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {cpu: 100m, memory: 128Mi}}
+        readinessProbe: {httpGet: {path: /healthz, port: https, scheme: HTTPS}}
+        livenessProbe: {httpGet: {path: /healthz, port: https, scheme: HTTPS}, initialDelaySeconds: 10}
+        volumeMounts:
+        - {name: source, mountPath: /etc/projection, readOnly: true}
+        - {name: routes, mountPath: /run/projection, readOnly: true}
+        - {name: tls, mountPath: /run/projection-tls, readOnly: true}
+        - {name: public, mountPath: /run/projection-ca, readOnly: true}
+        - {name: public, mountPath: /run/projection-dns, readOnly: true}
+        - {name: tmp, mountPath: /tmp}
+      volumes:
+      - {name: source, configMap: {name: mattermost-event-projection}}
+      - {name: routes, secret: {secretName: mattermost-projection-routes-v1, defaultMode: 288}}
+      - {name: tls, secret: {secretName: mattermost-projection-tls-v1, defaultMode: 288}}
+      - {name: public, configMap: {name: mattermost-projection-public}}
+      - {name: tmp, emptyDir: {medium: Memory, sizeLimit: 16Mi}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: mattermost-event-projection, namespace: ntfy}
+spec:
+  selector: {app.kubernetes.io/name: mattermost-event-projection}
+  ports: [{name: https, port: 8443, targetPort: https}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: mattermost-event-projection, namespace: ntfy}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: mattermost-event-projection}}
+  policyTypes: [Ingress, Egress]
+  ingress:
+  - from:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: flux-system}}
+      podSelector: {matchLabels: {app: notification-controller}}
+    ports: [{protocol: TCP, port: 8443}]
+  egress:
+  - to:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+      podSelector: {matchLabels: {k8s-app: kube-dns}}
+    ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+  # Match the actual post-DNAT ingress pod destination, never all kube-system.
+  - to:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: "kube-system"}}
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: "rke2-traefik"
+          app.kubernetes.io/instance: "rke2-traefik-kube-system"
+    ports: [{protocol: TCP, port: 8443}]
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Provider
+metadata: {name: mattermost-platform-deployments, namespace: flux-system}
+spec:
+  type: generic
+  address: https://mattermost-event-projection.ntfy.svc:8443/platform
+  secretRef: {name: flux-mattermost-platform-v1}
+  certSecretRef: {name: flux-mattermost-platform-v1}
+  suspend: true
+  timeout: 15s
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Alert
+metadata: {name: mattermost-platform-deployments, namespace: flux-system}
+spec:
+  providerRef: {name: mattermost-platform-deployments}
+  suspend: true
+  eventSeverity: info
+  eventSources:
+  - {kind: HelmRelease, namespace: bigbang, name: alloy}
+  - {kind: HelmRelease, namespace: bigbang, name: bigbang}
+  - {kind: HelmRelease, namespace: bigbang, name: external-secrets}
+  - {kind: HelmRelease, namespace: bigbang, name: gitlab}
+  - {kind: HelmRelease, namespace: bigbang, name: gitlab-runner}
+  - {kind: HelmRelease, namespace: bigbang, name: gitlab-valkey}
+  - {kind: HelmRelease, namespace: bigbang, name: grafana}
+  - {kind: HelmRelease, namespace: bigbang, name: harbor}
+  - {kind: HelmRelease, namespace: bigbang, name: harbor-valkey}
+  - {kind: HelmRelease, namespace: bigbang, name: headlamp}
+  - {kind: HelmRelease, namespace: bigbang, name: keycloak}
+  - {kind: HelmRelease, namespace: bigbang, name: loki}
+  - {kind: HelmRelease, namespace: bigbang, name: longhorn}
+  - {kind: HelmRelease, namespace: bigbang, name: mattermost}
+  - {kind: HelmRelease, namespace: bigbang, name: mattermost-operator}
+  - {kind: HelmRelease, namespace: bigbang, name: monitoring}
+  - {kind: HelmRelease, namespace: bigbang, name: openbao}
+  - {kind: HelmRelease, namespace: bigbang, name: platform-cnpg}
+  - {kind: HelmRelease, namespace: bigbang, name: prometheus-operator-crds}
+  - {kind: HelmRelease, namespace: bigbang, name: rancher}
+  - {kind: HelmRelease, namespace: bigbang, name: velero}
+  - {kind: HelmRelease, namespace: bigbang, name: velero-store}
+  inclusionList: ['^Helm (install|upgrade) (succeeded|failed) for release ']
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Provider
+metadata: {name: mattermost-portal-deployments, namespace: flux-system}
+spec:
+  type: generic
+  address: https://mattermost-event-projection.ntfy.svc:8443/portal
+  secretRef: {name: flux-mattermost-portal-v1}
+  certSecretRef: {name: flux-mattermost-portal-v1}
+  suspend: true
+  timeout: 15s
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Alert
+metadata: {name: mattermost-portal-deployments, namespace: flux-system}
+spec:
+  providerRef: {name: mattermost-portal-deployments}
+  suspend: true
+  eventSeverity: info
+  eventSources:
+  - {kind: HelmRelease, namespace: tenant-portal-config, name: portal}
+  inclusionList: ['^Helm (install|upgrade) (succeeded|failed) for release ']
+---

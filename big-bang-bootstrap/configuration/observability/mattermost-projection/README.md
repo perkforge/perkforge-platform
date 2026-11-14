@@ -58,3 +58,20 @@ in `platform-alerts/update-mattermost.yaml`. It CAS-preserves all existing rules
 and the ntfy receiver, adding only the locked platform Mattermost receiver.
 Coordinate refresh with the existing Grafana rollout owner. This is not a second
 metric evaluator or global notification-policy rewrite.
+
+## Additive source ownership
+
+`render.yaml` additionally emits `source.yaml` and `target-prerequisites.yaml`.
+The checked-in `runtime/` is the selected local portable rendering: application,
+source configuration, exact pod network policy and initially suspended Flux
+routes. `clusters/local-scoped-logging-mattermost` includes the existing logging
+root unchanged and adds this package. The public CA/DNS ConfigMap and exact
+physical ingress /32 policy remain operator-maintained target prerequisites,
+along with the dedicated custody resources. Do not claim these prerequisites
+are reconciled by Flux. Review target drift with each environment change.
+
+The pinned official Docker Hub Nginx image is an explicit exception to the usual
+Big Bang/Registry1 default: its bundled njs was verified for this minimal adapter;
+no equivalent Registry1 build has been verified here. The immutable image digest
+is shared across targets, not rebuilt per environment. Review this exception and
+the enumerated release-source allowlist at Big Bang upgrades.
