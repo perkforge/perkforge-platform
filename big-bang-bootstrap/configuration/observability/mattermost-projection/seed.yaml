@@ -1,0 +1,98 @@
+# Protected caller inputs; create-only CAS0 records, no rotation/adoption.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars: {projection_seed: false, projection_seed_approved: false}
+  module_defaults:
+    ansible.builtin.uri:
+      ca_path: '{{ projection_bao_ca_file }}'
+      validate_certs: true
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      timeout: 20
+  tasks:
+  - when: projection_seed | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - projection_seed_approved | bool
+        - projection_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+        - projection_private_dir == projection_private_dir | realpath
+    - ansible.builtin.command: {argv: [kubectl, get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']}
+      register: cluster
+      changed_when: false
+    - ansible.builtin.assert: {that: cluster.stdout == projection_expected_kube_system_uid}
+    - ansible.builtin.uri: {url: '{{ projection_bao_server }}/v1/sys/health'}
+      register: health
+    - ansible.builtin.assert: {that: health.json.cluster_id == projection_bao_cluster_id and not health.json.sealed}
+    - no_log: true
+      block:
+      - ansible.builtin.command: {argv: [id, -u]}
+        register: uid
+        changed_when: false
+      - ansible.builtin.stat: {path: '{{ projection_private_dir }}', follow: false}
+        register: dir
+      - ansible.builtin.assert:
+          that: dir.stat.isdir and not dir.stat.islnk and dir.stat.mode == '0700' and dir.stat.uid == (uid.stdout | int)
+      - ansible.builtin.stat: {path: '{{ projection_private_dir }}/records.json', follow: false}
+        register: file
+      - ansible.builtin.assert:
+          that: file.stat.isreg and not file.stat.islnk and file.stat.mode == '0600' and file.stat.uid == (uid.stdout | int)
+      - ansible.builtin.set_fact:
+          records: '{{ lookup("file", projection_private_dir + "/records.json") | from_json }}'
+          bao_headers: {X-Vault-Token: '{{ lookup("file", projection_bao_token_file) | trim }}'}
+      - ansible.builtin.assert:
+          that:
+          - records.keys() | sort == ['platform-v1','portal-v1','routes-v1','tls-v1']
+          - records['routes-v1'].keys() | list == ['routes.json']
+          - records['tls-v1'].keys() | sort == ['tls.crt','tls.key']
+          - records['platform-v1'].keys() | sort == ['ca.crt','headers']
+          - records['portal-v1'].keys() | sort == ['ca.crt','headers']
+          - records['platform-v1'].headers != records['portal-v1'].headers
+      - ansible.builtin.set_fact:
+          routes: '{{ records["routes-v1"]["routes.json"] | from_json }}'
+      - ansible.builtin.assert:
+          that:
+          - routes.keys() | sort == ['/platform', '/portal']
+          - projection_mattermost_origin is match('^https://[a-z0-9.-]+$')
+          - routes['/platform'].token != routes['/portal'].token
+      - ansible.builtin.assert:
+          that:
+          - routes['/' + item].keys() | sort == ['hook','link','sources','title','token']
+          - routes['/' + item].sources == projection_sources[item]
+          - routes['/' + item].token is match('^[A-Za-z0-9_-]{43,128}$')
+          - routes['/' + item].hook is match('^' + (projection_mattermost_origin | regex_escape) + '/hooks/[a-z0-9]{26}$')
+          - routes['/' + item].title == (item | capitalize) + ' deployments'
+          - routes['/' + item].link == projection_links[item]
+          - projection_links[item] is match('^https://[a-z0-9.-]+/[A-Za-z0-9/_-]*$')
+          - (records[item + '-v1'].headers | from_yaml) == {'Authorization':'Bearer ' + routes['/' + item].token}
+          - records[item + '-v1']['ca.crt'] == projection_public_ca
+        loop: [platform, portal]
+      - ansible.builtin.uri:
+          url: '{{ projection_bao_server }}/v1/platform/data/notifications/mm-projection/{{ item.key }}'
+          headers: '{{ bao_headers }}'
+          status_code: [200,404]
+        loop: '{{ records | dict2items }}'
+        register: existing
+      - ansible.builtin.assert:
+          that: item.status == 404 or item.json.data.data == item.item.value
+        loop: '{{ existing.results }}'
+      - ansible.builtin.uri:
+          url: '{{ projection_bao_server }}/v1/platform/data/notifications/mm-projection/{{ item.item.key }}'
+          headers: '{{ bao_headers }}'
+          method: POST
+          body_format: json
+          body: {options: {cas: 0}, data: '{{ item.item.value }}'}
+        loop: '{{ existing.results }}'
+        when: item.status == 404
+      - ansible.builtin.uri:
+          url: '{{ projection_bao_server }}/v1/platform/data/notifications/mm-projection/{{ item.key }}'
+          headers: '{{ bao_headers }}'
+        loop: '{{ records | dict2items }}'
+        register: verified
+      - ansible.builtin.assert:
+          that: item.json.data.data == item.item.value
+        loop: '{{ verified.results }}'
+      always:
+      - ansible.builtin.set_fact: {routes: {}, records: {}, bao_headers: {}, existing: {}, verified: {}, cacheable: false}

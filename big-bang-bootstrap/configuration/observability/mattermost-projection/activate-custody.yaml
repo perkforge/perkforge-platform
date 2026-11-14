@@ -1,0 +1,96 @@
+# Only reviewed dedicated custody resources. No root/chart selection or restart.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    projection_custody_activate: false
+    projection_suffixes: [routes, tls, platform, portal]
+  module_defaults:
+    ansible.builtin.uri:
+      ca_path: '{{ projection_bao_ca_file }}'
+      validate_certs: true
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      timeout: 20
+  tasks:
+  - when: projection_custody_activate | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - projection_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+        - projection_custody_output is match('^/[A-Za-z0-9_./-]+$')
+        - projection_suffixes == ['routes','tls','platform','portal']
+    - name: Bind native delivery to the explicitly approved cluster
+      ansible.builtin.command:
+        argv: [kubectl, get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: native_cluster
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - projection_expected_kube_system_uid is match('^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$')
+        - native_cluster.stdout == projection_expected_kube_system_uid
+    - ansible.builtin.uri:
+        url: '{{ projection_bao_server }}/v1/sys/health'
+      register: health
+    - ansible.builtin.assert:
+        that: health.json.cluster_id == projection_bao_cluster_id and not health.json.sealed
+    - name: Exact-record policies and protected consumer verification
+      no_log: true
+      block:
+      - ansible.builtin.set_fact:
+          bao_headers: {X-Vault-Token: '{{ lookup("file", projection_bao_token_file) | trim }}'}
+          records: '{{ lookup("file", projection_private_dir + "/records.json") | from_json }}'
+          prerequisite_objects: '{{ lookup("file", projection_custody_output + "/prerequisites.yaml") | from_yaml_all | select | list }}'
+          consumer_objects: '{{ lookup("file", projection_custody_output + "/consumers.yaml") | from_yaml_all | select | list }}'
+      - name: Bound generated artifacts to the four reviewed consumers
+        ansible.builtin.assert:
+          that:
+          - prerequisite_objects | length == 18
+          - consumer_objects | length == 8
+          - prerequisite_objects | map(attribute='kind') | difference(['ConfigMap','Secret','ServiceAccount','Role','RoleBinding']) | length == 0
+          - consumer_objects | map(attribute='kind') | difference(['SecretStore','ExternalSecret']) | length == 0
+          - (prerequisite_objects + consumer_objects) | map(attribute='metadata.namespace') | difference(['ntfy','flux-system']) | length == 0
+          - prerequisite_objects | selectattr('kind','equalto','Secret') | map(attribute='metadata.name') | sort == ['flux-mattermost-platform-v1','flux-mattermost-portal-v1','mattermost-projection-routes-v1','mattermost-projection-tls-v1']
+      - name: Preflight all dedicated native objects before any creation
+        ansible.builtin.command:
+          argv: [kubectl, -n, '{{ item.metadata.namespace }}', get, '{{ item.kind }}', '{{ item.metadata.name }}', --ignore-not-found, -o, json]
+        loop: '{{ prerequisite_objects + consumer_objects }}'
+        register: existing_objects
+        changed_when: false
+      - name: Refuse adopting any existing foreign object; verify exact partial retry
+        ansible.builtin.include_tasks: custody-object-check.yaml
+        loop: '{{ existing_objects.results }}'
+        loop_control: {loop_var: inspected}
+        when: inspected.stdout | length > 0
+      - name: Check policies and roles before modifying any identity
+        ansible.builtin.include_tasks: custody-identity.yaml
+        loop: '{{ projection_suffixes }}'
+        loop_control: {loop_var: suffix}
+        vars: {projection_identity_write: false}
+      - name: Create only missing exact policies and roles
+        ansible.builtin.include_tasks: custody-identity.yaml
+        loop: '{{ projection_suffixes }}'
+        loop_control: {loop_var: suffix}
+        vars: {projection_identity_write: true}
+      - name: Create missing resources only, never apply empty data over a Secret
+        ansible.builtin.command:
+          argv: [kubectl, create, -f, '-']
+          stdin: '{{ item.item | to_json }}'
+        loop: '{{ existing_objects.results }}'
+        when: item.stdout | length == 0
+      - ansible.builtin.command:
+          argv: [kubectl, -n, '{{ item.metadata.namespace }}', wait, 'externalsecret/{{ item.metadata.name }}', --for=condition=Ready, --timeout=90s]
+        loop: '{{ consumer_objects | selectattr("kind", "equalto", "ExternalSecret") | list }}'
+      - name: Verify exact fresh payload rather than a stale Ready condition
+        ansible.builtin.command:
+          argv: [kubectl, -n, '{{ item.metadata.namespace }}', get, secret, '{{ item.metadata.name }}', -o, json]
+        loop: '{{ prerequisite_objects | selectattr("kind", "equalto", "Secret") | list }}'
+        register: synced
+        changed_when: false
+      - ansible.builtin.include_tasks: custody-object-check.yaml
+        loop: '{{ synced.results }}'
+        loop_control: {loop_var: inspected}
+        vars: {projection_require_payload: true}
+      always:
+      - ansible.builtin.set_fact: {bao_headers: {}, records: {}, existing_objects: {}, synced: {}}

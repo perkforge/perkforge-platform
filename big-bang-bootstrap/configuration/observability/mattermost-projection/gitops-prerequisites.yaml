@@ -1,0 +1,42 @@
+# Operator precreates exact suspended resources; root gets no create/Secret privileges.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: mattermost-event-projection, namespace: ntfy}
+rules:
+- apiGroups: ['apps']
+  resources: [deployments]
+  resourceNames: [mattermost-event-projection]
+  verbs: [get, list, watch, update, patch, delete]
+- apiGroups: ['']
+  resources: [services, serviceaccounts]
+  resourceNames: [mattermost-event-projection]
+  verbs: [get, list, watch, update, patch, delete]
+- apiGroups: ['']
+  resources: [configmaps]
+  resourceNames: [mattermost-event-projection, mattermost-projection-public]
+  verbs: [get, list, watch, update, patch, delete]
+- apiGroups: [networking.k8s.io]
+  resources: [networkpolicies]
+  resourceNames: [mattermost-event-projection]
+  verbs: [get, list, watch, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: mattermost-event-projection, namespace: ntfy}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: mattermost-event-projection}
+subjects: [{kind: ServiceAccount, name: platform-reconciler, namespace: flux-system}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: mattermost-deployment-notifications, namespace: flux-system}
+rules:
+- apiGroups: [notification.toolkit.fluxcd.io]
+  resources: [providers, alerts]
+  resourceNames: [mattermost-platform-deployments, mattermost-portal-deployments]
+  verbs: [get, list, watch, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: mattermost-deployment-notifications, namespace: flux-system}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: mattermost-deployment-notifications}
+subjects: [{kind: ServiceAccount, name: platform-reconciler, namespace: flux-system}]
