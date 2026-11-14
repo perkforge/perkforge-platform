@@ -64,3 +64,8 @@ On capacity-constrained single-replica installations, render with
 `grafana_no_surge: true`. This uses native RollingUpdate with zero surge and one
 unavailable pod, allowing a brief Grafana restart rather than waiting forever for
 CPU capacity for a second replica. Leave false on environments with surge headroom.
+
+Apply `gitops-access.yaml` as a prerequisite before selecting the query root.
+It grants Flux only the named query resources in the two namespaces, with no
+Secret reads or RBAC administration. The root keeps `prune: false`; deletion
+rights are intentionally absent.

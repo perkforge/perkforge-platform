@@ -1,0 +1,69 @@
+# Owner-admin prerequisite; never include in the Flux root receiving this authority.
+# CREATE cannot be constrained by resourceNames. It is limited to these resource
+# kinds in these namespaces; existing-object access is restricted to exact names.
+# No Secret access, RBAC administration, or cluster-wide grants.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: query-runtime-writer, namespace: tenant-observability}
+rules:
+- apiGroups: ['']
+  resources: [serviceaccounts, configmaps, services]
+  verbs: [create]
+- apiGroups: ['']
+  resources: [serviceaccounts, configmaps, services]
+  resourceNames: [tenant-query-gateway]
+  verbs: [get, patch, update]
+- apiGroups: [apps]
+  resources: [deployments]
+  verbs: [create]
+- apiGroups: [apps]
+  resources: [deployments]
+  resourceNames: [tenant-query-gateway]
+  verbs: [get, patch, update]
+- apiGroups: [networking.k8s.io]
+  resources: [networkpolicies]
+  verbs: [create]
+- apiGroups: [networking.k8s.io]
+  resources: [networkpolicies]
+  resourceNames: [tenant-query-gateway]
+  verbs: [get, patch, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: query-runtime-writer, namespace: tenant-observability}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: query-runtime-writer}
+subjects:
+- {kind: ServiceAccount, name: platform-reconciler, namespace: flux-system}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: query-runtime-writer, namespace: monitoring}
+rules:
+- apiGroups: ['']
+  resources: [configmaps]
+  verbs: [create]
+- apiGroups: ['']
+  resources: [configmaps]
+  resourceNames: [query-backend-config]
+  verbs: [get, patch, update]
+- apiGroups: [monitoring.coreos.com]
+  resources: [servicemonitors]
+  verbs: [create]
+- apiGroups: [monitoring.coreos.com]
+  resources: [servicemonitors]
+  resourceNames: [query-backend-self]
+  verbs: [get, patch, update]
+- apiGroups: [networking.k8s.io]
+  resources: [networkpolicies]
+  verbs: [create]
+- apiGroups: [networking.k8s.io]
+  resources: [networkpolicies]
+  resourceNames: [prometheus-from-tenant-query-gateway]
+  verbs: [get, patch, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: query-runtime-writer, namespace: monitoring}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: query-runtime-writer}
+subjects:
+- {kind: ServiceAccount, name: platform-reconciler, namespace: flux-system}
