@@ -6,6 +6,7 @@
   vars:
     grafana_ntfy_activate: false
     grafana_ntfy_helm_release: monitoring-grafana
+    grafana_ntfy_helm_binary: helm
     grafana_ntfy_secret: grafana-ntfy-alerting
     grafana_ntfy_auth_identity: eso-grafana-alerts
   module_defaults:
@@ -36,7 +37,7 @@
       no_log: true
       block:
       - ansible.builtin.command:
-          argv: [helm, get, values, '{{ grafana_ntfy_helm_release }}', -n, '{{ grafana_ntfy_monitoring_namespace }}', -o, json]
+          argv: ['{{ grafana_ntfy_helm_binary }}', get, values, '{{ grafana_ntfy_helm_release }}', -n, '{{ grafana_ntfy_monitoring_namespace }}', -o, json]
         register: existing_values
         changed_when: false
       - ansible.builtin.assert:

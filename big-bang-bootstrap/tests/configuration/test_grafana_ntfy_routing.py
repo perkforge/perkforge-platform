@@ -62,7 +62,7 @@ class GrafanaNtfyRouting(unittest.TestCase):
             for mounts,expected in [([],0),([{'name':'existing-secret'}],2)]:
                 payload=json.dumps({'upstream':{'extraSecretMounts':mounts},'private':'synthetic-must-not-leak'})
                 binary.write_text('#!/bin/sh\ncat <<\'DATA\'\n'+payload+'\nDATA\n');binary.chmod(0o700)
-                wrapper=path/'guard.yaml';wrapper.write_text(yaml.safe_dump([{'hosts':'localhost','connection':'local','gather_facts':False,'vars':{'grafana_ntfy_helm_release':'monitoring-grafana','grafana_ntfy_monitoring_namespace':'monitoring'},'tasks':[guard]}]))
+                wrapper=path/'guard.yaml';wrapper.write_text(yaml.safe_dump([{'hosts':'localhost','connection':'local','gather_facts':False,'vars':{'grafana_ntfy_helm_binary':'helm','grafana_ntfy_helm_release':'monitoring-grafana','grafana_ntfy_monitoring_namespace':'monitoring'},'tasks':[guard]}]))
                 result=subprocess.run(['ansible-playbook','-i','localhost,',str(wrapper)],capture_output=True,text=True,timeout=20,env={**os.environ,'PATH':str(path)+':'+os.environ['PATH']})
                 self.assertEqual(result.returncode,expected,result.stdout+result.stderr)
                 self.assertNotIn('synthetic-must-not-leak',result.stdout+result.stderr)
