@@ -190,3 +190,25 @@ strict-mode settings. The approved composition must retain existing strict mode
 and role sync, and select this overlay only after exact scope/datasource checks.
 Platform-only rendering contains no tenant mappings; default rendering remains
 inert. No root or valuesFrom selection is changed by generating the file.
+
+### Controlled live machine-org acceptance
+
+`tests/runtime/grafana_org_probe.py` is an unconnected verification harness, not
+provisioning or a human login simulator. An approved operator supplies an exact
+org ID/name, intended and foreign datasource UIDs, a bounded benign canary query,
+a TLS-verifying no-redirect transport and a protected receipt writer. It is inert
+without explicit approval. Recovery authentication stays in memory; the transport
+must replace it entirely when a probe Bearer header is supplied. Never log bodies,
+headers, tokens, or returned log lines. The receipt contains only ownership and
+pass/cleanup status, not source logs.
+
+The probe creates one uniquely named Viewer service account in the exact tenant
+org and one 600-second token. It checks the datasource inventory and benign marker,
+foreign UID/proxy/query access, forged org header and org switch. `finally` deletes
+its account (and token), verifies account404 and token401. Interrupted processes or
+transport/cleanup failures require the operator to inspect the protected ownership
+receipt and remove only that exact account; token expiration is a backstop, not
+cleanup proof. No tenant human mappings should be enabled until this acceptance
+and data-plane/lifecycle checks pass. These tests do not prove human Keycloak login,
+existing-session revocation, or Admin/Editor datasource-management boundaries.
+Protocol mocks test the harness, not live Grafana authorization.
