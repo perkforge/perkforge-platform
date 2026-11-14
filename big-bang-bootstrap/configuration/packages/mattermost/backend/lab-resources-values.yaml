@@ -1,0 +1,13 @@
+# Explicit non-HA lab opt-in. Generic candidate resources remain unchanged.
+# Placement and storage class are target inputs, not physical node names/IPs.
+addons:
+  mattermost:
+    values:
+      resources:
+        requests: {cpu: 500m, memory: 1Gi}
+        limits: {cpu: '1', memory: 2Gi}
+      postgresql:
+        primary:
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 512Mi}

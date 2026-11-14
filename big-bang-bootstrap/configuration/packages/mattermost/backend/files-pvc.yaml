@@ -1,0 +1,11 @@
+# Dedicated single-replica lab filestore. Not selected by any cluster root.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mattermost-files
+  namespace: mattermost
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi

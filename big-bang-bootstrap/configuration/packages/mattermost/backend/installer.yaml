@@ -1,0 +1,28 @@
+# Additive namespace-only authority for the existing native chart installer.
+# Not selected or applied by this source. Review before activation.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mattermost-backend-installer
+  namespace: mattermost
+rules:
+  - apiGroups: ['']
+    resources: [services, persistentvolumeclaims]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [apps]
+    resources: [statefulsets]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mattermost-backend-installer
+  namespace: mattermost
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mattermost-backend-installer
+subjects:
+  - kind: ServiceAccount
+    name: mattermost-installer
+    namespace: bigbang

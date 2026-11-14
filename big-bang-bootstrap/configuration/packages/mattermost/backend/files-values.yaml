@@ -1,0 +1,21 @@
+# Native operator supports externalVolume; the pinned chart exposes only S3.
+# Replace the whole union member, never leave both external and externalVolume.
+# Compose with candidate-values.yaml. Does not enable or resume either package.
+addons:
+  mattermost:
+    postRenderers:
+      - kustomize:
+          patches:
+            - target:
+                group: installation.mattermost.com
+                version: v1beta1
+                kind: Mattermost
+                name: mattermost
+              patch: |-
+                - op: replace
+                  path: /spec/fileStore
+                  value:
+                    externalVolume:
+                      volumeClaimName: mattermost-files
+    values:
+      minio: {install: false}
