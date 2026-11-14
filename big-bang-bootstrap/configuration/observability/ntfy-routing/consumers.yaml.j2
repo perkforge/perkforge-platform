@@ -1,0 +1,57 @@
+# Existing monitoring ESO consumer role supplies Secret/status writes and CA reads.
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: {{ grafana_ntfy_auth_identity }}, namespace: {{ grafana_ntfy_monitoring_namespace }}}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: {{ grafana_ntfy_auth_identity }}-token, namespace: {{ grafana_ntfy_monitoring_namespace }}}
+rules:
+- apiGroups: ['']
+  resources: [serviceaccounts/token]
+  resourceNames: [{{ grafana_ntfy_auth_identity }}]
+  verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: {{ grafana_ntfy_auth_identity }}-token, namespace: {{ grafana_ntfy_monitoring_namespace }}}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: {{ grafana_ntfy_auth_identity }}-token}
+subjects:
+- {kind: ServiceAccount, name: external-secrets, namespace: external-secrets}
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata: {name: {{ grafana_ntfy_auth_identity }}, namespace: {{ grafana_ntfy_monitoring_namespace }}}
+spec:
+  controller: perkforge
+  provider:
+    vault:
+      server: {{ grafana_ntfy_bao_server | to_json }}
+      path: platform
+      version: v2
+      caProvider: {type: ConfigMap, name: {{ grafana_ntfy_ca_configmap }}, key: ca.crt}
+      auth:
+        kubernetes:
+          mountPath: kubernetes-eso
+          role: {{ grafana_ntfy_auth_identity }}
+          serviceAccountRef: {name: {{ grafana_ntfy_auth_identity }}, audiences: [openbao-eso]}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: {name: {{ grafana_ntfy_secret }}, namespace: {{ grafana_ntfy_monitoring_namespace }}}
+spec:
+  refreshInterval: 1h
+  secretStoreRef: {kind: SecretStore, name: {{ grafana_ntfy_auth_identity }}}
+  target:
+    name: {{ grafana_ntfy_secret }}
+    creationPolicy: Orphan
+    deletionPolicy: Retain
+    template: {engineVersion: v2, type: Opaque}
+  data:
+  - secretKey: alerting.yaml
+    remoteRef:
+      key: {{ grafana_ntfy_record | to_json }}
+      property: alerting.yaml
+      conversionStrategy: Default
+      decodingStrategy: None
