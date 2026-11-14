@@ -1,3 +1,11 @@
+{% if log_ingestion_max_age_hours | int > 0 %}
+// Explicitly exclude history the existing Loki ingestion policy cannot accept.
+// Count separately from failed transport batches; retain API-provided timestamps.
+stage.drop {
+  older_than = "{{ log_ingestion_max_age_hours }}h"
+  drop_counter_reason = "outside_loki_ingestion_window"
+}
+{% endif %}
 // Append after trusted Kubernetes metadata relabelling, never payload label extraction.
 // Default unknown/system/new namespaces to platform-only, then apply exact owned epochs.
 stage.tenant { value = "{{ log_fallback_scope }}" }

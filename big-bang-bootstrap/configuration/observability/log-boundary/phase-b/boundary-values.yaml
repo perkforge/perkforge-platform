@@ -95,6 +95,12 @@ alloy:
         # Kubernetes annotation names cannot start with _, so that map cannot
         # forge the reserved __meta_* source labels used for this final reset.
         extraDiscoveryRules: |
+          // API source already separates the Kubernetes timestamp from the payload.
+          // Do not reparse application text as a CRI/Docker transport envelope.
+          rule {
+            target_label = "tmp_container_runtime"
+            replacement = "api_plain"
+          }
           rule {
             source_labels = ["__meta_kubernetes_namespace"]
             target_label = "namespace"
@@ -118,6 +124,12 @@ alloy:
             replace = "REDACTED"
           }
 
+          // Explicitly exclude history the existing Loki ingestion policy cannot accept.
+          // Count separately from failed transport batches; retain API-provided timestamps.
+          stage.drop {
+            older_than = "168h"
+            drop_counter_reason = "outside_loki_ingestion_window"
+          }
           // Append after trusted Kubernetes metadata relabelling, never payload label extraction.
           // Default unknown/system/new namespaces to platform-only, then apply exact owned epochs.
           stage.tenant { value = "platform-unassigned-v1" }

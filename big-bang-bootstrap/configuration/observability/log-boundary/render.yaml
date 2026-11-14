@@ -6,6 +6,7 @@
     log_boundary_render: false
     log_collect_all_namespaces: false
     log_legacy_reader: ''
+    log_ingestion_max_age_hours: 0
   tasks:
   - name: Render only when explicitly selected; never contact a cluster
     when: log_boundary_render | bool and not ansible_check_mode
@@ -18,6 +19,7 @@
         - log_upstream is match('^https://[a-zA-Z0-9.-]+:[0-9]+$')
         - log_upstream_tls_name is match('^[a-zA-Z0-9.-]+$')
         - log_server_name is match('^[a-zA-Z0-9.-]+$')
+        - log_ingestion_max_age_hours is integer and log_ingestion_max_age_hours >= 0 and log_ingestion_max_age_hours <= 8760
         - log_writer is match('^[a-z][a-z0-9-]{0,63}$')
         - log_platform_reader is match('^[a-z][a-z0-9-]{0,63}$')
         - log_writer != log_platform_reader

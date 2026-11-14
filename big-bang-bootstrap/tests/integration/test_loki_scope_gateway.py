@@ -142,6 +142,10 @@ class LokiScopeGateway(unittest.TestCase):
     annotation=discovery.index('regex = "__meta_kubernetes_pod_annotation_resource_opentelemetry_io_(.+)"')
     final_reset=discovery.rindex('source_labels = ["__meta_kubernetes_namespace"]')
     self.assertGreater(final_reset,annotation)
+    self.assertGreater(discovery.rindex('replacement = "api_plain"'),annotation)
+    processing=content.split('loki.process "pod_logs" {',1)[1]
+    self.assertIn('"tmp_container_runtime"',processing)
+    self.assertNotIn('stage.timestamp',processing)
     labels={'__meta_kubernetes_namespace':'tenant-other','__meta_kubernetes_pod_name':'real-pod','__meta_kubernetes_pod_container_name':'real-container','__meta_kubernetes_pod_annotation_resource_opentelemetry_io_namespace':'tenant-portal'}
     for rule in re.findall(r'\brule\s*\{([^{}]*)\}',discovery,re.S):
      if 'action = "labelmap"' in rule and 'resource_opentelemetry' in rule:

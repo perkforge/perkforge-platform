@@ -25,6 +25,12 @@ alloy:
         # Kubernetes annotation names cannot start with _, so that map cannot
         # forge the reserved __meta_* source labels used for this final reset.
         extraDiscoveryRules: |
+          // API source already separates the Kubernetes timestamp from the payload.
+          // Do not reparse application text as a CRI/Docker transport envelope.
+          rule {
+            target_label = "tmp_container_runtime"
+            replacement = "api_plain"
+          }
           rule {
             source_labels = ["__meta_kubernetes_namespace"]
             target_label = "namespace"
