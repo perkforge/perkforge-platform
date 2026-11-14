@@ -24,7 +24,7 @@ groups:
   folder: PerkForge managed availability
   interval: 30s
   rules:
-{% for rule in [{'id':'availability','title':'deployment availability','expr':'(sum(kube_deployment_spec_replicas{namespace="' ~ grafana_ntfy_namespace ~ '"}) - sum(kube_deployment_status_replicas_available{namespace="' ~ grafana_ntfy_namespace ~ '"})) or vector(0)'}, {'id':'crashloop','title':'pod crash loop','expr':'sum(kube_pod_container_status_waiting_reason{namespace="' ~ grafana_ntfy_namespace ~ '",reason="CrashLoopBackOff"}) or vector(0)'}] %}
+{% for rule in [{'id':'availability','title':'deployment availability','expr':'((max(kube_deployment_spec_replicas{namespace="' ~ grafana_ntfy_namespace ~ '",deployment="' ~ grafana_ntfy_deployment ~ '"}) - max(kube_deployment_status_replicas_available{namespace="' ~ grafana_ntfy_namespace ~ '",deployment="' ~ grafana_ntfy_deployment ~ '"})) or absent(kube_deployment_status_replicas_available{namespace="' ~ grafana_ntfy_namespace ~ '",deployment="' ~ grafana_ntfy_deployment ~ '"})) or absent(kube_deployment_spec_replicas{namespace="' ~ grafana_ntfy_namespace ~ '",deployment="' ~ grafana_ntfy_deployment ~ '"})'}, {'id':'crashloop','title':'pod crash loop','expr':'sum(kube_pod_container_status_waiting_reason{namespace="' ~ grafana_ntfy_namespace ~ '",reason="CrashLoopBackOff"}) or vector(0)'}] %}
   - uid: {{ ('pf-' ~ grafana_ntfy_context ~ '-' ~ rule.id) | to_json }}
     title: {{ (grafana_ntfy_context ~ ' ' ~ rule.title) | to_json }}
     condition: C

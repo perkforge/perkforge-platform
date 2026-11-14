@@ -3,14 +3,16 @@
 One portable, explicitly selected audience. `render.yaml` defaults off and renders
 protected native provisioning, ESO declarations and nonsecret Big Bang child values.
 The two Grafana-managed rules query only the reviewed namespace: unavailable
-Deployment replicas and CrashLoopBackOff containers for five minutes. They bind
+replicas of the expected Deployment and CrashLoopBackOff containers for five minutes.
+The availability rule also fires if that exact Deployment or its required metrics
+disappear; it does not interpret missing series as healthy. They bind
 directly to their receiver with 30s grouping wait, 5m group interval and 4h repeats;
 the existing global notification policy tree is not replaced. Both firing and
 resolved events carry only a static context, state and grouped count, never raw
-annotations, labels, links, values or credentials. Missing workloads produce zero;
+annotations, labels, links, values or credentials. The crash-loop count alone defaults to zero when no waiting containers exist;
 query errors keep last state rather than pretending recovery.
 
-Supply the exact approved namespace/context/topic, HTTPS ntfy origin ending `/`,
+Supply the exact approved namespace/expected Deployment/context/topic, HTTPS ntfy origin ending `/`,
 existing write-only publisher token file (0600), public CA file and SHA256,
 OpenBao endpoint/cluster identity, dedicated record path, monitoring namespace,
 and owner-only output directory. Targets are inputs, not image rebuilds or
@@ -29,8 +31,9 @@ reviewed rendered files; none of these paths are tenant-writable.
 After ExternalSecret sync, the native `extraSecretMounts` mounts only `alerting.yaml`
 read-only at `/etc/grafana/provisioning/alerting/ntfy.yaml`. `local-portal-alerts`
 extends the integrated Portal root, retaining its exact enrollment selection,
-Nextcloud, Grafana SSO/query datasource and dashboards. Existing extraSecretMounts
-must be merged explicitly if present; this initial target had none. Never select
+Nextcloud, Grafana SSO/query datasource and dashboards. Activation refuses a nonempty existing extraSecretMounts list instead of replacing
+it; this initial target had none. Exact synchronized Secret payload equality is
+checked after ESO Ready and before exposing the values to a selected root. Never select
 an older ntfy-only root to add notifications. A coordinated Grafana restart imports
 the file; subPath mounts require a restart after later approved credential updates.
 No credential is placed in ConfigMaps, Git, Helm values or chat.

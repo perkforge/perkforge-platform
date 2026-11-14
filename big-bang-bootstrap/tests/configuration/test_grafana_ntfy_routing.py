@@ -17,7 +17,7 @@ class GrafanaNtfyRouting(unittest.TestCase):
             path=Path(tmp); token=path/'publisher';token.write_text('tk_synthetic_only');token.chmod(0o600)
             ca=path/'ca.crt';ca.write_text('synthetic-public-ca\n')
             values={'grafana_ntfy_render':True,'grafana_ntfy_context':'portal',
-                'grafana_ntfy_namespace':'tenant-portal','grafana_ntfy_monitoring_namespace':'monitoring',
+                'grafana_ntfy_deployment':'portal','grafana_ntfy_namespace':'tenant-portal','grafana_ntfy_monitoring_namespace':'monitoring',
                 'grafana_ntfy_topic':'tenant-portal-alerts','grafana_ntfy_url':'https://notify.example.test/',
                 'grafana_ntfy_bao_server':'https://bao.example.test','grafana_ntfy_record':'local/ntfy/grafana-alerts',
                 'grafana_ntfy_token_file':str(token),'grafana_ntfy_ca_file':str(ca),
@@ -42,6 +42,9 @@ class GrafanaNtfyRouting(unittest.TestCase):
                 self.assertEqual(rule['execErrState'],'KeepLast')
                 self.assertIn('namespace="tenant-portal"',rule['data'][0]['model']['expr'])
                 self.assertNotIn('=~',rule['data'][0]['model']['expr'])
+            self.assertIn('absent(',rules[0]['data'][0]['model']['expr'])
+            self.assertIn('deployment="portal"',rules[0]['data'][0]['model']['expr'])
+            self.assertNotIn('vector(0)',rules[0]['data'][0]['model']['expr'])
             docs=list(yaml.safe_load_all((path/'rendered/consumers.yaml').read_text()))
             role=next(x for x in docs if x['kind']=='Role')
             self.assertEqual(role['rules'],[{'apiGroups':[''],'resources':['serviceaccounts/token'],'resourceNames':['eso-grafana-alerts'],'verbs':['create']}])

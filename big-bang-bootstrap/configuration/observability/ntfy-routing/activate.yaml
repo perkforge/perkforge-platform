@@ -30,6 +30,13 @@
       register: bao_health
     - ansible.builtin.assert:
         that: bao_health.json.cluster_id == grafana_ntfy_bao_cluster_id and not bao_health.json.sealed
+    - name: Refuse replacing any existing native extraSecretMounts list
+      ansible.builtin.command:
+        argv: [kubectl, -n, bigbang, get, helmrelease, grafana, -o, 'jsonpath={.spec.values.upstream.extraSecretMounts}']
+      register: existing_mounts
+      changed_when: false
+    - ansible.builtin.assert:
+        that: existing_mounts.stdout | trim in ['', '[]']
     - name: Refuse target collision before reading operator credentials
       ansible.builtin.command:
         argv: [kubectl, -n, '{{ grafana_ntfy_monitoring_namespace }}', get, secret, '{{ grafana_ntfy_secret }}', --ignore-not-found, -o, name]
@@ -107,6 +114,17 @@
         argv: [kubectl, apply, --server-side, --field-manager=grafana-ntfy, -f, '{{ grafana_ntfy_output_dir }}/consumers.yaml']
     - ansible.builtin.command:
         argv: [kubectl, -n, '{{ grafana_ntfy_monitoring_namespace }}', wait, 'externalsecret/{{ grafana_ntfy_secret }}', --for=condition=Ready, --timeout=90s]
+    - name: Verify exact synchronized payload, not only a potentially stale Ready flag
+      no_log: true
+      block:
+      - ansible.builtin.command:
+          argv: [kubectl, -n, '{{ grafana_ntfy_monitoring_namespace }}', get, secret, '{{ grafana_ntfy_secret }}', -o, json]
+        register: synced
+        changed_when: false
+      - ansible.builtin.assert:
+          that: (synced.stdout | from_json).data['alerting.yaml'] | b64decode == lookup('file', grafana_ntfy_output_dir + '/alerting.yaml', rstrip=false)
+      always:
+      - ansible.builtin.set_fact: {synced: {}}
     - name: Create nonsecret native mount values; never select or roll a root here
       ansible.builtin.command:
         argv: [kubectl, -n, bigbang, create, configmap, grafana-ntfy-values, '--from-file=values.yaml={{ grafana_ntfy_output_dir }}/values.yaml']
