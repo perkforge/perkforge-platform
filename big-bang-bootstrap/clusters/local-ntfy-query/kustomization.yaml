@@ -1,0 +1,15 @@
+# Select only after the operator-owned query-runtime-values and credentials exist.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-ntfy-external-secrets
+patches:
+- target: {group: helm.toolkit.fluxcd.io, version: v2, kind: HelmRelease, name: bigbang, namespace: bigbang}
+  patch: |-
+    - op: add
+      path: /spec/valuesFrom/-
+      value:
+        kind: ConfigMap
+        name: query-runtime-values
+        valuesKey: values.yaml
+        optional: false

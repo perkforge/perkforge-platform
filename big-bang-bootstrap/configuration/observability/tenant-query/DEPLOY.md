@@ -44,3 +44,11 @@ no new human-account gate is required. If something fails, diagnose and fix forw
 in the same source/values, retaining metrics storage and existing SSO. Source
 rendering or a merged PR is not proof of live acceptance. Close tickets only when
 their actual runtime criteria pass.
+
+For the supplied local composition, `render-values.yaml` combines the backend and
+rendered Grafana child-chart values into the operator-owned `query-runtime-values`
+ConfigMap. `clusters/local-ntfy-query` retains native ESO, ntfy and the existing app
+stack and references that ConfigMap. Apply prerequisites, publish/review/merge the
+source, then select its immutable commit and this root. Other adopters can include
+the same native values and rendered package in their own root; no image changes
+are required. Do not use a mutable branch for the live source.
