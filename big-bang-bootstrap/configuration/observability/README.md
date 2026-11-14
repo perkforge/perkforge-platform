@@ -1,4 +1,16 @@
-# Observability architecture review — partial implementation, inactive
+# Observability architecture and evidence index
+
+## Current architecture checkpoint (2026-11-14)
+
+See [current architecture, budgets and acceptance matrix](architecture-current.md)
+for #36. Monitoring, Grafana, scoped logging and notification paths are deployed;
+individual acceptance gaps remain. The original design below is preserved as
+historical context, **not current deployment status**. Default-disabled candidate
+files do not imply that the additive selected roots are inactive. The current
+index links reviewed operational runbooks rather than treating historical drafts
+as proof of present health.
+
+## Historical initial review (superseded status statements)
 
 First draft for #35/#36, after #103 → #104 → #106 → #107. This is **not an
 installation-ready stack** or completion of #37–40. No root/valuesFrom consumes

@@ -1,4 +1,13 @@
-# Alerting review — revised owner decision, inactive
+# Alerting design and historical validation
+
+**Current-state note (2026-11-14):** the inactive statements below describe the
+original draft, not the deployed system. See [architecture index](architecture-current.md),
+[platform alerts](platform-alerts/README.md), [delivery alerts](log-delivery-alerts/README.md)
+and [Mattermost projection](mattermost-projection/README.md). Grafana contact
+points and ntfy/Mattermost delivery are live; full upstream alert migration,
+source completeness and whole-cluster failure acceptance are not implied.
+
+## Historical initial candidate and component test evidence
 
 Grafana-managed evaluation and Grafana's built-in Alertmanager own the single ntfy
 notification path. Separate Prometheus Alertmanager and its Grafana datasource are
