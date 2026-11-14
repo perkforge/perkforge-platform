@@ -1,0 +1,34 @@
+# Included only by a separately approved orchestrator after protected metadata lookup.
+# This task file does not accept or manage users, memberships, datasources or roles.
+- name: Require exact reviewed native organization target
+  ansible.builtin.assert:
+    that:
+    - grafana_org_create_approval == 'grafana-create-exact-context-org-v1'
+    - grafana_org_create_expected_name == grafana_org_name
+    - grafana_org_name != metadata_platform.json.name
+    - metadata_platform.json.id == 1
+    - metadata_org.status in [200,404]
+    - metadata_org.status == 404 or metadata_org.json.id > 1
+- name: Create only an absent exact organization without any user invitation
+  ansible.builtin.uri:
+    url: '{{ grafana_org_origin }}/api/orgs'
+    headers: '{{ metadata_gf_headers }}'
+    method: POST
+    body_format: json
+    body: {name: '{{ grafana_org_name }}'}
+    status_code: 200
+  when: metadata_org.status == 404
+  register: created_org
+  no_log: true
+- name: Verify exact name and returned native ID; never adopt a race collision
+  ansible.builtin.uri:
+    url: '{{ grafana_org_origin }}/api/orgs/name/{{ grafana_org_name | urlencode }}/'
+    headers: '{{ metadata_gf_headers }}'
+  register: verified_org
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - verified_org.json.name == grafana_org_name
+    - verified_org.json.id > 1
+    - verified_org.json.id == (created_org.json.orgId if metadata_org.status == 404 else metadata_org.json.id)
+  no_log: true

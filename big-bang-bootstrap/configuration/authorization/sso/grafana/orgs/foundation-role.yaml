@@ -1,0 +1,33 @@
+- ansible.builtin.uri:
+    url: '{{ metadata_api }}/roles/{{ foundation_role }}'
+    headers: '{{ metadata_kc_headers }}'
+    status_code: [200,404]
+  register: foundation_role_before
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - foundation_role_before.status == 404 or (foundation_role_before.json.name == foundation_role and not foundation_role_before.json.composite and not foundation_role_before.json.clientRole and foundation_role_before.json.attributes == {'perkforge-managed':['true'],'perkforge-purpose':['tenant-context-role-v1']})
+- when: foundation_stage == 'apply'
+  block:
+  - ansible.builtin.uri:
+      url: '{{ metadata_api }}/roles'
+      headers: '{{ metadata_kc_headers }}'
+      method: POST
+      body_format: json
+      body: {name: '{{ foundation_role }}', composite: false, clientRole: false, attributes: {perkforge-managed: ['true'], perkforge-purpose: [tenant-context-role-v1]}}
+      status_code: 201
+    when: foundation_role_before.status == 404
+    no_log: true
+  - ansible.builtin.uri:
+      url: '{{ metadata_api }}/roles/{{ foundation_role }}'
+      headers: '{{ metadata_kc_headers }}'
+    register: foundation_role_after
+    no_log: true
+  - ansible.builtin.assert:
+      that:
+      - foundation_role_after.json.name == foundation_role
+      - not foundation_role_after.json.composite and not foundation_role_after.json.clientRole
+      - foundation_role_after.json.attributes == {'perkforge-managed':['true'],'perkforge-purpose':['tenant-context-role-v1']}
+      - foundation_role_before.status == 404 or foundation_role_after.json.id == foundation_role_before.json.id
+  - ansible.builtin.set_fact:
+      foundation_role_objects: '{{ foundation_role_objects | combine({foundation_role:foundation_role_after.json}) }}'

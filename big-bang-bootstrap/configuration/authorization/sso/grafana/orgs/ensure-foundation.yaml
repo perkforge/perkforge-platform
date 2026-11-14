@@ -1,0 +1,53 @@
+# Unconnected task include. No users, client roles or existing group changes.
+- ansible.builtin.assert:
+    that:
+    - grafana_foundation_approval == 'grafana-canonical-context-foundation-v1'
+    - grafana_org_context_id is match('^[a-z][a-z0-9-]{0,40}$')
+    - foundation_parent_id is match('^[a-f0-9-]{36}$')
+    - foundation_expected_ids.keys() | list | sort == ['/tenants/' + grafana_org_context_id, '/tenants/' + grafana_org_context_id + '/admins', '/tenants/' + grafana_org_context_id + '/developers', '/tenants/' + grafana_org_context_id + '/viewers'] | sort
+- ansible.builtin.uri:
+    url: '{{ metadata_api }}/group-by-path/tenants'
+    headers: '{{ metadata_kc_headers }}'
+  register: foundation_parent
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - foundation_parent.json.id == foundation_parent_id
+    - foundation_parent.json.path == '/tenants'
+    - foundation_parent.json.attributes == {'perkforge-managed':['true'],'perkforge-foundation':['v1']}
+- ansible.builtin.uri:
+    url: '{{ metadata_api }}/groups/{{ foundation_parent_id }}/{{ item }}'
+    headers: '{{ metadata_kc_headers }}'
+  loop: [role-mappings, role-mappings/realm/composite]
+  register: foundation_parent_roles
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - foundation_parent_roles.results[0].json.realmMappings | default([]) | length == 0
+    - foundation_parent_roles.results[0].json.clientMappings | default({}) | length == 0
+    - foundation_parent_roles.results[1].json | length == 0
+- ansible.builtin.set_fact:
+    foundation_groups:
+    - {name: '{{ grafana_org_context_id }}', path: '/tenants/{{ grafana_org_context_id }}', role: ''}
+    - {name: admins, path: '/tenants/{{ grafana_org_context_id }}/admins', role: tenant-admin}
+    - {name: developers, path: '/tenants/{{ grafana_org_context_id }}/developers', role: tenant-developer}
+    - {name: viewers, path: '/tenants/{{ grafana_org_context_id }}/viewers', role: tenant-viewer}
+    foundation_ids: {'/tenants': '{{ foundation_parent_id }}'}
+    foundation_role_objects: {}
+- name: Inspect all intended paths and roles before mutation
+  ansible.builtin.include_tasks: foundation-group.yaml
+  loop: '{{ foundation_groups }}'
+  loop_control: {loop_var: foundation_group}
+  vars: {foundation_stage: inspect}
+- ansible.builtin.include_tasks: foundation-role.yaml
+  loop: [tenant-admin, tenant-developer, tenant-viewer]
+  loop_control: {loop_var: foundation_role}
+  vars: {foundation_stage: inspect}
+- ansible.builtin.include_tasks: foundation-role.yaml
+  loop: [tenant-admin, tenant-developer, tenant-viewer]
+  loop_control: {loop_var: foundation_role}
+  vars: {foundation_stage: apply}
+- ansible.builtin.include_tasks: foundation-group.yaml
+  loop: '{{ foundation_groups }}'
+  loop_control: {loop_var: foundation_group}
+  vars: {foundation_stage: apply}

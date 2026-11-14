@@ -1,0 +1,24 @@
+- ansible.builtin.uri:
+    url: '{{ entitlement_binding_url }}'
+    headers: '{{ metadata_kc_headers }}'
+  register: entitlement_binding_before
+  no_log: true
+- ansible.builtin.uri:
+    url: '{{ entitlement_binding_url }}'
+    headers: '{{ metadata_kc_headers }}'
+    method: POST
+    body_format: json
+    body: '{{ [entitlement_role.json] }}'
+    status_code: 204
+  when: entitlement_role.json.id not in (entitlement_binding_before.json | map(attribute='id') | list)
+  no_log: true
+- ansible.builtin.uri:
+    url: '{{ entitlement_binding_url }}'
+    headers: '{{ metadata_kc_headers }}'
+  register: entitlement_binding_after
+  no_log: true
+- name: Verify exact additive result and preserve all previous role IDs
+  ansible.builtin.assert:
+    that:
+    - entitlement_binding_after.json | map(attribute='id') | sort == ((entitlement_binding_before.json | map(attribute='id') | list) + [entitlement_role.json.id]) | unique | sort
+  no_log: true

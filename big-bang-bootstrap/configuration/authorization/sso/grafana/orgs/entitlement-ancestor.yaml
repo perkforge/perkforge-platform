@@ -1,0 +1,23 @@
+- ansible.builtin.uri:
+    url: '{{ metadata_api }}/group-by-path/{{ entitlement_ancestor_path | urlencode }}'
+    headers: '{{ metadata_kc_headers }}'
+  register: entitlement_ancestor
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - entitlement_ancestor.json.path == entitlement_ancestor_path
+    - entitlement_ancestor_path != entitlement.canonical_group or entitlement_ancestor.json.id == entitlement.group_id
+- ansible.builtin.uri:
+    url: '{{ metadata_api }}/groups/{{ entitlement_ancestor.json.id }}/role-mappings/clients/{{ entitlement.client_id }}{{ item }}'
+    headers: '{{ metadata_kc_headers }}'
+  loop: ['', /composite]
+  register: entitlement_ancestor_roles
+  no_log: true
+- name: No parent PA, inherited composite or foreign own-client authority
+  ansible.builtin.assert:
+    that:
+    - item.json | map(attribute='name') | list | difference([entitlement.role_name] if entitlement_ancestor_path == entitlement.canonical_group else []) | length == 0
+    - item.json | selectattr('composite','equalto',true) | list | length == 0
+    - item.json | map(attribute='containerId') | list | difference([entitlement.client_id]) | length == 0
+  loop: '{{ entitlement_ancestor_roles.results }}'
+  no_log: true

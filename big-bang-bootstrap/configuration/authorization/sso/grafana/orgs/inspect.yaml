@@ -1,0 +1,130 @@
+- name: Inspect exact Grafana and Keycloak metadata without memberships or grants
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    grafana_org_inspect_run: false
+    grafana_org_inspect_approval: UNAPPROVED
+    grafana_org_origin: https://grafana.example.invalid
+    grafana_org_issuer: https://identity.example.invalid/auth/realms/perkforge
+    grafana_org_name: UNCONFIGURED
+    grafana_org_context_id: portal
+    grafana_org_ca_file: /UNCONFIGURED/ca.pem
+    grafana_org_keycloak_token_file: /UNCONFIGURED/keycloak-token
+    grafana_org_grafana_headers_file: /UNCONFIGURED/grafana-headers.json
+    grafana_org_metadata_output: /UNCONFIGURED/metadata.json
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ grafana_org_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      unredirected_headers: [Authorization]
+      timeout: 20
+  tasks:
+  - when: grafana_org_inspect_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - grafana_org_inspect_approval == 'grafana-org-exact-metadata-v1'
+        - grafana_org_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - grafana_org_issuer is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?(/auth)?/realms/perkforge$')
+        - not (grafana_org_origin is search('\.invalid'))
+        - not (grafana_org_issuer is search('\.invalid'))
+        - grafana_org_context_id is match('^[a-z][a-z0-9-]{0,40}$')
+        - grafana_org_name is match('^[A-Za-z][A-Za-z0-9 -]{0,80}$') and grafana_org_name != 'UNCONFIGURED'
+        - grafana_org_metadata_output is match('^/') and not grafana_org_metadata_output.startswith('/UNCONFIGURED/')
+    - ansible.builtin.command: {argv: [id, -u]}
+      register: metadata_uid
+      changed_when: false
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop: ['{{ grafana_org_keycloak_token_file }}', '{{ grafana_org_grafana_headers_file }}', '{{ grafana_org_ca_file }}']
+      register: metadata_files
+    - ansible.builtin.assert:
+        that:
+        - item.item | realpath == item.item
+        - item.stat.isreg | default(false)
+        - not (item.stat.islnk | default(false))
+        - item.stat.size > 0 and item.stat.size < 65536
+        - item.item == grafana_org_ca_file or (item.stat.uid == (metadata_uid.stdout | int) and item.stat.mode == '0600')
+      loop: '{{ metadata_files.results }}'
+    - ansible.builtin.stat:
+        path: '{{ item | dirname }}'
+      loop: ['{{ grafana_org_keycloak_token_file }}', '{{ grafana_org_grafana_headers_file }}', '{{ grafana_org_metadata_output }}']
+      register: metadata_parents
+    - ansible.builtin.assert:
+        that:
+        - item.stat.isdir | default(false)
+        - item.stat.uid == (metadata_uid.stdout | int)
+        - item.stat.mode == '0700'
+      loop: '{{ metadata_parents.results }}'
+    - ansible.builtin.stat:
+        path: '{{ grafana_org_metadata_output }}'
+        follow: false
+      register: metadata_output
+    - ansible.builtin.assert:
+        that: not metadata_output.stat.exists
+    - ansible.builtin.set_fact:
+        metadata_api: '{{ grafana_org_issuer | regex_replace("/realms/perkforge$", "/admin/realms/perkforge") }}'
+        metadata_kc_headers: {Authorization: 'Bearer {{ lookup("file",grafana_org_keycloak_token_file) | trim }}'}
+        metadata_gf_headers: '{{ lookup("file",grafana_org_grafana_headers_file) | from_json }}'
+        metadata_groups: []
+    - ansible.builtin.assert:
+        that:
+        - metadata_gf_headers.keys() | list == ['Authorization']
+        - metadata_gf_headers.Authorization is match('^(Bearer|Basic) [A-Za-z0-9+/=._-]+$')
+    - ansible.builtin.uri:
+        url: '{{ grafana_org_origin }}/api/orgs/1'
+        headers: '{{ metadata_gf_headers }}'
+      register: metadata_platform
+    - ansible.builtin.assert:
+        that: metadata_platform.json.id == 1
+    - ansible.builtin.uri:
+        url: '{{ grafana_org_origin }}/api/orgs/name/{{ grafana_org_name | urlencode }}/'
+        headers: '{{ metadata_gf_headers }}'
+        status_code: [200, 404]
+      register: metadata_org
+    - ansible.builtin.assert:
+        that:
+        - metadata_org.status == 404 or (metadata_org.json.name == grafana_org_name and metadata_org.json.id > 1)
+    - ansible.builtin.uri:
+        url: '{{ metadata_api }}/clients?clientId=grafana'
+        headers: '{{ metadata_kc_headers }}'
+      register: metadata_client
+    - ansible.builtin.assert:
+        that:
+        - metadata_client.json | length == 1
+        - metadata_client.json[0].clientId == 'grafana'
+        - metadata_client.json[0].attributes['perkforge-managed'] == 'true'
+    - ansible.builtin.uri:
+        url: '{{ metadata_api }}/group-by-path/{{ item | urlencode }}'
+        headers: '{{ metadata_kc_headers }}'
+        status_code: [200, 404]
+      loop:
+      - /platform/admins
+      - /platform/engineers
+      - '/tenants/{{ grafana_org_context_id }}/admins'
+      - '/tenants/{{ grafana_org_context_id }}/developers'
+      - '/tenants/{{ grafana_org_context_id }}/viewers'
+      register: metadata_group_results
+    - ansible.builtin.assert:
+        that: item.status == 404 or item.json.path == item.item
+      loop: '{{ metadata_group_results.results }}'
+    - ansible.builtin.set_fact:
+        metadata_groups: "{{ metadata_groups + [{'path':item.item,'exists':item.status == 200,'id':item.json.id | default(none)}] }}"
+      loop: '{{ metadata_group_results.results }}'
+    - ansible.builtin.copy:
+        dest: '{{ grafana_org_metadata_output }}'
+        mode: '0600'
+        force: false
+        content: "{{ {'schema_version':1,'issuer':grafana_org_issuer,'origin':grafana_org_origin,'client_id':metadata_client.json[0].id,'platform_org':{'id':1,'name':metadata_platform.json.name},'tenant_org':{'name':grafana_org_name,'exists':metadata_org.status == 200,'id':metadata_org.json.id | default(none)},'groups':metadata_groups} | to_nice_json }}"
+    always:
+    - ansible.builtin.set_fact:
+        metadata_kc_headers: {}
+        metadata_gf_headers: {}
+        cacheable: false
+      no_log: true

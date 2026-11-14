@@ -6,7 +6,8 @@ entries: `context` is an entire reviewed `paas_context`, `org_id` a separately
 verified native integer greater than 1, and `query_identity` the exact
 `pf-log-<context>-read`. Set `grafana_org_render=true` and a fresh absolute
 `grafana_org_output` only to write review files. No API calls, credentials,
-organization creation, group mapping or live activation are implemented here.
+organization creation, group mapping or live activation are implemented by the renderer.
+Separately gated, unconnected adapter includes are described below.
 
 The existing Grafana own-client role mapper remains the claim authority. The
 rendered entitlement proposal attaches new noncomposite Grafana client roles to
@@ -84,3 +85,99 @@ Pinned native metadata routes are `GET /api/orgs/name/{name}/` (Grafana13.2.1)
 and `GET /admin/realms/perkforge/group-by-path/{path}` (Keycloak26.8.1). Use exact
 reviewed names/paths only through approved custody; do not enumerate humans or
 invent missing IDs. No live metadata credential access was performed in this PR.
+
+## Metadata and guarded organization adapter
+
+`inspect.yaml` is a separate explicit read-only operation. Default/check touches
+no private files or APIs. It accepts a pre-existing temporary operator token file
+for Keycloak and a protected JSON file containing only the Grafana Authorization
+header (both0600 under0700 owner directories), public CA, exact desired org name,
+context and fresh private receipt path. It reads only org1, exact org name, owned
+Grafana client and five exact canonical group paths. Missing org/groups are
+reported absent, not created. It never issues tokens, reads human memberships or
+client secrets, or discovers vault entries. Sanitized receipt IDs require review;
+they are not authorization. Metadata API access still requires its scoped approval.
+
+`ensure-org.yaml` is an unconnected include for an approved orchestrator, not an
+entrypoint or grant. It accepts only exact inspected name, preserves org1, creates
+only if404 and verifies the returned ID. Native org creation may associate the
+performing recovery administrator with the new org; record and preserve that
+already-global recovery identity explicitly, not as Keycloak-derived access.
+No org deletion, invite, datasource, user role or membership API exists here.
+
+The next exact Keycloak operation must create/reuse only each named noncomposite
+Grafana role, require reviewed owned client UUID and exact canonical group UUID,
+verify existing role description/container/composites, add only that role to that
+group's own-client mapping, AND add it to the same Grafana client's own scope
+mapping. `fullScopeAllowed=false` is retained; do not broaden realm/client scopes.
+Read back exact additions and preserve previous role sets, especially the existing
+`/platform/admins` role and subjects. Existing admin-only reconciler rejects these
+new roles, so its narrow guard must not be repurposed or silently relaxed.
+
+The unconnected `ensure-entitlement.yaml` and `ensure-role-binding.yaml` now encode
+those exact additive operations. They require an explicit approval marker and
+reviewed native IDs, re-read owned client/mapper and canonical path before writes,
+refuse foreign/drifted roles, preserve all prior binding IDs, and make retries
+idempotent. They do not authorize themselves or create missing canonical groups.
+`test_grafana_org_adapter.py` exercises these task files with a disposable HTTPS
+protocol fixture: role plus two bindings, no-op retry and changed-client denial.
+This is mocked protocol evidence, NOT a live Keycloak grant/denial test.
+
+Observed read-only pilot metadata (2026-11-14): org1 exists; desired profile name
+`PerkForge Portal` is absent, as are all three Portal canonical tenant groups.
+Platform canonical groups and owned Grafana client exist. Therefore tenant
+activation also requires reviewed canonical group foundation, not guessed IDs or
+adoption. No human membership was inspected or changed. Native IDs remain in
+private operator evidence rather than this reusable source.
+
+## Additive canonical foundation, never realm initialization
+
+Exact further pilot metadata found the original managed `/tenants` parent but no
+`/tenants/portal` or generic tenant roles. The unconnected `ensure-foundation.yaml`
+therefore implements the minimum existing-policy foundation: four groups (context
+parent plus three leaves), three managed noncomposite generic realm roles, and
+one exact role mapping per leaf. It requires pinned existing parent ID and explicit
+expected IDs/null for every path. Before any write it rejects foreign attributes,
+role definitions or inherited mappings. It never updates/moves/deletes an existing
+group, adopts a name, initializes a realm, or touches users. Newly assigned IDs
+must be reviewed/pinned for retry; a null expectation will not adopt an object
+created during an interrupted earlier attempt. Existing post-entitlement mappings
+are deliberately not silently accepted by this initial foundation stage.
+
+Run foundation only before entitlement application, then verify exact group/role
+IDs and native direct/effective mappings. The entitlement include separately checks
+each canonical ancestor plus leaf for unexpected direct/effective own-client roles:
+parents must have none; leaf may contain only its exact noncomposite entitlement.
+An inherited PA claim must stop the operation, not be preserved as harmless drift.
+
+Pinned Grafana fixture now explicitly confirms org creation associates the existing
+recovery creator as native org Admin. This is the already-global recovery exception,
+not a claim of zero membership side effects or a Keycloak-derived new human grant.
+Keep tenant exposure gated until real gateway namespace/ownership-epoch isolation
+and negative query APIs pass; managed empty groups alone grant nobody access.
+
+## Phase A: platform-only real logs
+
+Set `grafana_org_platform_only=true` with **empty** `grafana_org_contexts` for
+review rendering. Default remains false; platform-only mode rejects any tenant
+context, produces only PA/PE org1 mappings and recognizes no tenant entitlement
+in its role expression. The pinned native platform-only fixture verifies PE Viewer,
+PA recovery and denial of a tenant-only claim. This is the first activation stage:
+no tenant org/group creation or tenant entitlement is required for platform logs.
+
+Before applying the exact PE entitlement, independently verify the platform-only
+Loki datasource in org1 uses the dedicated read-only identity and trusted gateway,
+not the legacy writer credential. Keep all current Grafana OAuth issuer/client/CA,
+PKCE, recovery and PA settings; the reviewed platform-only overlay may change only
+role_attribute_path, org_attribute_path and org_mapping, retaining strict sync.
+Apply only `pf-observability-platform-viewer` on existing verified canonical PE
+group plus the same owned client's scope. Never map the platform-admin role onto
+PE. No human membership changes. Verify native login and direct API/data-source
+access as PE, preserve PA and dashboards; a group with no users is not evidence of
+successful real-user login. Tenant activation remains a separately gated phase.
+
+Entitlement preflight also pins the complete client-local mapper set/config and
+reuses the maintained basic/profile/email shared-scope mapper verifier. Optional
+scopes must be empty; keep requested OAuth scopes `openid profile email`. A second
+client or shared-scope `groups` mapper is refused before any grant. Read-only pilot
+preflight verified exactly this effective authority, not merely local mapper names.

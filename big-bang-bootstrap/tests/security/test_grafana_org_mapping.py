@@ -51,3 +51,11 @@ class GrafanaOrgMapping(unittest.TestCase):
         for data in variants:
             with self.subTest(data=data): self.assertNotEqual(self.render(data).returncode, 0)
         self.assertFalse((self.folder/'out').exists())
+
+    def test_platform_only_is_explicit_and_refuses_tenant_mappings(self):
+        inputs=self.inputs | {'grafana_org_contexts':[], 'grafana_org_platform_only':True}
+        result=self.render(inputs); self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        oauth=yaml.safe_load((self.folder/'out/oauth.yaml').read_text())
+        self.assertEqual(oauth['org_mapping'].split(),['/platform/admins:1:Admin','pf-observability-platform-viewer:1:Viewer'])
+        self.assertNotIn('tenant-',oauth['role_attribute_path'])
+        self.assertNotEqual(self.render(self.inputs | {'grafana_org_platform_only':True}).returncode,0)
