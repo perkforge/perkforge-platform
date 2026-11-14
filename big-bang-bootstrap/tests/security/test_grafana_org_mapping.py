@@ -58,4 +58,12 @@ class GrafanaOrgMapping(unittest.TestCase):
         oauth=yaml.safe_load((self.folder/'out/oauth.yaml').read_text())
         self.assertEqual(oauth['org_mapping'].split(),['/platform/admins:1:Admin','pf-observability-platform-viewer:1:Viewer'])
         self.assertNotIn('tenant-',oauth['role_attribute_path'])
+        overlay=yaml.safe_load((self.folder/'out/oauth-values.yaml').read_text())
+        section=overlay['grafana']['values']['upstream']['grafana.ini']['auth.generic_oauth']
+        self.assertEqual(set(section),{'role_attribute_path','org_attribute_path','org_mapping'})
+        self.assertEqual(section,{k:oauth[k] for k in section})
+        baseline={'enabled':True,'client_id':'grafana','client_secret':'existing-reference','tls_skip_verify_insecure':False,'use_pkce':True,'role_attribute_strict':True}
+        self.assertEqual((baseline | section)['client_secret'],'existing-reference')
+        self.assertTrue((baseline | section)['enabled'])
+
         self.assertNotEqual(self.render(self.inputs | {'grafana_org_platform_only':True}).returncode,0)
