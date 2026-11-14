@@ -1,0 +1,292 @@
+# Exact reviewed platform-only native child values, wrapped for Big Bang.
+grafana:
+  values:
+    # Additive native child-chart values, not selected or applied by this renderer.
+    upstream:
+      dashboardProviders:
+        perkforge-pod-logs-org-1.yaml:
+          apiVersion: 1
+          providers:
+          - name: perkforge-pod-logs-org-1
+            orgId: 1
+            folder: Workload Logs
+            folderUid: pf-workload-logs
+            type: file
+            disableDeletion: true
+            allowUiUpdates: false
+            updateIntervalSeconds: 30
+            options:
+              path: /var/lib/grafana/dashboards/pf-pod-logs-org-1
+              foldersFromFilesStructure: false
+      dashboards:
+        pf-pod-logs-org-1:
+          pod-logs:
+            json: |
+              {
+                "uid": "pf-pod-logs",
+                "title": "PerkForge Pod Logs",
+                "description": "Browse logs already authorized by this organization\u2019s server-side datasource boundary. Namespace filters are not access controls. Missing data may mean not collected, excluded or outside the selected time range.",
+                "schemaVersion": 39,
+                "version": 1,
+                "editable": false,
+                "tags": [
+                  "perkforge",
+                  "logs",
+                  "scoped-datasource"
+                ],
+                "timezone": "browser",
+                "time": {
+                  "from": "now-15m",
+                  "to": "now"
+                },
+                "refresh": "30s",
+                "timepicker": {
+                  "refresh_intervals": [
+                    "30s",
+                    "1m",
+                    "5m"
+                  ]
+                },
+                "annotations": {
+                  "list": []
+                },
+                "links": [],
+                "templating": {
+                  "list": [
+                    {
+                      "name": "namespace",
+                      "label": "Namespace",
+                      "type": "query",
+                      "datasource": {
+                        "type": "loki",
+                        "uid": "loki-platform"
+                      },
+                      "query": {
+                        "type": 1,
+                        "label": "namespace",
+                        "stream": "{namespace=~\".+\"}",
+                        "refId": "LokiVariableQueryEditor-VariableQuery"
+                      },
+                      "refresh": 2,
+                      "sort": 1,
+                      "multi": true,
+                      "includeAll": true,
+                      "allValue": ".+",
+                      "current": {
+                        "selected": true,
+                        "text": "All",
+                        "value": "$__all"
+                      },
+                      "options": [],
+                      "hide": 0,
+                      "skipUrlSync": false
+                    },
+                    {
+                      "name": "pod",
+                      "label": "Pod",
+                      "type": "query",
+                      "datasource": {
+                        "type": "loki",
+                        "uid": "loki-platform"
+                      },
+                      "query": {
+                        "type": 1,
+                        "label": "pod",
+                        "stream": "{namespace=~\"${namespace:regex}\"}",
+                        "refId": "LokiVariableQueryEditor-VariableQuery"
+                      },
+                      "refresh": 2,
+                      "sort": 1,
+                      "multi": true,
+                      "includeAll": true,
+                      "allValue": ".+",
+                      "current": {
+                        "selected": true,
+                        "text": "All",
+                        "value": "$__all"
+                      },
+                      "options": [],
+                      "hide": 0,
+                      "skipUrlSync": false
+                    },
+                    {
+                      "name": "container",
+                      "label": "Container",
+                      "type": "query",
+                      "datasource": {
+                        "type": "loki",
+                        "uid": "loki-platform"
+                      },
+                      "query": {
+                        "type": 1,
+                        "label": "container",
+                        "stream": "{namespace=~\"${namespace:regex}\",pod=~\"${pod:regex}\"}",
+                        "refId": "LokiVariableQueryEditor-VariableQuery"
+                      },
+                      "refresh": 2,
+                      "sort": 1,
+                      "multi": true,
+                      "includeAll": true,
+                      "allValue": ".+",
+                      "current": {
+                        "selected": true,
+                        "text": "All",
+                        "value": "$__all"
+                      },
+                      "options": [],
+                      "hide": 0,
+                      "skipUrlSync": false
+                    }
+                  ]
+                },
+                "panels": [
+                  {
+                    "id": 1,
+                    "type": "text",
+                    "title": "Scope and collection coverage",
+                    "gridPos": {
+                      "h": 3,
+                      "w": 24,
+                      "x": 0,
+                      "y": 0
+                    },
+                    "options": {
+                      "mode": "markdown",
+                      "content": "Collection coverage: Platform read-only federation; only collected namespaces are visible. Coverage must be verified separately.\n\nNamespace, pod and container filters are navigation, not authorization. This dashboard grants no access and cannot expand the datasource\u2019s server-side scope. Empty results are not proof that a workload has no logs."
+                    }
+                  },
+                  {
+                    "id": 2,
+                    "type": "timeseries",
+                    "title": "Selected log volume",
+                    "description": "Count per query interval, not a byte/storage measure. Filters narrow the existing datasource scope; they do not authorize access.",
+                    "datasource": {
+                      "type": "loki",
+                      "uid": "loki-platform"
+                    },
+                    "gridPos": {
+                      "h": 7,
+                      "w": 16,
+                      "x": 0,
+                      "y": 3
+                    },
+                    "targets": [
+                      {
+                        "refId": "A",
+                        "datasource": {
+                          "type": "loki",
+                          "uid": "loki-platform"
+                        },
+                        "expr": "sum(count_over_time({namespace=~\"${namespace:regex}\",pod=~\"${pod:regex}\",container=~\"${container:regex}\"}[$__interval]))",
+                        "queryType": "range",
+                        "legendFormat": "Log lines",
+                        "editorMode": "code"
+                      }
+                    ],
+                    "maxDataPoints": 400,
+                    "fieldConfig": {
+                      "defaults": {
+                        "unit": "short",
+                        "min": 0
+                      },
+                      "overrides": []
+                    },
+                    "options": {
+                      "legend": {
+                        "displayMode": "list",
+                        "placement": "bottom"
+                      },
+                      "tooltip": {
+                        "mode": "single"
+                      }
+                    }
+                  },
+                  {
+                    "id": 3,
+                    "type": "stat",
+                    "title": "Lines in selected time range",
+                    "datasource": {
+                      "type": "loki",
+                      "uid": "loki-platform"
+                    },
+                    "gridPos": {
+                      "h": 7,
+                      "w": 8,
+                      "x": 16,
+                      "y": 3
+                    },
+                    "targets": [
+                      {
+                        "refId": "A",
+                        "datasource": {
+                          "type": "loki",
+                          "uid": "loki-platform"
+                        },
+                        "expr": "sum(count_over_time({namespace=~\"${namespace:regex}\",pod=~\"${pod:regex}\",container=~\"${container:regex}\"}[$__range]))",
+                        "queryType": "instant",
+                        "editorMode": "code"
+                      }
+                    ],
+                    "fieldConfig": {
+                      "defaults": {
+                        "unit": "short",
+                        "min": 0,
+                        "noValue": "No collected data"
+                      },
+                      "overrides": []
+                    },
+                    "options": {
+                      "reduceOptions": {
+                        "values": false,
+                        "calcs": [
+                          "lastNotNull"
+                        ],
+                        "fields": ""
+                      },
+                      "textMode": "auto",
+                      "colorMode": "none",
+                      "graphMode": "none"
+                    }
+                  },
+                  {
+                    "id": 4,
+                    "type": "logs",
+                    "title": "Pod logs",
+                    "description": "Newest first; at most 1,000 records per query. Narrow the namespace/pod/container or time range to inspect older records. This query display limit does not truncate ingestion or alter retention.",
+                    "datasource": {
+                      "type": "loki",
+                      "uid": "loki-platform"
+                    },
+                    "gridPos": {
+                      "h": 15,
+                      "w": 24,
+                      "x": 0,
+                      "y": 10
+                    },
+                    "targets": [
+                      {
+                        "refId": "A",
+                        "datasource": {
+                          "type": "loki",
+                          "uid": "loki-platform"
+                        },
+                        "expr": "{namespace=~\"${namespace:regex}\",pod=~\"${pod:regex}\",container=~\"${container:regex}\"}",
+                        "queryType": "range",
+                        "direction": "backward",
+                        "maxLines": 1000,
+                        "editorMode": "code"
+                      }
+                    ],
+                    "options": {
+                      "showTime": true,
+                      "showLabels": false,
+                      "showCommonLabels": false,
+                      "wrapLogMessage": true,
+                      "prettifyLogMessage": false,
+                      "enableLogDetails": true,
+                      "dedupStrategy": "none",
+                      "sortOrder": "Descending"
+                    }
+                  }
+                ]
+              }

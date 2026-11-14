@@ -1,0 +1,28 @@
+# Additive read-only platform datasource; existing Prometheus/pilot stay intact.
+grafana:
+  values:
+    upstream:
+      envValueFrom:
+        PF_LOKI_USERNAME:
+          secretKeyRef: {name: loki-boundary-query-platform-v1, key: username}
+        PF_LOKI_PASSWORD:
+          secretKeyRef: {name: loki-boundary-query-platform-v1, key: password}
+        PF_LOKI_CA_CERT:
+          configMapKeyRef: {name: loki-ca, key: ca.crt}
+      datasources:
+        datasources-loki-platform.yaml:
+          apiVersion: 1
+          datasources:
+          - name: Loki — Platform
+            uid: loki-platform
+            orgId: 1
+            type: loki
+            access: proxy
+            editable: false
+            url: https://logging-loki-gateway.logging.svc.cluster.local:443
+            basicAuth: true
+            basicAuthUser: $PF_LOKI_USERNAME
+            jsonData: {tlsAuthWithCACert: true, tlsSkipVerify: false, timeout: 30, maxLines: 1000}
+            secureJsonData:
+              basicAuthPassword: $PF_LOKI_PASSWORD
+              tlsCACert: $PF_LOKI_CA_CERT

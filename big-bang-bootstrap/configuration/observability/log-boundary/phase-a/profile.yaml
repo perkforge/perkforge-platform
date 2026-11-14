@@ -1,0 +1,24 @@
+# Physical-local environment values; reusable renderer and images remain unchanged.
+log_boundary_render: false
+log_runtime_dir: /tmp
+log_listen: 0.0.0.0:8080
+log_server_name: logging-loki-gateway.logging.svc.cluster.local
+log_upstream: https://logging-loki.logging.svc.cluster.local:3100
+log_upstream_tls_name: logging-loki.logging.svc.cluster.local
+log_cert_path: /gateway-tls/tls.crt
+log_key_path: /gateway-tls/tls.key
+log_ca_path: /gateway-tls/ca.crt
+log_htpasswd_path: /etc/nginx/secrets/.htpasswd
+log_writer: pf-log-collector-write
+log_platform_reader: pf-log-platform-read
+log_legacy_reader: platform-pilot
+log_fallback_scope: platform-unassigned-v1
+log_legacy_scopes: [platform-pilot]
+log_scopes:
+- {namespace: tenant-portal, scope_id: portal-runtime-v1}
+# Tenant identity is not exposed in Phase A.
+log_readers: []
+# Begin real workload collection within current pilot resource/storage budget.
+# This is staged coverage, not a claim all namespaces are collected yet.
+log_collect_all_namespaces: false
+log_collection_namespaces: [tenant-portal, mattermost, flux-system]
