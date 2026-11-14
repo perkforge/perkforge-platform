@@ -82,6 +82,15 @@ class Manifests(unittest.TestCase):
    net=next(x for x in docs if x['kind']=='NetworkPolicy')['spec']
    self.assertEqual(net['egress'][-1],{'to':[{'namespaceSelector':{'matchLabels':{'kubernetes.io/metadata.name':'kube-system'}},'podSelector':{'matchLabels':{'app.kubernetes.io/name':'rke2-traefik','app.kubernetes.io/instance':'rke2-traefik-kube-system'}}}], 'ports':[{'protocol':'TCP','port':8443}]})
    deploy=next(x for x in docs if x['kind']=='Deployment');self.assertFalse(deploy['spec']['template']['spec']['automountServiceAccountToken'])
+   private=d/'private';private.mkdir(mode=0o700)
+   for name,value in {'tls.crt':ca,'tls.key':'FIXTURE','platform-hook':'https://chat.example.invalid/hooks/'+('a'*26),'portal-hook':'https://chat.example.invalid/hooks/'+('b'*26)}.items():
+    f=private/name;f.write_text(value);f.chmod(0o600)
+   v.update(projection_prepare=True,projection_private_dir=str(private),projection_platform_hook_file=str(private/'platform-hook'),projection_portal_hook_file=str(private/'portal-hook'),projection_links={'platform':'https://grafana.example.invalid/alerting/list','portal':'https://portal.example.invalid/'})
+   r=subprocess.run(['ansible-playbook',str(source/'prepare-records.yaml'),'-e',json.dumps(v)],capture_output=True,text=True);self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+   record=json.loads((private/'records.json').read_text());routes=json.loads(record['routes-v1']['routes.json'])
+   self.assertNotEqual(routes['/platform']['token'],routes['/portal']['token']);self.assertEqual(len(routes['/platform']['token']),64)
+   self.assertEqual(json.loads(record['portal-v1']['headers'])['Authorization'],'Bearer '+routes['/portal']['token'])
+   self.assertEqual((private/'records.json').stat().st_mode & 0o777,0o600)
    v.update(projection_custody_render=True,projection_custody_output=str(d/'custody'),projection_bao_server='https://bao.example.invalid')
    r=subprocess.run(['ansible-playbook',str(source/'custody.yaml'),'-e',json.dumps(v)],capture_output=True,text=True);self.assertEqual(r.returncode,0,r.stdout+r.stderr)
    pre=[x for x in yaml.safe_load_all((d/'custody/prerequisites.yaml').read_text()) if x];con=[x for x in yaml.safe_load_all((d/'custody/consumers.yaml').read_text()) if x]
