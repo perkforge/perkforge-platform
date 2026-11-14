@@ -25,8 +25,11 @@ native Big Bang images with target configuration, never environment rebuilds.
   A fresh 15-minute observation had zero additional drops and one retry of unknown
   cause, not a zero-retry or lossless claim. The trusted-API timestamp cutoff matches
   the 168-hour absolute-age bound; restart replay still encountered the separate
-  one-hour ordering window. Positions remain ephemeral. Durable cursor storage and
-  guarded migration are planned source work, not deployed/restart-verified.
+  one-hour ordering window. Guarded capture/seed migration now retains cursors on a
+  dedicated volume. Exact seed retention, nondecreasing prior targets and cursor
+  advancement were verified; the new StatefulSet is Ready with zero container restarts.
+  Early fresh writer/query readback passed with no process drops/retries. This is
+  not second-restart, wire-sinceTime, backend-ACK or lossless/long-term proof.
 - New private Mattermost channels are visible to the owner. Native platform-alert
   test delivery and genuine platform-deployment events are verified. Portal's real
   rollout event remains pending the next actual application upgrade. Membership
@@ -41,9 +44,10 @@ See the [scoped logging runbook](big-bang-bootstrap/configuration/observability/
 [Grafana identity](big-bang-bootstrap/configuration/authorization/sso/grafana/README.md)
 and [Mattermost delivery](big-bang-bootstrap/configuration/observability/mattermost-projection/README.md).
 Logging #38, Grafana isolation #218 and context alert lifecycle #39 remain distinct
-acceptance work. Source publication is not deployment. Portal v0.7.0 and config
-v2.3.3 are published immutable C4 baselines, not selected live; a final current-state
-model update and coordinated dependency/root rollout remain underway.
+acceptance work. Source publication is not deployment. Portal v0.7.1 and config
+v2.3.4 are published immutable current-state C4 artifacts; their coordinated
+enrollment/root selection is recorded by the final pin evidence. Source publication
+alone is not proof of application rollout or owner browser acceptance.
 
 ## Earlier integrated pilot snapshot (2026-11-14)
 
