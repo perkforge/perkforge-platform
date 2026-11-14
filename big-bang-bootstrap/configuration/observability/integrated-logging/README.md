@@ -135,3 +135,9 @@ Alloy itself retains UID/GID 473 and its restricted context. A bounded 64Mi
 read-only root and existing read-only Loki CA mount. This state is ephemeral,
 not a claim of durable collector offsets. Native Helm Ready alone does not prove
 that the operator-generated collector passed admission or collected logs.
+
+Grafana's datasource URL uses explicit `:443` to match its exact
+`data_source_proxy_whitelist` entry. Datasource health alone did not exercise the
+proxy allowlist; acceptance must also query a benign collected line through the
+native Grafana datasource proxy. This changes no destination, TLS trust,
+credential, network policy, or existing Prometheus path.
