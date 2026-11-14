@@ -69,3 +69,18 @@ class GrafanaOrgMapping(unittest.TestCase):
         self.assertTrue((baseline | section)['enabled'])
 
         self.assertNotEqual(self.render(self.inputs | {'grafana_org_platform_only':True}).returncode,0)
+
+    def test_log_view_override_is_per_context_and_preserves_other_defaults(self):
+        self.inputs['grafana_org_contexts'][0]['log_view_only']=True
+        other=copy.deepcopy(self.inputs['grafana_org_contexts'][0])
+        other=json.loads(json.dumps(other).replace('portal','other'))
+        other.update(org_id=3,log_view_only=False)
+        self.inputs['grafana_org_contexts'].append(other)
+        result=self.render(self.inputs);self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        oauth=yaml.safe_load((self.folder/'out/oauth.yaml').read_text())
+        for role in ['admin','developer','viewer']:
+            self.assertIn('pf-observability-portal-tenant-'+role+':2:Viewer',oauth['org_mapping'])
+        self.assertIn('pf-observability-other-tenant-admin:3:Admin',oauth['org_mapping'])
+        self.assertIn('pf-observability-other-tenant-developer:3:Editor',oauth['org_mapping'])
+        self.assertIn('/platform/admins:1:Admin',oauth['org_mapping'])
+        self.assertIn('pf-observability-platform-viewer:1:Viewer',oauth['org_mapping'])

@@ -1,0 +1,17 @@
+# Explicit Portal pilot profile: verified native org2; not selected by default.
+# All canonical tenant roles receive log-view Viewer only. PA/PE unchanged.
+grafana:
+    values:
+        upstream:
+            grafana.ini:
+                auth.generic_oauth:
+                    org_attribute_path: groups
+                    org_mapping: /platform/admins:1:Admin pf-observability-platform-viewer:1:Viewer
+                        pf-observability-portal-tenant-admin:2:Viewer pf-observability-portal-tenant-developer:2:Viewer
+                        pf-observability-portal-tenant-viewer:2:Viewer
+                    role_attribute_path: contains(groups[*], '/platform/admins') &&
+                        'GrafanaAdmin' || (contains(groups[*], 'pf-observability-platform-viewer')
+                        || contains(groups[*], 'pf-observability-portal-tenant-admin')
+                        || contains(groups[*], 'pf-observability-portal-tenant-developer')
+                        || contains(groups[*], 'pf-observability-portal-tenant-viewer')
+                        ) && 'None'

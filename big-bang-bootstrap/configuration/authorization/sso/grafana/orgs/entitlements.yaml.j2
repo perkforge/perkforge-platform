@@ -19,6 +19,6 @@ contexts:
   - canonical_group: {{ item.context.keycloak.groups[role] }}
     client_role: pf-observability-{{ item.context.id }}-{{ role }}
     composite: false
-    org_role: {{ native_role }}
+    org_role: {{ 'Viewer' if item.log_view_only | default(false) else native_role }}
 {% endfor %}
 {% endfor %}

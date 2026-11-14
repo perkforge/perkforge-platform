@@ -212,3 +212,30 @@ cleanup proof. No tenant human mappings should be enabled until this acceptance
 and data-plane/lifecycle checks pass. These tests do not prove human Keycloak login,
 existing-session revocation, or Admin/Editor datasource-management boundaries.
 Protocol mocks test the harness, not live Grafana authorization.
+
+### Initial Portal log-view profile
+
+The owner explicitly selected **Viewer for all three authorized Portal tenant
+roles**, including tenant admins, for the initial log-view release. Set
+`log_view_only: true` on that exact renderer context. It changes only that
+context's native org mapping, not canonical Keycloak roles, other contexts or
+platform-admin/platform-engineer access. Omitted/false retains the earlier
+review-only Admin/Editor/Viewer contract; that broader human matrix is not live.
+`portal-log-view-values.yaml` binds this pilot to verified native org2, and is
+unselected by default. Other installations must render their discovered org ID.
+
+Pinned native Grafana13.2.1 confirms why this is required: org Admin has
+`org.users:add`; POST `/api/org/users` can add an existing user without checking
+canonical Keycloak group membership. Disabling the login form does not prevent
+that existing-user route. The native regression preserves this observed Admin
+behavior and proves the log-view override denies user-add/invites, service-account
+creation and datasource creation. It retains org isolation and native revocation
+checks. This is a disposable synthetic OAuth test, not real human login evidence.
+
+Activate only exact canonical group→owned-client entitlements, preserve the
+existing own-client scope/mapper guards, and then compose the three OAuth fields.
+Do not add human memberships or infer them from generic realm roles. Existing
+session revocation remains an explicit native removal/logout procedure before
+ownership transfer; login-time synchronization is not continuous authorization.
+Sharing/snapshot/public-dashboard paths and richer admin lifecycle remain #218
+review items, not permission to activate the broader Admin/Editor contract.
