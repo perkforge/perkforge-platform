@@ -1,0 +1,76 @@
+# Exact precreated object only. No create/delete, no Secret access, no data adoption.
+- ansible.builtin.set_fact:
+    receipt_url: '{{ identity_kubernetes_origin }}/api/v1/namespaces/{{ identity_receipt_namespace }}/configmaps/{{ identity_receipt_name }}'
+    receipt_headers: {Authorization: 'Bearer {{ lookup("file",phase_api_token) | trim }}'}
+- ansible.builtin.uri:
+    url: '{{ receipt_url }}'
+    headers: '{{ receipt_headers }}'
+    validate_certs: true
+    ca_path: '{{ phase_api_ca }}'
+    use_proxy: false
+    use_netrc: false
+    follow_redirects: none
+    unredirected_headers: [Authorization]
+    timeout: 10
+  register: receipt_before
+- ansible.builtin.assert:
+    that:
+    - receipt_before.json.metadata.uid == identity_receipt_uid
+    - receipt_before.json.metadata.name == identity_receipt_name
+    - receipt_before.json.metadata.namespace == identity_receipt_namespace
+    - receipt_before.json.metadata.resourceVersion is match('^[0-9]+$')
+    - receipt_before.json.metadata.labels['app.kubernetes.io/managed-by'] == 'perkforge-identity'
+    - receipt_before.json.metadata.labels['perkforge.dev/context'] == identity_context
+    - receipt_before.json.metadata.annotations['perkforge.dev/desired-invocation'] == identity_invocation
+    - receipt_before.json.data | default({}) | list | difference(['receipt.json']) | length == 0
+    - (receipt_before.json.data | default({})).get('receipt.json','') | length <= 262144
+- name: First attempt cannot adopt existing data; later attempts require exact predecessor
+  ansible.builtin.assert:
+    that: (receipt_before.json.data | default({})).get('receipt.json','') == ''
+  when: identity_previous_invocation == ''
+- ansible.builtin.set_fact:
+    prior_envelope: '{{ receipt_before.json.data["receipt.json"] | from_json }}'
+  when: identity_previous_invocation != ''
+- ansible.builtin.assert:
+    that:
+    - prior_envelope.invocation == identity_previous_invocation
+    - prior_envelope.context == identity_context
+    - prior_envelope.receipt_uid == identity_receipt_uid
+  when: identity_previous_invocation != ''
+- name: CAS only the owned data after UID, version and desired-attempt checks
+  ansible.builtin.uri:
+    url: '{{ receipt_url }}'
+    method: PATCH
+    headers: '{{ receipt_headers | combine({"Content-Type":"application/json-patch+json"}) }}'
+    body_format: json
+    body:
+    - {op: test, path: /metadata/uid, value: '{{ identity_receipt_uid }}'}
+    - {op: test, path: /metadata/resourceVersion, value: '{{ receipt_before.json.metadata.resourceVersion }}'}
+    - {op: test, path: /metadata/annotations/perkforge.dev~1desired-invocation, value: '{{ identity_invocation }}'}
+    - op: add
+      path: /data
+      value: {receipt.json: '{{ lookup("file",phase_work + "/envelope.json") }}'}
+    validate_certs: true
+    ca_path: '{{ phase_api_ca }}'
+    use_proxy: false
+    use_netrc: false
+    follow_redirects: none
+    unredirected_headers: [Authorization]
+    timeout: 10
+    status_code: 200
+- ansible.builtin.uri:
+    url: '{{ receipt_url }}'
+    headers: '{{ receipt_headers }}'
+    validate_certs: true
+    ca_path: '{{ phase_api_ca }}'
+    use_proxy: false
+    use_netrc: false
+    follow_redirects: none
+    unredirected_headers: [Authorization]
+    timeout: 10
+  register: receipt_after
+- ansible.builtin.assert:
+    that:
+    - receipt_after.json.metadata.uid == identity_receipt_uid
+    - receipt_after.json.metadata.annotations['perkforge.dev/desired-invocation'] == identity_invocation
+    - receipt_after.json.data['receipt.json'] == lookup('file',phase_work + '/envelope.json')

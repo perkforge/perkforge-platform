@@ -1,0 +1,55 @@
+# The fixed executor owns context serialization and trusted issuer-only projection.
+- name: Apply one finite explicitly selected membership observation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars: {identity_run: false}
+  tasks:
+  - when: identity_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.set_fact:
+        phase_substage: protected-state-validation
+        member_results: []
+        operations_attempted: 0
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/phase-lock.py', --locked, '{{ phase_work }}', '{{ phase_group_receipt }}']
+      changed_when: false
+    - name: Refresh issuer evidence even for an empty roster
+      ansible.builtin.command:
+        argv: [/opt/perkforge/bin/refresh-identity-evidence, '{{ phase_inputs }}', '{{ phase_work }}']
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/membership-state.py', '{{ phase_inputs }}', '{{ phase_work }}', '{{ phase_group_receipt }}']
+      changed_when: false
+      register: verified_state
+    - ansible.builtin.set_fact:
+        membership_state: '{{ verified_state.stdout | from_json }}'
+        initial_envelope: '{{ lookup("file", phase_work + "/envelope.json") | from_json }}'
+    - ansible.builtin.include_tasks: member-one.yaml
+      loop: '{{ membership_state.subjects }}'
+      loop_control: {loop_var: selected_subject}
+    - ansible.builtin.copy:
+        dest: '{{ phase_work }}/member-results.json'
+        mode: '0600'
+        content: '{{ member_results | to_json }}'
+    - ansible.builtin.copy:
+        dest: '{{ phase_work }}/result.json'
+        mode: '0600'
+        content: "{{ {'phase':('NoDesiredMembers' if membership_state.subjects | length == 0 else ('MembershipReady' if member_results | rejectattr('stage','in',['Granted','Revoked','NoOwnedMembership']) | list | length == 0 else 'MembershipPending')),'invocation':identity_invocation,'operations_attempted':operations_attempted,'completed_subjects':member_results | length,'pending_subjects':member_results | rejectattr('stage','in',['Granted','Revoked','NoOwnedMembership']) | list | length,'membership_ready':(membership_state.subjects | length > 0 and member_results | rejectattr('stage','in',['Granted','Revoked','NoOwnedMembership']) | list | length == 0),'current_group_readback_claim':true} | to_json }}"
+    rescue:
+    - ansible.builtin.copy:
+        dest: '{{ phase_work }}/member-results.json'
+        mode: '0600'
+        content: '{{ member_results | default([]) | to_json }}'
+    - ansible.builtin.copy:
+        dest: '{{ phase_work }}/result.json'
+        mode: '0600'
+        content: "{{ {'phase':('PartialFailure' if operations_attempted | default(0) | int > 0 else 'MembershipFailed'),'substage':phase_substage | default('protected-state-validation'),'category':'validation-or-native-readback-failed','invocation':identity_invocation,'operations_attempted':operations_attempted | default(0),'completed_subjects':member_results | default([]) | length,'membership_ready':false,'manual_recovery_may_be_required':operations_attempted | default(0) | int > 0} | to_json }}"
+    - ansible.builtin.fail:
+        msg: Membership phase stopped; protected ownership and bounded result retained.
+    always:
+    - ansible.builtin.set_fact:
+        phase_envelope: {}
+        selected_identity: {}
+        verified_state: {}

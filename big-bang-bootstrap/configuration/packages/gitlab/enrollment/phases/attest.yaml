@@ -1,0 +1,88 @@
+# Runtime entry is the fixed reviewed wrapper; never expose arbitrary extra-vars.
+- name: Execute one bounded isolated identity observation and publication
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    identity_run: false
+  tasks:
+  - when: identity_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.set_fact: {phase_substage: input-validation}
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/contract.py', --phase, attest, --inputs, '{{ phase_inputs }}']
+      changed_when: false
+    - ansible.builtin.set_fact: {phase_substage: keycloak-authentication}
+    - name: Obtain only the dedicated read-only Keycloak client's short token
+      ansible.builtin.uri:
+        url: '{{ identity_keycloak_origin }}/realms/{{ identity_keycloak_realm }}/protocol/openid-connect/token'
+        method: POST
+        body_format: form-urlencoded
+        body:
+          grant_type: client_credentials
+          client_id: '{{ lookup("file",phase_kc_id) | trim }}'
+          client_secret: '{{ lookup("file",phase_kc_secret) | trim }}'
+        validate_certs: true
+        ca_path: '{{ phase_lab_ca }}'
+        use_proxy: false
+        use_netrc: false
+        follow_redirects: none
+        timeout: 10
+      register: kc_token
+    - ansible.builtin.assert:
+        that:
+        - kc_token.json.token_type | lower == 'bearer'
+        - kc_token.json.access_token is match('^[A-Za-z0-9_.-]{8,4096}$')
+    - ansible.builtin.copy:
+        dest: '{{ phase_work }}/kc-token'
+        mode: '0600'
+        content: '{{ kc_token.json.access_token }}'
+    - ansible.builtin.set_fact: {phase_substage: canonical-snapshot}
+    - ansible.builtin.copy:
+        dest: '{{ phase_work }}/snapshot-inputs.json'
+        mode: '0600'
+        content: "{{ {'context':identity_context,'source_revision':identity_source_revision,'origin':identity_keycloak_origin,'ca_file':phase_lab_ca,'contract_sha256':identity_contract_sha256,'group_ids':identity_group_ids} | to_json }}"
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/../read-keycloak-context.py', --read, '{{ phase_work }}/kc-token', '{{ phase_work }}/snapshot.json', '{{ phase_work }}/snapshot-inputs.json']
+      changed_when: false
+    - ansible.builtin.set_fact:
+        observed_snapshot: '{{ lookup("file",phase_work + "/snapshot.json") | from_json }}'
+        observed_identities: []
+    - ansible.builtin.assert:
+        that:
+        - observed_snapshot.members | length <= 3
+        - observed_snapshot.realm == identity_keycloak_realm
+    - ansible.builtin.set_fact: {phase_substage: native-identity-observation}
+    - ansible.builtin.include_tasks: attest-one.yaml
+      loop: '{{ observed_snapshot.members }}'
+      loop_control: {loop_var: selected_member}
+      when: selected_member.enabled
+    - ansible.builtin.copy:
+        dest: '{{ phase_work }}/envelope.json'
+        mode: '0600'
+        content: "{{ {'schema':1,'context':identity_context,'source_revision':identity_source_revision,'platform_revision':identity_platform_revision,'contract_sha256':identity_contract_sha256,'invocation':identity_invocation,'previous_invocation':identity_previous_invocation,'retry_generation':identity_retry_generation,'receipt_uid':identity_receipt_uid,'captured_at':now(utc=true,fmt='%Y-%m-%dT%H:%M:%SZ'),'snapshot':observed_snapshot,'identities':observed_identities} | to_json }}"
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/contract.py', --phase, attest, --inputs, '{{ phase_inputs }}', --envelope, '{{ phase_work }}/envelope.json']
+      changed_when: false
+    - ansible.builtin.set_fact: {phase_substage: issuer-receipt-cas}
+    - ansible.builtin.include_tasks: publish.yaml
+    - ansible.builtin.copy:
+        dest: '{{ phase_work }}/result.json'
+        mode: '0600'
+        content: "{{ {'phase':'AttestationPublished','invocation':identity_invocation,'pending_identity_count':observed_identities | rejectattr('stage','equalto','IdentityVerified') | list | length,'membership_ready':false} | to_json }}"
+    rescue:
+    - ansible.builtin.copy:
+        dest: '{{ phase_work }}/result.json'
+        mode: '0600'
+        content: "{{ {'phase':'AttestationFailed','substage':phase_substage | default('input-validation'),'category':'validation-or-native-request-failed','invocation':identity_invocation,'membership_ready':false,'native_membership_writes':false} | to_json }}"
+    - ansible.builtin.fail:
+        msg: Attestation failed; only bounded result is public.
+    always:
+    - ansible.builtin.set_fact:
+        kc_token: {}
+        receipt_headers: {}
+        observed_snapshot: {}
+        observed_identities: []
+        receipt_before: {}
+        receipt_after: {}
