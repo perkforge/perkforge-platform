@@ -163,7 +163,9 @@ block rather than being silently downgraded or bypassing invitation policy.
 
 Use the inspector's protected files/TLS inputs plus
 `mattermost_keycloak_origin`, `mattermost_keycloak_ca_file` and
-`mattermost_keycloak_token_file`. The contract adds `groups` entries
+`mattermost_keycloak_token_file`. The Keycloak origin accepts HTTPS with an
+optional exact `/auth` prefix for the Big Bang deployment; arbitrary paths,
+queries and fragments are rejected. The contract adds `groups` entries
 (`id`, `path`), `bindings` entries (`subject`, `user_id`) and an
 `exceptions` list of explicitly approved native service/operator IDs.
 Only enabled authoritative group members are included. Direct group reads are
