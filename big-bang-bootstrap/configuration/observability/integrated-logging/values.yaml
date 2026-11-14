@@ -9,3 +9,8 @@ loki:
   enabled: true
   flux:
     suspend: false
+  values:
+    singleBinary:
+      # Persistent Loki must run only where the existing Longhorn CSI is installed.
+      nodeSelector:
+        storage.perkforge.io/worker: 'true'

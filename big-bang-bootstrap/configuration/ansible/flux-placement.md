@@ -5,7 +5,7 @@ An explicit `flux_kustomize_node_selector` mapping creates a sibling overlay tha
 changes only kustomize-controller placement. It preserves images, resources,
 arguments, permissions, service account and the existing Linux node selector.
 No target hostname is built into the source. For the physical cluster the reviewed
-candidate is `{'node-role.kubernetes.io/control-plane': ''}`. Other environments
+candidate is `{'node-role.kubernetes.io/control-plane': 'true'}`. Other environments
 leave the variable empty or select their own supported role label.
 
 For an already running cluster, do not rerun bootstrap. Prepare the overlay offline,
