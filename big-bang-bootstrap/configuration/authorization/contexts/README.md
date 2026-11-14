@@ -27,7 +27,7 @@ just a matching namespace prefix.
 - Keycloak groups `/tenants/portal/{admins,developers,viewers}` identify tenant
   roles. Assign roles to groups, people to appropriate groups; parent groups do
   not grant access. Existing `perkforge-role` group attributes are metadata, not
-  Keycloak role mappings. Native mapping implementation remains separate.
+  Keycloak role mappings. The guarded native mapping workflow is documented in `../PORTAL-ROLES.md`; this contract itself does not apply it.
 - Runtime `tenant-portal` only. `tenant-portal-config` and
   `tenant-portal-release` are control namespaces, not tenant runtime diagnostics.
 - ntfy exact topic `tenant-portal-alerts`; a private Portal alerts channel.
@@ -45,9 +45,11 @@ just a matching namespace prefix.
 - GitLab desired roles are tenant-admin Owner, tenant-developer Developer, and
   tenant-viewer Reporter. Numeric group/project IDs and live grants remain unresolved. Do not
   derive identity or permissions from display names, email or GitHub ownership.
-- Tenant Grafana desired org roles are tenant-admin Admin, tenant-developer
-  Editor, and tenant-viewer Viewer. Access stays blocked until server-side query
-  isolation is proven. Dashboard/folder/label filters do not establish that isolation.
+- Generic future Grafana roles remain Admin/Editor/Viewer in the inactive contract.
+  The separately reviewed current Portal `log_view_only` profile overrides all
+  three to Viewer; it does not activate generic org-admin rights. Server-side
+  query isolation and exact native mappings are required. Dashboard/folder/label
+  filters do not establish that isolation.
 
 No roles, memberships, credentials, app selection or Flux roots change by merging
 this contract. Existing admin-only clients and independent recovery remain intact.
@@ -69,3 +71,9 @@ API writes, credentials and security-sensitive changes behind their applicable
 approval gates. This contract deliberately contains no live apply path. Native
 role permissions not already confirmed are decisions for the platform owner,
 not assumptions to encode because an app supplies a convenient default role.
+
+## Supported lifecycle definition
+
+[Provision, update, revoke, drift and native entitlement ownership](lifecycle.md)
+defines the supported operator-driven pattern for #16. It distinguishes current
+Portal overrides from inactive generic defaults and #43/#334 live acceptance.
