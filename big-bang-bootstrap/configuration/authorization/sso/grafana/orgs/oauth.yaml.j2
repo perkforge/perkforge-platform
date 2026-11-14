@@ -1,0 +1,23 @@
+# Review only. Merge into the existing provider only after exact activation approval.
+enabled: false
+allow_assign_grafana_admin: true
+role_attribute_strict: true
+skip_org_role_sync: false
+role_attribute_path: >-
+  contains(groups[*], '/platform/admins') && 'GrafanaAdmin' ||
+  (contains(groups[*], 'pf-observability-platform-viewer')
+{% for item in grafana_org_contexts %}
+{% for role in item.context.targets.grafana.role_mappings %}
+  || contains(groups[*], 'pf-observability-{{ item.context.id }}-{{ role }}')
+{% endfor %}
+{% endfor %}
+  ) && 'None' 
+org_attribute_path: groups
+org_mapping: >-
+  /platform/admins:1:Admin
+  pf-observability-platform-viewer:1:Viewer
+{% for item in grafana_org_contexts %}
+{% for role, native_role in item.context.targets.grafana.role_mappings.items() %}
+  pf-observability-{{ item.context.id }}-{{ role }}:{{ item.org_id }}:{{ native_role }}
+{% endfor %}
+{% endfor %}
