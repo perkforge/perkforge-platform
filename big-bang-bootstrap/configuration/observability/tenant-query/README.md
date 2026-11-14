@@ -409,3 +409,27 @@ other providers select their reviewed equivalent without rebuilding images.
 Preserve existing egress and TLS/client settings. This is a separately approved
 network change, not a credential reset. Verify trusted-CA discovery and actual
 login from the Grafana workload after applying.
+
+#### Required Grafana network-change regression check
+
+After any Grafana egress/ingress-routing change, run checks **inside the actual
+Grafana workload**, preserving its configured CA and canonical OIDC hostname.
+Desktop HTTP200 and browser authorization redirects do not exercise server-side
+token exchange and must not count as SSO acceptance.
+
+1. GET the configured realm discovery endpoint with trusted CA and bounded timeout,
+   without redirects/TLS bypass. Require HTTP200 from the Grafana pod.
+2. POST a deliberately unauthenticated authorization-code grant request without a
+   code to the configured token endpoint. Require prompt expected 400/401, not TCP
+   or TLS timeout. Never capture/replay a human code or disclose client credentials.
+   This establishes reachability, NOT successful authenticated token exchange.
+3. Verify unchanged Grafana readiness, recovery availability, existing query
+   datasources and exact prior policy rules. NetworkPolicy needs no pod restart.
+4. Record fresh real-user OAuth callback/dashboard acceptance separately or leave
+   it explicitly pending. An existing session, login page or redirect is not proof.
+
+The 2026-11-14 incident exposed this gap: an overnight restriction permitted original
+ingress port 443 but omitted translated Traefik port 8443. The narrow fix restored workload
+reachability without restart or identity changes, then the owner confirmed login.
+The renderer and protected target inputs retain the correction; this operator-
+applied policy is not claimed to have continuous Flux ownership.
