@@ -47,6 +47,8 @@ class RuntimeRender(unittest.TestCase):
             self.assertIn('externalVolume',app['postRenderers'][0]['kustomize']['patches'][0]['patch'])
             wait = json.loads(app['postRenderers'][1]['kustomize']['patches'][0]['patch'])
             self.assertEqual(wait[0]['path'],'/spec/egress')
+            size = json.loads(app['postRenderers'][1]['kustomize']['patches'][1]['patch'])
+            self.assertEqual(size,[{'op':'remove','path':'/spec/size'}])
             self.assertNotIn('0.0.0.0/0',json.dumps(wait))
             env = {x['name']:x for x in values['existingSecretEnvs']}
             self.assertEqual(env['MM_OPENIDSETTINGS_SECRET']['valueFrom']['secretKeyRef']['name'],'mattermost-oidc-client')
