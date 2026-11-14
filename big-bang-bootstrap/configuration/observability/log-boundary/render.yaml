@@ -43,6 +43,7 @@
         - item.namespace is match('^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$')
         - item.scope_id is match('^[a-z][a-z0-9-]{0,63}-v[1-9][0-9]*$')
         - item.scope_id != log_fallback_scope
+        - item.scope_id | length <= 150
       loop: '{{ log_scopes }}'
     - ansible.builtin.assert:
         that: item is match('^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$')
