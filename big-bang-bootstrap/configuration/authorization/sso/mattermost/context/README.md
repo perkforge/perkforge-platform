@@ -194,6 +194,14 @@ back into unauthorized access. Re-plan from fresh reads before retrying.
 Do not enable until effective invitation restrictions, packaged-edition behavior,
 immutable linking and production read permissions have been accepted.
 
+Synthetic HTTPS regression tests additionally cover changed authority before apply
+(no mutations), an add failure after removal (no restoration of unauthorized
+access), rejection of a stale retry delta, and a successful freshly planned retry.
+Overlapping group membership retains access until the last authorizing group is
+removed. These are fixture-based reconciler checks, not native edition, live
+offboarding, invitation-policy or production API acceptance.
+
+
 ### Disposable edition evidence
 
 A checksum-verified official 11.11.0 Enterprise binary selected Entry without

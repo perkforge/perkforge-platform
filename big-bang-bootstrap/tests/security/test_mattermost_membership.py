@@ -94,3 +94,50 @@ class MattermostMembership(fixture.MattermostFixture):
                            mattermost_invitation_boundary_verified=True,
                            mattermost_membership_approved_add=[U],
                            mattermost_membership_approved_remove=[]),success=False)
+
+    def test_authority_drift_before_apply_causes_no_mutations(self):
+        self.s['apply_fixture'] = True
+        self.s['channel_members'] = []
+        self.s['response_sequences'] = {self.members_path: [[dict(id='subject-one', enabled=True)], []]}
+        self.run_play(dict(mattermost_membership_apply=True,
+                           mattermost_membership_apply_confirmed=True,
+                           mattermost_invitation_boundary_verified=True,
+                           mattermost_membership_approved_add=[U],
+                           mattermost_membership_approved_remove=[]), success=False)
+        self.assertTrue(all(method == 'GET' for method, _ in self.s['calls']))
+        self.assertEqual(self.s['channel_members'], [])
+
+    def test_failed_add_preserves_removal_then_fresh_retry(self):
+        self.s['apply_fixture'] = True
+        self.s['fail_membership_add'] = True
+        foreign = 'x' * 26
+        self.s['channel_members'] = [dict(channel_id=C, user_id=foreign, roles='channel_user')]
+        approved = dict(mattermost_membership_apply=True,
+                        mattermost_membership_apply_confirmed=True,
+                        mattermost_invitation_boundary_verified=True,
+                        mattermost_membership_approved_add=[U],
+                        mattermost_membership_approved_remove=[foreign])
+        self.run_play(approved, success=False)
+        self.assertEqual(self.s['channel_members'], [])
+        mutations = [(method, path) for method, path in self.s['calls'] if method != 'GET']
+        self.assertEqual(mutations, [('DELETE', f'/api/v4/channels/{C}/members/{foreign}'),
+                                    ('POST', f'/api/v4/channels/{C}/members')])
+        self.s['fail_membership_add'] = False
+        self.s['calls'] = []
+        # Stale approval lists cannot silently apply a now-different delta.
+        self.run_play(approved, success=False)
+        self.assertTrue(all(method == 'GET' for method, _ in self.s['calls']))
+        self.s['calls'] = []
+        self.run_play(approved | dict(mattermost_membership_approved_remove=[]))
+        self.assertEqual([member['user_id'] for member in self.s['channel_members']], [U])
+        self.assertFalse(any(method == 'DELETE' for method, _ in self.s['calls']))
+
+    def test_overlapping_authority_retains_member_until_last_group_removed(self):
+        admin_path = '/admin/realms/perkforge/groups/admins/members?first=0&max=200&briefRepresentation=false'
+        self.s['extra_paths'][admin_path] = [dict(id='subject-one', enabled=True)]
+        self.assertIn('0 additions, 0 removals', self.run_play().stdout)
+        self.s['extra_paths'][self.members_path] = []
+        self.assertIn('0 additions, 0 removals', self.run_play().stdout)
+        self.s['extra_paths'][admin_path] = []
+        self.assertIn('0 additions, 1 removals', self.run_play().stdout)
+        self.assertTrue(all(method == 'GET' for method, _ in self.s['calls']))
