@@ -38,6 +38,7 @@ def port():
 class NativeGrafanaOrgOAuth(unittest.TestCase):
     platform_only=False
     log_view_only=False
+    private_sharing=False
     def test_native_mixed_roles_engineer_and_owner(self):
         Issuer.claims = {'mixed':['pf-observability-portal-tenant-admin','pf-observability-other-tenant-viewer'], 'engineer':['pf-observability-platform-viewer'], 'owner':['/platform/admins'], 'unknown':[]}
         binary = os.environ.get('GRAFANA_VALIDATE_BIN')
@@ -60,6 +61,9 @@ class NativeGrafanaOrgOAuth(unittest.TestCase):
             oauth.update(enabled=True, client_id='fixture',client_secret='synthetic',auth_url=identity+'/authorize',token_url=identity+'/token',api_url=identity+'/userinfo',allow_sign_up=True,scopes='openid profile email')
             config='[server]\nhttp_addr=127.0.0.1\nhttp_port='+base.rsplit(':',1)[1]+'\nroot_url='+base+'\n[paths]\ndata='+str(folder/'data')+'\nlogs='+str(folder/'logs')+'\nplugins='+str(folder/'plugins')+'\nprovisioning='+str(folder/'provisioning')+'\n[security]\nadmin_user=fixture\nadmin_password=synthetic\n[analytics]\nreporting_enabled=false\ncheck_for_updates=false\ncheck_for_plugin_updates=false\n[plugins]\npreinstall_disabled=true\n[auth.generic_oauth]\n'
             config+='\n'.join(k+' = '+(str(v).lower() if isinstance(v,bool) else str(v)) for k,v in oauth.items())+'\n'
+            config+='[snapshots]\nexternal_snapshot_url='+identity+'/external-snapshot\n'
+            if self.private_sharing:
+                config+='enabled=false\nexternal_enabled=false\n[public_dashboards]\nenabled=false\n'
             (folder/'grafana.ini').write_text(config)
             with (folder/'process.log').open('w') as log:
                 proc=subprocess.Popen([binary,'server','--homepath',str(Path(binary).resolve().parents[1]),'--config',str(folder/'grafana.ini')],stdout=log,stderr=log)
@@ -79,6 +83,36 @@ class NativeGrafanaOrgOAuth(unittest.TestCase):
 
                     source=urllib.request.Request(base+'/api/datasources',data=json.dumps({'uid':'platform-only','name':'platform-only','type':'prometheus','access':'proxy','url':'http://127.0.0.1:1'}).encode(),headers=admin|{'Content-Type':'application/json'})
                     urllib.request.urlopen(source).close()
+                    if self.log_view_only:
+                        for org_id, uid in [(1,'platform-private'),(2,'tenant-private')]:
+                            req=urllib.request.Request(base+'/api/dashboards/db',data=json.dumps({'dashboard':{'uid':uid,'title':uid,'schemaVersion':39,'panels':[]},'overwrite':False}).encode(),headers=admin|{'X-Grafana-Org-Id':str(org_id),'Content-Type':'application/json'})
+                            urllib.request.urlopen(req).close()
+                            acl=urllib.request.Request(base+'/api/dashboards/uid/'+uid+'/permissions',data=json.dumps({'items':[{'role':'Viewer','permission':1}]}).encode(),headers=admin|{'X-Grafana-Org-Id':str(org_id),'Content-Type':'application/json'})
+                            urllib.request.urlopen(acl).close()
+                    if self.log_view_only:
+                        # Only synthetic data is published to this loopback fixture.
+                        # Snapshot keys are intentionally anonymous bearer links;
+                        # organization checks cannot protect an already published copy.
+                        snapshot_body={'dashboard':{'uid':'platform-private','title':'synthetic-public-copy','panels':[]},'name':'synthetic-public-copy','expires':60,'external':False}
+                        request=urllib.request.Request(base+'/api/snapshots',data=json.dumps(snapshot_body).encode(),headers=admin|{'Content-Type':'application/json'})
+                        if self.private_sharing:
+                            with self.assertRaises(urllib.error.HTTPError) as denied: urllib.request.urlopen(request)
+                            self.assertEqual(denied.exception.code,403)
+                            with self.assertRaises(urllib.error.HTTPError) as denied: urllib.request.urlopen(base+'/api/snapshots/synthetic-key')
+                            self.assertEqual(denied.exception.code,403)
+                        else:
+                            published=json.load(urllib.request.urlopen(request))
+                            snapshot=json.load(urllib.request.urlopen(base+'/api/snapshots/'+published['key']))
+                            self.assertEqual(snapshot['dashboard']['title'],'synthetic-public-copy')
+                        public_body={'isEnabled':True,'timeSelectionEnabled':False,'annotationsEnabled':False,'share':'public'}
+                        request=urllib.request.Request(base+'/api/dashboards/uid/platform-private/public-dashboards',data=json.dumps(public_body).encode(),headers=admin|{'Content-Type':'application/json'})
+                        if self.private_sharing:
+                            with self.assertRaises(urllib.error.HTTPError) as denied: urllib.request.urlopen(request)
+                            self.assertEqual(denied.exception.code,404)
+                        else:
+                            published=json.load(urllib.request.urlopen(request))
+                            public=json.load(urllib.request.urlopen(base+'/api/public/dashboards/'+published['accessToken']))
+                            self.assertEqual(public['dashboard']['uid'],'platform-private')
                     cases=[('engineer',{1:'Viewer'}),('owner',{1:'Admin'})] if self.platform_only else [('mixed',{2:'Viewer' if self.log_view_only else 'Admin',3:'Viewer'}),('engineer',{1:'Viewer'}),('owner',{1:'Admin'})]
                     for actor,expected in cases:
                         Issuer.subject=actor
@@ -103,6 +137,27 @@ class NativeGrafanaOrgOAuth(unittest.TestCase):
                                     self.assertEqual(blocked.exception.code,403)
                             else:
                                 with browser.open(add) as response:self.assertEqual(response.status,200)
+                            if self.log_view_only:
+                                # Native sharing checks use a real own-org dashboard,
+                                # not a nonexistent resource that could mask authorization.
+                                browser.open(urllib.request.Request(base+'/api/user/using/2',method='POST')).close()
+                                own=json.load(browser.open(base+'/api/dashboards/uid/tenant-private'))
+                                self.assertEqual(own['dashboard']['uid'],'tenant-private')
+                                found=json.load(browser.open(base+'/api/search?type=dash-db'))
+                                self.assertIn('tenant-private',{item['uid'] for item in found})
+                                self.assertNotIn('platform-private',{item['uid'] for item in found})
+                                for path, body in [
+                                    ('/api/dashboards/db',{'dashboard':{'uid':'tenant-private','title':'changed','schemaVersion':39,'panels':[]},'overwrite':True}),
+                                    ('/api/dashboards/uid/tenant-private/public-dashboards',{'isEnabled':True,'timeSelectionEnabled':False,'annotationsEnabled':False,'share':'public'}),
+                                    ('/api/snapshots',{'dashboard':{'uid':'tenant-private','title':'synthetic-only','panels':[]},'name':'synthetic-only','expires':60,'external':False}),
+                                    ('/api/snapshots',{'dashboard':{'uid':'tenant-private','title':'synthetic-only','panels':[]},'name':'synthetic-only','expires':60,'external':True}),
+                                ]:
+                                    req=urllib.request.Request(base+path,data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+                                    with self.assertRaises(urllib.error.HTTPError,msg=path) as denied: browser.open(req)
+                                    self.assertEqual(denied.exception.code,404 if self.private_sharing and path.endswith('/public-dashboards') else 403,path)
+                                for path in ['/api/dashboards/uid/platform-private','/api/dashboards/uid/platform-private/permissions']:
+                                    with self.assertRaises(urllib.error.HTTPError) as denied: browser.open(base+path)
+                                    self.assertIn(denied.exception.code,[403,404])
                             # Default auto_assign_org must not leak platform org or datasource.
                             for path,method in [('/api/user/using/1','POST'),('/api/datasources/uid/platform-only','GET')]:
                                 request=urllib.request.Request(base+path,headers={'X-Grafana-Org-Id':'1'},method=method)
@@ -147,3 +202,6 @@ class NativeGrafanaPlatformOnlyOAuth(NativeGrafanaOrgOAuth):
 
 class NativeGrafanaTenantLogViewOAuth(NativeGrafanaOrgOAuth):
     log_view_only=True
+
+class NativeGrafanaPrivateSharingOAuth(NativeGrafanaTenantLogViewOAuth):
+    private_sharing=True

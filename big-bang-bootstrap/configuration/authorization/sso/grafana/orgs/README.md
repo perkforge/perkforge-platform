@@ -239,3 +239,9 @@ session revocation remains an explicit native removal/logout procedure before
 ownership transfer; login-time synchronization is not continuous authorization.
 Sharing/snapshot/public-dashboard paths and richer admin lifecycle remain #218
 review items, not permission to activate the broader Admin/Editor contract.
+
+## Complete access-design review
+
+See [the #218 access design and native sharing evidence](access-design.md) for
+rights, ownership, revocation and the remaining owner sharing-policy decision.
+The proposal changes no live settings or human memberships.
