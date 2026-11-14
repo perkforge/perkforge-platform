@@ -62,8 +62,13 @@ must be verified separately before claiming end-to-end completion.
 ## Current local coverage finding (2026-11-14)
 
 Read-only platform queries confirmed CPU/memory3 nodes, PVC22 series and physical
-NVMe latency3 series. Filesystem collector fails on all nodes: SELinux denies
-`/host/proc/1/mountinfo`; no host filesystem free-space series. netdev emits
+NVMe latency3 series. Filesystem collector fails on all nodes with permission denied opening
+`/host/proc/1/mountinfo`; no host filesystem free-space series. The exact
+enforcement cause is not yet established, so do not assume a SELinux allow rule
+is the fix. A separately approved bounded audit-only probe on one node produced
+no exporter AVC; normal audit policy was restored and SELinux stayed Enforcing.
+The host files are readable by the same UID outside the container, audit reports
+no lost records, and the error recurs at each scrape. No access grants were made. netdev emits
 exporter pod eth0/lo counters, whereas netclass reports host interface speeds;
 these are not comparable. Host filesystem/network rules therefore default
 paused, rather than pretend coverage. Collector failure remains actionable.
