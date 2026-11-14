@@ -115,3 +115,22 @@ namespace pod referencing the PVC (not only collector labels), and checks exact
 StatefulSet selector, claim template, storage mount, observed generation and
 zero replicas. Final controller resourceVersion/spec/claim UID and PVC-user
 checks detect concurrent reconciliation; failures do not authorize stage 1.
+
+### WaitForFirstConsumer preflight (before the bounded pause)
+
+The physical Longhorn class uses WaitForFirstConsumer. After create-only claim
+preparation, run separately approved `volume-preflight.yaml` while the original
+collector remains running. It binds only the exact new claim using a short-lived
+restricted helper, the current collector's resolved image, UID/GID/fsGroup473,
+no API token, no added capabilities and a privately verified eligible target node.
+It refuses other PVC users/unknown contents, verifies a tiny owned marker/hash,
+removes that marker, proves two RW replicas and healthy volume state, then deletes
+the exact helper UID and waits for detachment/no remaining PVC users. This is not
+a checkpoint or collector cutover. Failure leaves the collector untouched and
+blocks migration. No storage-class/kernel-module/host changes are performed.
+
+Only after this preflight should a fresh checkpoint be captured and the already
+published stage0→seed→stage1 sequence begin. Do not relax the seed Bound check to
+work around first-consumer ordering. Current worker backup activity, scheduler
+headroom and actual replica health must be considered before choosing the helper
+node; reusable collector placement remains on eligible storage workers.
