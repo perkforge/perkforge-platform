@@ -73,4 +73,9 @@ class LoggingCustody(unittest.TestCase):
     (p/'private/records.json').write_text(json.dumps(saved))
     server.records['/v1/platform/data/logging/boundary/collector-v1']['password']='foreign-conflict'
     conflict=run();self.assertNotEqual(conflict.returncode,0);self.assertEqual(server.writes,5)
+    # A first-time bundle with a supplied legacy line preserves it byte-for-byte.
+    server.records={};server.writes=0
+    settings['logging_private_dir']=str(p/'private-with-legacy');settings['logging_legacy_htpasswd_file']=str(legacy);inputs.write_text(yaml.safe_dump(settings))
+    with_legacy=run();self.assertEqual(with_legacy.returncode,0,with_legacy.stdout+with_legacy.stderr)
+    self.assertTrue(server.records['/v1/platform/data/logging/boundary/gateway-v1']['.htpasswd'].endswith(legacy.read_text()))
    finally:server.shutdown();server.server_close();thread.join()
