@@ -1,0 +1,131 @@
+# INACTIVE rendered native override. Requires reviewed custody/RBAC/rollout first.
+loki:
+  values:
+    loki:
+      querier:
+        multi_tenant_queries_enabled: true
+    gateway:
+      basicAuth:
+        existingSecret: loki-boundary-auth-v1
+      nginxConfig:
+        file: |
+          worker_processes 1;
+          error_log stderr warn;
+          pid /tmp/nginx.pid;
+          events { worker_connections 1024; }
+          http {
+            client_body_temp_path /tmp/client_temp;
+            proxy_temp_path /tmp/proxy_temp;
+            fastcgi_temp_path /tmp/fastcgi_temp;
+            uwsgi_temp_path /tmp/uwsgi_temp;
+            scgi_temp_path /tmp/scgi_temp;
+            log_format scoped '$remote_user $request_method $uri $status';
+            # Avoid self-ingestion feedback when the gateway namespace is collected.
+            # Only successful ingestion access metadata is suppressed, never app log content.
+            map "$request_method:$uri:$status" $log_access {
+              default 1;
+              ~^POST:/loki/api/v1/push:2[0-9][0-9]$ 0;
+            }
+            access_log /dev/stdout scoped if=$log_access;
+            client_max_body_size 4m;
+            map $remote_user $read_scope {
+              default "";
+              "pf-log-platform-read" "platform-pilot|platform-unassigned-v1|portal-runtime-v1";
+              "platform-pilot" "platform-pilot";
+              "pf-log-portal-read" "portal-runtime-v1";
+            }
+            map "$remote_user:$http_x_scope_orgid" $write_scope {
+              default "";
+              "pf-log-collector-write:platform-unassigned-v1" "platform-unassigned-v1";
+              "pf-log-collector-write:portal-runtime-v1" "portal-runtime-v1";
+            }
+            server {
+              listen 0.0.0.0:8080 ssl;
+              server_name logging-loki-gateway.logging.svc.cluster.local;
+              ssl_certificate /gateway-tls/tls.crt;
+              ssl_certificate_key /gateway-tls/tls.key;
+              ssl_protocols TLSv1.2 TLSv1.3;
+              auth_basic "Scoped Loki";
+              auth_basic_user_file /etc/nginx/secrets/.htpasswd;
+              proxy_ssl_verify on;
+              proxy_ssl_trusted_certificate /gateway-tls/ca.crt;
+              proxy_ssl_server_name on;
+              proxy_ssl_name logging-loki.logging.svc.cluster.local;
+              # URI encodings are unnecessary for API paths; query values remain unrestricted.
+              if ($request_uri ~ "^[^?]*%") { return 400; }
+              location = / { auth_basic off; return 200 "ready\n"; }
+              location = /loki/api/v1/push {
+                if ($request_method != POST) { return 405; }
+                if ($write_scope = "") { return 403; }
+                proxy_set_header X-Scope-OrgID $write_scope;
+                proxy_set_header Authorization "";
+                proxy_pass https://logging-loki.logging.svc.cluster.local:3100;
+              }
+              # Native query paths only. Tenant federation is fixed by the server map,
+              # never a supplied header/selector. Streaming, rules/admin/delete/UI stay denied.
+              location ~ ^/loki/api/v1/(query|query_range|series)$ {
+                if ($request_method !~ ^(GET|POST)$) { return 405; }
+                if ($read_scope = "") { return 403; }
+                proxy_set_header X-Scope-OrgID $read_scope;
+                proxy_set_header Authorization "";
+                proxy_pass https://logging-loki.logging.svc.cluster.local:3100;
+              }
+              location ~ ^/loki/api/v1/(labels|label/[a-zA-Z_][a-zA-Z0-9_]*/values)$ {
+                if ($request_method != GET) { return 405; }
+                if ($read_scope = "") { return 403; }
+                proxy_set_header X-Scope-OrgID $read_scope;
+                proxy_set_header Authorization "";
+                proxy_pass https://logging-loki.logging.svc.cluster.local:3100;
+              }
+              location / { return 403; }
+            }
+          }
+alloy:
+  values:
+    upstream:
+      podLogsViaKubernetesApi:
+        namespaces: []
+        # null removes the earlier pilot opt-in selector instead of merging it.
+        labelSelectors: null
+        # Native dropdown discovery needs the trusted pod identity indexed.
+        # Keep other structured metadata mappings unchanged.
+        structuredMetadata:
+          pod: null
+        # Must follow the chart's user-controlled resource annotation labelmap.
+        # Kubernetes annotation names cannot start with _, so that map cannot
+        # forge the reserved __meta_* source labels used for this final reset.
+        extraDiscoveryRules: |
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_name"]
+            target_label = "container"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_container_name"]
+            separator = "/"
+            target_label = "job"
+          }
+        extraLogProcessingStages: |
+          stage.replace {
+            expression = "(?i)(?:password|token|secret)\\s*[:=]\\s*(?P<sensitive>[^\\s,;]+)"
+            replace = "REDACTED"
+          }
+
+          // Append after trusted Kubernetes metadata relabelling, never payload label extraction.
+          // Default unknown/system/new namespaces to platform-only, then apply exact owned epochs.
+          stage.tenant { value = "platform-unassigned-v1" }
+          stage.match {
+            selector = "{namespace=\"tenant-portal\"}"
+            stage.tenant { value = "portal-runtime-v1" }
+          }
+      destinations:
+        local-loki:
+          secret:
+            name: loki-boundary-collector-v1
