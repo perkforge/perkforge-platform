@@ -48,10 +48,12 @@ class RuntimeRender(unittest.TestCase):
             wait = json.loads(app['postRenderers'][1]['kustomize']['patches'][0]['patch'])
             self.assertEqual(wait[0]['path'],'/spec/egress')
             size = json.loads(app['postRenderers'][1]['kustomize']['patches'][1]['patch'])
-            self.assertEqual(size,[{'op':'remove','path':'/spec/size'}])
+            self.assertEqual(size,[{'op':'remove','path':'/spec/size'}, {'op':'copy','from':'/spec/podTemplate/extraLabels','path':'/spec/resourceLabels'}])
             self.assertNotIn('0.0.0.0/0',json.dumps(wait))
             env = {x['name']:x for x in values['existingSecretEnvs']}
             self.assertEqual(env['MM_OPENIDSETTINGS_SECRET']['valueFrom']['secretKeyRef']['name'],'mattermost-oidc-client')
+            for flag in ('MM_TEAMSETTINGS_ENABLEUSERCREATION','MM_EMAILSETTINGS_ENABLESIGNUPWITHEMAIL','MM_CLUSTERSETTINGS_ENABLE'):
+                self.assertEqual(env[flag]['value'],'false')
             policies=list(yaml.safe_load_all((root/'out/network.yaml').read_text()))
             self.assertEqual(len(policies),5)
             db=next(x for x in policies if x['metadata']['name']=='mattermost-database')

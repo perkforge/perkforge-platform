@@ -23,4 +23,6 @@ addons:
           secretKeyRef: {name: mattermost-oidc-client, key: client-secret}
       - name: MM_OPENIDSETTINGS_DISCOVERYENDPOINT
         value: {{ mattermost_sso_issuer }}/.well-known/openid-configuration
-      - {name: MM_SERVICESETTINGS_ENABLEUSERCREATION, value: 'false'}
+      - {name: MM_TEAMSETTINGS_ENABLEUSERCREATION, value: 'false'}
+      - {name: MM_EMAILSETTINGS_ENABLESIGNUPWITHEMAIL, value: 'false'}
+      - {name: MM_CLUSTERSETTINGS_ENABLE, value: 'false'}

@@ -12,7 +12,7 @@ class MattermostSSO(unittest.TestCase):
   self.assertEqual(env['SSL_CERT_FILE']['value'],'/etc/mattermost-identity-ca/ca.crt')
   self.assertEqual(cr['spec']['volumes'],[{'name':'identity-ca','configMap':{'name':'mattermost-identity-ca'}}])
   self.assertEqual(cr['spec']['volumeMounts'],[{'name':'identity-ca','mountPath':'/etc/mattermost-identity-ca','readOnly':True}])
-  self.assertEqual(env['MM_SERVICESETTINGS_ENABLEUSERCREATION']['value'],'false');self.assertNotIn('licenseSecret',cr['spec'])
+  self.assertEqual(env['MM_TEAMSETTINGS_ENABLEUSERCREATION']['value'],'false');self.assertNotIn('licenseSecret',cr['spec'])
  def test_entry_edition_and_membership_are_not_claimed_live_or_verified(self):
   d=yaml.safe_load((ROOT/'configuration/packages/mattermost/sso-review.yaml').read_text());self.assertFalse(d['edition_verified']);self.assertFalse(d['live_apply_implemented'])
   self.assertEqual(d['pinned_image_version'],'11.11.0');self.assertIn('own Team Admin',d['mappings']['tenant_admin']);self.assertFalse(d['mappings']['tenant_global_admin'])
