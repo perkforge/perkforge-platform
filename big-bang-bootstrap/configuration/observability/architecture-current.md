@@ -51,7 +51,7 @@ Requests reserve scheduling capacity; a low observed working set does not free i
 | Alloy collector + reloader | 60m | 306Mi | 512Mi collector; reloader unbounded |
 | Alloy operator | 50m | 128Mi | 256Mi |
 | Loki backend + gateway | 125m | 576Mi | 1Gi +128Mi |
-| **Inventoried subtotal** | **1605m** | **4072Mi** | Not a finite aggregate memory cap |
+| **Inventoried subtotal** | **1605m** | **3972Mi** | Not a finite aggregate memory cap |
 
 This excludes separate query gateway, ntfy/Mattermost, identity/ESO/Flux/Longhorn,
 control-plane/OS overhead and household apps. It is not the cluster total or a
