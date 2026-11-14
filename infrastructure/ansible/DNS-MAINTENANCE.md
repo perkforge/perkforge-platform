@@ -125,3 +125,18 @@ backup, repeat/no-restart, UDP/TCP verification and guarded rollback apply.
 Explicit approval covers the shared DNS restart; a failed changed candidate can
 also require a rollback restart. This source does not activate ntfy or authorize
 an unreviewed live run.
+
+## Explicit fix-forward maintenance
+
+The default `lab_dns_maintenance_failure_strategy: restore` retains the existing
+bounded automatic restore behavior. When the operator has explicitly chosen to
+repair forward, set `lab_dns_maintenance_failure_strategy: fix-forward` in the
+reviewed maintenance inputs. All scope, release, checksum, lock, validation and
+backup gates remain required. A failed write/restart/answer check exits failed
+without restoring bytes or attempting another restart; the lock is released and
+the private checksum-named backup remains available for diagnosis. This can leave
+DNS unavailable, so inspect the original error and repair forward promptly. Do
+not treat a failed run as success or blindly retry a restart failure: an unchanged
+candidate does not restart the service on repeat. Diagnose service state first,
+then review a fresh checksum before another maintenance run. No setting here
+authorizes unrelated host changes or silently changes other operators' defaults.

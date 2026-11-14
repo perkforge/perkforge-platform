@@ -76,7 +76,7 @@ class DNSMaintenance(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_fixture(self, mode='', digest=None, scope='gitlab-dns-records-v1'):
+    def run_fixture(self, mode='', digest=None, scope='gitlab-dns-records-v1', strategy=None):
         variables = {'lab_dns_maintenance_scope': scope, 'lab_dns_config': str(self.config), 'lab_dns_unit': str(self.unit),
                      'lab_dns_backup': str(self.backup),
                      'lab_dns_owner': pwd.getpwuid(os.getuid()).pw_name,
@@ -84,6 +84,8 @@ class DNSMaintenance(unittest.TestCase):
                      'lab_dns_unit_expected': self.unit_bytes,
                      'lab_dns_server_ip': '10.0.0.1', 'lab_dns_ingress_ip': '10.0.0.2',
                      'lab_dns_maintenance_expected_sha256': digest or self.digest}
+        if strategy is not None:
+            variables['lab_dns_maintenance_failure_strategy'] = strategy
         wrapper = self.path / 'fixture.yaml'
         wrapper.write_text(yaml.safe_dump([{'hosts': 'localhost', 'connection': 'local',
             'gather_facts': False, 'vars': variables,
@@ -791,6 +793,33 @@ class DNSMaintenance(unittest.TestCase):
                 self.assertEqual(result.returncode, expected, result.stdout+result.stderr)
                 self.assertFalse(marker.exists())
                 self.assertFalse(self.backup.exists())
+
+    def test_fix_forward_preserves_failed_candidate_without_second_restart(self):
+        self.portal_base()
+        # Preserve a later independent ntfy record and all predecessor bytes.
+        self.original += self.record_block('Ntfy', ('ntfy',))
+        self.config.write_text(self.original)
+        self.digest = hashlib.sha256(self.original.encode()).hexdigest()
+        result = self.run_fixture('restart', scope='portal-dns-record-v1', strategy='fix-forward')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('no automatic restore', result.stdout)
+        self.assertEqual(self.config.read_text(), self.original+self.record_block('Portal', ('portal',)))
+        self.assertEqual(self.restarts(), 1)
+        self.assertEqual((self.backup/(self.digest+'.conf')).read_text(), self.original)
+        self.assertFalse((self.backup/'maintenance.lock').exists())
+
+    def test_fix_forward_validation_failure_never_writes_or_restarts(self):
+        result = self.run_fixture('validate', strategy='fix-forward')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.config.read_text(), self.original)
+        self.assertEqual(self.restarts(), 0)
+        self.assertFalse((self.backup/'maintenance.lock').exists())
+
+    def test_invalid_failure_strategy_refused_before_commands(self):
+        result = self.run_fixture(strategy='typo')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.calls.exists())
+        self.assertFalse(self.backup.exists())
 
     def test_nextcloud_requires_existing_gitlab_records(self):
         r = self.run_fixture(scope='nextcloud-dns-record-v1')
