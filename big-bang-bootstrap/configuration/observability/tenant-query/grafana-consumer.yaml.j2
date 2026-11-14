@@ -1,6 +1,11 @@
 # Native Grafana child-chart values. Merge with existing values, never replace SSO.
 # Preserve datasource UID so existing dashboards continue to resolve Prometheus.
 upstream:
+{% if grafana_no_surge | default(false) | bool %}
+  deploymentStrategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 0, maxUnavailable: 1}
+{% endif %}
   envFromSecrets:
   - name: grafana-query-auth
   grafana.ini:

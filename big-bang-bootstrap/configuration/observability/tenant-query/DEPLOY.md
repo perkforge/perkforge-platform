@@ -59,3 +59,8 @@ backend ConfigMap and authenticated self-monitor, not an unmanaged shell patch.
 Regenerate this public package from the same templates for different namespace
 layouts. Private endpoint-CIDR Grafana egress remains a target-input application;
 no physical address or credential is included in the runtime package.
+
+On capacity-constrained single-replica installations, render with
+`grafana_no_surge: true`. This uses native RollingUpdate with zero surge and one
+unavailable pod, allowing a brief Grafana restart rather than waiting forever for
+CPU capacity for a second replica. Leave false on environments with surge headroom.
