@@ -1,0 +1,78 @@
+# Only reviewed dedicated custody resources. No root/chart selection or restart.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    logging_custody_activate: false
+    logging_suffixes: [gateway, collector, query-platform, query-portal]
+  module_defaults:
+    ansible.builtin.uri:
+      ca_path: '{{ logging_bao_ca_file }}'
+      validate_certs: true
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      timeout: 20
+  tasks:
+  - when: logging_custody_activate | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - logging_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+        - logging_custody_output is match('^/[A-Za-z0-9_./-]+$')
+        - logging_suffixes == ['gateway','collector','query-platform','query-portal']
+    - ansible.builtin.uri:
+        url: '{{ logging_bao_server }}/v1/sys/health'
+      register: health
+    - ansible.builtin.assert:
+        that: health.json.cluster_id == logging_bao_cluster_id and not health.json.sealed
+    - name: Exact-record policies and protected consumer verification
+      no_log: true
+      block:
+      - ansible.builtin.set_fact:
+          bao_headers: {X-Vault-Token: '{{ lookup("file", logging_bao_token_file) | trim }}'}
+          records: '{{ lookup("file", logging_private_dir + "/records.json") | from_json }}'
+          prerequisite_objects: '{{ lookup("file", logging_custody_output + "/prerequisites.yaml") | from_yaml_all | select | list }}'
+          consumer_objects: '{{ lookup("file", logging_custody_output + "/consumers.yaml") | from_yaml_all | select | list }}'
+      - name: Preflight all dedicated native objects before any creation
+        ansible.builtin.command:
+          argv: [kubectl, -n, '{{ item.metadata.namespace }}', get, '{{ item.kind }}', '{{ item.metadata.name }}', --ignore-not-found, -o, json]
+        loop: '{{ prerequisite_objects + consumer_objects }}'
+        register: existing_objects
+        changed_when: false
+      - name: Refuse adopting any existing foreign object; verify exact partial retry
+        ansible.builtin.include_tasks: custody-object-check.yaml
+        loop: '{{ existing_objects.results }}'
+        loop_control: {loop_var: inspected}
+        when: inspected.stdout | length > 0
+      - name: Check policies and roles before modifying any identity
+        ansible.builtin.include_tasks: custody-identity.yaml
+        loop: '{{ logging_suffixes }}'
+        loop_control: {loop_var: suffix}
+        vars: {logging_identity_write: false}
+      - name: Create only missing exact policies and roles
+        ansible.builtin.include_tasks: custody-identity.yaml
+        loop: '{{ logging_suffixes }}'
+        loop_control: {loop_var: suffix}
+        vars: {logging_identity_write: true}
+      - name: Create missing resources only, never apply empty data over a Secret
+        ansible.builtin.command:
+          argv: [kubectl, create, -f, '-']
+          stdin: '{{ item.item | to_json }}'
+        loop: '{{ existing_objects.results }}'
+        when: item.stdout | length == 0
+      - ansible.builtin.command:
+          argv: [kubectl, -n, '{{ item.metadata.namespace }}', wait, 'externalsecret/{{ item.metadata.name }}', --for=condition=Ready, --timeout=90s]
+        loop: '{{ consumer_objects | selectattr("kind", "equalto", "ExternalSecret") | list }}'
+      - name: Verify exact fresh payload rather than a stale Ready condition
+        ansible.builtin.command:
+          argv: [kubectl, -n, '{{ item.metadata.namespace }}', get, secret, '{{ item.metadata.name }}', -o, json]
+        loop: '{{ prerequisite_objects | selectattr("kind", "equalto", "Secret") | list }}'
+        register: synced
+        changed_when: false
+      - ansible.builtin.include_tasks: custody-object-check.yaml
+        loop: '{{ synced.results }}'
+        loop_control: {loop_var: inspected}
+        vars: {logging_require_payload: true}
+      always:
+      - ansible.builtin.set_fact: {bao_headers: {}, records: {}, existing_objects: {}, synced: {}}

@@ -14,6 +14,9 @@ http {
   map $remote_user $read_scope {
     default "";
     "{{ log_platform_reader }}" "{{ log_all_query_scopes | join('|') }}";
+{% if log_legacy_reader %}
+    "{{ log_legacy_reader }}" "{{ log_legacy_scopes | sort | join('|') }}";
+{% endif %}
 {% for reader in log_readers %}
     "{{ reader.username }}" "{{ reader.scope_ids | sort | join('|') }}";
 {% endfor %}

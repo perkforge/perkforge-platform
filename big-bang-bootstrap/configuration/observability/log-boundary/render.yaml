@@ -5,6 +5,7 @@
   vars:
     log_boundary_render: false
     log_collect_all_namespaces: false
+    log_legacy_reader: ''
   tasks:
   - name: Render only when explicitly selected; never contact a cluster
     when: log_boundary_render | bool and not ansible_check_mode
@@ -20,11 +21,15 @@
         - log_writer is match('^[a-z][a-z0-9-]{0,63}$')
         - log_platform_reader is match('^[a-z][a-z0-9-]{0,63}$')
         - log_writer != log_platform_reader
+        - log_legacy_reader == '' or log_legacy_reader is match('^[a-z][a-z0-9-]{0,63}$')
+        - log_legacy_reader not in [log_writer, log_platform_reader]
+        - log_legacy_reader not in log_readers | map(attribute='username') | list
+        - log_legacy_reader == '' or log_legacy_scopes | length > 0
         - log_fallback_scope == 'platform-unassigned-v1'
         - log_scopes is sequence and log_scopes is not string and log_scopes | length > 0
         - log_scopes | map(attribute='namespace') | unique | length == log_scopes | length
         - log_scopes | map(attribute='scope_id') | unique | length == log_scopes | length
-        - log_readers is sequence and log_readers is not string and log_readers | length > 0
+        - log_readers is sequence and log_readers is not string
         - log_readers | map(attribute='username') | unique | length == log_readers | length
         - log_writer not in log_readers | map(attribute='username') | list
         - log_platform_reader not in log_readers | map(attribute='username') | list

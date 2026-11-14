@@ -1,0 +1,25 @@
+- ansible.builtin.set_fact:
+    observed: '{{ inspected.stdout | from_json }}'
+    expected: '{{ inspected.item }}'
+- ansible.builtin.assert:
+    that:
+    - observed.kind == expected.kind
+    - observed.metadata.namespace == expected.metadata.namespace
+    - observed.metadata.name == expected.metadata.name
+    - observed.metadata.labels['platform.perkforge.io/credential-owner'] == 'loki-boundary-v1'
+- ansible.builtin.assert:
+    that: observed[item.key] == item.value
+  loop: '{{ expected | dict2items | rejectattr("key", "in", ["metadata", "data"]) | list }}'
+- when: expected.kind == 'ConfigMap'
+  ansible.builtin.assert:
+    that: observed.data == expected.data
+- when: expected.kind == 'Secret'
+  block:
+  - ansible.builtin.set_fact:
+      expected_record: '{{ records[expected.metadata.name | regex_replace("^loki-boundary-auth-v1$", "gateway-v1") | regex_replace("^loki-boundary-", "")] }}'
+  - ansible.builtin.assert:
+      that: (observed.data | default({}) | length == 0 and not logging_require_payload | default(false) | bool) or observed.data.keys() | sort == expected_record.keys() | sort
+  - ansible.builtin.assert:
+      that: observed.data[item.key] | b64decode == item.value
+    loop: '{{ expected_record | dict2items }}'
+    when: observed.data | default({}) | length > 0
