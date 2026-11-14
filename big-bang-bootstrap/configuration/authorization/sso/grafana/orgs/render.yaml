@@ -1,0 +1,50 @@
+- name: Prepare inactive native Grafana organization mapping
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    grafana_org_render: false
+    grafana_org_output: /UNCONFIGURED/grafana-orgs
+    grafana_org_contexts: []
+  tasks:
+  - name: Validate unique explicit organization identities
+    ansible.builtin.assert:
+      that:
+      - grafana_org_contexts | length > 0
+      - grafana_org_contexts | map(attribute='org_id') | unique | length == grafana_org_contexts | length
+      - grafana_org_contexts | map(attribute='context.id') | unique | length == grafana_org_contexts | length
+    when: grafana_org_render | bool
+  - name: Bind mappings to canonical context roles, never global tenant authority
+    ansible.builtin.assert:
+      that:
+      - item.org_id is integer and item.org_id > 1
+      - item.context.id is match('^[a-z][a-z0-9-]{0,40}$')
+      - item.context.schema_version == 1
+      - item.context.keycloak.realm == 'perkforge'
+      - item.context.keycloak.groups == {'tenant-admin':'/tenants/' + item.context.id + '/admins', 'tenant-developer':'/tenants/' + item.context.id + '/developers', 'tenant-viewer':'/tenants/' + item.context.id + '/viewers'}
+      - item.context.targets.grafana.role_mappings == {'tenant-admin':'Admin', 'tenant-developer':'Editor', 'tenant-viewer':'Viewer'}
+      - item.query_identity == 'pf-log-' + item.context.id + '-read'
+    loop: '{{ grafana_org_contexts }}'
+    when: grafana_org_render | bool
+  - name: Write review artifacts only on explicit render, never during check
+    when: grafana_org_render | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - grafana_org_output is match('^/') and not grafana_org_output.startswith('/UNCONFIGURED/')
+    - ansible.builtin.stat:
+        path: '{{ grafana_org_output }}'
+        follow: false
+      register: destination
+    - ansible.builtin.assert:
+        that: not destination.stat.exists
+    - ansible.builtin.file:
+        path: '{{ grafana_org_output }}'
+        state: directory
+        mode: '0700'
+    - ansible.builtin.template:
+        src: '{{ item }}.j2'
+        dest: '{{ grafana_org_output }}/{{ item }}'
+        mode: '0600'
+        force: false
+      loop: [oauth.yaml, entitlements.yaml]

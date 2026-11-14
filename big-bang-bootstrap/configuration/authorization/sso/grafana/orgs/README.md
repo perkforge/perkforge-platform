@@ -1,0 +1,86 @@
+# Inactive native organization/entitlement mapping
+
+Source preparation for #38/#218, not deployed tenant access. The default and
+`--check` write nothing. `render.yaml` accepts explicit `grafana_org_contexts`
+entries: `context` is an entire reviewed `paas_context`, `org_id` a separately
+verified native integer greater than 1, and `query_identity` the exact
+`pf-log-<context>-read`. Set `grafana_org_render=true` and a fresh absolute
+`grafana_org_output` only to write review files. No API calls, credentials,
+organization creation, group mapping or live activation are implemented here.
+
+The existing Grafana own-client role mapper remains the claim authority. The
+rendered entitlement proposal attaches new noncomposite Grafana client roles to
+exact canonical context groups, never tenant roles to platform-admin. It is not
+native ID discovery or evidence that those groups currently have members.
+Existing `/platform/admins` app entitlement and recovery access remain unchanged.
+The existing client configurator rejects group delegation: do not run it to apply
+this proposal or remove that guard without a separately reviewed exact adapter.
+
+Platform engineers receive a dedicated entitlement for Viewer in existing org 1,
+retaining its dashboards. Each tenant receives a separate native organization,
+with canonical Admin/Editor/Viewer mappings. No wildcard/default org assignment.
+Only PA yields global GrafanaAdmin; recognized non-PA entitlements yield global
+None, so Admin in tenant A cannot elevate Viewer in B. Unrecognized claims yield
+no role. Native Grafana 13.2.1 tests caught that an unconditional None fallback
+allows login even with strict mode, so the fallback is deliberately gated.
+
+## Activation prerequisites and exact security batch
+
+1. Verify issuer, Grafana client UUID, canonical group UUIDs, context ownership,
+   existing org1 and target tenant org IDs through authorized metadata access.
+   Supplied IDs in review artifacts are declarations, not attestation.
+2. Review creation of only the listed noncomposite own-client roles and mapping
+   each to its exact verified canonical group; no realm roles, new human group
+   memberships, PA grant, composite roles or unrelated client changes.
+3. Review native org creation if absent and exact OAuth role synchronization.
+   Preserve org1 dashboards/PA recovery, with no global tenant Admin fallback.
+4. Install tenant read-only datasource credentials only in that org, platform
+   `pf-log-platform-read` only org1. No collector/write credential in Grafana.
+   Credentials and source-owned datasource provisioning are separate protected
+   custody/ESO work. Tenant org Admin can add datasources: backend credentials,
+   API allowlists, network and SSRF restrictions MUST prevent alternate URLs,
+   copied headers and org-ID spoofing from reaching another tenant/platform.
+5. Verify actual OAuth login, org switching, `/api/ds/query`, proxy/resource APIs,
+   mixed memberships, foreign-org IDs, and datasource-create bypass attempts.
+   Renderer and synthetic OAuth tests alone do not prove Loki query isolation.
+
+## Revocation is an implementation gate, not instant login synchronization
+
+Native OAuth organization sync happens at login. Removing a Keycloak group or
+client role does not by itself revoke an existing Grafana session or org grant.
+Before tenant activation, a reviewed controller/operator procedure must remove
+only the affected native org membership, revoke relevant Grafana sessions/tokens
+and relevant IdP sessions, then verify a previously authenticated session cannot
+query or switch to that org. Preserve other tenant membership and PA recovery.
+Token refresh alone is not proven sufficient. No such continuous reconciler is
+implemented by this renderer; do not claim immediate revocation or promote this
+source as production tenant authorization until the negative native tests pass.
+
+`test_grafana_org_oauth.py` uses the checksum-pinned Grafana binary and a disposable
+localhost synthetic OAuth issuer/database, creates two fixture orgs, and checks
+actual mixed Admin/Viewer, PE Viewer, PA and unknown-login outcomes. It is not a
+live Keycloak group delegation or logging acceptance test. No custom image.
+
+### Verified native revocation building blocks
+
+Pinned Grafana routes: `DELETE /api/orgs/{orgId}/users/{userId}` removes exact
+membership; `POST /api/admin/users/{id}/logout` invalidates that user's sessions
+(across orgs, so disclose the interruption). The synthetic native fixture verifies
+existing-cookie org switch denial after removal, preservation of tenant B Viewer,
+then cookie rejection after logout and login-time sync retaining only B. It also
+checks tenant first-login org lists, forced org1 switching and platform datasource
+UID access denial. A forced header on `/api/org` alone is not a valid denial test:
+Grafana may return the current authorized org rather than honoring that header.
+
+Before ownership transfer: remove the exact client entitlement/group binding;
+remove affected org memberships; revoke sessions and separately inventory/revoke
+relevant non-session credentials; verify old-cookie/query denial; only then expose
+the new ownership epoch. A still-valid old OAuth claim must not re-add membership:
+revoke IdP sessions/tokens and verify newly issued claims before reopening login.
+This is a bounded operator procedure proposal, NOT authority for a persistent
+Grafana-admin reconciler. Live token/session/credential cleanup remains unproven.
+
+Pinned native metadata routes are `GET /api/orgs/name/{name}/` (Grafana13.2.1)
+and `GET /admin/realms/perkforge/group-by-path/{path}` (Keycloak26.8.1). Use exact
+reviewed names/paths only through approved custody; do not enumerate humans or
+invent missing IDs. No live metadata credential access was performed in this PR.

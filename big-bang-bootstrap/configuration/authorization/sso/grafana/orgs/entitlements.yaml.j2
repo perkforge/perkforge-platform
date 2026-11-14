@@ -1,0 +1,24 @@
+schema_version: 1
+activation: false
+client_id: grafana
+# Existing own-client role mapper projects only grafana roles to groups.
+# These are proposals, NOT discovered IDs or permission to map canonical groups.
+platform:
+  existing_org_id: 1
+  query_identity: pf-log-platform-read
+  canonical_group: /platform/engineers
+  client_role: pf-observability-platform-viewer
+  org_role: Viewer
+contexts:
+{% for item in grafana_org_contexts %}
+- id: {{ item.context.id }}
+  org_id: {{ item.org_id }}
+  query_identity: {{ item.query_identity }}
+  mappings:
+{% for role, native_role in item.context.targets.grafana.role_mappings.items() %}
+  - canonical_group: {{ item.context.keycloak.groups[role] }}
+    client_role: pf-observability-{{ item.context.id }}-{{ role }}
+    composite: false
+    org_role: {{ native_role }}
+{% endfor %}
+{% endfor %}
