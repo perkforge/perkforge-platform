@@ -4,6 +4,9 @@ import hashlib
 from http.server import BaseHTTPRequestHandler
 import json
 import os
+import socket
+import time
+import urllib.request
 import subprocess
 from security import test_mattermost_context as fixture
 import yaml
@@ -27,6 +30,8 @@ class GuardedUpdate(fixture.MattermostFixture):
                 assert self.path=='/v1/platform/data/fixture/portal'
                 self.reply(200,{'data':{'data':{'alerting.yaml':x['text']},'metadata':{'version':x['version']}}})
             def do_POST(self):
+                if self.path.startswith('/hooks/'):
+                    x=json.loads(state.read_text());x.setdefault('deliveries',[]).append(json.loads(self.rfile.read(int(self.headers['Content-Length']))));state.write_text(json.dumps(x));return self.reply(200,{})
                 assert self.path=='/v1/platform/data/fixture/portal'
                 x=json.loads(state.read_text()); body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
                 assert body['options']['cas']==x['version'] and list(body['data'])==['alerting.yaml']
@@ -52,3 +57,53 @@ else: assert 'annotate' in a or 'wait' in a
         current=yaml.safe_load(json.loads(state.read_text())['text']);self.assertEqual(current['groups'],prior['groups']);self.assertEqual(current['contactPoints'][0]['receivers'][0],prior['contactPoints'][0]['receivers'][0]);self.assertNotIn('channel',current['contactPoints'][0]['receivers'][1]['settings']['payload']['template'])
         r=run(); self.assertEqual(r.returncode,0,r.stdout+r.stderr); self.assertEqual(json.loads(state.read_text())['writes'],1)
         current=yaml.safe_load(json.loads(state.read_text())['text']);self.assertEqual(current['groups'],prior['groups']);self.assertEqual(current['contactPoints'][0]['receivers'][0],prior['contactPoints'][0]['receivers'][0]);self.assertNotIn('channel',current['contactPoints'][0]['receivers'][1]['settings']['payload']['template'])
+
+        # Correct only the already-owned second receiver, still guarded by exact CAS.
+        current['contactPoints'][0]['receivers'][1]['settings']['payload']['template']='BROKEN FIXTURE'
+        broken=yaml.safe_dump(current);x=json.loads(state.read_text());x.update(text=broken,version=x['version']+1);state.write_text(json.dumps(x))
+        r=run();self.assertNotEqual(r.returncode,0);self.assertEqual(json.loads(state.read_text())['writes'],1)
+        r=run({'grafana_ntfy_previous_sha256':hashlib.sha256(broken.encode()).hexdigest()});self.assertEqual(r.returncode,0,r.stdout+r.stderr);self.assertEqual(json.loads(state.read_text())['writes'],2)
+        current=yaml.safe_load(json.loads(state.read_text())['text']);self.assertEqual(current['groups'],prior['groups']);self.assertEqual(current['contactPoints'][0]['receivers'][0],prior['contactPoints'][0]['receivers'][0])
+
+        good=json.loads(state.read_text())
+        for field,value in [('url',self.origin+'/hooks/'+('z'*26)),('maxAlerts',99)]:
+            changed=json.loads(json.dumps(current));changed['contactPoints'][0]['receivers'][1]['settings'][field]=value
+            bad=yaml.safe_dump(changed);state.write_text(json.dumps(good|{'text':bad,'version':good['version']+1}))
+            r=run({'grafana_ntfy_previous_sha256':hashlib.sha256(bad.encode()).hexdigest()});self.assertNotEqual(r.returncode,0);self.assertEqual(json.loads(state.read_text())['writes'],2)
+        state.write_text(json.dumps(good))
+
+        # Compile and execute the Ansible-produced Go template in pinned Grafana,
+        # against this disposable HTTPS sink. No production endpoints or credentials.
+        receiver=current['contactPoints'][0]['receivers'][1]
+        self.assertNotIn('\\"',receiver['settings']['payload']['template'])
+        self.native_template_test(receiver,state)
+
+    def native_template_test(self,receiver,state):
+        with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
+        provision=self.d/'native-alerting.yaml'
+        provision.write_text(yaml.safe_dump({'apiVersion':1,'contactPoints':[{'orgId':1,'name':'fixture-platform','receivers':[receiver]}]}));provision.chmod(0o644)
+        cmd=['podman','run','--rm','--network','host','--read-only','--user','472:472','--cap-drop=all','--security-opt=no-new-privileges','--tmpfs','/tmp:rw,size=16m','--tmpfs','/var/lib/grafana:rw,size=96m,mode=1777','--tmpfs','/var/log/grafana:rw,size=16m,mode=1777','-v',str(provision)+':/etc/grafana/provisioning/alerting/fixture.yaml:ro']
+        for v in ['GF_SERVER_HTTP_ADDR=127.0.0.1','GF_SERVER_HTTP_PORT='+str(port),'GF_SECURITY_ADMIN_PASSWORD=fixture-local-only','GF_PLUGINS_PREINSTALL_DISABLED=true','GF_ANALYTICS_REPORTING_ENABLED=false','GF_ANALYTICS_CHECK_FOR_UPDATES=false','GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false','GF_USERS_ALLOW_SIGN_UP=false']:
+            cmd+=['-e',v]
+        log=(self.d/'native-grafana.log').open('w')
+        p=subprocess.Popen(cmd+['docker.io/grafana/grafana@sha256:1dec240d14e232597dce9bfa56dae55f4397b138cdc91e3ee92ac6b157e2fc49'],stdout=log,stderr=subprocess.STDOUT)
+        opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        def request(path,body=None):
+            auth=base64.b64encode(b'admin:fixture-local-only').decode()
+            with opener.open(urllib.request.Request('http://127.0.0.1:'+str(port)+path,data=None if body is None else json.dumps(body).encode(),headers={'Authorization':'Basic '+auth,'Content-Type':'application/json'}),timeout=15) as r:return json.load(r)
+        try:
+            for attempt in range(120):
+                try:request('/api/health');break
+                except Exception:
+                    if p.poll() is not None:raise AssertionError((self.d/'native-grafana.log').read_text()[-2500:])
+                    time.sleep(.25)
+            base='/apis/notifications.alerting.grafana.app/v1beta1/namespaces/default/receivers'
+            selected=next(v for v in request(base)['items'] if v['spec']['title']=='fixture-platform')
+            integration=selected['spec']['integrations'][0]
+            result=request(base+'/'+selected['metadata']['name']+'/test',{'integration':integration,'alert':{'labels':{'alertname':'SyntheticTest'},'annotations':{}}})
+            self.assertEqual(result.get('status'),'success',result)
+            deliveries=json.loads(state.read_text()).get('deliveries',[])
+            self.assertEqual(len(deliveries),1);self.assertEqual(list(deliveries[0]),['text'])
+            self.assertEqual(deliveries[0]['text'],'firing: 1 grouped platform alert(s). Triage: https://grafana.example.invalid/alerting/list')
+        finally:
+            p.terminate();p.wait(timeout=15);log.close()
