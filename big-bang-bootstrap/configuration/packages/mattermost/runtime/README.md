@@ -111,3 +111,8 @@ its generated Ingress uses `spec.resourceLabels`. Copy those native pod labels
 into native resource labels in the same post-renderer. This keeps generated
 Ingress discovery consistent without hardcoding chart versions, disabling health
 checks, changing routing or granting additional permissions.
+
+Closed bootstrap uses the native TeamSettings.EnableUserCreation and
+EmailSettings.EnableSignUpWithEmail fields (not ServiceSettings), both false.
+The single-replica lab also explicitly disables ClusterSettings.Enable. Verify
+the public client configuration after rollout before native owner linking.

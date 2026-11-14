@@ -52,7 +52,7 @@ class MattermostPreparation(unittest.TestCase):
         env={x['name']:x for x in v['values']['existingSecretEnvs']}
         self.assertEqual(env['MM_OPENIDSETTINGS_DISCOVERYENDPOINT']['value'],self.inputs['mattermost_sso_issuer']+'/.well-known/openid-configuration')
         self.assertEqual(env['MM_OPENIDSETTINGS_SECRET']['valueFrom']['secretKeyRef'],dict(name='mattermost-oidc-client',key='client-secret'))
-        self.assertEqual(env['MM_SERVICESETTINGS_ENABLEUSERCREATION']['value'],'false')
+        self.assertEqual(env['MM_TEAMSETTINGS_ENABLEUSERCREATION']['value'],'false')
         self.assertEqual(env['SSL_CERT_FILE']['value'],'/etc/mattermost-identity-ca/ca.crt')
         self.assertEqual(self.output.stat().st_mode & 0o777,0o700)
         self.assertTrue(all(p.stat().st_mode & 0o777 == 0o600 for p in self.output.iterdir()))
