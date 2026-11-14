@@ -77,7 +77,7 @@ alloy:
   values:
     upstream:
       podLogsViaKubernetesApi:
-        namespaces: ["tenant-portal", "mattermost", "flux-system"]
+        namespaces: ["tenant-portal", "mattermost", "flux-system", "monitoring"]
         # null removes the earlier pilot opt-in selector instead of merging it.
         labelSelectors: null
         # Native dropdown discovery needs the trusted pod identity indexed.

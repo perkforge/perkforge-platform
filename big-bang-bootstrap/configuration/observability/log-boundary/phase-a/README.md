@@ -48,3 +48,17 @@ indexed and native Loki pod-label discovery/chained dashboard variables work.
 Other metadata mappings remain unchanged. Historical records collected before this
 fix can expose pod in query results but not indexed label discovery; verify newly
 ingested streams rather than mistaking that metadata for working dropdowns.
+
+### Measured second stage (2026-11-14)
+
+The first 10-minute observation (14:31–14:41 UTC) sent 235,175 bytes/848 entries
+with no added retries or drops; collector working-set memory was 157–164Mi and
+CPU about 2–3m. PVC used bytes grew 389,120→843,776 with over 99% available.
+These short-window figures are not a full-cluster or steady-state retention proof.
+The separate earlier rollout credential failure had dropped batches; counters at
+observation start were not zero and no no-loss claim is made.
+
+The next explicit source stage adds `monitoring` to the existing three namespaces,
+without grants, image/resource changes or tenant exposure. Observe at least another
+10 minutes with the same error/drop/retry, memory and PVC-growth checks before an
+all-namespace trial. Do not infer full-cluster capacity from quiet Portal workloads.

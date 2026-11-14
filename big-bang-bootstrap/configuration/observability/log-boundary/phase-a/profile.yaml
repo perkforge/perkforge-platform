@@ -21,4 +21,4 @@ log_readers: []
 # Begin real workload collection within current pilot resource/storage budget.
 # This is staged coverage, not a claim all namespaces are collected yet.
 log_collect_all_namespaces: false
-log_collection_namespaces: [tenant-portal, mattermost, flux-system]
+log_collection_namespaces: [tenant-portal, mattermost, flux-system, monitoring]
