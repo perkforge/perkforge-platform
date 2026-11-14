@@ -1,0 +1,5 @@
+# Layer on phase-a/profile.yaml. Namespace lifecycle guard must already match.
+# Controlled backend/org acceptance only: no human membership or OAuth exposure.
+log_readers:
+- username: pf-log-portal-read
+  scope_ids: [portal-runtime-v1]

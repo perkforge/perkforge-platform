@@ -1,0 +1,34 @@
+# Verified local Portal org2; portable image, target-owned org binding.
+grafana:
+  values:
+    upstream:
+      envValueFrom:
+        PF_PORTAL_LOKI_USERNAME:
+          secretKeyRef:
+            name: loki-boundary-query-portal-v1
+            key: username
+        PF_PORTAL_LOKI_PASSWORD:
+          secretKeyRef:
+            name: loki-boundary-query-portal-v1
+            key: password
+      datasources:
+        datasources-loki-portal.yaml:
+          apiVersion: 1
+          datasources:
+          - name: Loki — Portal
+            uid: loki-portal
+            orgId: 2
+            type: loki
+            access: proxy
+            editable: false
+            url: https://logging-loki-gateway.logging.svc.cluster.local:443
+            basicAuth: true
+            basicAuthUser: $PF_PORTAL_LOKI_USERNAME
+            jsonData:
+              tlsAuthWithCACert: true
+              tlsSkipVerify: false
+              timeout: 30
+              maxLines: 1000
+            secureJsonData:
+              basicAuthPassword: $PF_PORTAL_LOKI_PASSWORD
+              tlsCACert: $PF_LOKI_CA_CERT

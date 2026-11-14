@@ -1,0 +1,4 @@
+pod_logs_render: false
+pod_logs_org_id: 2
+pod_logs_datasource_uid: loki-portal
+pod_logs_coverage: Portal runtime logs only; server-enforced ownership epoch. Historical backfill and retention acceptance remain separate.
