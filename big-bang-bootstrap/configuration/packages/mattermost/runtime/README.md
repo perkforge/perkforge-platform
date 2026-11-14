@@ -105,3 +105,9 @@ resources whenever deprecated `spec.size` is present, then erases that field.
 The runtime post-renderer removes only that legacy size hint from the chart
 output, preserving the explicit native `replicas: 1` and scheduling resources.
 This prevents the 100-user preset silently overriding reviewed target limits.
+
+The operator health selector includes the native chart's pod extra labels, while
+its generated Ingress uses `spec.resourceLabels`. Copy those native pod labels
+into native resource labels in the same post-renderer. This keeps generated
+Ingress discovery consistent without hardcoding chart versions, disabling health
+checks, changing routing or granting additional permissions.

@@ -48,7 +48,7 @@ class RuntimeRender(unittest.TestCase):
             wait = json.loads(app['postRenderers'][1]['kustomize']['patches'][0]['patch'])
             self.assertEqual(wait[0]['path'],'/spec/egress')
             size = json.loads(app['postRenderers'][1]['kustomize']['patches'][1]['patch'])
-            self.assertEqual(size,[{'op':'remove','path':'/spec/size'}])
+            self.assertEqual(size,[{'op':'remove','path':'/spec/size'}, {'op':'copy','from':'/spec/podTemplate/extraLabels','path':'/spec/resourceLabels'}])
             self.assertNotIn('0.0.0.0/0',json.dumps(wait))
             env = {x['name']:x for x in values['existingSecretEnvs']}
             self.assertEqual(env['MM_OPENIDSETTINGS_SECRET']['valueFrom']['secretKeyRef']['name'],'mattermost-oidc-client')
