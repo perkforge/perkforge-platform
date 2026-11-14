@@ -30,3 +30,6 @@
     - ansible.builtin.assert: {that: not out.stat.exists}
     - ansible.builtin.file: {path: '{{ projection_output }}', state: directory, mode: '0700'}
     - ansible.builtin.template: {src: runtime.yaml.j2, dest: '{{ projection_output }}/runtime.yaml', mode: '0600'}
+    - ansible.builtin.template: {src: runtime.yaml.j2, dest: '{{ projection_output }}/source.yaml', mode: '0600'}
+      vars: {projection_source_package: true}
+    - ansible.builtin.template: {src: target-prerequisites.yaml.j2, dest: '{{ projection_output }}/target-prerequisites.yaml', mode: '0600'}

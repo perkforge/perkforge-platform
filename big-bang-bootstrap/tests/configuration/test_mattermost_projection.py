@@ -83,6 +83,10 @@ class Manifests(unittest.TestCase):
    self.assertEqual(net['egress'][-1],{'to':[{'namespaceSelector':{'matchLabels':{'kubernetes.io/metadata.name':'kube-system'}},'podSelector':{'matchLabels':{'app.kubernetes.io/name':'rke2-traefik','app.kubernetes.io/instance':'rke2-traefik-kube-system'}}}], 'ports':[{'protocol':'TCP','port':8443}]})
    public=next(x for x in docs if x['kind']=='ConfigMap' and x['metadata']['name']=='mattermost-projection-public')
    self.assertEqual(public['data']['resolver.conf'],'resolver 10.0.0.10 valid=30s ipv6=off;')
+   portable=[x for x in yaml.safe_load_all((d/'runtime/source.yaml').read_text()) if x]
+   target=[x for x in yaml.safe_load_all((d/'runtime/target-prerequisites.yaml').read_text()) if x]
+   self.assertEqual(len(target),2);self.assertNotIn('192.0.2.4',json.dumps(portable));self.assertNotIn('FIXTURE',json.dumps(portable))
+   self.assertFalse(any(x['kind']=='ConfigMap' and x['metadata']['name']=='mattermost-projection-public' for x in portable))
    deploy=next(x for x in docs if x['kind']=='Deployment');self.assertFalse(deploy['spec']['template']['spec']['automountServiceAccountToken'])
    private=d/'private';private.mkdir(mode=0o700)
    for name,value in {'tls.crt':ca,'tls.key':'FIXTURE','platform-hook':'https://chat.example.invalid/hooks/'+('a'*26),'portal-hook':'https://chat.example.invalid/hooks/'+('b'*26)}.items():

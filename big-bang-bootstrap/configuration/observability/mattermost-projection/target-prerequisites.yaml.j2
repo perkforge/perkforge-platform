@@ -1,0 +1,20 @@
+# Target-owned prerequisites, deliberately outside the portable GitOps package.
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: mattermost-projection-public, namespace: ntfy}
+data:
+  resolver.conf: {{ ('resolver ' + projection_cluster_dns + ' valid=30s ipv6=off;') | to_json }}
+  ca.crt: {{ projection_public_ca | to_json }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: mattermost-projection-target-egress, namespace: ntfy}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: mattermost-event-projection}}
+  policyTypes: [Egress]
+  egress:
+  - to:
+{% for cidr in projection_mattermost_endpoint_cidrs %}
+    - ipBlock: {cidr: {{ cidr | to_json }}}
+{% endfor %}
+    ports: [{protocol: TCP, port: 443}]
