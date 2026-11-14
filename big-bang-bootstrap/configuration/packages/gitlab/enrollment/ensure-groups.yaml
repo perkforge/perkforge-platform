@@ -1,0 +1,160 @@
+# Explicit platform-owned enrollment step; no project, user or membership mutations.
+- name: Ensure exact private tenant GitLab group foundation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    gitlab_group_run: false
+    gitlab_group_scope: UNAPPROVED
+    gitlab_group_context: UNCONFIGURED
+    gitlab_group_source_revision: UNCONFIGURED
+    gitlab_group_previous_revision: ''
+    gitlab_group_allow_parent_create: false
+    gitlab_group_expected_parent_id: 0
+    gitlab_group_receipt_file: /UNCONFIGURED/group-receipt.json
+    gitlab_native_origin: https://gitlab.UNCONFIGURED.invalid
+    gitlab_native_ca_file: /UNCONFIGURED/ca.crt
+    gitlab_native_token_file: /UNCONFIGURED/api-token
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ gitlab_native_ca_file }}'
+      follow_redirects: none
+      unredirected_headers: [PRIVATE-TOKEN]
+      use_proxy: false
+      use_netrc: false
+      timeout: 20
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'Default/check inert. Explicit run ensures only private tenants/context groups; no users, projects, memberships, deletion or scheduling.'
+  - when: gitlab_group_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - gitlab_group_scope == 'gitlab-enrollment-group-foundation-v1'
+        - gitlab_group_context is match('^[a-z][a-z0-9-]{0,30}$')
+        - gitlab_group_context not in ['platform','system','default','tenants']
+        - gitlab_group_source_revision is match('^[0-9a-f]{40}$')
+        - gitlab_group_previous_revision == '' or gitlab_group_previous_revision is match('^[0-9a-f]{40}$')
+        - gitlab_native_origin is match('^https://[a-zA-Z0-9.-]+(:[0-9]+)?$')
+        - "'UNCONFIGURED' not in gitlab_native_origin"
+        - gitlab_group_expected_parent_id | type_debug == 'int'
+        - gitlab_group_expected_parent_id >= 0
+        - gitlab_group_allow_parent_create | type_debug == 'bool'
+        - gitlab_group_receipt_file is match('^/')
+        - gitlab_group_receipt_file | realpath == gitlab_group_receipt_file
+        - gitlab_native_token_file is match('^/')
+        - gitlab_native_token_file | realpath == gitlab_native_token_file
+    - name: Require protected paths and actual whole-transaction native lock
+      ansible.builtin.command:
+        argv:
+        - python3
+        - '{{ playbook_dir }}/verify_group_paths.py'
+        - --token
+        - '{{ gitlab_native_token_file }}'
+        - --receipt
+        - '{{ gitlab_group_receipt_file }}'
+        - --require-locked
+        - --ca
+        - '{{ gitlab_native_ca_file }}'
+      changed_when: false
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop: ['{{ gitlab_native_token_file }}','{{ gitlab_group_receipt_file | dirname }}','{{ gitlab_group_receipt_file }}']
+      register: group_files
+    - ansible.builtin.assert:
+        that:
+        - group_files.results[0].stat.isreg | default(false)
+        - group_files.results[0].stat.mode == '0600'
+        - group_files.results[0].stat.uid == lookup('pipe','id -u') | int
+        - group_files.results[0].stat.nlink == 1
+        - group_files.results[0].stat.size > 0 and group_files.results[0].stat.size < 4096
+        - group_files.results[1].stat.isdir | default(false)
+        - not (group_files.results[1].stat.islnk | default(false))
+        - group_files.results[1].stat.mode == '0700'
+        - group_files.results[1].stat.uid == lookup('pipe','id -u') | int
+        - not group_files.results[2].stat.exists or (group_files.results[2].stat.isreg | default(false) and not group_files.results[2].stat.islnk | default(false) and group_files.results[2].stat.mode == '0600' and group_files.results[2].stat.uid == lookup('pipe','id -u') | int and group_files.results[2].stat.nlink == 1 and group_files.results[2].stat.size < 4096)
+    - ansible.builtin.set_fact:
+        group_prior: '{{ lookup("file",gitlab_group_receipt_file) | from_json if group_files.results[2].stat.exists else {"schema":1,"origin":gitlab_native_origin,"context":gitlab_group_context,"source_revision":gitlab_group_source_revision,"parent_id":gitlab_group_expected_parent_id,"group_id":0,"stage":"pending","previous_revisions":[]} }}'
+    - ansible.builtin.assert:
+        that:
+        - group_prior.keys() | sort == ['context','group_id','origin','parent_id','previous_revisions','schema','source_revision','stage']
+        - group_prior.schema | type_debug == 'int' and group_prior.schema == 1
+        - group_prior.origin == gitlab_native_origin
+        - group_prior.context == gitlab_group_context
+        - group_prior.source_revision == gitlab_group_source_revision or (gitlab_group_previous_revision == group_prior.source_revision and group_prior.stage == 'group-ready' and group_prior.group_id > 0 and group_prior.parent_id > 0)
+        - group_prior.previous_revisions | type_debug == 'list'
+        - group_prior.previous_revisions | length <= 32
+        - group_prior.source_revision == gitlab_group_source_revision or group_prior.previous_revisions | length < 32
+        - group_prior.previous_revisions | select('match','^[0-9a-f]{40}$') | list == group_prior.previous_revisions
+        - group_prior.previous_revisions | unique | length == group_prior.previous_revisions | length
+        - gitlab_group_source_revision not in group_prior.previous_revisions
+        - group_prior.parent_id | type_debug == 'int' and group_prior.parent_id >= 0
+        - group_prior.group_id | type_debug == 'int' and group_prior.group_id >= 0
+        - group_prior.stage in ['pending','parent-ready','group-ready']
+        - gitlab_group_expected_parent_id == 0 or group_prior.parent_id == gitlab_group_expected_parent_id
+        - group_prior.group_id == 0 or group_prior.parent_id > 0
+    - ansible.builtin.set_fact:
+        group_headers: {PRIVATE-TOKEN: '{{ lookup("file",gitlab_native_token_file) | trim }}'}
+    - ansible.builtin.uri:
+        url: '{{ gitlab_native_origin }}/api/v4/version'
+        headers: '{{ group_headers }}'
+      register: group_version
+    - ansible.builtin.assert:
+        that: group_version.json.version in ['19.4.2','19.4.2-ee']
+    - name: Inspect both paths before any creation
+      ansible.builtin.uri:
+        url: '{{ gitlab_native_origin }}/api/v4/groups/{{ item }}?with_projects=false'
+        headers: '{{ group_headers }}'
+        status_code: [200,404]
+      loop: ['tenants','tenants%2F{{ gitlab_group_context }}']
+      register: group_before
+    - ansible.builtin.assert:
+        that:
+        - group_before.results[0].status == 200 or (gitlab_group_allow_parent_create and group_prior.parent_id == 0 and group_before.results[1].status == 404)
+        - group_before.results[0].status == 404 or (group_prior.parent_id > 0 and group_before.results[0].json.id == group_prior.parent_id and group_before.results[0].json.full_path == 'tenants' and group_before.results[0].json.visibility == 'private' and group_before.results[0].json.parent_id == none)
+        - group_before.results[1].status == 404 or (group_prior.group_id > 0 and group_before.results[1].json.id == group_prior.group_id and group_before.results[1].json.full_path == 'tenants/' + gitlab_group_context and group_before.results[1].json.visibility == 'private' and group_before.results[1].json.parent_id == group_prior.parent_id)
+        - group_prior.group_id == 0 or group_before.results[1].status == 200
+        - group_prior.parent_id == 0 or group_before.results[0].status == 200
+    - name: Persist pending exact source intent before writes
+      ansible.builtin.copy:
+        dest: '{{ gitlab_group_receipt_file }}'
+        mode: '0600'
+        content: '{{ group_prior | to_nice_json }}'
+    - ansible.builtin.include_tasks: ensure-one-group.yaml
+      vars:
+        group_name: tenants
+        group_path: tenants
+        group_parent_id: null
+        group_existing_id: '{{ group_prior.parent_id }}'
+        group_receipt_key: parent_id
+        group_stage: parent-ready
+    - ansible.builtin.include_tasks: ensure-one-group.yaml
+      vars:
+        group_name: '{{ gitlab_group_context }}'
+        group_path: 'tenants/{{ gitlab_group_context }}'
+        group_parent_id: '{{ group_prior.parent_id }}'
+        group_existing_id: '{{ group_prior.group_id }}'
+        group_receipt_key: group_id
+        group_stage: group-ready
+    - ansible.builtin.set_fact:
+        group_transition_required: '{{ group_prior.source_revision != gitlab_group_source_revision }}'
+    - name: Advance approved revision CAS only after both exact native readbacks
+      when: group_transition_required | bool
+      block:
+      - ansible.builtin.set_fact:
+          group_prior: '{{ group_prior | combine({"previous_revisions": group_prior.previous_revisions + [group_prior.source_revision], "source_revision": gitlab_group_source_revision}) }}'
+      - ansible.builtin.copy:
+          dest: '{{ gitlab_group_receipt_file }}'
+          mode: '0600'
+          content: '{{ group_prior | to_nice_json }}'
+    always:
+    - ansible.builtin.set_fact:
+        group_headers: {}
+        group_before: {}
+        group_created: {}
+        group_readback: {}
+        cacheable: false
+      no_log: true
