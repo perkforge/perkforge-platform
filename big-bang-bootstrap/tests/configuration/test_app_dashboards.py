@@ -21,7 +21,7 @@ class AppDashboards(unittest.TestCase):
     def test_exact_native_creator_acl_guard_rejects_other_users_and_teams(self):
         tasks=yaml.safe_load((SOURCE/'prepare-folder.yaml').read_text())[0]['tasks'][0]['block']
         guard=next(x for x in tasks if x.get('loop')=='{{ permissions.json }}')['ansible.builtin.assert']
-        for item,expected in [({'userId':1,'teamId':0,'role':None,'permission':4,'inherited':False},0),({'userId':2,'teamId':0,'role':None,'permission':4,'inherited':False},2),({'userId':1,'teamId':0,'role':None,'permission':1,'inherited':False},2),({'userId':0,'teamId':3,'role':'Viewer','permission':1,'inherited':False},2)]:
+        for item,expected in [({'userId':1,'teamId':0,'permission':4,'inherited':False},0),({'userId':1,'teamId':0,'role':None,'permission':4,'inherited':False},0),({'userId':2,'teamId':0,'role':None,'permission':4,'inherited':False},2),({'userId':1,'teamId':0,'role':None,'permission':1,'inherited':False},2),({'userId':0,'teamId':3,'role':'Viewer','permission':1,'inherited':False},2)]:
             with tempfile.TemporaryDirectory() as t:
                 p=Path(t);play=[{'hosts':'localhost','connection':'local','gather_facts':False,'vars':{'item':item,'creator':{'json':{'id':1}}},'tasks':[{'ansible.builtin.assert':guard}]}]
                 (p/'guard.yaml').write_text(yaml.safe_dump(play));r=subprocess.run(['ansible-playbook','-i','localhost,',str(p/'guard.yaml')],capture_output=True,text=True,timeout=30);self.assertEqual(r.returncode,expected,r.stdout+r.stderr)

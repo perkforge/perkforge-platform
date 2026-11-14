@@ -86,7 +86,7 @@
         - ansible.builtin.assert:
             that:
               - item.teamId | default(0) == 0
-              - (item.userId | default(0) == 0 and item.role in ['Viewer','Editor','Admin']) or (item.userId == creator.json.id and item.permission == 4 and not item.role)
+              - (item.userId | default(0) == 0 and item.role in ['Viewer','Editor','Admin']) or (item.userId == creator.json.id and item.permission == 4 and not (item.role | default(none)))
               - item.inherited | default(false) == false
           loop: '{{ permissions.json }}'
         - name: Narrow empty folder to native Admin only
