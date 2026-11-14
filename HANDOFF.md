@@ -1,16 +1,79 @@
 # Current operator handoff
 
-## Grafana SSO candidate awaits policy and live approval
+## Verified integrated pilot snapshot (2026-11-14)
 
-[One cohesive source candidate](big-bang-bootstrap/configuration/authorization/sso/grafana/README.md)
-adds explicit-subject admin-only client roles, gated activation/rollback and an
-optional native stage preserving Harbor and monitoring. No new client credential,
-role/grant, delivery, deployment or live login is performed by this work.
-Owner confirmation of the narrower admin-only policy and action-specific
-credential/access/deployment approvals remain gates. CI stays paused; offline
-fixtures do not establish physical login, recovery or existing-session denial.
+The physical target runs the selected `local-integrated-logging` composition on
+Big Bang 3.35.1, preserving Portal, Nextcloud, Mattermost, authenticated query
+access and existing notification routing. This dated evidence supersedes the
+older rollout checkpoints below; it is not continuous monitoring or blanket
+acceptance of every backlog item. Keep BODA: use the same pinned native charts
+and images, with target-specific configuration rather than image rebuilds.
 
-## Harbor jobservice correction awaits review
+### Grafana and notifications are deployed
+
+Grafana SSO and the authenticated Prometheus query path are active. Native health
+checks pass and all 41 dashboards were retained through the logging rollout.
+See the [Grafana SSO procedure](big-bang-bootstrap/configuration/authorization/sso/grafana/README.md)
+and [query-boundary runbook](big-bang-bootstrap/configuration/observability/tenant-query/README.md).
+This platform-admin baseline is not a grant of shared datasources to tenants.
+
+Native ntfy and Grafana contact points are deployed. Owner-confirmed phone delivery
+and a Grafana investigation link were verified for platform alerts; a resource
+coverage warning also reached the phone. The Portal audience has native ntfy plus
+an approved private Mattermost destination, with an authenticated test post
+verified. Grafana remains the single metric-alert routing owner; deployment
+notifications are a separate native Flux event path, not a second metric-alert
+pipeline. See [audience routing](big-bang-bootstrap/configuration/observability/ntfy-routing/README.md),
+[platform alerts](big-bang-bootstrap/configuration/observability/platform-alerts/README.md)
+and [deployment notifications](big-bang-bootstrap/configuration/observability/deployment-notifications/README.md).
+
+[#39](https://github.com/perkforge/perkforge-platform/issues/39) remains open for
+broader context/lifecycle and integrated firing/resolved acceptance; a test post
+is not proof of every delivery or tenant boundary.
+[#383](https://github.com/perkforge/perkforge-platform/issues/383) remains open:
+host-filesystem and physical-network collector coverage gaps are unresolved and
+must not be reported healthy. No broad host/collector security relaxation is an
+accepted fix.
+
+### Logging pilot is deployed, broader acceptance remains open
+
+Native Loki and Alloy, including the operator-generated restricted collector,
+are Ready. Actual opt-in synthetic pod logs traversed Alloy → authenticated TLS
+Loki → Grafana's datasource proxy. Synthetic redaction and opt-in exclusion were
+verified; a known direct-push sentinel survived a controlled backend restart with
+the same PVC. Prometheus and existing application readiness were preserved.
+
+The [maintained logging acceptance/runbook](big-bang-bootstrap/configuration/observability/integrated-logging/README.md)
+is authoritative for scope and evidence. Collection is only the `logging-pilot`
+namespace, not production tenants. [#38](https://github.com/perkforge/perkforge-platform/issues/38)
+remains open for actual retention deletion evidence, representative ingestion and
+noisy-debug policy, broader redaction/tenant integration and final ordered C4
+acceptance. Configured 72h retention is not proven storage pruning. Logging runtime
+inputs remain manually staged, not ESO-managed.
+
+### Mattermost and Portal baseline
+
+The [native Mattermost baseline](big-bang-bootstrap/configuration/packages/mattermost/README.md)
+is deployed, with owner-confirmed SSO/private-channel access and the approved
+Portal alert test post verified. These do not establish universal tenant
+membership synchronization or every alert lifecycle scenario.
+
+Portal's deployed baseline includes the read-only, immutable-provenance enrollment
+inventory and current architecture view. The final architecture-auth release is
+underway, **not yet verified live in this snapshot**; source merge/publication is
+not runtime protection. Do not describe the previously published sanitized static
+architecture model as confidential retroactively. Coordinate its final promotion
+through the existing application/enrollment/platform source chain and record
+actual authenticated/unauthenticated acceptance separately.
+
+## Historical checkpoints
+
+The following older records retain their original evidence and limitations. Their
+release selections and statements that later apps are inactive are historical,
+not the current selected composition above. Do not rerun initial provisioning or
+recovery merely because an old checkpoint describes an earlier blocker.
+
+## Earlier Harbor checkpoint (historical)
 
 Published v0.29.1's worker-only startup fix is live. Core, independent local
 admin recovery and the private, empty `library` project are verified. The
@@ -18,24 +81,6 @@ admin recovery and the private, empty `library` project are verified. The
 awaits a reviewed release and scoped network approval. DNS, SSO, push/pull and
 restore acceptance remain pending.
 
-
-## Inactive alert/validation preparation
-
-[Native rule overlay and acceptance contract](big-bang-bootstrap/configuration/observability/alerts-and-validation.md)
-preserve vendor rules while selecting Grafana's built-in Alertmanager as the
-eventual single notification owner; no route is armed or notifications sent.
-Default-off readiness capture is not completed #40
-acceptance. Native ntfy v2.37.2 component tests verify a minimal status/count
-formatter, TLS denials and separate exact-topic publisher/subscriber permissions.
-No ntfy server or Grafana contact point is deployed; endpoint, protected identities,
-Grafana integration and physical notification acceptance remain gates.
-
-## Inactive logging draft
-
-The [logging candidate](big-bang-bootstrap/configuration/observability/logging.md)
-adds scoped API collection and authenticated TLS Loki with 3d/10Gi retention.
-No selection, credentials, permissions or live acceptance. Operator-generated
-workloads, Alloy binary validation, query auth and network enforcement remain gates.
 
 ## Current GitLab runner baseline accepted
 
