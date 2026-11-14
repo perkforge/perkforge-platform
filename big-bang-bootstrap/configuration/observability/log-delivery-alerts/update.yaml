@@ -1,0 +1,119 @@
+# Add only the reviewed log-delivery group; preserve every existing receiver and rule group.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    log_delivery_update: false
+    log_delivery_update_approved: false
+    log_delivery_org_id: 1
+  vars_files: [rules.yaml]
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ grafana_ntfy_bao_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      timeout: 20
+  tasks:
+  - when: log_delivery_update | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - log_delivery_update_approved | bool
+        - grafana_ntfy_context == 'platform'
+        - grafana_ntfy_secret == 'grafana-platform-alerts'
+        - grafana_ntfy_record is match('^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$')
+        - grafana_ntfy_previous_sha256 is match('^[a-f0-9]{64}$')
+        - log_delivery_org_id | int == 1
+        - log_delivery_grafana_url is match('^https://[a-z0-9.-]+(:[0-9]+)?/$')
+        - log_delivery_runbook_url is match('^https://[A-Za-z0-9./_-]+$')
+        - grafana_ntfy_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+    - ansible.builtin.command:
+        argv: [kubectl, get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: cluster
+      changed_when: false
+    - ansible.builtin.assert: {that: cluster.stdout == grafana_ntfy_cluster_uid}
+    - ansible.builtin.uri:
+        url: '{{ grafana_ntfy_bao_server }}/v1/sys/health'
+      register: health
+    - ansible.builtin.assert:
+        that: health.json.cluster_id == grafana_ntfy_bao_cluster_id and not health.json.sealed
+    - no_log: true
+      block:
+      - ansible.builtin.command:
+          argv: [kubectl, -n, '{{ grafana_ntfy_monitoring_namespace }}', get, externalsecret, '{{ grafana_ntfy_secret }}', -o, json]
+        register: existing_eso
+        changed_when: false
+      - ansible.builtin.set_fact:
+          current_eso: '{{ existing_eso.stdout | from_json }}'
+      - ansible.builtin.assert:
+          that:
+          - current_eso.spec.target.name == grafana_ntfy_secret
+          - current_eso.spec.secretStoreRef.name == 'eso-platform-alerts'
+          - current_eso.spec.data | length == 1
+          - current_eso.spec.data[0].secretKey == 'alerting.yaml'
+          - current_eso.spec.data[0].remoteRef.key == grafana_ntfy_record
+          - current_eso.spec.data[0].remoteRef.property == 'alerting.yaml'
+      - ansible.builtin.set_fact:
+          headers: {X-Vault-Token: '{{ lookup("file", grafana_ntfy_bao_token_file) | trim }}'}
+      - ansible.builtin.uri:
+          url: '{{ grafana_ntfy_bao_server }}/v1/platform/data/{{ grafana_ntfy_record }}'
+          headers: '{{ headers }}'
+        register: before
+      - ansible.builtin.assert:
+          that: before.json.data.data.keys() | list == ['alerting.yaml']
+      - ansible.builtin.set_fact:
+          prior_text: '{{ before.json.data.data["alerting.yaml"] }}'
+          prior: '{{ before.json.data.data["alerting.yaml"] | from_yaml }}'
+
+      - ansible.builtin.set_fact:
+          authored: '{{ lookup("template", "groups.yaml.j2") | from_yaml }}'
+      - ansible.builtin.assert:
+          that:
+          - prior.apiVersion == 1
+          - prior.contactPoints | selectattr('name', 'equalto', 'platform-resource-ntfy') | list | length == 1
+          - authored.groups | length == 1
+          - authored.groups[0].name == 'platform-log-delivery'
+          - prior.groups | selectattr('name', 'equalto', 'platform-log-delivery') | list | length <= 1
+          - (prior.groups | selectattr('name', 'equalto', 'platform-log-delivery') | map(attribute='rules') | flatten | map(attribute='uid') | list | difference(authored.groups[0].rules | map(attribute='uid') | list)) | length == 0
+          - prior.groups | rejectattr('name', 'equalto', 'platform-log-delivery') | map(attribute='rules') | flatten | map(attribute='uid') | intersect(authored.groups[0].rules | map(attribute='uid') | list) | length == 0
+      - ansible.builtin.set_fact:
+          desired: '{{ prior | combine({"groups": (prior.groups | rejectattr("name", "equalto", "platform-log-delivery") | list) + authored.groups}) }}'
+      - ansible.builtin.set_fact:
+          next_text: '{{ prior_text if prior == desired else (desired | to_nice_yaml) }}'
+      - ansible.builtin.assert:
+          that:
+          - prior == desired or (prior_text | hash('sha256')) == grafana_ntfy_previous_sha256
+          - desired.contactPoints == prior.contactPoints
+          - (desired | combine({'groups':prior.groups})) == prior
+          - desired.groups | rejectattr('name', 'equalto', 'platform-log-delivery') | list == prior.groups | rejectattr('name', 'equalto', 'platform-log-delivery') | list
+      - when: prior != desired
+        ansible.builtin.uri:
+          url: '{{ grafana_ntfy_bao_server }}/v1/platform/data/{{ grafana_ntfy_record }}'
+          headers: '{{ headers }}'
+          method: POST
+          body_format: json
+          body: {options: {cas: '{{ before.json.data.metadata.version | int }}'}, data: {alerting.yaml: '{{ next_text }}'}}
+      - ansible.builtin.uri:
+          url: '{{ grafana_ntfy_bao_server }}/v1/platform/data/{{ grafana_ntfy_record }}'
+          headers: '{{ headers }}'
+        register: after
+      - ansible.builtin.assert:
+          that: after.json.data.data == {'alerting.yaml':next_text}
+      - name: Refresh only the existing exact consumer
+        ansible.builtin.command:
+          argv: [kubectl, -n, '{{ grafana_ntfy_monitoring_namespace }}', annotate, externalsecret, '{{ grafana_ntfy_secret }}', 'force-sync={{ after.json.data.metadata.version }}', --overwrite]
+      - ansible.builtin.command:
+          argv: [kubectl, -n, '{{ grafana_ntfy_monitoring_namespace }}', wait, 'externalsecret/{{ grafana_ntfy_secret }}', '--for=condition=Ready', '--timeout=90s']
+        changed_when: false
+      - name: Require exact decoded payload, not stale Ready, before caller rollout
+        ansible.builtin.command:
+          argv: [kubectl, -n, '{{ grafana_ntfy_monitoring_namespace }}', get, secret, '{{ grafana_ntfy_secret }}', -o, json]
+        register: synced
+        changed_when: false
+        until: (synced.stdout | from_json).data['alerting.yaml'] | b64decode == next_text
+        retries: 30
+        delay: 2
+      always:
+      - ansible.builtin.set_fact: {headers: {}, next_text: '', prior_text: '', prior: {}, desired: {}, before: {}, after: {}, synced: {}, existing_eso: {}, current_eso: {}, authored: {}, cacheable: false}

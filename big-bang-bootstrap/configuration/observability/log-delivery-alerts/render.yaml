@@ -1,0 +1,22 @@
+# Offline rules-only output: never replace existing contact points or routing.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    log_delivery_render: false
+    log_delivery_org_id: 1
+  vars_files: [rules.yaml]
+  tasks:
+  - when: log_delivery_render | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - log_delivery_org_id | int == 1
+        - log_delivery_output is match('^/[A-Za-z0-9_./-]+$') and log_delivery_output != '/'
+        - log_delivery_grafana_url is match('^https://[a-z0-9.-]+(:[0-9]+)?/$')
+        - log_delivery_runbook_url is match('^https://[A-Za-z0-9./_-]+$')
+    - ansible.builtin.file: {path: '{{ log_delivery_output }}', state: directory, mode: '0700'}
+    - ansible.builtin.template:
+        src: groups.yaml.j2
+        dest: '{{ log_delivery_output }}/groups.yaml'
+        mode: '0600'
