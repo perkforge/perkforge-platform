@@ -38,6 +38,12 @@ class FluxNotificationContract(unittest.TestCase):
         secret = next(x for x in objects if x['kind'] == 'Secret')
         self.assertNotIn('data', secret)
         self.assertNotIn('stringData', secret)
+        writer = list(yaml.safe_load_all((SOURCE / 'gitops-prerequisites.yaml').read_text()))
+        self.assertEqual(writer[0]['rules'], [{'apiGroups': ['notification.toolkit.fluxcd.io'],
+                         'resources': ['providers', 'alerts'], 'resourceNames': ['platform-deployments'],
+                         'verbs': ['get', 'list', 'watch', 'update', 'patch', 'delete']}])
+        self.assertEqual(writer[1]['subjects'], [{'kind': 'ServiceAccount',
+                         'name': 'platform-reconciler', 'namespace': 'flux-system'}])
 
     def test_opt_in_root_only_adds_notifications_and_template_mount(self):
         identity = lambda x: (x['kind'], x['metadata'].get('namespace'), x['metadata']['name'])

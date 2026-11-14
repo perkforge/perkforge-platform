@@ -136,3 +136,23 @@ mounts remain untouched. Verify existing template-dir is absent/compatible befor
 setting it, coordinate the single ntfy replacement, and preserve root enrollment
 reference and both Grafana alert mounts when selecting this root. A later source
 update to this root must not inadvertently drop a newer app rollout stage.
+
+### Continuous GitOps writer bootstrap
+
+The existing root reconciler cannot manage notification resources in either
+`flux-system` or `bigbang`. The old Big Bang renderer explicitly deletes its
+Grafana Provider/Alert; it is not an available ownership path. Do not impersonate
+a broader controller identity or add an untracked manual-only route.
+
+After separate action-time approval, the foundation precreates exactly the two
+suspended objects from `notifications.yaml` and applies `gitops-prerequisites.yaml`.
+Its Role grants the **existing** root reconciler only named-object
+get/list/watch/update/patch/delete for Provider/Alert `platform-deployments` in
+`flux-system`. It grants no create or Secret access. Use the intended
+`kustomize-controller` field-manager for bootstrap, then the integrated root owns
+ongoing configuration and pruning. The source is the single durable authority.
+If either object already exists, verify exact provenance/state rather than adopting
+it blindly. The Provider writer can change that named object's destination/auth
+reference, which is why this is a separately reviewed grant, not an implicit
+extension of the ESO Secret grant. No such privilege is applied by rendering this
+source or by the ESO `deliver.yaml` procedure.
