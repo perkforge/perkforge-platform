@@ -1,0 +1,110 @@
+# Add exactly one Mattermost receiver to an existing Portal record; no new authority.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    grafana_mattermost_update: false
+    grafana_mattermost_update_approved: false
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ grafana_ntfy_bao_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      timeout: 20
+  tasks:
+  - when: grafana_mattermost_update | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - grafana_mattermost_update_approved | bool
+        - grafana_mattermost_enabled | bool
+        - grafana_ntfy_context == 'portal'
+        - grafana_ntfy_secret == 'grafana-ntfy-alerting'
+        - grafana_ntfy_record is match('^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$')
+        - grafana_ntfy_previous_sha256 is match('^[a-f0-9]{64}$')
+        - grafana_ntfy_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+    - ansible.builtin.command:
+        argv: [kubectl, get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: cluster
+      changed_when: false
+    - ansible.builtin.assert: {that: cluster.stdout == grafana_ntfy_cluster_uid}
+    - ansible.builtin.uri:
+        url: '{{ grafana_ntfy_bao_server }}/v1/sys/health'
+      register: health
+    - ansible.builtin.assert:
+        that: health.json.cluster_id == grafana_ntfy_bao_cluster_id and not health.json.sealed
+    - no_log: true
+      block:
+      - ansible.builtin.command:
+          argv: [kubectl, -n, '{{ grafana_ntfy_monitoring_namespace }}', get, externalsecret, '{{ grafana_ntfy_secret }}', -o, json]
+        register: existing_eso
+        changed_when: false
+      - ansible.builtin.set_fact:
+          current_eso: '{{ existing_eso.stdout | from_json }}'
+      - ansible.builtin.assert:
+          that:
+          - current_eso.spec.target.name == grafana_ntfy_secret
+          - current_eso.spec.secretStoreRef.name == 'eso-grafana-alerts'
+          - current_eso.spec.data | length == 1
+          - current_eso.spec.data[0].secretKey == 'alerting.yaml'
+          - current_eso.spec.data[0].remoteRef.key == grafana_ntfy_record
+          - current_eso.spec.data[0].remoteRef.property == 'alerting.yaml'
+      - ansible.builtin.set_fact:
+          headers: {X-Vault-Token: '{{ lookup("file", grafana_ntfy_bao_token_file) | trim }}'}
+          next_text: '{{ lookup("file", grafana_ntfy_output_dir + "/alerting.yaml", rstrip=false) }}'
+      - ansible.builtin.uri:
+          url: '{{ grafana_ntfy_bao_server }}/v1/platform/data/{{ grafana_ntfy_record }}'
+          headers: '{{ headers }}'
+        register: before
+      - ansible.builtin.assert:
+          that: before.json.data.data.keys() | list == ['alerting.yaml']
+      - ansible.builtin.set_fact:
+          prior_text: '{{ before.json.data.data["alerting.yaml"] }}'
+          prior: '{{ before.json.data.data["alerting.yaml"] | from_yaml }}'
+          desired: '{{ next_text | from_yaml }}'
+      - ansible.builtin.assert:
+          that:
+          - prior_text == next_text or (prior_text | hash('sha256')) == grafana_ntfy_previous_sha256
+          - desired.contactPoints | length == 1
+          - desired.contactPoints[0].name == 'context-portal-ntfy'
+          - desired.contactPoints[0].receivers | length == 2
+          - desired.contactPoints[0].receivers[0].uid == 'ctx-portal-ntfy'
+          - desired.contactPoints[0].receivers[1].uid == 'ctx-portal-mattermost'
+          - desired.contactPoints[0].receivers[1].type == 'webhook'
+          - desired.contactPoints[0].receivers[1].settings.url == (lookup('file', grafana_mattermost_hook_url_file) | trim)
+          - desired.contactPoints[0].receivers[1].settings.tlsConfig.insecureSkipVerify is sameas false
+          - desired.contactPoints[0].receivers[1].settings.payload.template is not search('"channel"')
+          - >-
+            prior_text == next_text or
+            (desired | combine({'contactPoints':[desired.contactPoints[0] | combine({'receivers':desired.contactPoints[0].receivers[:1]})]})) == prior
+      - when: prior_text != next_text
+        ansible.builtin.uri:
+          url: '{{ grafana_ntfy_bao_server }}/v1/platform/data/{{ grafana_ntfy_record }}'
+          headers: '{{ headers }}'
+          method: POST
+          body_format: json
+          body: {options: {cas: '{{ before.json.data.metadata.version | int }}'}, data: {alerting.yaml: '{{ next_text }}'}}
+      - ansible.builtin.uri:
+          url: '{{ grafana_ntfy_bao_server }}/v1/platform/data/{{ grafana_ntfy_record }}'
+          headers: '{{ headers }}'
+        register: after
+      - ansible.builtin.assert:
+          that: after.json.data.data == {'alerting.yaml':next_text}
+      - name: Refresh only the existing exact consumer
+        ansible.builtin.command:
+          argv: [kubectl, -n, '{{ grafana_ntfy_monitoring_namespace }}', annotate, externalsecret, '{{ grafana_ntfy_secret }}', 'force-sync={{ after.json.data.metadata.version }}', --overwrite]
+      - ansible.builtin.command:
+          argv: [kubectl, -n, '{{ grafana_ntfy_monitoring_namespace }}', wait, 'externalsecret/{{ grafana_ntfy_secret }}', '--for=condition=Ready', '--timeout=90s']
+        changed_when: false
+      - name: Require exact decoded payload, not stale Ready, before caller rollout
+        ansible.builtin.command:
+          argv: [kubectl, -n, '{{ grafana_ntfy_monitoring_namespace }}', get, secret, '{{ grafana_ntfy_secret }}', -o, json]
+        register: synced
+        changed_when: false
+        until: (synced.stdout | from_json).data['alerting.yaml'] | b64decode == next_text
+        retries: 30
+        delay: 2
+      always:
+      - ansible.builtin.set_fact: {headers: {}, next_text: '', prior_text: '', prior: {}, desired: {}, before: {}, after: {}, synced: {}, existing_eso: {}, current_eso: {}, cacheable: false}

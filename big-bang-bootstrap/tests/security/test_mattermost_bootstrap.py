@@ -53,3 +53,33 @@ class NativeBootstrap(fixture.MattermostFixture):
         self.run_play(dict(mattermost_bootstrap_apply=False,mattermost_context_token_file='/missing'))
         self.run_play(dict(mattermost_context_token_file='/missing'),check=True)
         self.assertEqual(self.s['calls'],[])
+
+class NativeWebhook(NativeBootstrap):
+    def test_locked_hook_create_readback_repeat_and_foreign_collision(self):
+        self.run_play()
+        self.s.pop('hook', None)
+        base=self.server.RequestHandlerClass; s=self.s
+        class HookHandler(base):
+            def do_GET(self):
+                if self.path.startswith('/api/v4/hooks/incoming'):
+                    s['calls'].append(('GET',self.path))
+                    if '?' in self.path: return self.reply(200,[s['hook']] if 'hook' in s else [])
+                    return self.reply(200,s['hook'])
+                if self.path=='/api/v4/channels/'+fixture.C: return self.reply(200,s['objects']['channel'])
+                super().do_GET()
+            def do_POST(self):
+                if self.path=='/api/v4/hooks/incoming':
+                    s['calls'].append(('POST',self.path)); body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+                    assert body['channel_locked'] is True and body['channel_id']==fixture.C
+                    s['hook']=dict(body,id='h'*26,team_id=fixture.T,user_id='b'*26,delete_at=0)
+                    return self.reply(201,s['hook'])
+                super().do_POST()
+        self.server.RequestHandlerClass=HookHandler
+        self.play=self.play.with_name('webhook.yaml')
+        self.v.update(mattermost_webhook_apply=True,mattermost_webhook_approved=True,mattermost_bootstrap_receipt_file=str(self.d/'bootstrap-receipt.json'))
+        self.s['calls']=[]; self.run_play()
+        self.assertEqual([x for x in self.s['calls'] if x[0]=='POST'],[('POST','/api/v4/hooks/incoming')])
+        self.assertEqual((self.d/'incoming-hook.url').read_text(),self.origin+'/hooks/'+'h'*26)
+        self.s['calls']=[]; self.run_play(); self.assertTrue(all(m=='GET' for m,_ in self.s['calls']))
+        (self.d/'incoming-hook-receipt.json').unlink()
+        self.s['calls']=[]; self.run_play(success=False); self.assertTrue(all(m=='GET' for m,_ in self.s['calls']))

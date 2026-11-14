@@ -18,6 +18,21 @@ contactPoints:
         template: >-
           {% raw %}{"topic":"{% endraw %}{{ grafana_ntfy_topic }}{% raw %}","title":"{% endraw %}{{ grafana_ntfy_context }}{% raw %} alerts","message":"{% endraw %}{{ grafana_ntfy_context }}{% raw %}: {{ if eq .Status "firing" }}firing{{ else if eq .Status "resolved" }}resolved{{ else }}unknown{{ end }}; {{ len .Alerts }} grouped alert(s)."}{% endraw %}
 
+{% if grafana_mattermost_enabled | default(false) | bool %}
+  - uid: {{ ('ctx-' ~ grafana_ntfy_context ~ '-mattermost') | to_json }}
+    type: webhook
+    disableResolveMessage: false
+    settings:
+      url: {{ lookup('file', grafana_mattermost_hook_url_file) | trim | to_json }}
+      httpMethod: POST
+      tlsConfig:
+        insecureSkipVerify: false
+        caCertificate: {{ lookup('file', grafana_mattermost_ca_file) | to_json }}
+      payload:
+        template: >-
+          {% raw %}{"text":"{% endraw %}{{ grafana_ntfy_context }}{% raw %}: {{ if eq .Status "firing" }}firing{{ else if eq .Status "resolved" }}resolved{{ else }}unknown{{ end }}; {{ len .Alerts }} grouped alert(s)."}{% endraw %}
+{% endif %}
+
 groups:
 - orgId: {{ grafana_ntfy_org_id }}
   name: {{ grafana_ntfy_context }}-availability
