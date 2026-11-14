@@ -1,0 +1,63 @@
+# Compose with candidate + files values. Native bundled chart, no image override.
+# Package remains disabled/suspended until coordinated activation.
+addons:
+  mattermost:
+    values:
+      database: {secret: mattermost-database}
+      postgresql:
+        install: true
+        fullnameOverride: mattermost-postgresql
+        auth:
+          username: ''
+          database: mattermost
+          password: null
+          existingSecret: mattermost-postgresql-auth
+          secretKeys:
+            adminPasswordKey: postgres-password
+            userPasswordKey: password
+          usePasswordFiles: true
+        postgresqlDataDir: /var/lib/postgresql/data/pgdata
+        # Iron Bank uses the official entrypoint, not Bitnami configuration files.
+        pgHbaConfiguration: ''
+        primary:
+          pdb: {create: false}
+          # Reviewed target network policies are supplied separately.
+          networkPolicy: {enabled: false}
+          persistence:
+            size: 8Gi
+            mountPath: /var/lib/postgresql/data
+          podSecurityContext:
+            enabled: true
+            fsGroup: 1001
+          containerSecurityContext:
+            enabled: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          extraEnvVars:
+            - name: POSTGRES_DB
+              value: mattermost
+            - name: MATTERMOST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mattermost-postgresql-auth
+                  key: password
+          initdb:
+            scripts:
+              10-mattermost.sql: |-
+                \getenv mattermost_password MATTERMOST_PASSWORD
+                SELECT format('CREATE ROLE mattermost LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD %L', :'mattermost_password') \gexec
+                ALTER DATABASE mattermost OWNER TO mattermost;
+                ALTER SCHEMA public OWNER TO mattermost;
+                REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+          customReadinessProbe:
+            exec: {command: [/bin/sh, -ec, 'pg_isready -h 127.0.0.1 -U postgres -d mattermost']}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          customLivenessProbe:
+            exec: {command: [/bin/sh, -ec, 'pg_isready -h 127.0.0.1 -U postgres -d mattermost']}
+            initialDelaySeconds: 30
+            periodSeconds: 10
