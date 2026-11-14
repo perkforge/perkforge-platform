@@ -65,10 +65,13 @@ class Manifests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as d:
    d=pathlib.Path(d);ca='-----BEGIN CERTIFICATE-----\nFIXTURE\n-----END CERTIFICATE-----\n'
    v={'projection_render':True,'projection_cluster_dns':'10.0.0.10','projection_output':str(d/'runtime'),'projection_sources':{'platform':['bigbang/bigbang','bigbang/mattermost'],'portal':['tenant-portal-config/portal']},'projection_mattermost_endpoint_cidrs':['192.0.2.4/32'],'projection_public_ca':ca}
+   v.update(projection_ingress_namespace='kube-system',projection_ingress_name='rke2-traefik',projection_ingress_instance='rke2-traefik-kube-system',projection_ingress_port=8443)
    r=subprocess.run(['ansible-playbook',str(source/'render.yaml'),'-e',json.dumps(v)],capture_output=True,text=True);self.assertEqual(r.returncode,0,r.stdout+r.stderr)
    docs=list(yaml.safe_load_all((d/'runtime/runtime.yaml').read_text()));docs=[x for x in docs if x]
    for x in docs:
     if x['kind'] in ['Provider','Alert']:self.assertTrue(x['spec']['suspend'])
+   net=next(x for x in docs if x['kind']=='NetworkPolicy')['spec']
+   self.assertEqual(net['egress'][-1],{'to':[{'namespaceSelector':{'matchLabels':{'kubernetes.io/metadata.name':'kube-system'}},'podSelector':{'matchLabels':{'app.kubernetes.io/name':'rke2-traefik','app.kubernetes.io/instance':'rke2-traefik-kube-system'}}}], 'ports':[{'protocol':'TCP','port':8443}]})
    deploy=next(x for x in docs if x['kind']=='Deployment');self.assertFalse(deploy['spec']['template']['spec']['automountServiceAccountToken'])
    v.update(projection_custody_render=True,projection_custody_output=str(d/'custody'),projection_bao_server='https://bao.example.invalid')
    r=subprocess.run(['ansible-playbook',str(source/'custody.yaml'),'-e',json.dumps(v)],capture_output=True,text=True);self.assertEqual(r.returncode,0,r.stdout+r.stderr)

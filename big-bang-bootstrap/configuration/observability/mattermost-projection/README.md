@@ -40,7 +40,11 @@ match; no implicit adoption or rotation. Verify current API defaults on retries.
 The relay lives in existing `ntfy` namespace with no Kubernetes API token, all
 capabilities dropped, read-only root and fixed resource limits. Network ingress
 is only notification-controller in flux-system. Egress is cluster DNS and exact
-verified Mattermost ingress /32 endpoints on TCP443; no broad CIDR or internet.
+verified Mattermost ingress /32 endpoints on TCP443 plus the selected ingress
+pods after DNAT (exact namespace and both name/instance labels, selected port).
+The lab target selects RKE2 Traefik in kube-system on TCP8443; other deployments
+must supply their own exact approved ingress identity. No broad namespace/CIDR
+or internet egress.
 
 Precreate reviewed suspended native runtime objects with the intended GitOps field
 manager, then apply the separately approved named-object root management grants.

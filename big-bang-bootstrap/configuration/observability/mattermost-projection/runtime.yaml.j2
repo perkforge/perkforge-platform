@@ -84,6 +84,14 @@ spec:
     - ipBlock: {cidr: {{ cidr | to_json }}}
 {% endfor %}
     ports: [{protocol: TCP, port: 443}]
+  # Match the actual post-DNAT ingress pod destination, never all kube-system.
+  - to:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: {{ projection_ingress_namespace | to_json }}}}
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: {{ projection_ingress_name | to_json }}
+          app.kubernetes.io/instance: {{ projection_ingress_instance | to_json }}
+    ports: [{protocol: TCP, port: {{ projection_ingress_port }}}]
 ---
 {% for audience in ['platform', 'portal'] %}
 apiVersion: notification.toolkit.fluxcd.io/v1beta3
