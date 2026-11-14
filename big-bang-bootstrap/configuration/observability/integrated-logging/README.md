@@ -1,11 +1,11 @@
-# Integrated logging candidate, not deployed
+# Integrated logging: deployed platform pilot
 
 The optional `local-integrated-logging` root extends `local-mattermost-pilot`,
 retaining Portal, Nextcloud, query authentication and both notification mounts.
 It enables the existing Big Bang 3.35.1 native Loki/Alloy pinned candidate without
 replacing Grafana datasource values. Existing `query-runtime-values` supplies the
 Prometheus override; do not import the older `logging-pilot` datasource list.
-Grafana Loki browsing remains a separate additive datasource/whitelist/egress step.
+Grafana Loki browsing uses the separately approved additive datasource/whitelist/egress configuration below.
 
 Collection remains the existing opt-in `logging-pilot` namespace only, using API
 logs, no host mounts or added capabilities, and the own-namespace Alloy operator.
@@ -14,14 +14,57 @@ No production namespace access or tenant grants are added by this source stage.
 
 Before promotion compare the existing installer/runtime RBAC, TLS/auth delivery
 and exact pinned images with the reviewed candidate. Verify request-based scheduler
-headroom on CSI-capable workers, not CPU utilization: at the planning check neither
-worker could accommodate Loki's 100m request. Do not bypass this with unreviewed
-host CSI changes, arbitrary resource reductions, or the older logging root.
+headroom on CSI-capable workers, not CPU utilization. The reviewed optional
+Flux placement overlay moved only stateless kustomize-controller to the existing
+control-plane role, freeing 300m on a worker without changing its resources.
+Loki remains on a CSI-capable storage worker; Alloy/operator are on the control
+node. Do not substitute unreviewed host CSI changes, resource reductions, or the
+older logging root. Actual requests including the generated config-reloader are
+235m CPU / 882Mi memory across logging components, plus a 10Gi Loki PVC.
 
 Promote only in the coordinator's window after preservation review. Verify native
 readiness and controlled pilot ingestion/query before enabling Grafana log access.
 Keep the same images and chart source across environments (BODA). Source publication
 is not deployment, recovery proof, or completed #38 acceptance.
+
+## Verified physical acceptance, 2026-11-14 07:11 UTC
+
+This is a platform-admin pilot, not completed ticket #38 or tenant-wide logging.
+Big Bang 3.35.1 supplies Loki 6.55.0-bb.9 and Alloy 4.3.2-bb.2 with their pinned
+Registry1 images. The selected integrated root preserves current Portal,
+Nextcloud, Mattermost, enrollment and notification routing.
+
+Verified on the actual cluster:
+- Loki backend/gateway, Alloy operator and generated two-container collector Ready.
+  Collector and reloader are nonroot, drop ALL, forbid privilege escalation and
+  use read-only roots with RuntimeDefault seccomp. No host PID/network/path access.
+- Operator watches only `alloy`; collector service account can read pod logs only
+  in `logging-pilot`, not Nextcloud's namespace, and cannot list pilot Secrets.
+- A bounded opt-in synthetic pod's lines traversed Alloy → authenticated TLS
+  gateway → Loki → Grafana's native datasource proxy. Proxy returned HTTP 200;
+  synthetic password values were replaced with REDACTED while ordinary fields
+  remained. An otherwise identical unopted pod yielded no collected lines.
+  Both disposable pods were removed. This narrow pattern test is not proof that
+  arbitrary secrets are automatically detected or that opt-in labels are ACLs.
+- Trusted-CA native query succeeds; wrong credentials return 401. A caller-supplied
+  tenant header cannot override the gateway's authenticated identity. No tenant
+  datasource/access grant was added.
+- A known direct-push sentinel's exact timestamp and line survived one controlled
+  native Loki restart with the same PVC UID and bound volume. This is restart
+  persistence, not replicated disaster recovery or durable Alloy offset proof.
+- Grafana Loki and Prometheus native health both pass; all 41 dashboards remain.
+  Existing application readiness is retained. PVC observed 264KiB used of 9.8Gi
+  usable during synthetic validation, not a production growth forecast.
+
+Still open: representative ingestion/growth and noisy-debug policy, comprehensive
+redaction review, actual retention deletion evidence, tenant access integration,
+and final ordered identity/collection/query C4 acceptance. Retention is configured
+72h with working compactor/delete-store configuration and a 2h deletion delay;
+configuration and an absent old query are **not** proof of storage pruning. A
+benign aged/fresh control was accepted, but the aged record did not establish a
+positive query baseline, so no deletion success is claimed. Runtime credentials
+remain manually staged, not ESO-managed. Optional logging-specific metrics/rules
+are disabled; existing Prometheus monitoring is unchanged.
 
 ## Separately approved Grafana pilot consumer
 
@@ -64,7 +107,8 @@ this repair. The corrected input remains manual custody, not ESO management.
 Native umbrella monitoring defaults would add Loki PrometheusRules/ServiceMonitors
 and Alloy ServiceMonitors outside the existing installer authority. This pilot
 explicitly disables only those optional logging monitoring objects (not existing
-Prometheus/Grafana). No installer grant is widened. Existing dashboards are kept;
+Prometheus/Grafana). No monitoring-object installer grant is widened. The separate metadata-only
+lookup grant is documented below. Existing dashboards are kept;
 new logging exporter scraping/rules remain a separately reviewed follow-up.
 
 
