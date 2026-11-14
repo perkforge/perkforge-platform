@@ -1,0 +1,56 @@
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    alloy_cursor_prepare: false
+    alloy_cursor_prepare_approved: false
+    cursor_existing_claim_uid: ""
+  tasks:
+  - when: alloy_cursor_prepare | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - alloy_cursor_prepare_approved | bool
+        - cursor_expected_cluster_uid is match('^[a-f0-9-]{36}$')
+        - cursor_claim_manifest is match('^/[A-Za-z0-9_./-]+$')
+    - ansible.builtin.set_fact:
+        desired: '{{ lookup("file", cursor_claim_manifest) | from_yaml }}'
+    - ansible.builtin.assert:
+        that:
+        - desired.kind == 'PersistentVolumeClaim'
+        - desired.metadata.namespace == 'alloy'
+        - desired.metadata.name == 'alloy-storage-alloy-alloy-logs-0'
+        - desired.metadata.annotations['platform.perkforge.io/cursor-owner'] == 'alloy-alloy-logs'
+        - desired.spec.accessModes == ['ReadWriteOnce']
+        - desired.spec.storageClassName == 'longhorn'
+        - desired.spec.resources.requests.storage == '1Gi'
+        - desired.spec.keys() | sort == ['accessModes','resources','storageClassName']
+    - ansible.builtin.command: {argv: [kubectl, get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']}
+      register: cluster
+      changed_when: false
+    - ansible.builtin.assert: {that: cluster.stdout == cursor_expected_cluster_uid}
+    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pvc, alloy-storage-alloy-alloy-logs-0, --ignore-not-found, -o, json]}
+      register: before
+      changed_when: false
+    - ansible.builtin.assert:
+        that: before.stdout == '' or (before.stdout | from_json).metadata.uid == cursor_existing_claim_uid
+        fail_msg: 'Existing claim needs independently verified explicit UID; no automatic adoption.'
+    - when: before.stdout == ''
+      ansible.builtin.command:
+        argv: [kubectl, create, -f, '-']
+        stdin: '{{ desired | to_json }}'
+    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pvc, alloy-storage-alloy-alloy-logs-0, -o, json]}
+      register: after
+      changed_when: false
+    - ansible.builtin.set_fact: {actual: '{{ after.stdout | from_json }}'}
+    - ansible.builtin.assert:
+        that:
+        - actual.metadata.annotations['platform.perkforge.io/cursor-owner'] == 'alloy-alloy-logs'
+        - actual.spec.storageClassName == desired.spec.storageClassName
+        - actual.spec.accessModes == desired.spec.accessModes
+        - actual.spec.resources.requests.storage == desired.spec.resources.requests.storage
+        - actual.spec.volumeMode | default('Filesystem') == 'Filesystem'
+        - actual.spec.dataSource | default(none) == none
+        - actual.spec.dataSourceRef | default(none) == none
+        - before.stdout == '' or actual.metadata.uid == (before.stdout | from_json).metadata.uid
+    - ansible.builtin.debug: {msg: 'Verified retained claim UID {{ actual.metadata.uid }}; no collector transition performed.'}

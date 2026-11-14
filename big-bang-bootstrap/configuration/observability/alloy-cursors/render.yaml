@@ -13,7 +13,8 @@
     block:
     - ansible.builtin.assert:
         that:
-        - alloy_cursor_replicas | int in [0, 1]
+        - alloy_cursor_replicas is integer
+        - alloy_cursor_replicas in [0, 1]
         - alloy_cursor_size is match('^[1-9][0-9]*Gi$')
         - alloy_cursor_storage_class is match('^[a-z0-9][a-z0-9.-]*$')
         - alloy_cursor_node_selector | length > 0
@@ -22,4 +23,8 @@
     - ansible.builtin.template:
         src: values.yaml.j2
         dest: '{{ alloy_cursor_output }}/values.yaml'
+        mode: '0600'
+    - ansible.builtin.template:
+        src: claim.yaml.j2
+        dest: '{{ alloy_cursor_output }}/claim.yaml'
         mode: '0600'

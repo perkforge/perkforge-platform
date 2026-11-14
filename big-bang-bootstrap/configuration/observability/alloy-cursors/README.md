@@ -39,8 +39,8 @@ images, identities, network, processing stages and log data remain unchanged.
    no-token seeder with the existing approved image/pull identity if its native
    runtime supports the operation. Seed only the exact component positions path;
    enforce correct UID/GID, hash readback and no other content. Remove the seeder
-   and prove no active writer before stage 1. A dedicated guarded migration
-   implementation and native review are REQUIRED before executing this plan.
+   and prove no active writer before stage 1. The default-off capture/prepare-claim/seed playbooks implement those gates;
+   independent review and explicit live invocation remain REQUIRED.
 5. Require checkpoint lag comfortably below the verified one-hour stream window
    (proposed hard guard 10 minutes), exact cluster/controller/claim identities and
    seed equality before stage 1. If timeout, remain stopped and report; do not
@@ -70,3 +70,39 @@ telemetry, not all source discovery failures. Pinned `loki.source.kubernetes`
 reports component health only for invalid configuration and exposes no dedicated
 source metrics; target debug metadata has latest line/error information. Do not
 claim scrape-up proves collection completeness.
+
+## Supported gated tooling
+
+`render.yaml` emits values and exact claim manifest only. Checked-in stage-0 and
+stage-1 artifacts are tested equal to renderer output; both selectable roots
+inherit `local-portal-log-view`, so Viewer-only authorization is preserved.
+Publish/review BOTH stages before any pause. Do not wait for a new PR while paused.
+`local-logging-cursor-prepare` stops collection; successful Helm reconciliation at
+replicas zero is not healthy collection. Existing missing telemetry alerts are
+not silenced during the bounded maintenance window.
+
+`prepare-claim.yaml` is create-only and requires explicit cluster identity and
+approval. Existing claims require a separately verified UID, no adoption. This
+physical-target activation wrapper is deliberately bound to Longhorn/1Gi; other
+environments must supply a reviewed target-specific wrapper, not bypass guards.
+Prepare and bind it while the old collector still runs where possible.
+
+`capture.yaml` requires exact cluster/deployment/pod UIDs and a NEW protected
+output directory. It copies native structured-key YAML without reserializing or
+printing keys, verifies file sync freshness, and writes a digest/identity receipt.
+Quiet pod offsets may legitimately be old: freshness applies to the checkpoint
+capture/source-file modification time, not every individual offset.
+
+`seed.yaml` requires a stopped old Deployment, zero matching collector pods,
+expected zero-replica StatefulSet and exact retained claim UID. It checks the
+checkpoint again before and after copying, uses the previous collector's exact
+resolved image digest with restricted nonroot/no-token context, rejects unknown
+volume content/symlinks, verifies readback hash, and UID-checks temporary seeder
+cleanup. It never starts the StatefulSet or selects a root. A partial incoming
+file deliberately blocks a retry: inspect exact expected digest/ownership and
+resolve through reviewed recovery, never blindly wipe it or other volume data.
+
+After seeding, recheck the same UID/hash/freshness gates and zero writers before
+selecting the already-published stage-1 path. Longhorn readiness, command support
+in the pinned seeder image and actual admission remain runtime preflight gates;
+o live transition has been performed by these offline tests.
