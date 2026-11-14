@@ -1,0 +1,134 @@
+# Default-off dedicated publisher delivery. Never changes root or publishes an event.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    deployment_delivery_render: false
+    deployment_delivery_apply: false
+  module_defaults:
+    ansible.builtin.uri:
+      ca_path: '{{ ntfy_bao_ca_file }}'
+      validate_certs: true
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      timeout: 20
+  tasks:
+  - when: deployment_delivery_render | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - ntfy_deployments_record == 'notifications/platform-deployments-v1/publisher'
+        - ntfy_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+        - ntfy_deployments_runtime_dir == ntfy_deployments_runtime_dir | realpath
+        - ntfy_deployments_runtime_dir is match('^/[A-Za-z0-9_./-]+$')
+        - deployment_click_url is match('^https://[a-z0-9.-]+(:[0-9]+)?/$')
+        - lookup('file', deployment_ntfy_ca_file, rstrip=false) | hash('sha256') == deployment_ntfy_ca_sha256
+    - ansible.builtin.template:
+        src: consumers.yaml.j2
+        dest: '{{ ntfy_deployments_runtime_dir }}/consumers.yaml'
+        mode: '0600'
+  - when: deployment_delivery_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert: {that: deployment_delivery_render | bool}
+    - ansible.builtin.uri:
+        url: '{{ ntfy_bao_server }}/v1/sys/health'
+      register: health
+    - ansible.builtin.assert:
+        that: health.json.cluster_id == ntfy_bao_cluster_id and not health.json.sealed
+    - name: Refuse unrelated existing target before credential delivery
+      ansible.builtin.command:
+        argv: [kubectl, -n, flux-system, get, secret, flux-deployment-publisher, --ignore-not-found, -o, name]
+      register: target
+      changed_when: false
+    - ansible.builtin.assert: {that: target.stdout == ''}
+    - no_log: true
+      block:
+      - ansible.builtin.set_fact:
+          headers: {X-Vault-Token: '{{ lookup("file", ntfy_bao_token_file) | trim }}'}
+          desired_record:
+            headers: '{{ {"Authorization": "Bearer " + (lookup("file", ntfy_deployments_runtime_dir + "/publisher.token") | trim), "Click": deployment_click_url} | to_nice_yaml }}'
+            ca.crt: '{{ lookup("file", deployment_ntfy_ca_file, rstrip=false) }}'
+          desired_policy: 'path "platform/data/notifications/platform-deployments-v1/publisher" { capabilities = ["read"] } path "auth/token/lookup-self" { capabilities = ["read"] }'
+          desired_role:
+            bound_service_account_names: [eso-platform-deployments]
+            bound_service_account_namespaces: [flux-system]
+            audience: openbao-eso
+            token_policies: [eso-platform-deployments]
+            token_ttl: 300
+            token_max_ttl: 900
+            token_explicit_max_ttl: 900
+            token_no_default_policy: true
+      - ansible.builtin.uri:
+          url: '{{ ntfy_bao_server }}/v1/platform/data/{{ ntfy_deployments_record }}'
+          headers: '{{ headers }}'
+          status_code: [200, 404]
+        register: record
+      - when: record.status == 200
+        ansible.builtin.assert: {that: record.json.data.data == desired_record}
+      - ansible.builtin.uri:
+          url: '{{ ntfy_bao_server }}/v1/sys/policies/acl/eso-platform-deployments'
+          headers: '{{ headers }}'
+          status_code: [200, 404]
+        register: policy
+      - when: policy.status == 200
+        ansible.builtin.assert: {that: policy.json.data.policy == desired_policy}
+      - ansible.builtin.uri:
+          url: '{{ ntfy_bao_server }}/v1/auth/kubernetes-eso/role/eso-platform-deployments'
+          headers: '{{ headers }}'
+          status_code: [200, 404]
+        register: role
+      - when: role.status == 200
+        ansible.builtin.assert: {that: "role.json.data[item.key] == item.value"}
+        loop: '{{ desired_role | dict2items }}'
+      - when: record.status == 404
+        ansible.builtin.uri:
+          url: '{{ ntfy_bao_server }}/v1/platform/data/{{ ntfy_deployments_record }}'
+          headers: '{{ headers }}'
+          method: POST
+          body_format: json
+          body: {options: {cas: 0}, data: '{{ desired_record }}'}
+      - when: policy.status == 404
+        ansible.builtin.uri:
+          url: '{{ ntfy_bao_server }}/v1/sys/policies/acl/eso-platform-deployments'
+          headers: '{{ headers }}'
+          method: PUT
+          body_format: json
+          body: {policy: '{{ desired_policy }}'}
+          status_code: 204
+      - when: role.status == 404
+        ansible.builtin.uri:
+          url: '{{ ntfy_bao_server }}/v1/auth/kubernetes-eso/role/eso-platform-deployments'
+          headers: '{{ headers }}'
+          method: POST
+          body_format: json
+          body: '{{ desired_role }}'
+          status_code: 204
+      always:
+      - ansible.builtin.set_fact: {headers: {}, desired_record: {}, record: {}, policy: {}, role: {}}
+    - name: Deliver public CA and exact precreated target/ESO consumer
+      ansible.builtin.command:
+        argv: [kubectl, -n, flux-system, create, configmap, deployment-openbao-ca, '--from-file=ca.crt={{ ntfy_bao_ca_file }}']
+    - ansible.builtin.command:
+        argv: [kubectl, create, -f, '{{ ntfy_deployments_runtime_dir }}/consumers.yaml']
+    - name: Require dedicated ESO Ready before any root promotion
+      ansible.builtin.command:
+        argv: [kubectl, -n, flux-system, wait, externalsecret/flux-deployment-publisher, '--for=condition=Ready', '--timeout=120s']
+      changed_when: false
+    - name: Verify exact decoded publisher payload privately
+      no_log: true
+      block:
+      - ansible.builtin.command:
+          argv: [kubectl, -n, flux-system, get, secret, flux-deployment-publisher, -o, json]
+        register: synchronized
+        changed_when: false
+      - ansible.builtin.set_fact:
+          synchronized_data: '{{ (synchronized.stdout | from_json).data }}'
+      - ansible.builtin.assert:
+          that:
+          - synchronized_data.keys() | sort == ['ca.crt', 'headers']
+          - >-
+            (synchronized_data['headers'] | b64decode | from_yaml) == {"Authorization": "Bearer " + (lookup("file", ntfy_deployments_runtime_dir + "/publisher.token") | trim), "Click": deployment_click_url}
+          - (synchronized_data['ca.crt'] | b64decode) == lookup('file', deployment_ntfy_ca_file, rstrip=false)
+      always:
+      - ansible.builtin.set_fact: {synchronized: {}, synchronized_data: {}}

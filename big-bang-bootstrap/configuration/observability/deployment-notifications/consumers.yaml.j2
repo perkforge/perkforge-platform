@@ -1,0 +1,83 @@
+# Foundation precreates one empty target. ESO cannot create or delete Secrets.
+apiVersion: v1
+kind: Secret
+metadata: {name: flux-deployment-publisher, namespace: flux-system}
+type: Opaque
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: eso-platform-deployments, namespace: flux-system}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: eso-platform-deployments, namespace: flux-system}
+rules:
+- apiGroups: ['']
+  resources: [secrets]
+  resourceNames: [flux-deployment-publisher]
+  verbs: [get, update, patch]
+- apiGroups: ['']
+  resources: [serviceaccounts/token]
+  resourceNames: [eso-platform-deployments]
+  verbs: [create]
+- apiGroups: ['']
+  resources: [configmaps]
+  resourceNames: [deployment-openbao-ca]
+  verbs: [get]
+- apiGroups: [external-secrets.io]
+  resources: [externalsecrets]
+  resourceNames: [flux-deployment-publisher]
+  verbs: [patch]
+- apiGroups: [external-secrets.io]
+  resources: [externalsecrets/status]
+  resourceNames: [flux-deployment-publisher]
+  verbs: [update, patch]
+- apiGroups: [external-secrets.io]
+  resources: [secretstores/status]
+  resourceNames: [eso-platform-deployments]
+  verbs: [patch]
+- apiGroups: ['']
+  resources: [events]
+  verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: eso-platform-deployments, namespace: flux-system}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: eso-platform-deployments}
+subjects:
+- {kind: ServiceAccount, name: external-secrets, namespace: external-secrets}
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata: {name: eso-platform-deployments, namespace: flux-system}
+spec:
+  controller: perkforge
+  provider:
+    vault:
+      server: {{ ntfy_bao_server | to_json }}
+      path: platform
+      version: v2
+      caProvider: {type: ConfigMap, name: deployment-openbao-ca, key: ca.crt}
+      auth:
+        kubernetes:
+          mountPath: kubernetes-eso
+          role: eso-platform-deployments
+          serviceAccountRef: {name: eso-platform-deployments, audiences: [openbao-eso]}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: {name: flux-deployment-publisher, namespace: flux-system}
+spec:
+  refreshInterval: 1h
+  secretStoreRef: {kind: SecretStore, name: eso-platform-deployments}
+  target:
+    name: flux-deployment-publisher
+    creationPolicy: Merge
+    deletionPolicy: Retain
+    template: {engineVersion: v2, type: Opaque}
+  data:
+  - secretKey: headers
+    remoteRef: {key: notifications/platform-deployments-v1/publisher, property: headers, conversionStrategy: Default, decodingStrategy: None}
+  - secretKey: ca.crt
+    remoteRef: {key: notifications/platform-deployments-v1/publisher, property: ca.crt, conversionStrategy: Default, decodingStrategy: None}
