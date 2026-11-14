@@ -39,6 +39,7 @@ class IntegratedLogging(unittest.TestCase):
    if name=='alloy':
     cr=next(obj for obj in rendered if obj['kind']=='Alloy')
     self.assertIn({'name':'private-registry'},cr['spec']['global']['image']['pullSecrets'])
+    self.assertEqual(cr['spec']['alloy']['resources'],{'requests':{'cpu':'50m','memory':'256Mi'},'limits':{'memory':'512Mi'}})
     security=cr['spec']['configReloader']['securityContext']
     self.assertFalse(security['allowPrivilegeEscalation']);self.assertTrue(security['runAsNonRoot']);self.assertTrue(security['readOnlyRootFilesystem'])
     self.assertEqual(security['runAsUser'],65534);self.assertEqual(security['capabilities'],{'drop':['ALL']});self.assertEqual(security['seccompProfile'],{'type':'RuntimeDefault'})

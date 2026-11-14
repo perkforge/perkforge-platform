@@ -20,6 +20,10 @@ alloy:
               runAsGroup: 65534
               seccompProfile: {type: RuntimeDefault}
           alloy:
+            # Measured all-namespace collector working set exceeded the pilot budget.
+            resources:
+              requests: {cpu: 50m, memory: 256Mi}
+              limits: {memory: 512Mi}
             mounts:
               extra:
               - {name: loki-ca, mountPath: /loki-ca, readOnly: true}
