@@ -99,3 +99,9 @@ annotation on a Pending, unbound claim, preserve its UID and data identity.
 After correcting the source placement, clear only that stale annotation with
 exact UID/phase/unbound/old-annotation preconditions so scheduling can retry.
 Never delete/recreate the claim, force a volume attach or alter another app.
+
+The native operator v1.25.9 `SetReplicasAndResourcesFromSize` replaces explicit
+resources whenever deprecated `spec.size` is present, then erases that field.
+The runtime post-renderer removes only that legacy size hint from the chart
+output, preserving the explicit native `replicas: 1` and scheduling resources.
+This prevents the 100-user preset silently overriding reviewed target limits.

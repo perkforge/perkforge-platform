@@ -2,7 +2,8 @@
 {% set api = {'to': [], 'ports': [{'protocol': 'TCP', 'port': 443}, {'protocol': 'TCP', 'port': 6443}]} %}
 {% for cidr in mattermost_runtime_api_cidrs %}{% set _ = api['to'].append({'ipBlock': {'cidr': cidr}}) %}{% endfor %}
 {% set wait_patch = {'target': {'group': 'networking.k8s.io', 'version': 'v1', 'kind': 'NetworkPolicy', 'name': 'allow-egress-from-mattermost-wait-job-to-anywhere-any-port'}, 'patch': [{'op': 'replace', 'path': '/spec/egress', 'value': [dns, api]}] | to_json} %}
-{% set append_renderer = {'kustomize': {'patches': [wait_patch]}} %}
+{% set size_patch = {'target': {'group': 'installation.mattermost.com', 'version': 'v1beta1', 'kind': 'Mattermost', 'name': 'mattermost'}, 'patch': [{'op': 'remove', 'path': '/spec/size'}] | to_json} %}
+{% set append_renderer = {'kustomize': {'patches': [wait_patch, size_patch]}} %}
 {% set overlay %}
 addons:
   mattermostOperator:
