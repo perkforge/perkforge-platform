@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.43.0](https://github.com/perkforge/perkforge-platform/compare/v0.42.0...v0.43.0) (2026-11-14)
+
+
+### Features
+
+* **eso:** compose native activation with existing ntfy root ([#367](https://github.com/perkforge/perkforge-platform/issues/367)) ([8326cb9](https://github.com/perkforge/perkforge-platform/commit/8326cb98c41128bfc7c5fe9cb85854470c3eabf2))
+* **ntfy:** add verified exact-topic owner subscriber workflow ([#375](https://github.com/perkforge/perkforge-platform/issues/375)) ([fe15b24](https://github.com/perkforge/perkforge-platform/commit/fe15b24b73dce7fa2b14f7e058755e1238f7544a))
+* **ntfy:** prepare exact-topic native auth with lifecycle guards ([#363](https://github.com/perkforge/perkforge-platform/issues/363)) ([0c5bc9d](https://github.com/perkforge/perkforge-platform/commit/0c5bc9d01558b78d955fa388aad7e81acf8e5a19))
+* **ntfy:** prepare scoped publisher-only protected runtime delivery ([#373](https://github.com/perkforge/perkforge-platform/issues/373)) ([559948e](https://github.com/perkforge/perkforge-platform/commit/559948ed846aadfdca0b86e2fe2928ff28bacdf4))
+* **observability:** deploy portable query runtime delivery ([#368](https://github.com/perkforge/perkforge-platform/issues/368)) ([1fbe594](https://github.com/perkforge/perkforge-platform/commit/1fbe5949d4a793333693154e829204047856e975))
+* **observability:** stage inactive loopback backend chart candidate ([#361](https://github.com/perkforge/perkforge-platform/issues/361)) ([3d390e3](https://github.com/perkforge/perkforge-platform/commit/3d390e3874d628c07e94a633d589dd6c00e3b6ef))
+
+
+### Bug Fixes
+
+* **dns:** support explicit fix-forward maintenance failures ([#376](https://github.com/perkforge/perkforge-platform/issues/376)) ([a2ed11c](https://github.com/perkforge/perkforge-platform/commit/a2ed11cad3a572eaeb2f46e806b5170ac75b3d74))
+* **eso:** permit exact API Service discovery during native rendering ([#369](https://github.com/perkforge/perkforge-platform/issues/369)) ([7adaba3](https://github.com/perkforge/perkforge-platform/commit/7adaba3fcf9dbabfd98151c73569bbbb9a1c5602))
+* **ntfy:** allow ESO self-token validation ([#374](https://github.com/perkforge/perkforge-platform/issues/374)) ([1f8a98c](https://github.com/perkforge/perkforge-platform/commit/1f8a98c77dffe63cc85ae4581f350e5f26800615))
+* **observability:** allow no-surge Grafana rollout by target ([#370](https://github.com/perkforge/perkforge-platform/issues/370)) ([7c031e4](https://github.com/perkforge/perkforge-platform/commit/7c031e458638705deb1671a33b882602b8bb1e05))
+* **observability:** permit Flux query health observation ([#372](https://github.com/perkforge/perkforge-platform/issues/372)) ([e5685a5](https://github.com/perkforge/perkforge-platform/commit/e5685a5967a0cea4506fe14ce7af1b1874734768))
+* **observability:** scope Flux query runtime authority ([#371](https://github.com/perkforge/perkforge-platform/issues/371)) ([bd49cad](https://github.com/perkforge/perkforge-platform/commit/bd49cad804d64a1fb79b5b12a09819bcffe04691))
+
 ## [0.42.0](https://github.com/perkforge/perkforge-platform/compare/v0.41.0...v0.42.0) (2026-11-13)
 
 
