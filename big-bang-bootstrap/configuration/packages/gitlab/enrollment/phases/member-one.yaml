@@ -1,0 +1,62 @@
+- ansible.builtin.set_fact: {phase_substage: issuer-observation-refresh}
+- name: Refresh only the fixed issuer-owned projection; no writer Kubernetes token
+  ansible.builtin.command:
+    argv: [/opt/perkforge/bin/refresh-identity-evidence, '{{ phase_inputs }}', '{{ phase_work }}']
+  changed_when: false
+- ansible.builtin.command:
+    argv: [python3, '{{ playbook_dir }}/contract.py', --phase, memberships, --inputs, '{{ phase_inputs }}', --envelope, '{{ phase_work }}/envelope.json']
+  changed_when: false
+- ansible.builtin.set_fact:
+    phase_envelope: '{{ lookup("file", phase_work + "/envelope.json") | from_json }}'
+- name: Same attempt cannot replace the complete observation while a batch is running
+  ansible.builtin.assert:
+    that: phase_envelope == initial_envelope
+- ansible.builtin.set_fact:
+    selected_desired: '{{ phase_envelope.snapshot.members | selectattr("subject","equalto",selected_subject) | first | default({}) }}'
+    selected_identity: '{{ phase_envelope.identities | selectattr("subject","equalto",selected_subject) | first | default({}) }}'
+    selected_prior: '{{ membership_state.prior | selectattr("subject","equalto",selected_subject) | first | default({}) }}'
+    selected_operation: none
+    selected_stage: NoOwnedMembership
+- ansible.builtin.set_fact:
+    selected_stage: '{{ selected_identity.stage | default("NoOwnedMembership") }}'
+  when: selected_desired.enabled | default(false)
+- ansible.builtin.set_fact:
+    selected_operation: grant
+    selected_stage: GrantPending
+  when: selected_identity.stage | default('') == 'IdentityVerified'
+- ansible.builtin.set_fact:
+    selected_operation: revoke
+    selected_stage: RevokePending
+  when:
+  - selected_prior | length > 0
+  - selected_identity.stage | default('') != 'IdentityVerified'
+- ansible.builtin.set_fact:
+    selected_operation: none
+    selected_stage: PendingRoleChange
+  when:
+  - selected_prior | length > 0
+  - selected_identity.stage | default('') == 'IdentityVerified'
+  - selected_prior.role != selected_desired.role or selected_prior.native_user_id != selected_identity.native_user_id
+- when: selected_operation != 'none'
+  block:
+  - ansible.builtin.set_fact:
+      phase_substage: native-membership-readback
+      selected_role: '{{ selected_desired.role if selected_operation == "grant" else selected_prior.role }}'
+      selected_user: '{{ selected_identity.native_user_id if selected_operation == "grant" else selected_prior.native_user_id }}'
+  - ansible.builtin.copy:
+      dest: '{{ phase_work }}/member-inputs.json'
+      mode: '0600'
+      content: "{{ {'gitlab_membership_run':true,'gitlab_membership_scope':'gitlab-membership-' + selected_operation + '-v1','gitlab_membership_operation':selected_operation,'gitlab_membership_recovery_verified':identity_membership_recovery_verified,'gitlab_membership_context':identity_context,'gitlab_membership_source_revision':identity_source_revision,'gitlab_native_origin':identity_gitlab_origin,'gitlab_native_ca_file':phase_work + '/lab-ca.crt','gitlab_native_user_id':selected_user | int,'gitlab_native_subject':selected_subject,'gitlab_native_group_id':membership_state.group.group_id,'gitlab_native_group_path':'tenants/' + identity_context,'gitlab_native_access_level':{'tenant-admin':50,'tenant-developer':30,'tenant-viewer':20}[selected_role],'gitlab_native_role':selected_role} | to_json }}"
+  - ansible.builtin.copy:
+      dest: '{{ phase_work }}/member-attestation.json'
+      mode: '0600'
+      content: '{{ selected_identity | to_json }}'
+  - ansible.builtin.set_fact:
+      operations_attempted: '{{ operations_attempted | int + 1 }}'
+  - ansible.builtin.command:
+      argv: ['{{ playbook_dir }}/../../run-membership.sh', --apply, '{{ phase_work }}/group-writer', '{{ phase_work }}/member-attestation.json', '{{ phase_group_receipt }}', '{{ phase_work }}/member-inputs.json', '{{ phase_group_receipt | dirname }}/gitlab-member-{{ selected_subject }}.json']
+    changed_when: true
+  - ansible.builtin.set_fact:
+      selected_stage: '{{ "Granted" if selected_operation == "grant" else (selected_identity.stage if selected_desired.enabled | default(false) else "Revoked") }}'
+- ansible.builtin.set_fact:
+    member_results: '{{ member_results + [{"subject":selected_subject,"stage":selected_stage}] }}'

@@ -1,0 +1,9 @@
+- ansible.builtin.copy:
+    dest: '{{ phase_work }}/subject-inputs.json'
+    mode: '0600'
+    content: "{{ {'context':identity_context,'subject':selected_member.subject,'source_revision':identity_source_revision,'origin':identity_gitlab_origin,'ca_file':phase_lab_ca} | to_json }}"
+- ansible.builtin.command:
+    argv: [python3, '{{ playbook_dir }}/../resolve-subject.py', --verify, '{{ phase_gitlab_reader }}', '{{ phase_work }}/subject-{{ selected_member.subject }}.json', '{{ phase_work }}/subject-inputs.json']
+  changed_when: false
+- ansible.builtin.set_fact:
+    observed_identities: '{{ observed_identities + [lookup("file",phase_work + "/subject-" + selected_member.subject + ".json") | from_json] }}'
