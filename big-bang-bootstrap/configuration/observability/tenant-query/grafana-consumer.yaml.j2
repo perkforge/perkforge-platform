@@ -48,7 +48,7 @@ upstream:
         type: loki
         access: proxy
         editable: false
-        url: https://{{ grafana_loki_gateway_host }}
+        url: https://{{ grafana_loki_gateway_host }}:443
         basicAuth: true
         basicAuthUser: $LOKI_USERNAME
         jsonData: {tlsAuthWithCACert: true, tlsSkipVerify: false, timeout: 30, maxLines: 1000}
