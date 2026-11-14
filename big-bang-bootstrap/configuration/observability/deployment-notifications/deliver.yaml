@@ -111,3 +111,24 @@
         argv: [kubectl, -n, flux-system, create, configmap, deployment-openbao-ca, '--from-file=ca.crt={{ ntfy_bao_ca_file }}']
     - ansible.builtin.command:
         argv: [kubectl, create, -f, '{{ ntfy_deployments_runtime_dir }}/consumers.yaml']
+    - name: Require dedicated ESO Ready before any root promotion
+      ansible.builtin.command:
+        argv: [kubectl, -n, flux-system, wait, externalsecret/flux-deployment-publisher, '--for=condition=Ready', '--timeout=120s']
+      changed_when: false
+    - name: Verify exact decoded publisher payload privately
+      no_log: true
+      block:
+      - ansible.builtin.command:
+          argv: [kubectl, -n, flux-system, get, secret, flux-deployment-publisher, -o, json]
+        register: synchronized
+        changed_when: false
+      - ansible.builtin.set_fact:
+          synchronized_data: '{{ (synchronized.stdout | from_json).data }}'
+      - ansible.builtin.assert:
+          that:
+          - synchronized_data.keys() | sort == ['ca.crt', 'headers']
+          - >-
+            (synchronized_data['headers'] | b64decode | from_yaml) == {"Authorization": "Bearer " + (lookup("file", ntfy_deployments_runtime_dir + "/publisher.token") | trim), "Click": deployment_click_url}
+          - (synchronized_data['ca.crt'] | b64decode) == lookup('file', deployment_ntfy_ca_file, rstrip=false)
+      always:
+      - ansible.builtin.set_fact: {synchronized: {}, synchronized_data: {}}
