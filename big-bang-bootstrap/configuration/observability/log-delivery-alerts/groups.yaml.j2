@@ -14,7 +14,8 @@ groups:
     execErrState: Error
     isPaused: false
     annotations:
-      summary: {{ rule.summary | to_json }}
+{% set rate_text = '{{ $r := printf "%.6g" $values.A.Value }}{{ if or (eq $r "+Inf") (eq $r "-Inf") (eq $r "NaN") }}unavailable{{ else }}{{ $r }}{{ end }}' %}
+      summary: {{ (rule.summary + (" Observed 5m rate: " + rate_text + " " + rule.unit + "." if rule.unit is defined else "")) | to_json }}
       dashboard_url: {{ (log_delivery_grafana_url + "d/pf-pod-logs") | to_json }}
       runbook_url: {{ log_delivery_runbook_url | to_json }}
     labels:

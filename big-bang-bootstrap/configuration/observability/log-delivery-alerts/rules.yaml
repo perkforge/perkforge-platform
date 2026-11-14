@@ -1,13 +1,15 @@
 log_delivery_rules:
 - id: drops
+  unit: entries/s
   title: Log delivery drops sustained
   for: 10m
-  expr: sum(rate(loki_write_dropped_entries_total{namespace="alloy",service="alloy-alloy-logs"}[5m])) > bool 0
+  expr: sum(rate(loki_write_dropped_entries_total{namespace="alloy",service="alloy-alloy-logs"}[5m]))
   summary: Fresh dropped-entry increments persist beyond the five-minute rate window for ten minutes. Inspect Alloy write errors and Loki rejection reason; do not weaken retention or discard logs silently.
 - id: retries
+  unit: retries/s
   title: Log delivery retries sustained
   for: 15m
-  expr: sum(rate(loki_write_batch_retries_total{namespace="alloy",service="alloy-alloy-logs"}[5m])) > bool 0
+  expr: sum(rate(loki_write_batch_retries_total{namespace="alloy",service="alloy-alloy-logs"}[5m]))
   summary: Alloy write retries persist for fifteen minutes. Inspect gateway TLS/auth, Loki readiness and capacity. A retry is not itself proof of lost records.
 - id: telemetry
   title: Log delivery telemetry unavailable

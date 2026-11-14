@@ -17,6 +17,13 @@ class DeliveryAlerts(unittest.TestCase):
    self.assertEqual({x['uid'] for x in rules},{'pf-log-delivery-drops','pf-log-delivery-retries','pf-log-delivery-telemetry'})
    for rule in rules:
     self.assertEqual(rule['notification_settings']['receiver'],'platform-resource-ntfy');self.assertEqual(rule['noDataState'],'KeepLast');self.assertEqual(rule['execErrState'],'Error');self.assertEqual(rule['annotations']['dashboard_url'],'https://grafana.example.test/d/pf-pod-logs')
+   for rule in rules[:2]:
+    self.assertIn('Observed 5m rate:',rule['annotations']['summary'])
+    self.assertIn('printf "%.6g"',rule['annotations']['summary'])
+    self.assertIn('unavailable',rule['annotations']['summary'])
+    self.assertNotIn('> bool 0',rule['data'][0]['model']['expr'])
+    self.assertEqual(rule['data'][1]['model']['conditions'][0]['evaluator'],{'type':'gt','params':[0]})
+   self.assertNotIn('Observed 5m rate:',rules[2]['annotations']['summary'])
    sm=yaml.safe_load((M/'servicemonitor.yaml').read_text());self.assertEqual(sm['kind'],'ServiceMonitor');self.assertEqual(sm['metadata']['namespace'],'alloy');self.assertEqual(sm['spec']['namespaceSelector'],{'matchNames':['alloy']});self.assertEqual(sm['spec']['endpoints'][0]['port'],'http-metrics');self.assertEqual(sm['spec']['selector']['matchLabels']['app.kubernetes.io/instance'],'alloy-alloy-logs');self.assertIn('loki_process_dropped_lines_total',sm['spec']['endpoints'][0]['metricRelabelings'][0]['regex'])
  def test_update_preserves_ntfy_mattermost_and_other_groups(self):
   play=yaml.safe_load((M/'update.yaml').read_text())[0];inner=next(t['block'] for t in play['tasks'][0]['block'] if t.get('no_log'))

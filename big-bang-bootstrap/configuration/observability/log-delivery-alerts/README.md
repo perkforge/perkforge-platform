@@ -42,3 +42,16 @@ inside the existing `grafana-platform-alerts` record, preserving all receivers
 exact ESO payload and native Grafana provisioning after the coordinated reload.
 Do not induce production drops to test an alert; use native synthetic rule tests
 and clearly distinguish actual target/rule evaluation from notification delivery.
+
+The drop/retry query returns the actual reset-safe summed rate, not a boolean;
+Grafana's existing C > 0 threshold and persistence windows are unchanged. The
+notification summary includes the five-minute rate in entries/s or retries/s,
+formatted to six significant digits; nonfinite values display unavailable.
+This is a rate, not an inferred count or proof that every rejected batch entry
+was lost. The missing-telemetry rule remains a status condition.
+
+These rules cover writer delivery and missing scrape/counter telemetry, not
+source discovery completeness. Pinned Alloy v1.18 Kubernetes API source health
+only indicates valid configuration and exposes no source-specific debug metrics;
+per-target last-line/error metadata requires separate coverage design. Do not
+interpret scrape up=1 as proof every intended pod is being collected.
