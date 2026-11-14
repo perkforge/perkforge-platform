@@ -81,6 +81,8 @@ class Manifests(unittest.TestCase):
     if x['kind'] in ['Provider','Alert']:self.assertTrue(x['spec']['suspend'])
    net=next(x for x in docs if x['kind']=='NetworkPolicy')['spec']
    self.assertEqual(net['egress'][-1],{'to':[{'namespaceSelector':{'matchLabels':{'kubernetes.io/metadata.name':'kube-system'}},'podSelector':{'matchLabels':{'app.kubernetes.io/name':'rke2-traefik','app.kubernetes.io/instance':'rke2-traefik-kube-system'}}}], 'ports':[{'protocol':'TCP','port':8443}]})
+   public=next(x for x in docs if x['kind']=='ConfigMap' and x['metadata']['name']=='mattermost-projection-public')
+   self.assertEqual(public['data']['resolver.conf'],'resolver 10.0.0.10 valid=30s ipv6=off;')
    deploy=next(x for x in docs if x['kind']=='Deployment');self.assertFalse(deploy['spec']['template']['spec']['automountServiceAccountToken'])
    private=d/'private';private.mkdir(mode=0o700)
    for name,value in {'tls.crt':ca,'tls.key':'FIXTURE','platform-hook':'https://chat.example.invalid/hooks/'+('a'*26),'portal-hook':'https://chat.example.invalid/hooks/'+('b'*26)}.items():
