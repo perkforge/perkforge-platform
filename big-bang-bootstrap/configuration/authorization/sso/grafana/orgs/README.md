@@ -221,7 +221,7 @@ roles**, including tenant admins, for the initial log-view release. Set
 context's native org mapping, not canonical Keycloak roles, other contexts or
 platform-admin/platform-engineer access. Omitted/false retains the earlier
 review-only Admin/Editor/Viewer contract; that broader human matrix is not live.
-`portal-log-view-values.yaml` binds this pilot to verified native org2, and is
+`portal-log-view/values.yaml` binds this pilot to verified native org2, and is
 unselected by default. Other installations must render their discovered org ID.
 
 Pinned native Grafana13.2.1 confirms why this is required: org Admin has

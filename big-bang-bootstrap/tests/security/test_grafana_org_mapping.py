@@ -84,3 +84,17 @@ class GrafanaOrgMapping(unittest.TestCase):
         self.assertIn('pf-observability-other-tenant-developer:3:Editor',oauth['org_mapping'])
         self.assertIn('/platform/admins:1:Admin',oauth['org_mapping'])
         self.assertIn('pf-observability-platform-viewer:1:Viewer',oauth['org_mapping'])
+
+    def test_selected_root_is_additive_only(self):
+        from fixtures.render_helpers import build
+        baseline=build(ROOT/'big-bang-bootstrap/clusters/local-portal-log-acceptance')
+        actual=build(ROOT/'big-bang-bootstrap/clusters/local-portal-log-view')
+        extra=[o for o in actual if o['kind']=='ConfigMap' and o['metadata']['name']=='values-portal-log-oauth']
+        self.assertEqual(len(extra),1)
+        remaining=[o for o in actual if o not in extra]
+        target=next(o for o in remaining if o['kind']=='HelmRelease' and o['metadata']['name']=='bigbang')
+        self.assertEqual(target['spec']['valuesFrom'].pop(),{'kind':'ConfigMap','name':'values-portal-log-oauth','valuesKey':'values.yaml'})
+        self.assertEqual(remaining,baseline)
+        self.inputs['grafana_org_contexts'][0]['log_view_only']=True
+        result=self.render(self.inputs);self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertEqual(yaml.safe_load(extra[0]['data']['values.yaml']),yaml.safe_load((self.folder/'out/oauth-values.yaml').read_text()))
