@@ -1,0 +1,46 @@
+# Create-only; collisions/foreign state are rejected by complete preflight.
+- when: mb_user.status == 404
+  block:
+  - ansible.builtin.uri:
+      url: '{{ mattermost_context_origin }}/api/v4/users?disable_welcome_email=true'
+      headers: '{{ mb_headers }}'
+      method: POST
+      body_format: json
+      body: {username: '{{ mb.username }}', email: '{{ mb.email }}', auth_service: openid, auth_data: '{{ mb.subject }}', email_verified: '{{ mb.email_verified }}', roles: system_user}
+      status_code: 201
+    register: mb_created
+  - ansible.builtin.set_fact:
+      mb_receipt: '{{ mb_receipt | combine({"ids":mb_receipt.ids | combine({"user_id":mb_created.json.id})}) }}'
+  - ansible.builtin.include_tasks: save.yaml
+- when: mb_team.status == 404
+  block:
+  - ansible.builtin.uri:
+      url: '{{ mattermost_context_origin }}/api/v4/teams'
+      headers: '{{ mb_headers }}'
+      method: POST
+      body_format: json
+      body: {name: '{{ mb.team_name }}', display_name: PerkForge, type: I, allow_open_invite: false}
+      status_code: 201
+    register: mb_created
+  - ansible.builtin.set_fact:
+      mb_receipt: '{{ mb_receipt | combine({"ids":mb_receipt.ids | combine({"team_id":mb_created.json.id})}) }}'
+  - ansible.builtin.include_tasks: save.yaml
+- when: mb_channel.status == 404
+  block:
+  - ansible.builtin.uri:
+      url: '{{ mattermost_context_origin }}/api/v4/channels'
+      headers: '{{ mb_headers }}'
+      method: POST
+      body_format: json
+      body: {team_id: '{{ mb_receipt.ids.team_id }}', name: '{{ mb.channel_name }}', display_name: Portal alerts, type: P}
+      status_code: 201
+    register: mb_created
+  - ansible.builtin.set_fact:
+      mb_receipt: '{{ mb_receipt | combine({"ids":mb_receipt.ids | combine({"channel_id":mb_created.json.id})}) }}'
+  - ansible.builtin.include_tasks: save.yaml
+- name: Verify recovery creator exception and add only ordinary owner memberships
+  ansible.builtin.include_tasks: membership.yaml
+  loop:
+  - {resource: teams, id: '{{ mb_receipt.ids.team_id }}', ordinary_role: team_user, creator_role: team_admin}
+  - {resource: channels, id: '{{ mb_receipt.ids.channel_id }}', ordinary_role: channel_user, creator_role: channel_admin}
+  loop_control: {loop_var: mb_target}

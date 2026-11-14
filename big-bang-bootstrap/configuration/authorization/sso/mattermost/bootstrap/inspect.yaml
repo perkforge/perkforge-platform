@@ -1,0 +1,54 @@
+# Entire include is executed under no_log by prepare.yaml.
+- ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/users/me'
+    headers: '{{ mb_headers }}'
+  register: mb_me
+- ansible.builtin.assert:
+    that:
+    - mb_me.json.id == mb.operator_id and mb_me.json.delete_at == 0
+    - mb_me.json.roles.split() | sort == ['system_admin', 'system_user']
+    - mb_me.json.auth_service | default('') == ''
+- ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/users/username/{{ mb.username }}'
+    headers: '{{ mb_headers }}'
+    status_code: [200, 404]
+  register: mb_user
+- ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/users/email/{{ mb.email | urlencode }}'
+    headers: '{{ mb_headers }}'
+    status_code: [200, 404]
+  register: mb_email
+- ansible.builtin.assert:
+    that: mb_user.status == mb_email.status
+- when: mb_user.status == 200
+  ansible.builtin.assert:
+    that:
+    - mb_user.json.id == mb_receipt.ids.get('user_id', '') and mb_email.json.id == mb_user.json.id
+    - mb_user.json.username == mb.username and mb_user.json.email == mb.email
+    - mb_user.json.auth_service == 'openid' and mb_user.json.auth_data == mb.subject
+    - mb_user.json.roles == 'system_user' and mb_user.json.delete_at == 0
+- ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/teams/name/{{ mb.team_name }}'
+    headers: '{{ mb_headers }}'
+    status_code: [200, 404]
+  register: mb_team
+- when: mb_team.status == 200
+  block:
+  - ansible.builtin.assert:
+      that:
+      - mb_team.json.id == mb_receipt.ids.get('team_id', '')
+      - mb_team.json.name == mb.team_name and mb_team.json.type == 'I' and mb_team.json.delete_at == 0
+      - mb_team.json.allow_open_invite is sameas false
+  - ansible.builtin.uri:
+      url: '{{ mattermost_context_origin }}/api/v4/teams/{{ mb_team.json.id }}/channels/name/{{ mb.channel_name }}'
+      headers: '{{ mb_headers }}'
+      status_code: [200, 404]
+    register: mb_channel_lookup
+- ansible.builtin.set_fact:
+    mb_channel: '{{ mb_channel_lookup if mb_team.status == 200 else {"status":404} }}'
+- when: mb_channel.status == 200
+  ansible.builtin.assert:
+    that:
+    - mb_channel.json.id == mb_receipt.ids.get('channel_id', '')
+    - mb_channel.json.name == mb.channel_name and mb_channel.json.type == 'P' and mb_channel.json.delete_at == 0
+    - mb_channel.json.team_id == mb_team.json.id

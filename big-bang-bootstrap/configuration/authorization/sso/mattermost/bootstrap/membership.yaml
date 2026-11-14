@@ -1,0 +1,30 @@
+- ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/{{ mb_target.resource }}/{{ mb_target.id }}/members/{{ mb.operator_id }}'
+    headers: '{{ mb_headers }}'
+  register: mb_creator
+- ansible.builtin.assert:
+    that:
+    - mb_creator.json.user_id == mb.operator_id
+    - mb_creator.json.roles.split() | sort == [mb_target.ordinary_role, mb_target.creator_role] | sort
+- ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/{{ mb_target.resource }}/{{ mb_target.id }}/members/{{ mb_receipt.ids.user_id }}'
+    headers: '{{ mb_headers }}'
+    status_code: [200, 404]
+  register: mb_membership
+- when: mb_membership.status == 404
+  ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/{{ mb_target.resource }}/{{ mb_target.id }}/members'
+    headers: '{{ mb_headers }}'
+    method: POST
+    body_format: json
+    body: {user_id: '{{ mb_receipt.ids.user_id }}'}
+    status_code: 201
+- ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/{{ mb_target.resource }}/{{ mb_target.id }}/members/{{ mb_receipt.ids.user_id }}'
+    headers: '{{ mb_headers }}'
+  register: mb_membership
+- ansible.builtin.assert:
+    that:
+    - mb_membership.json.user_id == mb_receipt.ids.user_id
+    - mb_membership.json.roles == mb_target.ordinary_role
+    - mb_membership.json.delete_at | default(0) == 0
