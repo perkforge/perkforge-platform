@@ -74,3 +74,26 @@ For a private Keycloak endpoint, the reviewed SSO values derive
 issuer hostname. Live activation needs exact-host approval. This is Mattermost's
 native SSRF exception for discovery/token traffic, not a CIDR/wildcard, network
 route, or TLS verification bypass. The trusted CA mount remains required.
+
+## Channel-locked incoming hook (separate opt-in)
+
+`webhook.yaml` requires `mattermost_webhook_apply=true` and
+`mattermost_webhook_approved=true`, plus the same origin/CA/token inputs and
+`mattermost_bootstrap_receipt_file`. It creates only one incoming hook owned by
+the exact existing recovery operator, locked to the receipt's private
+`portal-alerts` channel. It does not create a service user, modify roles/memberships,
+change invitations, or send a message. This owner-only pilot deliberately uses
+the already approved recovery identity as owner; broader tenant use still needs
+its reviewed service ownership and membership model.
+
+The native team hook listing is bounded; a full200 page or ambiguous existing
+channel hook stops. A saved hook must match the exact protected receipt; a
+same-channel hook without a receipt is not silently adopted. Successful creation
+saves `incoming-hook-receipt.json`, verifies owner/team/channel/locked metadata by
+GET, then writes `incoming-hook.url` beside it, owner-only0600. The URL is a bearer
+credential. Never print it, put it in Git/ConfigMaps, or include it in test output.
+An uncertain create without a receipt needs explicit private reconciliation,
+not a blind retry. Normal reruns do not create additional hooks. The caller
+revokes its short-lived API session in `finally` and owns approved runtime custody.
+The actual native channel lock rejects destination overrides; Grafana additionally
+sends no `channel` field. Source fixtures are not live lock/notification proof.

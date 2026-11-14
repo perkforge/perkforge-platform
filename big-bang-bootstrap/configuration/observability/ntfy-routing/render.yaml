@@ -42,6 +42,33 @@
         path: '{{ grafana_ntfy_output_dir }}'
         state: directory
         mode: '0700'
+    - name: Validate optional exact locked Mattermost destination privately
+      when: grafana_mattermost_enabled | default(false) | bool
+      no_log: true
+      block:
+      - ansible.builtin.assert:
+          that:
+          - grafana_ntfy_context == 'portal'
+          - grafana_mattermost_locked_approved is sameas true
+          - grafana_mattermost_channel_id is match('^[a-z0-9]{26}$')
+          - grafana_mattermost_origin is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+          - (grafana_mattermost_triage_url | default('')) == '' or (grafana_mattermost_triage_url is match('^https://[a-z0-9.-]+(:[0-9]+)?/alerting/list$'))
+          - lookup('file', grafana_mattermost_ca_file, rstrip=false) | hash('sha256') == grafana_mattermost_ca_sha256
+      - ansible.builtin.command: {argv: [id, -u]}
+        register: mm_uid
+        changed_when: false
+      - ansible.builtin.stat: {path: '{{ grafana_mattermost_hook_url_file }}', follow: false}
+        register: mm_url_stat
+      - ansible.builtin.stat: {path: '{{ grafana_mattermost_hook_url_file | dirname }}', follow: false}
+        register: mm_dir_stat
+      - ansible.builtin.assert:
+          that:
+          - grafana_mattermost_hook_url_file == grafana_mattermost_hook_url_file | realpath
+          - mm_url_stat.stat.isreg and not mm_url_stat.stat.islnk
+          - mm_url_stat.stat.mode == '0600' and mm_url_stat.stat.uid == (mm_uid.stdout | int)
+          - mm_dir_stat.stat.isdir and not mm_dir_stat.stat.islnk
+          - mm_dir_stat.stat.mode == '0700' and mm_dir_stat.stat.uid == (mm_uid.stdout | int)
+          - lookup('file', grafana_mattermost_hook_url_file) | trim is match('^' + (grafana_mattermost_origin | regex_escape) + '/hooks/[a-z0-9]{26}$')
     - name: Render secret-bearing native alerting configuration privately
       ansible.builtin.template:
         src: '{{ playbook_dir }}/alerting.yaml.j2'

@@ -1,0 +1,131 @@
+# Create/reuse one channel-locked hook. Never sends a message or changes membership.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    mattermost_webhook_apply: false
+    mattermost_webhook_approved: false
+  module_defaults:
+    ansible.builtin.uri:
+      method: GET
+      validate_certs: true
+      ca_path: '{{ mattermost_context_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      unredirected_headers: [Authorization]
+      timeout: 20
+  tasks:
+  - when: mattermost_webhook_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - mattermost_webhook_approved | bool
+        - mattermost_context_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - mattermost_context_origin is not search('[\\x00-\\x20\\x7f]')
+    - no_log: true
+      block:
+      - ansible.builtin.command: {argv: [id, -u]}
+        register: mh_uid
+        changed_when: false
+      - ansible.builtin.stat: {path: '{{ item }}', follow: false}
+        loop: ['{{ mattermost_bootstrap_receipt_file }}', '{{ mattermost_context_token_file }}']
+        register: mh_files
+      - ansible.builtin.assert:
+          that:
+          - item.item is match('^/') and item.item | realpath == item.item
+          - item.stat.isreg | default(false) and not (item.stat.islnk | default(false))
+          - item.stat.mode == '0600' and item.stat.uid == (mh_uid.stdout | int)
+        loop: '{{ mh_files.results }}'
+      - ansible.builtin.stat: {path: '{{ item | dirname }}', follow: false}
+        loop: ['{{ mattermost_bootstrap_receipt_file }}', '{{ mattermost_context_token_file }}']
+        register: mh_dirs
+      - ansible.builtin.assert:
+          that:
+          - item.stat.isdir | default(false) and not (item.stat.islnk | default(false))
+          - item.stat.mode == '0700' and item.stat.uid == (mh_uid.stdout | int)
+        loop: '{{ mh_dirs.results }}'
+      - ansible.builtin.set_fact:
+          mh: '{{ lookup("file", mattermost_bootstrap_receipt_file) | from_json }}'
+          mh_headers: {Authorization: 'Bearer {{ lookup("file", mattermost_context_token_file) | trim }}'}
+          mh_receipt_path: '{{ mattermost_bootstrap_receipt_file | dirname }}/incoming-hook-receipt.json'
+          mh_url_path: '{{ mattermost_bootstrap_receipt_file | dirname }}/incoming-hook.url'
+      - ansible.builtin.assert:
+          that:
+          - mh.origin == mattermost_context_origin
+          - mh.team_name == 'perkforge' and mh.channel_name == 'portal-alerts'
+          - mh.operator_id is match('^[a-z0-9]{26}$')
+          - mh.ids.team_id is match('^[a-z0-9]{26}$') and mh.ids.channel_id is match('^[a-z0-9]{26}$')
+      - ansible.builtin.uri:
+          url: '{{ mattermost_context_origin }}/api/v4/users/me'
+          headers: '{{ mh_headers }}'
+        register: mh_me
+      - ansible.builtin.assert:
+          that:
+          - mh_me.json.id == mh.operator_id and mh_me.json.delete_at == 0
+          - mh_me.json.roles.split() | sort == ['system_admin', 'system_user']
+      - ansible.builtin.uri:
+          url: '{{ mattermost_context_origin }}/api/v4/channels/{{ mh.ids.channel_id }}'
+          headers: '{{ mh_headers }}'
+        register: mh_channel
+      - ansible.builtin.assert:
+          that:
+          - mh_channel.json.id == mh.ids.channel_id and mh_channel.json.team_id == mh.ids.team_id
+          - mh_channel.json.name == mh.channel_name and mh_channel.json.type == 'P' and mh_channel.json.delete_at == 0
+      - ansible.builtin.stat: {path: '{{ item }}', follow: false}
+        loop: ['{{ mh_receipt_path }}', '{{ mh_url_path }}']
+        register: mh_outputs
+      - when: item.stat.exists
+        ansible.builtin.assert:
+          that:
+          - item.stat.isreg and not item.stat.islnk
+          - item.stat.mode == '0600' and item.stat.uid == (mh_uid.stdout | int)
+        loop: '{{ mh_outputs.results }}'
+      - ansible.builtin.set_fact:
+          mh_receipt: '{{ (lookup("file", mh_receipt_path) | from_json) if mh_outputs.results[0].stat.exists else {} }}'
+      - ansible.builtin.uri:
+          url: '{{ mattermost_context_origin }}/api/v4/hooks/incoming?team_id={{ mh.ids.team_id }}&page=0&per_page=200'
+          headers: '{{ mh_headers }}'
+        register: mh_hooks
+      - ansible.builtin.assert:
+          that:
+          - mh_hooks.json is sequence and mh_hooks.json is not mapping and mh_hooks.json is not string
+          - mh_hooks.json | length < 200
+      - ansible.builtin.set_fact:
+          mh_matches: '{{ mh_hooks.json | selectattr("channel_id", "equalto", mh.ids.channel_id) | selectattr("delete_at", "equalto", 0) | list }}'
+      - ansible.builtin.assert:
+          that:
+          - mh_matches | length <= 1
+          - (mh_matches | length == 0 and mh_receipt == {}) or (mh_matches | length == 1 and mh_receipt.get('origin') == mh.origin and mh_receipt.get('hook_id') == mh_matches[0].id and mh_receipt.get('channel_id') == mh.ids.channel_id and mh_receipt.get('owner_id') == mh.operator_id)
+      - when: mh_matches | length == 0
+        block:
+        - ansible.builtin.uri:
+            url: '{{ mattermost_context_origin }}/api/v4/hooks/incoming'
+            headers: '{{ mh_headers }}'
+            method: POST
+            body_format: json
+            body: {channel_id: '{{ mh.ids.channel_id }}', channel_locked: true, display_name: Portal alerts, description: Platform-managed Portal Grafana alerts}
+            status_code: 201
+          register: mh_created
+        - ansible.builtin.set_fact:
+            mh_receipt: {origin: '{{ mh.origin }}', team_id: '{{ mh.ids.team_id }}', channel_id: '{{ mh.ids.channel_id }}', owner_id: '{{ mh.operator_id }}', hook_id: '{{ mh_created.json.id }}'}
+        - ansible.builtin.copy:
+            dest: '{{ mh_receipt_path }}'
+            mode: '0600'
+            content: '{{ mh_receipt | to_json }}'
+      - ansible.builtin.uri:
+          url: '{{ mattermost_context_origin }}/api/v4/hooks/incoming/{{ mh_receipt.hook_id }}'
+          headers: '{{ mh_headers }}'
+        register: mh_verified
+      - ansible.builtin.assert:
+          that:
+          - mh_verified.json.id == mh_receipt.hook_id
+          - mh_verified.json.team_id == mh.ids.team_id and mh_verified.json.channel_id == mh.ids.channel_id
+          - mh_verified.json.user_id == mh.operator_id and mh_verified.json.delete_at == 0
+          - mh_verified.json.channel_locked is sameas true
+      - ansible.builtin.copy:
+          dest: '{{ mh_url_path }}'
+          mode: '0600'
+          content: '{{ mh.origin }}/hooks/{{ mh_receipt.hook_id }}'
+      always:
+      - ansible.builtin.set_fact: {mh: {}, mh_headers: {}, mh_receipt: {}, mh_hooks: {}, mh_matches: [], mh_created: {}, mh_verified: {}, mh_me: {}, mh_channel: {}, cacheable: false}

@@ -51,6 +51,27 @@ class GrafanaNtfyRouting(unittest.TestCase):
             mount=yaml.safe_load((path/'rendered/values.yaml').read_text())['grafana']['values']['upstream']
             self.assertEqual(set(mount),{'extraSecretMounts'})
             self.assertEqual((path/'rendered/alerting.yaml').stat().st_mode & 0o777,0o600)
+            hook=path/'hook.url'; hook.write_text('https://chat.example.test/hooks/'+'h'*26); hook.chmod(0o600)
+            mm={**values,'grafana_mattermost_enabled':True,'grafana_mattermost_locked_approved':True,
+                'grafana_mattermost_channel_id':'c'*26,'grafana_mattermost_origin':'https://chat.example.test',
+                'grafana_mattermost_hook_url_file':str(hook),'grafana_mattermost_ca_file':str(ca),
+                'grafana_mattermost_ca_sha256':hashlib.sha256(ca.read_bytes()).hexdigest()}
+            result=run(mm); self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            self.assertNotIn(hook.read_text(),result.stdout+result.stderr)
+            added=yaml.safe_load((path/'rendered/alerting.yaml').read_text())
+            receivers=added['contactPoints'][0]['receivers']; self.assertEqual(len(receivers),2)
+            self.assertEqual(receivers[0],receiver); self.assertEqual(added['groups'],config['groups'])
+            self.assertEqual(receivers[1]['uid'],'ctx-portal-mattermost')
+            self.assertNotIn('channel',receivers[1]['settings']['payload']['template'])
+            self.assertNotIn('.Labels',receivers[1]['settings']['payload']['template'])
+            self.assertFalse(receivers[1]['settings']['tlsConfig']['insecureSkipVerify'])
+            self.assertNotIn('Triage:',receivers[1]['settings']['payload']['template'])
+            result=run({**mm,'grafana_mattermost_triage_url':'https://grafana.example.test/alerting/list'}); self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            linked=yaml.safe_load((path/'rendered/alerting.yaml').read_text())
+            self.assertEqual(linked['contactPoints'][0]['receivers'][0],receiver)
+            self.assertIn('Triage: https://grafana.example.test/alerting/list',linked['contactPoints'][0]['receivers'][1]['settings']['payload']['template'])
+            rejected=run({**mm,'grafana_mattermost_triage_url':'https://grafana.example.test/alerting/list?secret=x'}); self.assertNotEqual(rejected.returncode,0)
+            rejected=run({**mm,'grafana_mattermost_locked_approved':False}); self.assertNotEqual(rejected.returncode,0)
             for change in ({'grafana_ntfy_topic':'*'},{'grafana_ntfy_url':'http://notify.example.test/'},{'grafana_ntfy_namespace':'tenant-.*'}):
                 rejected=run({**values,**change});self.assertNotEqual(rejected.returncode,0)
 
@@ -68,7 +89,7 @@ class GrafanaNtfyRouting(unittest.TestCase):
                 self.assertNotIn('synthetic-must-not-leak',result.stdout+result.stderr)
 
     def test_default_and_check_are_inert(self):
-        for name,flag in [('render.yaml','grafana_ntfy_render'),('activate.yaml','grafana_ntfy_activate')]:
+        for name,flag in [('render.yaml','grafana_ntfy_render'),('activate.yaml','grafana_ntfy_activate'),('update-mattermost.yaml','grafana_mattermost_update')]:
             for args in ([],['--check','-e',flag+'=true']):
                 result=subprocess.run(['ansible-playbook','-i','localhost,',str(MODULE/name),*args],capture_output=True,text=True,timeout=20)
                 self.assertEqual(result.returncode,0,result.stdout+result.stderr)

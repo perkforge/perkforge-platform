@@ -52,3 +52,48 @@ notification endpoint without the owner's separately coordinated test request.
 Phone receipt, real firing/resolved, repeats and silence behavior are distinct
 acceptance, not inferred from successful import. This slice does not migrate all
 upstream rules or invent absent pipeline/security metrics.
+
+## Optional matching Portal Mattermost delivery
+
+The opt-in `grafana_mattermost_enabled=true` adds a second native webhook receiver
+`ctx-portal-mattermost` to the **same** `context-portal-ntfy` contact point. Existing
+ntfy UID/configuration, alert rules, grouping, resolution and repeat settings are
+unchanged. It sends only static context, firing/resolved/unknown and alert count;
+no raw labels, error text, user-supplied links or dynamic channel override.
+
+Render inputs additionally require `grafana_mattermost_locked_approved: true`,
+exact verified `grafana_mattermost_channel_id`, trusted HTTPS
+`grafana_mattermost_origin`, owner-only `grafana_mattermost_hook_url_file`, and
+`grafana_mattermost_ca_file` with `grafana_mattermost_ca_sha256`. Verify the native
+hook's owner/channel lock through the separately approved Mattermost helper before
+rendering. The URL file must be0600 under0700, contain only the exact origin's
+`/hooks/<native-id>` URL, and remain out of Git/logs. TLS peer/hostname validation
+stays enabled with the approved public CA. No network rule changes are implied.
+
+Use `update-mattermost.yaml`, **not initial `activate.yaml`**, for an existing
+Portal record/ESO consumer. It is default/check inert and requires
+`grafana_mattermost_update=true`, `grafana_mattermost_update_approved=true`,
+`grafana_ntfy_cluster_uid`, and exact `grafana_ntfy_previous_sha256` of the current
+protected alerting.yaml, in addition to existing approved custody/render inputs.
+It checks the selected cluster/OpenBao identity and existing ESO remote record,
+requires the decoded configuration to differ only by the appended receiver,
+updates the **same** record using its current KV version CAS, verifies readback,
+refreshes only the existing ESO object and waits for exact decoded Secret equality.
+No policies, roles, SAs, Secrets, mounts, root selection or restart are created.
+A repeat with the exact desired payload makes no KV write. Stale/foreign source
+or mixed-field changes stop rather than overwrite another worker.
+
+After exact ESO equality, the rollout coordinator performs the separately
+approved bounded Grafana rollout because the mounted file uses subPath. Preserve
+all dashboards, datasources, both existing provisioning mounts, ntfy server/auth
+and platform-resource rules. Verify native receivers/health and delivery through
+one separately coordinated labeled test, not an induced incident. These helpers
+never send a test or publish a message. A generated URL/Ready Secret is not proof
+of actual Grafana→Mattermost delivery; keep #395/#39 acceptance open until verified.
+
+Optional `grafana_mattermost_triage_url` defaults blank. A target operator may
+supply a separately verified fixed HTTPS Grafana `/alerting/list` URL, without
+query/fragment, to append to the bounded Mattermost text. It never uses alert
+annotations, GeneratorURL or the secret webhook URL. Supplying a link does not
+grant Grafana access; tenant targets remain blank until their #218 boundary and
+access are verified. The ntfy receiver is unchanged.
