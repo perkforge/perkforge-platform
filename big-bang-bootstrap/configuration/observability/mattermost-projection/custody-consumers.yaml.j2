@@ -1,0 +1,36 @@
+{% for consumer in projection_consumers %}
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata: {name: eso-mm-projection-{{ consumer.suffix }}, namespace: {{ consumer.namespace }}, labels: {platform.perkforge.io/credential-owner: mattermost-projection-v1}}
+spec:
+  controller: perkforge
+  provider:
+    vault:
+      server: {{ projection_bao_server | to_json }}
+      path: platform
+      version: v2
+      caProvider: {type: ConfigMap, name: mattermost-projection-openbao-ca, key: ca.crt}
+      auth:
+        kubernetes:
+          mountPath: kubernetes-eso
+          role: eso-mm-projection-{{ consumer.suffix }}
+          serviceAccountRef: {name: eso-mm-projection-{{ consumer.suffix }}, audiences: [openbao-eso]}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: {name: {{ consumer.secret }}, namespace: {{ consumer.namespace }}, labels: {platform.perkforge.io/credential-owner: mattermost-projection-v1}}
+spec:
+  refreshInterval: 1h
+  secretStoreRef: {kind: SecretStore, name: eso-mm-projection-{{ consumer.suffix }}}
+  target:
+    name: {{ consumer.secret }}
+    creationPolicy: Merge
+    deletionPolicy: Retain
+    template: {engineVersion: v2, mergePolicy: Replace, type: Opaque}
+  data:
+{% for field in consumer.fields %}
+  - secretKey: {{ field }}
+    remoteRef: {key: {{ consumer.record }}, property: {{ field }}, conversionStrategy: Default, decodingStrategy: None}
+{% endfor %}
+---
+{% endfor %}

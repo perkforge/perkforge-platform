@@ -1,0 +1,45 @@
+# Local protected inputs only; no API calls, rotation or deployed state changes.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars: {projection_prepare: false}
+  tasks:
+  - when: projection_prepare | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.stat: {path: '{{ projection_private_dir }}', follow: false}
+      register: dir
+    - ansible.builtin.command: {argv: [id, -u]}
+      register: uid
+      changed_when: false
+    - ansible.builtin.assert:
+        that: dir.stat.isdir and not dir.stat.islnk and dir.stat.mode == '0700' and dir.stat.uid == (uid.stdout | int)
+    - ansible.builtin.stat: {path: '{{ projection_private_dir }}/records.json', follow: false}
+      register: existing
+    - ansible.builtin.assert: {that: not existing.stat.exists}
+    - ansible.builtin.stat: {path: '{{ item }}', follow: false}
+      loop: ['{{ projection_private_dir }}/tls.crt', '{{ projection_private_dir }}/tls.key', '{{ projection_platform_hook_file }}', '{{ projection_portal_hook_file }}']
+      register: inputs
+    - ansible.builtin.assert:
+        that: item.stat.isreg and not item.stat.islnk and item.stat.mode == '0600' and item.stat.uid == (uid.stdout | int)
+      loop: '{{ inputs.results }}'
+    - ansible.builtin.set_fact:
+        platform_token: '{{ lookup("ansible.builtin.password", "/dev/null", length=64, chars=["ascii_letters", "digits"]) }}'
+        portal_token: '{{ lookup("ansible.builtin.password", "/dev/null", length=64, chars=["ascii_letters", "digits"]) }}'
+    - ansible.builtin.set_fact:
+        routes:
+          /platform: {title: Platform deployments, token: '{{ platform_token }}', hook: '{{ lookup("file", projection_platform_hook_file) | trim }}', sources: '{{ projection_sources.platform }}', link: '{{ projection_links.platform }}'}
+          /portal: {title: Portal deployments, token: '{{ portal_token }}', hook: '{{ lookup("file", projection_portal_hook_file) | trim }}', sources: '{{ projection_sources.portal }}', link: '{{ projection_links.portal }}'}
+    - ansible.builtin.copy:
+        dest: '{{ projection_private_dir }}/records.json'
+        mode: '0600'
+        content: '{{ records | to_json }}'
+      vars:
+        records:
+          routes-v1: {routes.json: '{{ routes | to_json }}'}
+          tls-v1: {tls.crt: '{{ lookup("file", projection_private_dir + "/tls.crt", rstrip=false) }}', tls.key: '{{ lookup("file", projection_private_dir + "/tls.key", rstrip=false) }}'}
+          platform-v1: {ca.crt: '{{ projection_public_ca }}', headers: '{{ {"Authorization": "Bearer " + platform_token} | to_json }}'}
+          portal-v1: {ca.crt: '{{ projection_public_ca }}', headers: '{{ {"Authorization": "Bearer " + portal_token} | to_json }}'}
+    always:
+    - ansible.builtin.set_fact: {routes: {}, platform_token: '', portal_token: '', cacheable: false}
+      no_log: true

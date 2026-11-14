@@ -1,0 +1,32 @@
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars: {projection_render: false}
+  tasks:
+  - when: projection_render | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - projection_cluster_dns is match('^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+        - projection_output is match('^/[A-Za-z0-9_./-]+$') and projection_output == projection_output | realpath
+        - projection_ingress_namespace is match('^[a-z0-9][a-z0-9-]{0,62}$')
+        - projection_ingress_name is match('^[a-z0-9][a-z0-9-]{0,62}$')
+        - projection_ingress_instance is match('^[a-z0-9][a-z0-9-]{0,62}$')
+        - projection_ingress_port is integer and 1 <= projection_ingress_port <= 65535
+        - projection_sources.keys() | sort == ['platform', 'portal']
+        - projection_sources.portal == ['tenant-portal-config/portal']
+        - projection_sources.platform | length > 0
+        - projection_sources.platform | unique | length == projection_sources.platform | length
+        - projection_mattermost_endpoint_cidrs | length > 0
+        - projection_public_ca is search('-----BEGIN CERTIFICATE-----') and 'PRIVATE KEY' not in projection_public_ca
+    - ansible.builtin.assert:
+        that: item is match('^bigbang/[a-z0-9][a-z0-9-]*$')
+      loop: '{{ projection_sources.platform }}'
+    - ansible.builtin.assert:
+        that: item is match('^([0-9]{1,3}\.){3}[0-9]{1,3}/32$')
+      loop: '{{ projection_mattermost_endpoint_cidrs }}'
+    - ansible.builtin.stat: {path: '{{ projection_output }}', follow: false}
+      register: out
+    - ansible.builtin.assert: {that: not out.stat.exists}
+    - ansible.builtin.file: {path: '{{ projection_output }}', state: directory, mode: '0700'}
+    - ansible.builtin.template: {src: runtime.yaml.j2, dest: '{{ projection_output }}/runtime.yaml', mode: '0600'}

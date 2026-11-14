@@ -1,0 +1,60 @@
+# CREATE-ONLY guarded prerequisite: never apply empty data over an existing Secret.
+{% for namespace in projection_consumers | map(attribute='namespace') | unique %}
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: mattermost-projection-openbao-ca, namespace: {{ namespace }}, labels: {platform.perkforge.io/credential-owner: mattermost-projection-v1}}
+data:
+  ca.crt: {{ projection_public_ca | to_json }}
+---
+{% endfor %}
+{% for consumer in projection_consumers %}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ consumer.secret }}
+  namespace: {{ consumer.namespace }}
+  labels: {platform.perkforge.io/credential-owner: mattermost-projection-v1}
+type: Opaque
+data: {}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: eso-mm-projection-{{ consumer.suffix }}, namespace: {{ consumer.namespace }}, labels: {platform.perkforge.io/credential-owner: mattermost-projection-v1}}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: eso-mm-projection-{{ consumer.suffix }}, namespace: {{ consumer.namespace }}, labels: {platform.perkforge.io/credential-owner: mattermost-projection-v1}}
+rules:
+- apiGroups: ['']
+  resources: [secrets]
+  resourceNames: [{{ consumer.secret }}]
+  verbs: [get, update, patch]
+- apiGroups: ['']
+  resources: [serviceaccounts/token]
+  resourceNames: [eso-mm-projection-{{ consumer.suffix }}]
+  verbs: [create]
+- apiGroups: ['']
+  resources: [configmaps]
+  resourceNames: [mattermost-projection-openbao-ca]
+  verbs: [get]
+- apiGroups: [external-secrets.io]
+  resources: [externalsecrets]
+  resourceNames: [{{ consumer.secret }}]
+  verbs: [patch]
+- apiGroups: [external-secrets.io]
+  resources: [externalsecrets/status]
+  resourceNames: [{{ consumer.secret }}]
+  verbs: [update, patch]
+- apiGroups: [external-secrets.io]
+  resources: [secretstores/status]
+  resourceNames: [eso-mm-projection-{{ consumer.suffix }}]
+  verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: eso-mm-projection-{{ consumer.suffix }}, namespace: {{ consumer.namespace }}, labels: {platform.perkforge.io/credential-owner: mattermost-projection-v1}}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: eso-mm-projection-{{ consumer.suffix }}}
+subjects: [{kind: ServiceAccount, name: external-secrets, namespace: external-secrets}]
+---
+{% endfor %}

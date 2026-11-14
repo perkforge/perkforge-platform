@@ -1,0 +1,38 @@
+- ansible.builtin.set_fact:
+    desired_policy: '{{ lookup("file", projection_custody_output + "/eso-mm-projection-" + suffix + ".hcl", rstrip=false) }}'
+    desired_role: '{{ lookup("file", projection_custody_output + "/eso-mm-projection-" + suffix + ".json") | from_json }}'
+- ansible.builtin.uri:
+    url: '{{ projection_bao_server }}/v1/sys/policies/acl/eso-mm-projection-{{ suffix }}'
+    headers: '{{ bao_headers }}'
+    status_code: [200, 404]
+  register: existing_policy
+- ansible.builtin.assert:
+    that: existing_policy.status == 404 or existing_policy.json.data.policy == desired_policy
+- ansible.builtin.uri:
+    url: '{{ projection_bao_server }}/v1/auth/kubernetes-eso/role/eso-mm-projection-{{ suffix }}'
+    headers: '{{ bao_headers }}'
+    status_code: [200, 404]
+  register: existing_role
+- ansible.builtin.assert:
+    that: existing_role.json.data.bound_service_account_namespace_selector | default('') in ['', none]
+  when: existing_role.status == 200
+- ansible.builtin.assert:
+    that: existing_role.json.data[item.key] == item.value
+  loop: '{{ desired_role | dict2items }}'
+  when: existing_role.status == 200
+- ansible.builtin.uri:
+    url: '{{ projection_bao_server }}/v1/sys/policies/acl/eso-mm-projection-{{ suffix }}'
+    headers: '{{ bao_headers }}'
+    method: PUT
+    body_format: json
+    body: {policy: '{{ desired_policy }}'}
+    status_code: 204
+  when: projection_identity_write | bool and existing_policy.status == 404
+- ansible.builtin.uri:
+    url: '{{ projection_bao_server }}/v1/auth/kubernetes-eso/role/eso-mm-projection-{{ suffix }}'
+    headers: '{{ bao_headers }}'
+    method: POST
+    body_format: json
+    body: '{{ desired_role }}'
+    status_code: 204
+  when: projection_identity_write | bool and existing_role.status == 404
