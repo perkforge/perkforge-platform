@@ -64,6 +64,9 @@
       block:
         - ansible.builtin.assert:
             that:
+              - (backend_transport | default('direct-mtls')) in ['direct-mtls', 'loopback-sidecar']
+              - (backend_transport | default('direct-mtls')) != 'loopback-sidecar' or metrics_upstream == 'https://monitoring-monitoring-kube-prometheus.monitoring.svc:9090'
+              - (backend_transport | default('direct-mtls')) != 'loopback-sidecar' or upstream_tls_name == 'monitoring-monitoring-kube-prometheus.monitoring.svc'
               - metrics_upstream.startswith('https://')
               - listen_address == '0.0.0.0:8443'
               - runtime_dir == '/tmp/gateway'
