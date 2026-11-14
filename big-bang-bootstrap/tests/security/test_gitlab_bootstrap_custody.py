@@ -65,3 +65,28 @@ class Custody(unittest.TestCase):
   self.assertEqual(calls[-1][0][-3:],['gitlab-rails','runner','-']);self.assertIn(b'Base64.strict_decode64',calls[-1][1])
   with patch.object(mod.subprocess,'run',return_value=subprocess.CompletedProcess([],1,b'OFFLINE-SECRET',b'OFFLINE-SECRET')):
    with self.assertRaisesRegex(mod.Blocked,'^NativeExecutionUncertain$'):mod.command(['fixed-command'])
+
+ def test_receipt_directory_durability_and_postmint_failure(self):
+  import stat
+  from unittest.mock import patch
+  with tempfile.TemporaryDirectory(prefix='bootstrap-durable-') as directory:
+   root=Path(directory);p=root/'receipt';observed=[];real=os.fsync
+   def recording(fd):observed.append('directory' if stat.S_ISDIR(os.fstat(fd).st_mode) else 'file');return real(fd)
+   with patch.object(mod.os,'fsync',side_effect=recording):mod.save(str(p),{'setup_id':'a'},first=True);mod.save(str(p),{'setup_id':'a','stage':'updated'})
+   self.assertEqual(observed,['file','directory','file','directory'])
+   p.unlink();native=[];directories=0
+   class FakeBao:
+    def __init__(self,*a):pass
+    def preflight(self):pass
+    def store(self,*a):raise AssertionError('must not store after receipt durability failure')
+   def fake_native(d,mode='mint',owned=None):
+    native.append(mode)
+    return {'stage':'Minted','parent_id':1,'writer_token_id':2,'reader_token_id':3,'writer_token':'OFFLINE-WRITER','reader_token':'OFFLINE-READER'} if mode=='mint' else {'stage':'Revoked'}
+   def broken(fd):
+    nonlocal directories
+    if stat.S_ISDIR(os.fstat(fd).st_mode):
+     directories+=1
+     if directories>=3:raise OSError('synthetic durability failure')
+    return real(fd)
+   with patch.object(mod.os,'fsync',side_effect=broken):result=mod.execute({'setup_id':'a','expires_at':'2099-01-01'},'unused',str(p),bao_factory=FakeBao,native_call=fake_native)
+   self.assertEqual(native,['mint','revoke']);self.assertEqual(result['stage'],'ManualRecovery');self.assertEqual(result['category'],'ReceiptDurabilityUnverified');self.assertNotIn('OFFLINE-',json.dumps(result)+p.read_text())

@@ -59,17 +59,22 @@ class Bao:
   observed=self.call(path)['data']
   if observed.get('metadata',{}).get('version')!=1 or observed.get('data')!=data:raise Blocked('CustodyReadbackFailed')
 
+def sync_parent(path):
+ fd=os.open(str(Path(path).parent),os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+ try:os.fsync(fd)
+ finally:os.close(fd)
 def save(path,value,first=False):
  safe(path,optional=first)
  if first:
   fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
   with os.fdopen(fd,'w') as f:json.dump(value,f);f.flush();os.fsync(f.fileno())
+  sync_parent(path)
   return
  if read(path).get('setup_id')!=value.get('setup_id'):raise Blocked('ForeignAttemptReceipt')
  fd,name=tempfile.mkstemp(prefix='.bootstrap-',dir=str(Path(path).parent))
  try:
   with os.fdopen(fd,'w') as f:json.dump(value,f);f.flush();os.fsync(f.fileno())
-  os.replace(name,path)
+  os.replace(name,path);sync_parent(path)
  finally:
   if os.path.exists(name):os.unlink(name)
 def command(argv,input=None):
@@ -123,8 +128,10 @@ def execute(d,token,receipt,bao_factory=Bao,native_call=native):
   if isinstance(minted,dict) and minted.get('stage')=='Minted' and all(type(minted.get(k)) is int and minted[k]>0 for k in ('parent_id','writer_token_id','reader_token_id')):
    try:state['revocation']=native_call(d,'revoke',minted).get('stage','Unverified')
    except Exception:state['revocation']='Unverified'
-  if os.path.lexists(receipt):save(receipt,state)
-  return {'stage':state['stage'],'category':category,'revocation':state.get('revocation','NotVerified'),'runtime_deployed':False}
+  if os.path.lexists(receipt):
+   try:save(receipt,state)
+   except Exception:state['stage']='ManualRecovery';state['category']='ReceiptDurabilityUnverified'
+  return {'stage':state['stage'],'category':state['category'],'revocation':state.get('revocation','NotVerified'),'runtime_deployed':False}
  finally:minted=None
 
 def main():
