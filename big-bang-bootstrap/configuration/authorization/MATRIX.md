@@ -107,7 +107,7 @@ standing human access; any additional scope needs review.
 | Application | PA | PE | PV | TA | TD | TV |
 |---|---|---|---|---|---|---|
 | Grafana | Server administration explicitly approved; platform/tenant organizations | Proposed scoped platform-org Viewer; dashboard MRs, no server admin | Explicit approved org Viewer | Admin of own tenant org, not server admin | Editor of own tenant org | Viewer of own tenant org |
-| Mattermost | Explicit System Admin | Ordinary assigned team/channel member; chat allowed | Ordinary member of assigned teams/channels only | Own Team Admin, not System Admin | Assigned team/channel member | Assigned team/channel member; chat allowed |
+| Mattermost | Explicit System Admin | Ordinary assigned team/channel member; chat allowed | Ordinary member of assigned teams/channels only | Ordinary member of approved private tenant channels; no shared-team administration | Assigned team/channel member | Assigned team/channel member; chat allowed |
 | GitLab | Explicit instance admin | Developer on approved platform code projects; MRs, not instance admin | Approved read-only membership; no automatic paid Auditor | Owner of own tenant group/projects | Developer in own projects | Reporter/read-only project access as reviewed |
 | Harbor | Explicit system administrator | Explicit approved build-project scope only; no all-project administration | Explicit approved projects/read-only role | Project Admin of own private projects | Developer/push-pull in own projects | Guest/pull in own projects |
 | SonarQube | Explicit Administer System | Explicit project Browse/analysis scope; no system administration | Browse approved projects | Administer own project, not system | Own project analysis/issue capabilities with scoped CI identity | Browse own project reports |
@@ -121,6 +121,12 @@ standing human access; any additional scope needs review.
   general role expression: combined role/org mappings can choose the higher role
   and elevate other memberships. Multi-org tests must verify the actual selected
   org and datasource/query boundary, not just rendered dashboards.
+- **Mattermost topology correction:** the approved shared `perkforge` team uses
+  private `<context>-alerts` channels. Platform owns membership; tenant-admin
+  does not imply Team Admin or invite authority. Platform engineers have approved
+  cross-context channel visibility, not System Admin. Native invitation-boundary
+  acceptance and continuous membership reconciliation remain outstanding. The
+  inactive shared YAML now records these names, not native IDs or grants.
 - **Mattermost:** pinned 11.11.0 candidate is not proof of current Entry entitlement
   or generic OIDC support. Current Entry/paid offerings and Team Edition differ;
   verify exact image/license terms, including Entry history limits. OIDC group

@@ -31,9 +31,11 @@ just a matching namespace prefix.
 - Runtime `tenant-portal` only. `tenant-portal-config` and
   `tenant-portal-release` are control namespaces, not tenant runtime diagnostics.
 - ntfy exact topic `tenant-portal-alerts`; a private Portal alerts channel.
-  Mattermost team selection remains unset pending the proposed shared PerkForge
-  team versus separate teams decision. The channel name is a candidate, not a
-  native ID or cross-team membership grant.
+  Mattermost uses the approved shared `perkforge` team and private
+  `<context>-alerts` channel (`portal-alerts` for this pilot). These are desired
+  names, not resolved native IDs or membership grants. Shared-team membership
+  never grants access to a private channel; native system administration remains
+  an explicit recovery exception, not a tenant role.
 - Tenant viewers can see channel alerts only, with no other direct notifications.
   Adapter-specific recipients/permissions must enforce that rule; listing a group
   here does not grant it ntfy subscription or native administration.
