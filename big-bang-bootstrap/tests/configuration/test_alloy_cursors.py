@@ -57,8 +57,8 @@ class AlloyCursors(unittest.TestCase):
   for bad in [b'positions: {}',b'not: positions',raw.replace(b'"1"',b'"garbage"'),raw.replace(b'"1"',str(int((time.time()+999)*1000000)).encode()),raw+raw.split(b'positions:\n')[1]]:
    with self.assertRaises(ValueError):m.validate(bad)
  def test_migration_default_and_check_mode_inert(self):
-  for name in ['capture','prepare-claim','seed']:
-   for extra in [[],['--check','-e',{'capture':'alloy_cursor_capture','prepare-claim':'alloy_cursor_prepare','seed':'alloy_cursor_seed'}[name]+'=true']]:
+  for name in ['capture','prepare-claim','seed','volume-preflight']:
+   for extra in [[],['--check','-e',{'capture':'alloy_cursor_capture','prepare-claim':'alloy_cursor_prepare','seed':'alloy_cursor_seed','volume-preflight':'alloy_cursor_volume_preflight'}[name]+'=true']]:
     r=subprocess.run(['ansible-playbook','-i','localhost,',str(SOURCE/(name+'.yaml')),*extra],capture_output=True,text=True)
     self.assertEqual(r.returncode,0,r.stdout+r.stderr)
  def test_seed_script_refuses_unknown_and_mismatched_content(self):
@@ -97,6 +97,23 @@ class AlloyCursors(unittest.TestCase):
    r=subprocess.run(['ansible-playbook','-i','localhost,',str(SOURCE/'seed.yaml'),'-e','@'+str(f)],capture_output=True,text=True,env={**os.environ,'PATH':str(binpath)+':'+os.environ['PATH'],'CURSOR_CALLS':str(calls)})
    self.assertNotEqual(r.returncode,0);self.assertIn('unrelated-writer',r.stdout)
    self.assertNotIn('create',calls.read_text());self.assertNotIn('exec',calls.read_text())
+ def test_volume_preflight_marker_cleanup_and_unknown_content_refusal(self):
+  play=yaml.safe_load((SOURCE/'volume-preflight.yaml').read_text())[0]
+  block=next(x['block'] for x in play['tasks'][0]['block'] if 'block' in x)
+  script=next(x['ansible.builtin.command']['argv'][-1] for x in block if x.get('name','').startswith('Validate fresh'))
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t)/'volume';root.mkdir();binpath=Path(t)/'bin';binpath.mkdir()
+   fake=binpath/'id';fake.write_text('#!/bin/sh\nprintf "473\\n"\n');fake.chmod(0o700)
+   local=script.replace('/cursor',str(root));env={**os.environ,'PATH':str(binpath)+':'+os.environ['PATH']}
+   def run():return subprocess.run(['/bin/sh','-ec',local],capture_output=True,text=True,env=env)
+   self.assertEqual(run().returncode,0);self.assertEqual(list(root.iterdir()),[])
+   outside=Path(t)/'unrelated';outside.write_text('preserve')
+   sync=binpath/'sync';sync.write_text('#!/bin/sh\nexit 1\n');sync.chmod(0o700)
+   self.assertNotEqual(run().returncode,0);self.assertEqual(list(root.iterdir()),[]);self.assertEqual(outside.read_text(),'preserve')
+   sync.unlink()
+   (root/'lost+found').mkdir();self.assertEqual(run().returncode,0)
+   foreign=root/'lost+found'/'unrelated';foreign.write_text('preserve');self.assertNotEqual(run().returncode,0);self.assertEqual(foreign.read_text(),'preserve')
+   self.assertFalse((root/'.perkforge-cursor-preflight').exists())
  def test_exact_native_controller_and_preserved_container_contract(self):
   chart=os.environ.get('ALLOY_OPERATOR_CHART')
   if not chart:self.skipTest('Exact installed native operator child chart required')
