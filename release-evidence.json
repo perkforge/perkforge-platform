@@ -23,10 +23,10 @@
     },
     "active-portal-enrollment": {
       "repository": "perkforge/perkforge-platform-tenants",
-      "tag": "v2.5.0",
-      "resolvedCommit": "4651e35bb7505af4b419f0fb2864e8054e94ca41",
-      "publishedAt": "2026-11-14T04:42:22Z",
-      "releaseUrl": "https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v2.5.0"
+      "tag": "v2.5.1",
+      "resolvedCommit": "7661da6952b720f6a7957626587ae23a99354a86",
+      "publishedAt": "2026-11-14T05:07:41Z",
+      "releaseUrl": "https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v2.5.1"
     }
   }
 }

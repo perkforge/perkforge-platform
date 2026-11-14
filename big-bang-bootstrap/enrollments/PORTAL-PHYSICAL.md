@@ -79,7 +79,7 @@ The active `local-platform-alerts` composition selects published enrollment v2.3
 
 ## Published inventory reader selection
 
-The new candidate selects enrollment v2.5.0 (`4651e35bb7505af4b419f0fb2864e8054e94ca41`),
+The new candidate selects enrollment v2.5.1 (`7661da6952b720f6a7957626587ae23a99354a86`),
 app config v2.3.0 (`df3dcd8d061308beaf64dfb0e81cc8b3a14d88ae`) and checked
 Portal v0.5.0 image `sha256:eaa66ab13be20079f188f4b5d8c5d79e274612f0f5742a8d3c0d2f0f6a48560d`.
 The Portal UI reads a hash-verified read-only GitOps ConfigMap containing the
@@ -89,9 +89,15 @@ egress was added. Source YAML remains authoritative and configuration CI verifie
 materialized artifact provenance and actual valuesFrom wiring.
 
 The exact ConfigMap create/admission boundary was separately approved and verified.
-Before this promotion apply the matching v2.5.0 runtime image contract, preserving
+Before this promotion apply the matching v2.5.1 runtime image contract, preserving
 the current root path and all Mattermost placement/namespace-ownership components,
 Nextcloud and notifications. Coordinate with the active root-window owner; do not
 switch to an older Portal-only root. Publication is not deployment. Verify image,
 mount digest, authenticated source response and unchanged denial boundaries after
 rollout. Tenant/user creation and truthful live inventory remain unfinished.
+
+The v2.5.1 corrective release also carries the reviewed admission allowance for
+the exact fifth `portal-cluster` / `enrollment-inventory.values.yaml` reference.
+This aligns published foundation source with the verified live corrective policy;
+it adds no other reference, grant or runtime change. The image and baseline stay
+unchanged. Selecting this pin is a separate coordinated root promotion.
