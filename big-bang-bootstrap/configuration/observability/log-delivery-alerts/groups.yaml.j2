@@ -1,0 +1,54 @@
+apiVersion: 1
+groups:
+- orgId: {{ log_delivery_org_id }}
+  name: platform-log-delivery
+  folder: PerkForge platform resources
+  interval: 1m
+  rules:
+{% for rule in log_delivery_rules %}
+  - uid: pf-log-delivery-{{ rule.id }}
+    title: {{ rule.title | to_json }}
+    condition: C
+    for: {{ rule.for }}
+    noDataState: KeepLast
+    execErrState: Error
+    isPaused: false
+    annotations:
+      summary: {{ rule.summary | to_json }}
+      dashboard_url: {{ (log_delivery_grafana_url + "d/pf-pod-logs") | to_json }}
+      runbook_url: {{ log_delivery_runbook_url | to_json }}
+    labels:
+      context: platform
+      audience: platform-alerts
+      severity: warning
+      namespace: alloy
+      collector: alloy-alloy-logs
+    notification_settings:
+      receiver: platform-resource-ntfy
+      group_by: [context, alertname]
+      group_wait: 1m
+      group_interval: 10m
+      repeat_interval: 6h
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange: {from: 600, to: 0}
+      model:
+        datasource: {type: prometheus, uid: prometheus}
+        refId: A
+        instant: true
+        range: false
+        expr: {{ rule.expr | to_json }}
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange: {from: 0, to: 0}
+      model:
+        type: threshold
+        refId: C
+        expression: A
+        conditions:
+        - evaluator: {type: gt, params: [0]}
+          operator: {type: and}
+          reducer: {type: last, params: []}
+          type: query
+{% endfor %}

@@ -1,0 +1,16 @@
+log_delivery_rules:
+- id: drops
+  title: Log delivery drops sustained
+  for: 10m
+  expr: sum(rate(loki_write_dropped_entries_total{namespace="alloy",service="alloy-alloy-logs"}[5m])) > bool 0
+  summary: Fresh dropped-entry increments persist beyond the five-minute rate window for ten minutes. Inspect Alloy write errors and Loki rejection reason; do not weaken retention or discard logs silently.
+- id: retries
+  title: Log delivery retries sustained
+  for: 15m
+  expr: sum(rate(loki_write_batch_retries_total{namespace="alloy",service="alloy-alloy-logs"}[5m])) > bool 0
+  summary: Alloy write retries persist for fifteen minutes. Inspect gateway TLS/auth, Loki readiness and capacity. A retry is not itself proof of lost records.
+- id: telemetry
+  title: Log delivery telemetry unavailable
+  for: 5m
+  expr: max((max(max_over_time(up{namespace="alloy",service="alloy-alloy-logs"}[5m])) == bool 0) or (absent_over_time(up{namespace="alloy",service="alloy-alloy-logs"}[5m])) or (absent_over_time(loki_write_dropped_entries_total{namespace="alloy",service="alloy-alloy-logs"}[5m])) or (absent_over_time(loki_write_batch_retries_total{namespace="alloy",service="alloy-alloy-logs"}[5m])) or vector(0))
+  summary: Collector scrape is down, target is absent, or required delivery counters are absent. Log delivery health is unknown; restore telemetry before assuming healthy collection.
