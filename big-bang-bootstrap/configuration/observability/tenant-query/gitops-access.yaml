@@ -6,6 +6,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata: {name: query-runtime-writer, namespace: tenant-observability}
 rules:
+# Flux Deployment health polling discovers generated ReplicaSets by label.
+- apiGroups: [apps]
+  resources: [replicasets]
+  verbs: [list]
 - apiGroups: ['']
   resources: [serviceaccounts, configmaps, services]
   verbs: [create]
