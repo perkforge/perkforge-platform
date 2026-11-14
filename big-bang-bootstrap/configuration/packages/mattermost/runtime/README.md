@@ -67,3 +67,12 @@ broader tenant denial are distinct acceptance, not implied by app readiness.
 Use focused offline renderer/custody tests plus the backend native rendered image
 check. They do not establish live recovery, tenant isolation or phone/channel
 receipt. Keep #395 open until its actual acceptance is verified.
+
+## Preowned namespace ownership
+
+Any target using these staged prerequisites must include the reusable
+`runtime/namespace-ownership` Kustomize component in its root. It omits exactly
+`mattermost` and `mattermost-operator` Namespace objects from the umbrella Helm
+render, following the existing preowned namespace pattern. This does not delete
+live namespaces, change their labels, or grant the umbrella cluster-wide namespace
+authority. The local pilot composes this same portable component.
