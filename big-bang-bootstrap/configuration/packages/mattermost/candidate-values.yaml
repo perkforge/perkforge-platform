@@ -3,6 +3,46 @@
 addons:
   mattermostOperator:
     enabled: false
+    # Stock image uses global informers, including Secrets. Restrict writes, not reads.
+    # Namespace Roles/Bindings are owned by prerequisites/runtime-rbac.yaml.
+    postRenderers:
+    - kustomize:
+        patches:
+        - target:
+            group: rbac.authorization.k8s.io
+            version: v1
+            kind: ClusterRole
+            name: mattermost-operator
+          patch: |-
+            - op: replace
+              path: /rules
+              value:
+              - apiGroups: ['']
+                resources: [pods, services, configmaps, secrets, serviceaccounts, persistentvolumeclaims]
+                verbs: [get, list, watch]
+              - apiGroups: [apps]
+                resources: [deployments, replicasets]
+                verbs: [get, list, watch]
+              - apiGroups: [batch]
+                resources: [jobs]
+                verbs: [get, list, watch]
+              - apiGroups: [networking.k8s.io]
+                resources: [ingresses, ingressclasses]
+                verbs: [get, list, watch]
+              - apiGroups: [rbac.authorization.k8s.io]
+                resources: [roles, rolebindings]
+                verbs: [get, list, watch]
+              - apiGroups: [mattermost.com]
+                resources: [clusterinstallations, mattermostrestoredbs]
+                verbs: [get, list, watch]
+              - apiGroups: [installation.mattermost.com]
+                resources: [mattermosts]
+                verbs: [get, list, watch]
+              # Upstream non-ALB reconciliation still cleans up its named class.
+              - apiGroups: [networking.k8s.io]
+                resources: [ingressclasses]
+                resourceNames: [mattermost]
+                verbs: [delete]
     flux:
       suspend: true
       serviceAccountName: mattermost-operator-installer

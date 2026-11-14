@@ -1,0 +1,78 @@
+# Scoped writes for the unchanged Big Bang/Registry One operator.
+# External PostgreSQL and S3 or pre-provisioned PVC: no MySQL/MinIO operator authority.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mattermost-operator-runtime
+  namespace: mattermost
+rules:
+- apiGroups: ['']
+  resources: [pods, services, configmaps, secrets, serviceaccounts, persistentvolumeclaims]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [apps]
+  resources: [deployments]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [apps]
+  resources: [replicasets]
+  verbs: [get, list, watch, delete]
+- apiGroups: [batch]
+  resources: [jobs]
+  verbs: [get, list, watch, create, update, delete]
+- apiGroups: [networking.k8s.io]
+  resources: [ingresses]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [roles, rolebindings]
+  verbs: [get, list, watch, create, update, delete]
+- apiGroups: [mattermost.com]
+  resources: [clusterinstallations, clusterinstallations/status, mattermostrestoredbs, mattermostrestoredbs/status]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [installation.mattermost.com]
+  resources: [mattermosts, mattermosts/status]
+  verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mattermost-operator-runtime
+  namespace: mattermost
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mattermost-operator-runtime
+subjects:
+- kind: ServiceAccount
+  name: mattermost-operator
+  namespace: mattermost-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mattermost-operator-leader-election
+  namespace: mattermost-operator
+rules:
+# Kubernetes cannot resourceName-restrict create; contained in operator namespace.
+- apiGroups: [coordination.k8s.io]
+  resources: [leases]
+  verbs: [create]
+- apiGroups: [coordination.k8s.io]
+  resources: [leases]
+  resourceNames: [b78a986e.mattermost.com]
+  verbs: [get, update]
+- apiGroups: ['']
+  resources: [events]
+  verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mattermost-operator-leader-election
+  namespace: mattermost-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mattermost-operator-leader-election
+subjects:
+- kind: ServiceAccount
+  name: mattermost-operator
+  namespace: mattermost-operator
