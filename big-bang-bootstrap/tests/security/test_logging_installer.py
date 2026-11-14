@@ -28,6 +28,18 @@ class LoggingInstaller(unittest.TestCase):
   self.assertEqual(binding['roleRef'],{'apiGroup':'rbac.authorization.k8s.io','kind':'ClusterRole','name':role['metadata']['name']})
   self.assertEqual(binding['subjects'],[{'kind':'ServiceAccount','name':'alloy-installer','namespace':'bigbang'}])
 
+ def test_canary_registry_delivery_is_exact_default_off_hidden(self):
+  play=yaml.safe_load((ROOT/'configuration/ansible/logging-canary-registry.yaml').read_text())[0]
+  self.assertFalse(play['vars']['logging_canary_registry_apply'])
+  block=play['tasks'][1];self.assertTrue(block['no_log']);self.assertIn('not ansible_check_mode',block['when'])
+  desired=next(t['ansible.builtin.set_fact']['canary_desired'] for t in block['block'] if 'canary_desired' in t.get('ansible.builtin.set_fact',{}))
+  self.assertEqual(desired['metadata']['namespace'],'logging-pilot');self.assertEqual(desired['metadata']['name'],'private-registry');self.assertTrue(desired['immutable'])
+  assertions=[a for t in block['block'] for a in t.get('ansible.builtin.assert',{}).get('that',[])]
+  self.assertIn("(canary_source.stdout | from_json).data.keys() | list == ['.dockerconfigjson']",assertions)
+  self.assertIn('(canary_readback.stdout | from_json).type == canary_desired.type',assertions)
+  commands=[t['ansible.builtin.command']['argv'] for t in block['block'] if 'ansible.builtin.command' in t]
+  self.assertFalse(any(any(v in c for v in ['apply','patch','delete']) for c in commands))
+
  def test_authenticated_tls_loki_and_retention(self):
   ds=self.render['loki'][1];config=next(x for x in ds if x['kind']=='ConfigMap' and 'config.yaml' in x.get('data',{}));c=yaml.safe_load(config['data']['config.yaml'])
   self.assertTrue(c['auth_enabled']);self.assertEqual(c['limits_config']['retention_period'],'72h');self.assertTrue(c['compactor']['retention_enabled']);self.assertEqual(c['storage_config']['filesystem']['directory'],'/var/loki/chunks');self.assertFalse(c['limits_config']['max_line_size_truncate'])
