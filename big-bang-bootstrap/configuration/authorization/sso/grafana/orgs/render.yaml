@@ -19,6 +19,7 @@
   - name: Bind mappings to canonical context roles, never global tenant authority
     ansible.builtin.assert:
       that:
+      - (item.log_view_only | default(false)) is boolean
       - item.org_id is integer and item.org_id > 1
       - item.context.id is match('^[a-z][a-z0-9-]{0,40}$')
       - item.context.schema_version == 1
