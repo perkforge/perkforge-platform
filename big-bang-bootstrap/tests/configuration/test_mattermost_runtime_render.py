@@ -55,6 +55,21 @@ class RuntimeRender(unittest.TestCase):
             db=next(x for x in policies if x['metadata']['name']=='mattermost-database')
             self.assertEqual(db['spec']['egress'],[])
             self.assertNotIn('0.0.0.0/0',json.dumps(policies))
+            original_limits = values['resources']['limits'].copy()
+            db_limits = values['postgresql']['primary']['resources']['limits'].copy()
+            r = self.run_play({**inputs,
+                'mattermost_runtime_operator_node_selector': {'role.example.test/operator':'true'},
+                'mattermost_runtime_app_requests': {'cpu':'100m','memory':'1Gi'},
+                'mattermost_runtime_database_requests': {'cpu':'50m','memory':'256Mi'}})
+            self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+            selected = yaml.safe_load((root/'out/values.yaml').read_text())['addons']
+            self.assertEqual(selected['mattermostOperator']['values']['nodeSelector'], {'role.example.test/operator':'true'})
+            revised = selected['mattermost']['values']
+            self.assertEqual(revised['nodeSelector'],inputs['mattermost_runtime_node_selector'])
+            self.assertEqual(revised['resources']['requests'],{'cpu':'100m','memory':'1Gi'})
+            self.assertEqual(revised['resources']['limits'],original_limits)
+            self.assertEqual(revised['postgresql']['primary']['resources']['requests'],{'cpu':'50m','memory':'256Mi'})
+            self.assertEqual(revised['postgresql']['primary']['resources']['limits'],db_limits)
             for delta in ({'mattermost_runtime_origin':'http://chat.example.test'}, {'mattermost_runtime_api_cidrs':['0.0.0.0/0']}, {'mattermost_runtime_ca_sha256':'bad'}):
                 r=self.run_play({**inputs,**delta}); self.assertNotEqual(r.returncode,0)
 

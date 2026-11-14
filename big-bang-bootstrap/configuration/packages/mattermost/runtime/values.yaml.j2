@@ -9,11 +9,13 @@ addons:
     enabled: true
     flux: {suspend: false}
     values:
-      nodeSelector: {{ mattermost_runtime_node_selector | to_json }}
+      nodeSelector: {{ mattermost_runtime_operator_node_selector | default(mattermost_runtime_node_selector) | to_json }}
   mattermost:
     enabled: true
     flux: {suspend: false}
     values:
+      resources:
+        requests: {{ mattermost_runtime_app_requests | default(mattermost_runtime_composed['addons']['mattermost']['values']['resources']['requests']) | to_json }}
       users: 100
       replicaCount: 1
       nodeSelector: {{ mattermost_runtime_node_selector | to_json }}
@@ -34,6 +36,8 @@ addons:
           patch: '[{"op":"replace","path":"/spec/strategy","value":{"type":"Recreate"}}]'
       postgresql:
         primary:
+          resources:
+            requests: {{ mattermost_runtime_database_requests | default(mattermost_runtime_composed['addons']['mattermost']['values']['postgresql']['primary']['resources']['requests']) | to_json }}
           nodeSelector: {{ mattermost_runtime_node_selector | to_json }}
           persistence: {storageClass: {{ mattermost_runtime_storage_class | to_json }}}
 {% endset %}
