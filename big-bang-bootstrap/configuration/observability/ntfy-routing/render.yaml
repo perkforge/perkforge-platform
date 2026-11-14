@@ -52,6 +52,7 @@
           - grafana_mattermost_locked_approved is sameas true
           - grafana_mattermost_channel_id is match('^[a-z0-9]{26}$')
           - grafana_mattermost_origin is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+          - (grafana_mattermost_triage_url | default('')) == '' or (grafana_mattermost_triage_url is match('^https://[a-z0-9.-]+(:[0-9]+)?/alerting/list$'))
           - lookup('file', grafana_mattermost_ca_file, rstrip=false) | hash('sha256') == grafana_mattermost_ca_sha256
       - ansible.builtin.command: {argv: [id, -u]}
         register: mm_uid

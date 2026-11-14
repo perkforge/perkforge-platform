@@ -65,6 +65,12 @@ class GrafanaNtfyRouting(unittest.TestCase):
             self.assertNotIn('channel',receivers[1]['settings']['payload']['template'])
             self.assertNotIn('.Labels',receivers[1]['settings']['payload']['template'])
             self.assertFalse(receivers[1]['settings']['tlsConfig']['insecureSkipVerify'])
+            self.assertNotIn('Triage:',receivers[1]['settings']['payload']['template'])
+            result=run({**mm,'grafana_mattermost_triage_url':'https://grafana.example.test/alerting/list'}); self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            linked=yaml.safe_load((path/'rendered/alerting.yaml').read_text())
+            self.assertEqual(linked['contactPoints'][0]['receivers'][0],receiver)
+            self.assertIn('Triage: https://grafana.example.test/alerting/list',linked['contactPoints'][0]['receivers'][1]['settings']['payload']['template'])
+            rejected=run({**mm,'grafana_mattermost_triage_url':'https://grafana.example.test/alerting/list?secret=x'}); self.assertNotEqual(rejected.returncode,0)
             rejected=run({**mm,'grafana_mattermost_locked_approved':False}); self.assertNotEqual(rejected.returncode,0)
             for change in ({'grafana_ntfy_topic':'*'},{'grafana_ntfy_url':'http://notify.example.test/'},{'grafana_ntfy_namespace':'tenant-.*'}):
                 rejected=run({**values,**change});self.assertNotEqual(rejected.returncode,0)

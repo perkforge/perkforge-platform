@@ -90,3 +90,10 @@ and platform-resource rules. Verify native receivers/health and delivery through
 one separately coordinated labeled test, not an induced incident. These helpers
 never send a test or publish a message. A generated URL/Ready Secret is not proof
 of actual Grafana→Mattermost delivery; keep #395/#39 acceptance open until verified.
+
+Optional `grafana_mattermost_triage_url` defaults blank. A target operator may
+supply a separately verified fixed HTTPS Grafana `/alerting/list` URL, without
+query/fragment, to append to the bounded Mattermost text. It never uses alert
+annotations, GeneratorURL or the secret webhook URL. Supplying a link does not
+grant Grafana access; tenant targets remain blank until their #218 boundary and
+access are verified. The ntfy receiver is unchanged.

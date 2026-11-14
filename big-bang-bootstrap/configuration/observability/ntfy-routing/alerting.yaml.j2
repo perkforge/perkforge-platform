@@ -30,7 +30,7 @@ contactPoints:
         caCertificate: {{ lookup('file', grafana_mattermost_ca_file) | to_json }}
       payload:
         template: >-
-          {% raw %}{"text":"{% endraw %}{{ grafana_ntfy_context }}{% raw %}: {{ if eq .Status "firing" }}firing{{ else if eq .Status "resolved" }}resolved{{ else }}unknown{{ end }}; {{ len .Alerts }} grouped alert(s)."}{% endraw %}
+          {% raw %}{"text":"{% endraw %}{{ grafana_ntfy_context }}{% raw %}: {{ if eq .Status "firing" }}firing{{ else if eq .Status "resolved" }}resolved{{ else }}unknown{{ end }}; {{ len .Alerts }} grouped alert(s).{% endraw %}{{ (' Triage: ' ~ grafana_mattermost_triage_url) if grafana_mattermost_triage_url | default('') else '' }}{% raw %}"}{% endraw %}
 {% endif %}
 
 groups:
