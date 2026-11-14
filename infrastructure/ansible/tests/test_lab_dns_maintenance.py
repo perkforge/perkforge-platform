@@ -99,6 +99,7 @@ class DNSMaintenance(unittest.TestCase):
                      'grafana-dns-record-v1': 'grafana',
                      'portal-dns-record-v1': 'portal',
                      'ntfy-dns-record-v1': 'ntfy',
+                     'mattermost-dns-record-v1': 'chat',
                      'harbor-dns-record-v1': 'harbor'}.get(scope, 'gitlab,gitlab-objects'),
                  'DNS_FIXTURE_MODE': mode, 'ANSIBLE_LOCAL_TEMP': str(self.path/'local'),
                  'ANSIBLE_REMOTE_TEMP': str(self.path/'remote')})
@@ -465,6 +466,70 @@ class DNSMaintenance(unittest.TestCase):
 
     def assert_ntfy_queries(self, names, expected_count=1):
         self.assert_portal_queries(names, expected_count)
+
+    def mattermost_base(self):
+        self.ntfy_base(include_portal=True)
+        self.original += self.record_block('Ntfy', ('ntfy',))
+        self.config.write_text(self.original)
+        self.digest = hashlib.sha256(self.original.encode()).hexdigest()
+
+    def test_mattermost_exact_add_repeat_and_preserve_eleven_records(self):
+        self.mattermost_base()
+        result = self.run_fixture(scope='mattermost-dns-record-v1', strategy='fix-forward')
+        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+        final = self.original+self.record_block('Mattermost', ('chat',))
+        self.assertEqual(self.config.read_text(), final)
+        self.assertEqual(self.unit.read_text(), self.unit_bytes)
+        saved = self.backup/(self.digest+'.conf')
+        self.assertEqual(saved.read_text(), self.original)
+        self.assertEqual(saved.stat().st_mode & 0o777, 0o600)
+        self.assert_portal_queries(('chat',))
+        self.assert_portal_queries(('headlamp','keycloak','rancher','openbao','gitlab',
+            'gitlab-objects','nextcloud','grafana','harbor','portal','ntfy'), 2)
+        repeat = self.run_fixture(scope='mattermost-dns-record-v1', strategy='fix-forward')
+        self.assertEqual(repeat.returncode, 0, repeat.stdout+repeat.stderr)
+        self.assertIn('changed=0', repeat.stdout)
+        self.assertEqual(self.restarts(), 1)
+        self.assertEqual(self.config.read_text(), final)
+
+    def test_mattermost_missing_portal_or_ntfy_refused(self):
+        self.mattermost_base()
+        for name in ('portal','ntfy'):
+            with self.subTest(name=name):
+                before=self.original.replace('host-record='+name+'.perkforge.home.arpa,10.0.0.2\n','')
+                self.config.write_text(before)
+                result=self.run_fixture(scope='mattermost-dns-record-v1', digest=hashlib.sha256(before.encode()).hexdigest())
+                self.assertNotEqual(result.returncode,0)
+                self.assertEqual(self.config.read_text(),before)
+                self.assertEqual(self.restarts(),0)
+                self.assertFalse(self.backup.exists())
+
+    def test_mattermost_foreign_chat_refused(self):
+        self.mattermost_base()
+        for suffix in ('host-record=chat.perkforge.home.arpa,10.0.0.99\n',
+                       'cname=chat.perkforge.home.arpa,grafana.perkforge.home.arpa\n'):
+            with self.subTest(suffix=suffix):
+                before=self.original+suffix;self.config.write_text(before)
+                result=self.run_fixture(scope='mattermost-dns-record-v1', digest=hashlib.sha256(before.encode()).hexdigest())
+                self.assertNotEqual(result.returncode,0)
+                self.assertEqual(self.config.read_text(),before)
+                self.assertEqual(self.restarts(),0)
+
+    def test_mattermost_fix_forward_restart_failure_retains_candidate(self):
+        self.mattermost_base()
+        result=self.run_fixture('restart',scope='mattermost-dns-record-v1',strategy='fix-forward')
+        self.assertNotEqual(result.returncode,0)
+        self.assertEqual(self.config.read_text(),self.original+self.record_block('Mattermost',('chat',)))
+        self.assertEqual(self.restarts(),1)
+        self.assertEqual((self.backup/(self.digest+'.conf')).read_text(),self.original)
+        self.assertFalse((self.backup/'maintenance.lock').exists())
+
+    def test_mattermost_invalid_candidate_never_writes(self):
+        self.mattermost_base()
+        result=self.run_fixture('validate',scope='mattermost-dns-record-v1',strategy='fix-forward')
+        self.assertNotEqual(result.returncode,0)
+        self.assertEqual(self.config.read_text(),self.original)
+        self.assertEqual(self.restarts(),0)
 
     def test_ntfy_exact_add_repeat_preservation_backup_and_udp_tcp(self):
         self.ntfy_base()

@@ -36,7 +36,7 @@ ansible-playbook -i "$physical_inventory" \
 
 The private input file contains `lab_dns_maintenance_apply: true`, scope
 `gitlab-dns-records-v1`, `nextcloud-dns-record-v1`, `grafana-dns-record-v1` or
-`harbor-dns-record-v1` or `portal-dns-record-v1` or `ntfy-dns-record-v1`, `lab_dns_maintenance_expected_sha256` and the absolute
+`harbor-dns-record-v1` or `portal-dns-record-v1` or `ntfy-dns-record-v1` or `mattermost-dns-record-v1`, `lab_dns_maintenance_expected_sha256` and the absolute
 `lab_dns_maintenance_release_evidence` path. Release evidence identifies the
 repository, stable tag and resolved commit. The checked-out commit must match,
 and the tree must be clean. No password belongs in that file or chat: enter sudo
@@ -140,3 +140,17 @@ not treat a failed run as success or blindly retry a restart failure: an unchang
 candidate does not restart the service on repeat. Diagnose service state first,
 then review a fresh checksum before another maintenance run. No setting here
 authorizes unrelated host changes or silently changes other operators' defaults.
+
+## Mattermost chat hostname
+
+The fixed `mattermost-dns-record-v1` scope appends only
+`chat.perkforge.home.arpa` at the existing reviewed ingress address in the owned
+`Mattermost DNS v1` block. All eleven predecessor records through Portal and
+ntfy are required, verified over UDP/TCP, and preserved byte-for-byte along with
+the service unit, listeners and upstreams. Foreign chat records are not adopted.
+Use the same reviewed release evidence, fresh base checksum, private backup and
+explicit restart authorization. For the approved fix-forward rollout set
+`lab_dns_maintenance_failure_strategy: fix-forward`; failed validation never
+writes, and failed restart/verification retains the candidate and exits failed
+for diagnosis instead of silently rolling back. This source alone changes no DNS
+and creates no Mattermost account, certificate or runtime credential.
