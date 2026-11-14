@@ -1,0 +1,24 @@
+# Reusable opt-in for source-staged namespaces: omit from Helm output, never delete live.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+patches:
+- target: {group: helm.toolkit.fluxcd.io, version: v2, kind: HelmRelease, name: bigbang, namespace: bigbang}
+  patch: |-
+    - op: add
+      path: /spec/postRenderers/0/kustomize/patches/-
+      value:
+        target: {kind: Namespace, name: mattermost}
+        patch: |-
+          $patch: delete
+          apiVersion: v1
+          kind: Namespace
+          metadata: {name: mattermost}
+    - op: add
+      path: /spec/postRenderers/0/kustomize/patches/-
+      value:
+        target: {kind: Namespace, name: mattermost-operator}
+        patch: |-
+          $patch: delete
+          apiVersion: v1
+          kind: Namespace
+          metadata: {name: mattermost-operator}
