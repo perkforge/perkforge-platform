@@ -84,3 +84,47 @@ Pinned native metadata routes are `GET /api/orgs/name/{name}/` (Grafana13.2.1)
 and `GET /admin/realms/perkforge/group-by-path/{path}` (Keycloak26.8.1). Use exact
 reviewed names/paths only through approved custody; do not enumerate humans or
 invent missing IDs. No live metadata credential access was performed in this PR.
+
+## Metadata and guarded organization adapter
+
+`inspect.yaml` is a separate explicit read-only operation. Default/check touches
+no private files or APIs. It accepts a pre-existing temporary operator token file
+for Keycloak and a protected JSON file containing only the Grafana Authorization
+header (both0600 under0700 owner directories), public CA, exact desired org name,
+context and fresh private receipt path. It reads only org1, exact org name, owned
+Grafana client and five exact canonical group paths. Missing org/groups are
+reported absent, not created. It never issues tokens, reads human memberships or
+client secrets, or discovers vault entries. Sanitized receipt IDs require review;
+they are not authorization. Metadata API access still requires its scoped approval.
+
+`ensure-org.yaml` is an unconnected include for an approved orchestrator, not an
+entrypoint or grant. It accepts only exact inspected name, preserves org1, creates
+only if404 and verifies the returned ID. Native org creation may associate the
+performing recovery administrator with the new org; record and preserve that
+already-global recovery identity explicitly, not as Keycloak-derived access.
+No org deletion, invite, datasource, user role or membership API exists here.
+
+The next exact Keycloak operation must create/reuse only each named noncomposite
+Grafana role, require reviewed owned client UUID and exact canonical group UUID,
+verify existing role description/container/composites, add only that role to that
+group's own-client mapping, AND add it to the same Grafana client's own scope
+mapping. `fullScopeAllowed=false` is retained; do not broaden realm/client scopes.
+Read back exact additions and preserve previous role sets, especially the existing
+`/platform/admins` role and subjects. Existing admin-only reconciler rejects these
+new roles, so its narrow guard must not be repurposed or silently relaxed.
+
+The unconnected `ensure-entitlement.yaml` and `ensure-role-binding.yaml` now encode
+those exact additive operations. They require an explicit approval marker and
+reviewed native IDs, re-read owned client/mapper and canonical path before writes,
+refuse foreign/drifted roles, preserve all prior binding IDs, and make retries
+idempotent. They do not authorize themselves or create missing canonical groups.
+`test_grafana_org_adapter.py` exercises these task files with a disposable HTTPS
+protocol fixture: role plus two bindings, no-op retry and changed-client denial.
+This is mocked protocol evidence, NOT a live Keycloak grant/denial test.
+
+Observed read-only pilot metadata (2026-11-14): org1 exists; desired profile name
+`PerkForge Portal` is absent, as are all three Portal canonical tenant groups.
+Platform canonical groups and owned Grafana client exist. Therefore tenant
+activation also requires reviewed canonical group foundation, not guessed IDs or
+adoption. No human membership was inspected or changed. Native IDs remain in
+private operator evidence rather than this reusable source.

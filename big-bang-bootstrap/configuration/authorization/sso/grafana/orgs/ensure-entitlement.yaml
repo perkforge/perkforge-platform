@@ -1,0 +1,77 @@
+# Unconnected include: caller must hold reviewed client/group identity and recovery proof.
+# No human membership, realm-role, composite, client-setting or deletion operations.
+- ansible.builtin.assert:
+    that:
+    - grafana_entitlement_approval == 'grafana-exact-canonical-group-entitlement-v1'
+    - entitlement.client_id == metadata_client.json[0].id
+    - entitlement.client_id is match('^[a-f0-9-]{36}$')
+    - entitlement.group_id is match('^[a-f0-9-]{36}$')
+    - entitlement.canonical_group == '/platform/engineers' or entitlement.canonical_group in ['/tenants/' + grafana_org_context_id + '/admins','/tenants/' + grafana_org_context_id + '/developers','/tenants/' + grafana_org_context_id + '/viewers']
+    - entitlement.role_name == expected_entitlement_roles[entitlement.canonical_group]
+  vars:
+    expected_entitlement_roles: "{{ {'/platform/engineers':'pf-observability-platform-viewer', '/tenants/' + grafana_org_context_id + '/admins':'pf-observability-' + grafana_org_context_id + '-tenant-admin', '/tenants/' + grafana_org_context_id + '/developers':'pf-observability-' + grafana_org_context_id + '-tenant-developer', '/tenants/' + grafana_org_context_id + '/viewers':'pf-observability-' + grafana_org_context_id + '-tenant-viewer'} }}"
+- ansible.builtin.uri:
+    url: '{{ metadata_api }}/clients/{{ entitlement.client_id }}'
+    headers: '{{ metadata_kc_headers }}'
+  register: entitlement_client
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - entitlement_client.json.clientId == 'grafana'
+    - entitlement_client.json.id == entitlement.client_id
+    - entitlement_client.json.attributes['perkforge-managed'] == 'true'
+    - entitlement_client.json.attributes['perkforge-purpose'] == 'grafana-sso-review-v1'
+    - not entitlement_client.json.fullScopeAllowed
+    - not entitlement_client.json.publicClient
+    - not entitlement_client.json.serviceAccountsEnabled
+    - entitlement_client.json.protocol == 'openid-connect'
+    - entitlement_client.json.protocolMappers | selectattr('name','equalto','grafana-own-roles') | list | length == 1
+    - own_mapper.protocolMapper == 'oidc-usermodel-client-role-mapper'
+    - own_mapper.config['usermodel.clientRoleMapping.clientId'] == 'grafana'
+    - own_mapper.config['claim.name'] == 'groups'
+  vars:
+    own_mapper: "{{ entitlement_client.json.protocolMappers | selectattr('name','equalto','grafana-own-roles') | first }}"
+- ansible.builtin.uri:
+    url: '{{ metadata_api }}/group-by-path/{{ entitlement.canonical_group | urlencode }}'
+    headers: '{{ metadata_kc_headers }}'
+  register: entitlement_group
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - entitlement_group.json.id == entitlement.group_id
+    - entitlement_group.json.path == entitlement.canonical_group
+- ansible.builtin.uri:
+    url: '{{ metadata_api }}/clients/{{ entitlement.client_id }}/roles/{{ entitlement.role_name }}'
+    headers: '{{ metadata_kc_headers }}'
+    status_code: [200,404]
+  register: entitlement_before
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - entitlement_before.status == 404 or (entitlement_before.json.description == 'grafana-context-observability-v1' and entitlement_before.json.containerId == entitlement.client_id and entitlement_before.json.clientRole and not entitlement_before.json.composite)
+- ansible.builtin.uri:
+    url: '{{ metadata_api }}/clients/{{ entitlement.client_id }}/roles'
+    headers: '{{ metadata_kc_headers }}'
+    method: POST
+    body_format: json
+    body: {name: '{{ entitlement.role_name }}', description: grafana-context-observability-v1, composite: false, clientRole: true}
+    status_code: 201
+  when: entitlement_before.status == 404
+  no_log: true
+- ansible.builtin.uri:
+    url: '{{ metadata_api }}/clients/{{ entitlement.client_id }}/roles/{{ entitlement.role_name }}'
+    headers: '{{ metadata_kc_headers }}'
+  register: entitlement_role
+  no_log: true
+- ansible.builtin.assert:
+    that:
+    - entitlement_role.json.name == entitlement.role_name
+    - entitlement_role.json.description == 'grafana-context-observability-v1'
+    - entitlement_role.json.containerId == entitlement.client_id
+    - entitlement_role.json.clientRole and not entitlement_role.json.composite
+    - entitlement_before.status == 404 or entitlement_role.json.id == entitlement_before.json.id
+- ansible.builtin.include_tasks: ensure-role-binding.yaml
+  loop:
+  - '{{ metadata_api }}/groups/{{ entitlement.group_id }}/role-mappings/clients/{{ entitlement.client_id }}'
+  - '{{ metadata_api }}/clients/{{ entitlement.client_id }}/scope-mappings/clients/{{ entitlement.client_id }}'
+  loop_control: {loop_var: entitlement_binding_url}
