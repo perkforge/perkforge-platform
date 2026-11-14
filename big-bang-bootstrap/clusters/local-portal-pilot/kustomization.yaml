@@ -1,0 +1,16 @@
+# Select only after Portal runtime credentials, trust and approved routes are ready.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [../local-ntfy-owner]
+patches:
+- target: {group: source.toolkit.fluxcd.io, kind: GitRepository, name: tenant-enrollments, namespace: flux-system}
+  patch: |-
+    - op: replace
+      path: /spec/ref
+      value:
+        commit: 9b56ae799aaf6a8b0178f6a501e5517ba89379f9
+- target: {group: kustomize.toolkit.fluxcd.io, kind: Kustomization, name: tenant-enrollments, namespace: flux-system}
+  patch: |-
+    - op: replace
+      path: /spec/path
+      value: ./clusters/local-nextcloud-portal
