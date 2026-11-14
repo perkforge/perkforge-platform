@@ -1,0 +1,79 @@
+app_dashboards_org_id: 1
+app_dashboards_datasource_uid: prometheus
+app_dashboards_apps:
+- id: nextcloud
+  title: Nextcloud
+  namespaces:
+  - tenant-home-nextcloud
+- id: portal
+  title: Portal
+  namespaces:
+  - tenant-portal
+- id: mattermost
+  title: Mattermost
+  namespaces:
+  - mattermost
+- id: gitlab
+  title: Gitlab
+  namespaces:
+  - gitlab
+- id: harbor
+  title: Harbor
+  namespaces:
+  - harbor
+- id: keycloak
+  title: Keycloak
+  namespaces:
+  - keycloak
+- id: openbao
+  title: Openbao
+  namespaces:
+  - openbao
+- id: grafana-prometheus
+  title: Grafana Prometheus
+  namespaces:
+  - monitoring
+- id: loki
+  title: Loki
+  namespaces:
+  - logging
+- id: alloy
+  title: Alloy
+  namespaces:
+  - alloy
+- id: ntfy
+  title: Ntfy
+  namespaces:
+  - ntfy
+- id: query-gateway
+  title: Query Gateway
+  namespaces:
+  - tenant-observability
+- id: headlamp
+  title: Headlamp
+  namespaces:
+  - headlamp
+- id: flux
+  title: Flux
+  namespaces:
+  - flux-system
+- id: longhorn
+  title: Longhorn
+  namespaces:
+  - longhorn-system
+- id: external-secrets
+  title: External Secrets
+  namespaces:
+  - external-secrets
+- id: rancher
+  title: Rancher
+  namespaces:
+  - cattle-system
+- id: gitlab-runner
+  title: Gitlab Runner
+  namespaces:
+  - gitlab-runner
+- id: cnpg
+  title: Cnpg
+  namespaces:
+  - cnpg-system

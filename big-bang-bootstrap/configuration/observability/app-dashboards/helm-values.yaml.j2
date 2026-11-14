@@ -1,0 +1,22 @@
+# Additive maps only. Not selected/applied by rendering.
+upstream:
+  dashboardProviders:
+    perkforge-app-resources.yaml:
+      apiVersion: 1
+      providers:
+      - name: perkforge-app-resources
+        orgId: 1
+        folder: Platform Applications
+        folderUid: pf-platform-apps
+        type: file
+        disableDeletion: true
+        allowUiUpdates: false
+        options:
+          path: /var/lib/grafana/dashboards/pf-app-resources
+  dashboards:
+    pf-app-resources:
+{% for app in app_dashboards_apps %}
+      {{ app.id }}:
+        json: |
+{{ lookup('ansible.builtin.file', app_dashboards_output ~ '/' ~ app.id ~ '.json') | indent(10, true) }}
+{% endfor %}

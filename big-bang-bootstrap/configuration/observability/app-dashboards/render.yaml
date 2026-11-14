@@ -1,0 +1,47 @@
+---
+- name: Render platform-only native per-app metric dashboards offline
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    app_dashboards_render: false
+  tasks:
+    - name: Explicit opt-in only
+      when: app_dashboards_render | bool
+      block:
+        - name: Validate platform-only boundary and bounded inputs
+          ansible.builtin.assert:
+            that:
+              - app_dashboards_org_id is integer and app_dashboards_org_id == 1
+              - app_dashboards_datasource_uid is match('^[A-Za-z0-9_-]{1,40}$')
+              - app_dashboards_output is match('^/.+') and app_dashboards_output != '/'
+              - app_dashboards_apps is sequence and app_dashboards_apps is not string
+              - app_dashboards_apps | length > 0 and app_dashboards_apps | length <= 30
+              - app_dashboards_apps | map(attribute='id') | unique | length == app_dashboards_apps | length
+        - name: Validate each explicit application namespace inventory
+          ansible.builtin.assert:
+            that:
+              - item.id is match('^[a-z][a-z0-9-]{0,29}$')
+              - item.title is string and item.title | length > 0 and item.title | length <= 80
+              - item.namespaces is sequence and item.namespaces is not string
+              - item.namespaces | length > 0 and item.namespaces | length <= 8
+              - item.namespaces | select('match', '^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$') | list | length == item.namespaces | length
+          loop: '{{ app_dashboards_apps }}'
+        - name: Prepare local output only
+          ansible.builtin.file:
+            path: '{{ app_dashboards_output }}'
+            state: directory
+            mode: '0700'
+        - name: Render one dashboard per explicit application
+          ansible.builtin.template:
+            src: dashboard.json.j2
+            dest: '{{ app_dashboards_output }}/{{ app.id }}.json'
+            mode: '0600'
+          loop: '{{ app_dashboards_apps }}'
+          loop_control:
+            loop_var: app
+        - name: Render additive native provider values
+          ansible.builtin.template:
+            src: helm-values.yaml.j2
+            dest: '{{ app_dashboards_output }}/helm-values.yaml'
+            mode: '0600'
