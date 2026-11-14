@@ -20,6 +20,13 @@
       "resolvedCommit": "59462926a05fcb7a0ee8015f2998b233b706c9e8",
       "publishedAt": "2026-11-10T19:58:16Z",
       "releaseUrl": "https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v2.0.0"
+    },
+    "active-portal-enrollment": {
+      "repository": "perkforge/perkforge-platform-tenants",
+      "tag": "v2.3.0",
+      "resolvedCommit": "699e407b087ad7ec2672eebe11b2eacdecf2f15f",
+      "publishedAt": "2026-11-14T03:56:47Z",
+      "releaseUrl": "https://github.com/perkforge/perkforge-platform-tenants/releases/tag/v2.3.0"
     }
   }
 }

@@ -8,7 +8,7 @@ patches:
     - op: replace
       path: /spec/ref
       value:
-        commit: 3222edb995cc5a7d063fc18ab5741226e1d162c3
+        tag: v2.3.0
 - target: {group: kustomize.toolkit.fluxcd.io, kind: Kustomization, name: tenant-enrollments, namespace: flux-system}
   patch: |-
     - op: replace
