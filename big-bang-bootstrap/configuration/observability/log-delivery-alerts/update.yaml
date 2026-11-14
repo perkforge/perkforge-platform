@@ -75,6 +75,8 @@
           - prior.contactPoints | selectattr('name', 'equalto', 'platform-resource-ntfy') | list | length == 1
           - authored.groups | length == 1
           - authored.groups[0].name == 'platform-log-delivery'
+          - prior.groups | selectattr('name', 'equalto', 'platform-log-delivery') | rejectattr('orgId', 'equalto', log_delivery_org_id | int) | list | length == 0
+          - prior.groups | selectattr('name', 'equalto', 'platform-log-delivery') | rejectattr('folder', 'equalto', authored.groups[0].folder) | list | length == 0
           - prior.groups | selectattr('name', 'equalto', 'platform-log-delivery') | list | length <= 1
           - (prior.groups | selectattr('name', 'equalto', 'platform-log-delivery') | map(attribute='rules') | flatten | map(attribute='uid') | list | difference(authored.groups[0].rules | map(attribute='uid') | list)) | length == 0
           - prior.groups | rejectattr('name', 'equalto', 'platform-log-delivery') | map(attribute='rules') | flatten | map(attribute='uid') | intersect(authored.groups[0].rules | map(attribute='uid') | list) | length == 0

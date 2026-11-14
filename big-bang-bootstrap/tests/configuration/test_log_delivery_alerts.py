@@ -21,12 +21,12 @@ class DeliveryAlerts(unittest.TestCase):
  def test_update_preserves_ntfy_mattermost_and_other_groups(self):
   play=yaml.safe_load((M/'update.yaml').read_text())[0];inner=next(t['block'] for t in play['tasks'][0]['block'] if t.get('no_log'))
   start=next(i for i,t in enumerate(inner) if 'authored' in t.get('ansible.builtin.set_fact',{}));end=next(i for i,t in enumerate(inner) if t.get('when')=='prior != desired');checks=inner[start+1:end]
-  authored={'groups':[{'name':'platform-log-delivery','rules':[{'uid':'pf-log-delivery-drops'},{'uid':'pf-log-delivery-retries'},{'uid':'pf-log-delivery-telemetry'}]}]}
+  authored={'groups':[{'name':'platform-log-delivery','orgId':1,'folder':'PerkForge platform resources','rules':[{'uid':'pf-log-delivery-drops'},{'uid':'pf-log-delivery-retries'},{'uid':'pf-log-delivery-telemetry'}]}]}
   base={'apiVersion':1,'contactPoints':[{'name':'platform-resource-ntfy','receivers':[{'uid':'ntfy','secret':'synthetic'}, {'uid':'mattermost','secret':'synthetic2'}]}],'groups':[{'name':'platform-resources','rules':[{'uid':'existing'}]}]}
-  for prior,ok in [(base,True),({**base,'groups':base['groups']+authored['groups']},True),({**base,'groups':base['groups']+[{'name':'platform-log-delivery','rules':[{'uid':'unrelated'}]}]},False)]:
+  for prior,ok in [(base,True),({**base,'groups':base['groups']+authored['groups']},True),({**base,'groups':base['groups']+[{'name':'platform-log-delivery','orgId':1,'folder':'PerkForge platform resources','rules':[{'uid':'unrelated'}]}]},False),({**base,'groups':base['groups']+[{**authored['groups'][0],'orgId':2}]},False),({**base,'groups':base['groups']+[{**authored['groups'][0],'folder':'Foreign folder'}]},False)]:
    text=yaml.safe_dump(prior)
    with tempfile.TemporaryDirectory() as t:
-    path=Path(t)/'check.yaml';path.write_text(yaml.safe_dump([{'hosts':'localhost','connection':'local','gather_facts':False,'vars':{'prior':prior,'prior_text':text,'authored':authored,'grafana_ntfy_previous_sha256':hashlib.sha256(text.encode()).hexdigest()},'tasks':[{'no_log':True,'block':checks}]}]))
+    path=Path(t)/'check.yaml';path.write_text(yaml.safe_dump([{'hosts':'localhost','connection':'local','gather_facts':False,'vars':{'prior':prior,'prior_text':text,'authored':authored,'log_delivery_org_id':1,'grafana_ntfy_previous_sha256':hashlib.sha256(text.encode()).hexdigest()},'tasks':[{'no_log':True,'block':checks}]}]))
     r=subprocess.run(['ansible-playbook','-i','localhost,',str(path)],capture_output=True,text=True);self.assertEqual(r.returncode==0,ok,r.stdout+r.stderr);self.assertNotIn('synthetic2',r.stdout+r.stderr)
  def test_native_prometheus_sustained_and_missing_semantics(self):
   binary=os.environ.get('PROMTOOL_TEST_BINARY')
