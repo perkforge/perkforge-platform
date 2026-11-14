@@ -28,7 +28,7 @@ def validate(raw):
 def read_bounded(path):
  p=Path(path)
  if not p.is_absolute() or p.resolve()!=p:raise ValueError('symlink or noncanonical path')
- fd=os.open(p,os.O_RDONLY | os.O_NOFOLLOW)
+ fd=os.open(p,os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
  try:
   info=os.fstat(fd)
   if not stat.S_ISREG(info.st_mode) or not 1<=info.st_size<=4*1024*1024:raise ValueError('invalid checkpoint file')

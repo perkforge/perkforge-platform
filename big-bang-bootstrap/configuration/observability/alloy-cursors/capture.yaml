@@ -55,10 +55,12 @@
     - no_log: true
       block:
       - ansible.builtin.command:
-          argv: [kubectl, -n, alloy, exec, '{{ cursor_pod }}', -c, alloy, --, cat, '{{ cursor_path }}']
+          argv: [kubectl, -n, alloy, exec, '{{ cursor_pod }}', -c, alloy, --, head, -c, '4194305', '{{ cursor_path }}']
           strip_empty_ends: false
         register: checkpoint
         changed_when: false
+      - ansible.builtin.assert:
+          that: checkpoint.stdout.encode('utf-8') | length <= 4194304
       - ansible.builtin.command:
           argv: [kubectl, -n, alloy, exec, '{{ cursor_pod }}', -c, alloy, --, stat, -c, '%Y', '{{ cursor_path }}']
         register: mtime

@@ -50,6 +50,8 @@ class AlloyCursors(unittest.TestCase):
    with self.assertRaises(ValueError):m.read_bounded(link)
    p.write_bytes(b'x'*(4*1024*1024+1))
    with self.assertRaises(ValueError):m.read_bounded(p)
+   p.unlink();os.mkfifo(p)
+   with self.assertRaises(ValueError):m.read_bounded(p)
    p.unlink();p.mkdir()
    with self.assertRaises(ValueError):m.read_bounded(p)
   for bad in [b'positions: {}',b'not: positions',raw.replace(b'"1"',b'"garbage"'),raw.replace(b'"1"',str(int((time.time()+999)*1000000)).encode()),raw+raw.split(b'positions:\n')[1]]:
