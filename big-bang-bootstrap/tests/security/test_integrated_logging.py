@@ -40,6 +40,8 @@ class IntegratedLogging(unittest.TestCase):
     cr=next(obj for obj in rendered if obj['kind']=='Alloy')
     self.assertIn({'name':'private-registry'},cr['spec']['global']['image']['pullSecrets'])
    if name=='loki':
+    config=next(x['data']['nginx.conf'] for x in rendered if x['kind']=='ConfigMap' and 'nginx.conf' in x.get('data',{}))
+    self.assertIn('rke2-coredns-rke2-coredns.kube-system.svc.cluster.local',config)
     pod=next(x for x in rendered if x['kind']=='StatefulSet')['spec']['template']['spec']
     self.assertEqual(pod['nodeSelector']['storage.perkforge.io/worker'],'true')
     gateway=next(x for x in rendered if x['kind']=='Deployment')['spec']['template']['spec']

@@ -74,3 +74,10 @@ credentials and otherwise emits empty references over child defaults. This uses
 existing namespace-local immutable pull Secrets; it does not rotate credentials,
 change pinned Registry1 images or grant access to another namespace. Native umbrella
 regression tests cover both Pod templates and the Alloy custom resource.
+
+
+The local integrated profile selects the existing RKE2 DNS service name
+`rke2-coredns-rke2-coredns` through the native Loki `global.dnsService` value.
+The chart default `kube-dns` Service does not exist in this cluster. This is
+environment configuration, not an image rebuild, IP pin or DNS/network change.
+Other environments select their existing DNS service through their own values.
