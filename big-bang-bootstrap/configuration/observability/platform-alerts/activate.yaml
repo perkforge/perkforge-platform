@@ -1,0 +1,146 @@
+# Separately approved delivery only. Never rotates existing credentials or sends an alert.
+- name: Deliver one dedicated Grafana alerting record
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    platform_delivery_activate: false
+    platform_delivery_helm_release: monitoring-grafana
+    platform_delivery_helm_binary: helm
+    platform_delivery_secret: grafana-platform-alerts
+    platform_delivery_auth_identity: eso-platform-alerts
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ platform_delivery_bao_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      timeout: 20
+  tasks:
+  - when: platform_delivery_activate | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - platform_delivery_record is match('^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$')
+        - platform_delivery_monitoring_namespace is match('^[a-z][a-z0-9-]{0,62}$')
+        - platform_delivery_auth_identity == 'eso-platform-alerts'
+        - platform_delivery_secret == 'grafana-platform-alerts'
+        - platform_delivery_helm_release is match('^[a-z][a-z0-9-]{0,62}$')
+        - platform_delivery_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+    - ansible.builtin.uri:
+        url: '{{ platform_delivery_bao_server }}/v1/sys/health'
+      register: bao_health
+    - ansible.builtin.assert:
+        that: bao_health.json.cluster_id == platform_delivery_bao_cluster_id and not bao_health.json.sealed
+    - name: Verify exact existing effective mounts before an additive update
+      no_log: true
+      block:
+      - ansible.builtin.command:
+          argv: ['{{ platform_delivery_helm_binary }}', get, values, '{{ platform_delivery_helm_release }}', -n, '{{ platform_delivery_monitoring_namespace }}', -o, json]
+        register: existing_values
+        changed_when: false
+      - ansible.builtin.assert:
+          that: (existing_values.stdout | from_json).upstream.extraSecretMounts | default([]) == platform_delivery_expected_mounts
+      always:
+      - ansible.builtin.set_fact: {existing_values: {}}
+    - ansible.builtin.assert:
+        that:
+        - platform_delivery_expected_mounts | length > 0
+        - platform_delivery_expected_mounts | map(attribute='name') | list | unique | length == platform_delivery_expected_mounts | length
+        - "'platform-alerting' not in platform_delivery_expected_mounts | map(attribute='name') | list"
+    - ansible.builtin.assert:
+        that:
+        - "'/etc/grafana/provisioning/alerting/platform.yaml' not in platform_delivery_expected_mounts | map(attribute='mountPath') | list"
+        - "'grafana-platform-alerts' not in platform_delivery_expected_mounts | map(attribute='secretName') | list"
+    - name: Refuse target collision before reading operator credentials
+      ansible.builtin.command:
+        argv: [kubectl, -n, '{{ platform_delivery_monitoring_namespace }}', get, secret, '{{ platform_delivery_secret }}', --ignore-not-found, -o, name]
+      register: target
+      changed_when: false
+    - ansible.builtin.assert: {that: target.stdout == ''}
+    - name: Create or verify exact partial-retry records without exposing secrets
+      no_log: true
+      block:
+      - ansible.builtin.set_fact:
+          bao_headers: {X-Vault-Token: '{{ lookup("file", platform_delivery_bao_token_file) | trim }}'}
+          desired_record: {alerting.yaml: '{{ lookup("file", platform_delivery_output_dir + "/alerting.yaml", rstrip=false) }}'}
+          desired_policy: 'path "platform/data/{{ platform_delivery_record }}" { capabilities = ["read"] } path "auth/token/lookup-self" { capabilities = ["read"] }'
+          desired_role:
+            bound_service_account_names: ['{{ platform_delivery_auth_identity }}']
+            bound_service_account_namespaces: ['{{ platform_delivery_monitoring_namespace }}']
+            audience: openbao-eso
+            token_policies: ['{{ platform_delivery_auth_identity }}']
+            token_ttl: 300
+            token_max_ttl: 900
+            token_explicit_max_ttl: 900
+            token_no_default_policy: true
+      - ansible.builtin.uri:
+          url: '{{ platform_delivery_bao_server }}/v1/platform/data/{{ platform_delivery_record }}'
+          headers: '{{ bao_headers }}'
+          status_code: [200, 404]
+        register: record_before
+      - ansible.builtin.assert:
+          that: record_before.json.data.data == desired_record
+        when: record_before.status == 200
+      - ansible.builtin.uri:
+          url: '{{ platform_delivery_bao_server }}/v1/sys/policies/acl/{{ platform_delivery_auth_identity }}'
+          headers: '{{ bao_headers }}'
+          status_code: [200, 404]
+        register: policy_before
+      - ansible.builtin.assert:
+          that: policy_before.json.data.policy == desired_policy
+        when: policy_before.status == 200
+      - ansible.builtin.uri:
+          url: '{{ platform_delivery_bao_server }}/v1/auth/kubernetes-eso/role/{{ platform_delivery_auth_identity }}'
+          headers: '{{ bao_headers }}'
+          status_code: [200, 404]
+        register: role_before
+      - ansible.builtin.assert:
+          that: role_before.json.data[item.key] == item.value
+        loop: '{{ desired_role | dict2items }}'
+        when: role_before.status == 200
+      - ansible.builtin.uri:
+          url: '{{ platform_delivery_bao_server }}/v1/platform/data/{{ platform_delivery_record }}'
+          method: POST
+          headers: '{{ bao_headers }}'
+          body_format: json
+          body: {options: {cas: 0}, data: '{{ desired_record }}'}
+        when: record_before.status == 404
+      - ansible.builtin.uri:
+          url: '{{ platform_delivery_bao_server }}/v1/sys/policies/acl/{{ platform_delivery_auth_identity }}'
+          method: PUT
+          headers: '{{ bao_headers }}'
+          body_format: json
+          body: {policy: '{{ desired_policy }}'}
+          status_code: 204
+        when: policy_before.status == 404
+      - ansible.builtin.uri:
+          url: '{{ platform_delivery_bao_server }}/v1/auth/kubernetes-eso/role/{{ platform_delivery_auth_identity }}'
+          method: POST
+          headers: '{{ bao_headers }}'
+          body_format: json
+          body: '{{ desired_role }}'
+          status_code: 204
+        when: role_before.status == 404
+      always:
+      - ansible.builtin.set_fact: {bao_headers: {}, desired_record: {}}
+    - name: Apply only reviewed dedicated auth token grant and ESO consumer
+      ansible.builtin.command:
+        argv: [kubectl, apply, --server-side, --field-manager=platform-alerts, -f, '{{ platform_delivery_output_dir }}/consumers.yaml']
+    - ansible.builtin.command:
+        argv: [kubectl, -n, '{{ platform_delivery_monitoring_namespace }}', wait, 'externalsecret/{{ platform_delivery_secret }}', --for=condition=Ready, --timeout=90s]
+    - name: Verify exact synchronized payload, not only a potentially stale Ready flag
+      no_log: true
+      block:
+      - ansible.builtin.command:
+          argv: [kubectl, -n, '{{ platform_delivery_monitoring_namespace }}', get, secret, '{{ platform_delivery_secret }}', -o, json]
+        register: synced
+        changed_when: false
+      - ansible.builtin.assert:
+          that: (synced.stdout | from_json).data['alerting.yaml'] | b64decode == lookup('file', platform_delivery_output_dir + '/alerting.yaml', rstrip=false)
+      always:
+      - ansible.builtin.set_fact: {synced: {}}
+    - name: Create nonsecret native mount values; never select or roll a root here
+      ansible.builtin.command:
+        argv: [kubectl, -n, bigbang, create, configmap, grafana-platform-alerts-values, '--from-file=values.yaml={{ platform_delivery_output_dir }}/values.yaml']

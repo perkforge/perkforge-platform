@@ -1,0 +1,6 @@
+# Lists replace in Helm: retain all verified effective existing mounts explicitly.
+grafana:
+  values:
+    upstream:
+      extraSecretMounts:
+{{ (platform_delivery_expected_mounts + [{'name':'platform-alerting','mountPath':'/etc/grafana/provisioning/alerting/platform.yaml','subPath':'alerting.yaml','secretName':'grafana-platform-alerts','defaultMode':288,'readOnly':true}]) | to_nice_yaml | indent(8, true) }}

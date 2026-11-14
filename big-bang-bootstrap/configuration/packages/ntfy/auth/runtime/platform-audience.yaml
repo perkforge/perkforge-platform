@@ -1,0 +1,139 @@
+# Add two exact-topic users, preserving every existing account/token/ACL.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    platform_audience_prepare: false
+    platform_audience_apply: false
+    ntfy_native_image: docker.io/binwiederhier/ntfy:v2.37.2@sha256:1875ddcf815c8a3c981d6d78c67a93452d0abba79b1ab9520b1f5f5238902bd7
+  module_defaults:
+    ansible.builtin.uri:
+      ca_path: '{{ ntfy_bao_ca_file }}'
+      validate_certs: true
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+  tasks:
+  - when: platform_audience_prepare | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - platform_audience_topic == 'platform-alerts'
+        - platform_audience_publisher == 'grafana-platform'
+        - platform_audience_subscriber == 'corey-platform'
+        - platform_audience_subject is match('^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$')
+        - platform_audience_runtime_dir is match('^/[A-Za-z0-9_./-]+$')
+        - platform_audience_runtime_dir == platform_audience_runtime_dir | realpath
+        - platform_audience_owner_record is match('^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$')
+        - ntfy_record != platform_audience_owner_record
+    - ansible.builtin.uri:
+        url: '{{ ntfy_bao_server }}/v1/sys/health'
+      register: health
+    - ansible.builtin.assert:
+        that: health.json.cluster_id == ntfy_bao_cluster_id and not health.json.sealed
+    - ansible.builtin.command:
+        argv: [kubectl, -n, '{{ ntfy_namespace }}', exec, ntfy-0, --, ntfy, user, list]
+      register: native_users
+      changed_when: false
+    - ansible.builtin.assert:
+        that: native_users.stdout | regex_findall('(?m)^user ([a-z][a-z0-9-]*) ') | sort == platform_audience_expected_users | sort
+    - ansible.builtin.file:
+        path: '{{ platform_audience_runtime_dir }}'
+        state: directory
+        mode: '0700'
+    - no_log: true
+      block:
+      - ansible.builtin.set_fact:
+          headers: {X-Vault-Token: '{{ lookup("file", ntfy_bao_token_file) | trim }}'}
+      - ansible.builtin.uri:
+          url: '{{ ntfy_bao_server }}/v1/platform/data/{{ ntfy_record }}'
+          headers: '{{ headers }}'
+        register: current
+      - ansible.builtin.uri:
+          url: '{{ ntfy_bao_server }}/v1/platform/data/{{ platform_audience_owner_record }}'
+          headers: '{{ headers }}'
+          status_code: [200, 404]
+        register: owner_before
+      - ansible.builtin.set_fact:
+          base: '{{ current.json.data.data["server.yml"] | from_yaml }}'
+          prior: '{{ lookup("file", platform_audience_prior_validation) | from_json }}'
+      - ansible.builtin.set_fact:
+          ntfy_accounts: '{{ prior.accounts }}'
+      - ansible.builtin.set_fact:
+          prior_fragment: '{{ lookup("template", "../native-auth.yaml.j2") | from_yaml }}'
+      - ansible.builtin.assert:
+          that:
+          - current.json.data.data.keys() | list == ['server.yml']
+          - prior.accounts | map(attribute='username') | sort == platform_audience_expected_users | sort
+          - base['auth-default-access'] == 'deny-all'
+          - base['auth-users'] == prior_fragment['auth-users'] or base == (lookup('file', platform_audience_runtime_dir + '/server.yml', errors='ignore') | default('{}', true) | from_yaml)
+          - base['auth-access'] == prior_fragment['auth-access'] or base == (lookup('file', platform_audience_runtime_dir + '/server.yml', errors='ignore') | default('{}', true) | from_yaml)
+          - base['auth-tokens'] == prior_fragment['auth-tokens'] or base == (lookup('file', platform_audience_runtime_dir + '/server.yml', errors='ignore') | default('{}', true) | from_yaml)
+          - prior.approved_entitlements[platform_audience_subject].role == 'platform-engineer'
+          - platform_audience_publisher not in platform_audience_expected_users
+          - platform_audience_subscriber not in platform_audience_expected_users
+      - ansible.builtin.shell: 'umask 077; openssl rand -hex 32 > {{ platform_audience_runtime_dir }}/{{ item }}.password'
+        args: {creates: '{{ platform_audience_runtime_dir }}/{{ item }}.password'}
+        loop: [publisher, subscriber]
+      - ansible.builtin.shell: 'umask 077; printf tk_ > {{ platform_audience_runtime_dir }}/{{ item }}.token; openssl rand -hex 15 | cut -c1-29 >> {{ platform_audience_runtime_dir }}/{{ item }}.token'
+        args: {creates: '{{ platform_audience_runtime_dir }}/{{ item }}.token'}
+        loop: [publisher, subscriber]
+      - ansible.builtin.stat:
+          path: '{{ platform_audience_runtime_dir }}/validation.json'
+        register: saved_validation
+      - ansible.builtin.command:
+          argv: [podman, run, -i, --rm, --pull=never, --network, none, --entrypoint, ntfy, '{{ ntfy_native_image }}', user, hash]
+          stdin: "{{ lookup('file', platform_audience_runtime_dir + '/' + item + '.password') }}\n{{ lookup('file', platform_audience_runtime_dir + '/' + item + '.password') }}"
+        loop: [publisher, subscriber]
+        register: hashes
+        when: not saved_validation.stat.exists
+      - when: not saved_validation.stat.exists
+        ansible.builtin.set_fact:
+          new_accounts:
+          - {username: '{{ platform_audience_publisher }}', kind: publisher, role: service, subject_id: null, approved: true, topics: ['{{ platform_audience_topic }}'], password_hash: '{{ hashes.results[0].stdout | trim }}', token: '{{ lookup("file", platform_audience_runtime_dir + "/publisher.token") | trim }}'}
+          - {username: '{{ platform_audience_subscriber }}', kind: subscriber, role: platform-engineer, subject_id: '{{ platform_audience_subject }}', approved: true, topics: ['{{ platform_audience_topic }}'], password_hash: '{{ hashes.results[1].stdout | trim }}', token: '{{ lookup("file", platform_audience_runtime_dir + "/subscriber.token") | trim }}'}
+      - when: saved_validation.stat.exists
+        ansible.builtin.set_fact:
+          new_accounts: '{{ (lookup("file", platform_audience_runtime_dir + "/validation.json") | from_json).accounts | rejectattr("username", "in", platform_audience_expected_users) | list }}'
+      - ansible.builtin.assert:
+          that:
+          - new_accounts | map(attribute='username') | list == [platform_audience_publisher, platform_audience_subscriber]
+          - new_accounts[0].token == lookup('file', platform_audience_runtime_dir + '/publisher.token') | trim
+          - new_accounts[1].token == lookup('file', platform_audience_runtime_dir + '/subscriber.token') | trim
+      - ansible.builtin.set_fact:
+          ntfy_accounts: '{{ prior.accounts + new_accounts }}'
+          entitlements: '{{ prior.approved_entitlements | combine({platform_audience_publisher: {"kind": "publisher", "role": "service", "topics": [platform_audience_topic]}, platform_audience_subject: {"kind": "subscriber", "role": "platform-engineer", "topics": prior.approved_entitlements[platform_audience_subject].topics + [platform_audience_topic]}}) }}'
+      - ansible.builtin.copy:
+          dest: '{{ platform_audience_runtime_dir }}/validation.json'
+          mode: '0600'
+          content: '{{ {"accounts": ntfy_accounts, "previous_managed": platform_audience_expected_users, "existing_users": platform_audience_expected_users, "approved_removals": [], "approved_entitlements": entitlements} | to_json }}'
+      - ansible.builtin.command:
+          argv: [python3, '{{ playbook_dir }}/validate.py', '{{ platform_audience_runtime_dir }}/validation.json']
+        changed_when: false
+      - ansible.builtin.set_fact:
+          config: '{{ base | combine(lookup("template", "../native-auth.yaml.j2") | from_yaml) | to_nice_yaml }}'
+      - ansible.builtin.copy:
+          dest: '{{ platform_audience_runtime_dir }}/server.yml'
+          mode: '0600'
+          content: '{{ config }}'
+      - ansible.builtin.set_fact:
+          desired_owner: {username: '{{ platform_audience_subscriber }}', token: '{{ new_accounts[1].token }}', topic: '{{ platform_audience_topic }}'}
+      - when: owner_before.status == 200
+        ansible.builtin.assert:
+          that: owner_before.json.data.data == desired_owner
+      - when: platform_audience_apply | bool and owner_before.status == 404
+        ansible.builtin.uri:
+          url: '{{ ntfy_bao_server }}/v1/platform/data/{{ platform_audience_owner_record }}'
+          method: POST
+          headers: '{{ headers }}'
+          body_format: json
+          body: {options: {cas: 0}, data: '{{ desired_owner }}'}
+      - when: platform_audience_apply | bool and base != (config | from_yaml)
+        ansible.builtin.uri:
+          url: '{{ ntfy_bao_server }}/v1/platform/data/{{ ntfy_record }}'
+          method: POST
+          headers: '{{ headers }}'
+          body_format: json
+          body: {options: {cas: '{{ current.json.data.metadata.version | int }}'}, data: {server.yml: '{{ config }}'}}
+      always:
+      - ansible.builtin.set_fact: {headers: {}, current: {}, base: {}, prior: {}, ntfy_accounts: [], new_accounts: [], config: '', hashes: {}, prior_fragment: {}}
