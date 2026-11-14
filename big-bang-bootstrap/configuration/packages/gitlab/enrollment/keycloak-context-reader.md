@@ -6,7 +6,10 @@ It is not an account provisioner, Keycloak policy manager or membership writer.
 
 - The explicit selected context is bound to the existing platform-owned context
   document by SHA256. Only Keycloak realm/group paths and GitLab role mappings are
-  consumed. Unrelated old Grafana/Mattermost activation fields are not authority.
+  consumed. This is group-to-GitLab-role policy, not proof of a conjunction with
+  generic realm-role claims. Role fields filtered by native caller visibility
+  cannot prove absence. Unrelated old Grafana/Mattermost activation fields are
+  not authority.
 - Protected inputs supply exact native leaf IDs, never a search by user email or
   an inferred app-folder tenant. Live group IDs/paths and absence of nested groups
   must match; membership is bounded to 500 per role and duplicate/conflicting
@@ -14,7 +17,9 @@ It is not an account provisioner, Keycloak policy manager or membership writer.
 - Two complete reads must agree. Output retains only immutable subjects, enabled
   flags, canonical roles, exact group bindings and provenance/timestamp. Native
   usernames/emails are deliberately discarded. Two reads are not an atomic
-  database snapshot or continuous membership synchronization.
+  database snapshot or continuous membership synchronization. Pinned
+  `getMembers` checks group-level view-members and then returns the direct member
+  stream without additional per-user authorization filtering.
 - A fresh private receipt is exclusively reserved; API/parse/drift failure removes
   only the owned incomplete receipt. Existing successful receipts are not reused
   or overwritten. Caller must impose an overall process deadline and treat any
