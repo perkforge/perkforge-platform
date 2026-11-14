@@ -8,7 +8,7 @@ patches:
     - op: replace
       path: /spec/ref
       value:
-        tag: v2.5.0
+        tag: v2.5.1
 - target: {group: kustomize.toolkit.fluxcd.io, kind: Kustomization, name: tenant-enrollments, namespace: flux-system}
   patch: |-
     - op: replace
