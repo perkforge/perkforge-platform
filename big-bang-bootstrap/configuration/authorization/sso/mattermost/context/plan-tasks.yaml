@@ -15,7 +15,7 @@
     - mc.context_id is match('^[a-z][a-z0-9-]{1,62}$')
     - mc.team_name is match('^[a-z][a-z0-9-]{1,62}$')
     - mc.channel_name is match('^[a-z][a-z0-9-]{1,62}$')
-    - mattermost_keycloak_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+    - mattermost_keycloak_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?(/auth)?$')
     - mattermost_keycloak_origin is not search('[\\x00-\\x20\\x7f]')
     - mc.groups | length == expected_groups | length
     - mc.groups | map(attribute='path') | sort == expected_groups | sort

@@ -44,6 +44,13 @@ class OperationalChannels(fixture.MattermostFixture):
 
 class OperationalAudience(fixture.MattermostFixture):
     setUp = membership.MattermostMembership.setUp
+    def test_keycloak_auth_prefix(self):
+        self.v["mattermost_keycloak_origin"] = self.origin + "/auth"
+        self.s["extra_paths"] = {("/auth" + k if k.startswith("/admin/") else k): v for k, v in self.s["extra_paths"].items()}
+        self.assertIn("0 additions, 0 removals", self.run_play().stdout)
+        for suffix in ["/auth/other", "?token=x", "#fragment"]:
+            self.run_play(dict(mattermost_keycloak_origin=self.origin + suffix), success=False)
+
     def test_platform_excludes_all_tenant_roles(self):
         self.contract.update(audience_model='operational-v1',context_id='platform',channel_name='platform-alerts')
         self.contract['groups']=[dict(id='platform-admins',path='/platform/admins'),dict(id='engineers',path='/platform/engineers')]
