@@ -96,7 +96,9 @@ def check(helm, chart):
             assert query.returncode == 0 and 'mattermost|f|f|f' in query.stdout, 'Startup/role check failed'
             for probe in ('readinessProbe', 'livenessProbe'):
                 subprocess.run(['podman', 'exec', name, *container[probe]['exec']['command']], capture_output=True, check=True)
-            subprocess.run(['podman', 'exec', name, 'psql', '-U', 'mattermost', '-d', 'mattermost', '-c', 'CREATE TABLE contract_probe(id int); DROP TABLE contract_probe;'], capture_output=True, check=True)
+            subprocess.run(['podman', 'exec', '-e', 'PGPASSWORD=synthetic-app-only', name, 'psql', '-h', '127.0.0.1', '-U', 'mattermost', '-d', 'mattermost', '-c', 'CREATE TABLE contract_probe(id int); DROP TABLE contract_probe;'], capture_output=True, check=True)
+            denied = subprocess.run(['podman', 'exec', '-e', 'PGPASSWORD=synthetic-wrong-password', name, 'psql', '-h', '127.0.0.1', '-U', 'mattermost', '-d', 'mattermost', '-c', 'SELECT 1'], capture_output=True, text=True)
+            assert denied.returncode != 0 and 'password authentication failed' in denied.stderr, 'Wrong app password was not denied'
             print(json.dumps({'native_render': 'PASS', 'rendered_password_file': 'PASS', 'rendered_env_mounts_readonly_root': 'PASS', 'app_role_and_schema': 'PASS', 'rendered_probes': 'PASS'}))
         finally:
             subprocess.run(['podman', 'rm', '-f', name], capture_output=True)

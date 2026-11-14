@@ -46,6 +46,7 @@ addons:
                   name: mattermost-postgresql-auth
                   key: password
           initdb:
+            args: --auth-host=scram-sha-256
             scripts:
               10-mattermost.sql: |-
                 \getenv mattermost_password MATTERMOST_PASSWORD

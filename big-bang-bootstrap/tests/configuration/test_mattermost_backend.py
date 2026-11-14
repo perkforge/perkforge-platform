@@ -29,6 +29,7 @@ class MattermostBackend(unittest.TestCase):
         self.assertEqual(pg['auth']['existingSecret'], 'mattermost-postgresql-auth')
         self.assertEqual(pg['auth']['username'], '')
         self.assertEqual(pg['primary']['persistence']['size'], '8Gi')
+        self.assertEqual(pg['primary']['initdb']['args'], '--auth-host=scram-sha-256')
         self.assertEqual(pg['primary']['containerSecurityContext']['runAsUser'], 1001)
         self.assertIn('NOSUPERUSER NOCREATEDB NOCREATEROLE', pg['primary']['initdb']['scripts']['10-mattermost.sql'])
         self.assertIn('pg_isready', str(pg['primary']['customReadinessProbe']))
