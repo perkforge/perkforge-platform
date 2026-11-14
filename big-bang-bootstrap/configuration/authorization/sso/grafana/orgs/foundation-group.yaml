@@ -1,0 +1,78 @@
+- ansible.builtin.set_fact:
+    foundation_attrs: "{{ {'perkforge-managed':['true'],'perkforge-foundation':['v1']} | combine({'perkforge-role':[foundation_group.role]} if foundation_group.role else {}) }}"
+- ansible.builtin.uri:
+    url: '{{ metadata_api }}/group-by-path/{{ foundation_group.path | urlencode }}'
+    headers: '{{ metadata_kc_headers }}'
+    status_code: [200,404]
+  register: foundation_group_before
+  no_log: true
+- name: No adoption, movement or overwrite of existing paths
+  ansible.builtin.assert:
+    that:
+    - foundation_group_before.status == 404 or (foundation_group_before.json.id == foundation_expected_ids[foundation_group.path] and foundation_group_before.json.path == foundation_group.path and foundation_group_before.json.name == foundation_group.name and foundation_group_before.json.attributes == foundation_attrs)
+    - foundation_group_before.status != 404 or foundation_expected_ids[foundation_group.path] == none
+- when: foundation_group_before.status == 200
+  block:
+  - ansible.builtin.uri:
+      url: '{{ metadata_api }}/groups/{{ foundation_group_before.json.id }}/{{ item }}'
+      headers: '{{ metadata_kc_headers }}'
+    loop: [role-mappings, role-mappings/realm/composite]
+    register: foundation_existing_roles
+    no_log: true
+  - ansible.builtin.assert:
+      that:
+      - foundation_existing_roles.results[0].json.clientMappings | default({}) | length == 0
+      - foundation_existing_roles.results[0].json.realmMappings | default([]) | map(attribute='name') | list | difference([foundation_group.role] if foundation_group.role else []) | length == 0
+      - foundation_existing_roles.results[1].json | map(attribute='name') | list | sort == foundation_existing_roles.results[0].json.realmMappings | default([]) | map(attribute='name') | list | sort
+- when: foundation_stage == 'apply'
+  block:
+  - ansible.builtin.uri:
+      url: '{{ metadata_api }}/groups/{{ foundation_ids[foundation_group.path.rsplit("/",1)[0]] }}/children'
+      headers: '{{ metadata_kc_headers }}'
+      method: POST
+      body_format: json
+      body: {name: '{{ foundation_group.name }}', attributes: '{{ foundation_attrs }}'}
+      status_code: 201
+    when: foundation_group_before.status == 404
+    register: foundation_created
+    no_log: true
+  - ansible.builtin.uri:
+      url: '{{ metadata_api }}/group-by-path/{{ foundation_group.path | urlencode }}'
+      headers: '{{ metadata_kc_headers }}'
+    register: foundation_group_after
+    no_log: true
+  - ansible.builtin.assert:
+      that:
+      - foundation_group_after.json.path == foundation_group.path
+      - foundation_group_after.json.name == foundation_group.name
+      - foundation_group_after.json.attributes == foundation_attrs
+      - foundation_group_before.status != 404 or foundation_created.location is defined
+      - foundation_group_after.json.id == (foundation_created.location.rsplit('/',1)[-1] if foundation_group_before.status == 404 else foundation_group_before.json.id)
+  - ansible.builtin.set_fact:
+      foundation_ids: '{{ foundation_ids | combine({foundation_group.path:foundation_group_after.json.id}) }}'
+  - when: foundation_group.role | length > 0
+    block:
+    - ansible.builtin.uri:
+        url: '{{ metadata_api }}/groups/{{ foundation_group_after.json.id }}/role-mappings/realm'
+        headers: '{{ metadata_kc_headers }}'
+      register: foundation_mapping_before
+      no_log: true
+    - ansible.builtin.assert:
+        that:
+        - foundation_mapping_before.json | map(attribute='id') | list | difference([foundation_role_objects[foundation_group.role].id]) | length == 0
+    - ansible.builtin.uri:
+        url: '{{ metadata_api }}/groups/{{ foundation_group_after.json.id }}/role-mappings/realm'
+        headers: '{{ metadata_kc_headers }}'
+        method: POST
+        body_format: json
+        body: '{{ [foundation_role_objects[foundation_group.role]] }}'
+        status_code: 204
+      when: foundation_mapping_before.json | length == 0
+      no_log: true
+    - ansible.builtin.uri:
+        url: '{{ metadata_api }}/groups/{{ foundation_group_after.json.id }}/role-mappings/realm/composite'
+        headers: '{{ metadata_kc_headers }}'
+      register: foundation_mapping_after
+      no_log: true
+    - ansible.builtin.assert:
+        that: foundation_mapping_after.json | map(attribute='id') | list == [foundation_role_objects[foundation_group.role].id]

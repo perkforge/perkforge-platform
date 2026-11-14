@@ -69,6 +69,9 @@ class NativeGrafanaOrgOAuth(unittest.TestCase):
                     for name in ['fixture-a','fixture-b']:
                         req=urllib.request.Request(base+'/api/orgs',data=json.dumps({'name':name}).encode(),headers=admin|{'Content-Type':'application/json'})
                         urllib.request.urlopen(req).close()
+                    created_users=json.load(urllib.request.urlopen(urllib.request.Request(base+'/api/orgs/2/users',headers=admin)))
+                    self.assertEqual([(u['login'],u['role']) for u in created_users],[('fixture','Admin')])
+
                     source=urllib.request.Request(base+'/api/datasources',data=json.dumps({'uid':'platform-only','name':'platform-only','type':'prometheus','access':'proxy','url':'http://127.0.0.1:1'}).encode(),headers=admin|{'Content-Type':'application/json'})
                     urllib.request.urlopen(source).close()
                     for actor,expected in [('mixed',{2:'Admin',3:'Viewer'}),('engineer',{1:'Viewer'}),('owner',{1:'Admin'})]:

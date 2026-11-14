@@ -28,11 +28,11 @@ class Api(BaseHTTPRequestHandler):
             if self.drift: client['fullScopeAllowed']=True
             self.reply(client)
         elif '/group-by-path/' in path:
-            self.reply({'id':self.group_id,'path':'/platform/engineers'})
+            self.reply({'id':self.group_id if path.endswith('/engineers') else '44444444-4444-4444-8444-444444444444','path':path.split('/group-by-path/')[-1]})
         elif '/roles/pf-observability-platform-viewer' in path:
             self.reply(self.role or {},200 if self.role else 404)
         elif '/role-mappings/clients/' in path or '/scope-mappings/clients/' in path:
-            self.reply(self.bindings.get(path,[{'id':'existing-owner','name':'/platform/admins'}]))
+            self.reply(self.bindings.get(path.removesuffix('/composite'), [] if '/groups/' in path else [{'id':'existing-owner','name':'/platform/admins'}]))
         else: self.reply({'error':'unexpected path'},404)
     def do_POST(self):
         path=urllib.parse.unquote(self.path); body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
@@ -40,7 +40,7 @@ class Api(BaseHTTPRequestHandler):
         if path.endswith('/roles'):
             type(self).role=body|{'id':self.role_id,'containerId':self.client_id}; self.reply({},201)
         elif '/role-mappings/clients/' in path or '/scope-mappings/clients/' in path:
-            before=self.bindings.get(path,[{'id':'existing-owner','name':'/platform/admins'}]); self.bindings[path]=before+body; self.reply({},204)
+            before=self.bindings.get(path,[] if '/groups/' in path else [{'id':'existing-owner','name':'/platform/admins'}]); self.bindings[path]=before+body; self.reply({},204)
         else: self.reply({},400)
 
 class ProtocolFixture(unittest.TestCase):
@@ -64,8 +64,11 @@ class ProtocolFixture(unittest.TestCase):
             result=run(); self.assertEqual(result.returncode,0,result.stdout+result.stderr)
             self.assertEqual(len(Api.writes),3)
             self.assertEqual(len(Api.bindings),2)
-            for roles in Api.bindings.values(): self.assertEqual({r['id'] for r in roles},{'existing-owner',Api.role_id})
+            for path,roles in Api.bindings.items(): self.assertEqual({r['id'] for r in roles},{Api.role_id} if '/groups/' in path else {'existing-owner',Api.role_id})
             result=run(); self.assertEqual(result.returncode,0,result.stdout+result.stderr)
             self.assertEqual(len(Api.writes),3)
             Api.drift=True; result=run(); self.assertNotEqual(result.returncode,0)
             self.assertEqual(len(Api.writes),3)
+            Api.drift=False
+            Api.bindings['/admin/realms/perkforge/groups/44444444-4444-4444-8444-444444444444/role-mappings/clients/'+Api.client_id]=[{'id':'unexpected','name':'/platform/admins','composite':False,'containerId':Api.client_id}]
+            result=run(); self.assertNotEqual(result.returncode,0); self.assertEqual(len(Api.writes),3)

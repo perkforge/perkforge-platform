@@ -40,6 +40,10 @@
     that:
     - entitlement_group.json.id == entitlement.group_id
     - entitlement_group.json.path == entitlement.canonical_group
+- name: Inspect canonical group and every ancestor for unexpected own-client authority
+  ansible.builtin.include_tasks: entitlement-ancestor.yaml
+  loop: "{{ ['/platform',entitlement.canonical_group] if entitlement.canonical_group == '/platform/engineers' else ['/tenants','/tenants/' + grafana_org_context_id,entitlement.canonical_group] }}"
+  loop_control: {loop_var: entitlement_ancestor_path}
 - ansible.builtin.uri:
     url: '{{ metadata_api }}/clients/{{ entitlement.client_id }}/roles/{{ entitlement.role_name }}'
     headers: '{{ metadata_kc_headers }}'

@@ -128,3 +128,29 @@ Platform canonical groups and owned Grafana client exist. Therefore tenant
 activation also requires reviewed canonical group foundation, not guessed IDs or
 adoption. No human membership was inspected or changed. Native IDs remain in
 private operator evidence rather than this reusable source.
+
+## Additive canonical foundation, never realm initialization
+
+Exact further pilot metadata found the original managed `/tenants` parent but no
+`/tenants/portal` or generic tenant roles. The unconnected `ensure-foundation.yaml`
+therefore implements the minimum existing-policy foundation: four groups (context
+parent plus three leaves), three managed noncomposite generic realm roles, and
+one exact role mapping per leaf. It requires pinned existing parent ID and explicit
+expected IDs/null for every path. Before any write it rejects foreign attributes,
+role definitions or inherited mappings. It never updates/moves/deletes an existing
+group, adopts a name, initializes a realm, or touches users. Newly assigned IDs
+must be reviewed/pinned for retry; a null expectation will not adopt an object
+created during an interrupted earlier attempt. Existing post-entitlement mappings
+are deliberately not silently accepted by this initial foundation stage.
+
+Run foundation only before entitlement application, then verify exact group/role
+IDs and native direct/effective mappings. The entitlement include separately checks
+each canonical ancestor plus leaf for unexpected direct/effective own-client roles:
+parents must have none; leaf may contain only its exact noncomposite entitlement.
+An inherited PA claim must stop the operation, not be preserved as harmless drift.
+
+Pinned Grafana fixture now explicitly confirms org creation associates the existing
+recovery creator as native org Admin. This is the already-global recovery exception,
+not a claim of zero membership side effects or a Keycloak-derived new human grant.
+Keep tenant exposure gated until real gateway namespace/ownership-epoch isolation
+and negative query APIs pass; managed empty groups alone grant nobody access.
