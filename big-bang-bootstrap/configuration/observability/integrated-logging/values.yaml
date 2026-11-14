@@ -6,6 +6,10 @@ alloy:
   flux:
     suspend: false
   values:
+    global:
+      imagePullSecrets: [{name: private-registry}]
+      image:
+        pullSecrets: [{name: private-registry}]
     monitoring: {enabled: false}
     serviceMonitors: []
 loki:
@@ -13,6 +17,7 @@ loki:
   flux:
     suspend: false
   values:
+    imagePullSecrets: [{name: private-registry}]
     monitoring:
       enabled: false
       dashboards: {enabled: false}

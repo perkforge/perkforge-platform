@@ -66,3 +66,11 @@ and Alloy ServiceMonitors outside the existing installer authority. This pilot
 explicitly disables only those optional logging monitoring objects (not existing
 Prometheus/Grafana). No installer grant is widened. Existing dashboards are kept;
 new logging exporter scraping/rules remain a separately reviewed follow-up.
+
+
+The integrated override explicitly retains existing `private-registry` references
+for Loki and Alloy/operator/collector. The umbrella has no embedded registry
+credentials and otherwise emits empty references over child defaults. This uses
+existing namespace-local immutable pull Secrets; it does not rotate credentials,
+change pinned Registry1 images or grant access to another namespace. Native umbrella
+regression tests cover both Pod templates and the Alloy custom resource.
