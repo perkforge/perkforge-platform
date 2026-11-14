@@ -69,3 +69,21 @@ class MembershipPhase(unittest.TestCase):
    before=state['calls'];p,w,_,_=run([],recovery=False);self.assertNotEqual(p.returncode,0);self.assertEqual(state['calls'],before)
 
    before=len(state['writes']);p,w,_,_=run([0,1,2],mutate=True);self.assertNotEqual(p.returncode,0);self.assertEqual(json.loads(p.stdout)['phase'],'PartialFailure');self.assertEqual(len(state['writes']),before+1)
+
+ def test_foundation_guard_rejects_stale_wrong_missing_capsule(self):
+  with tempfile.TemporaryDirectory(prefix='identity-foundation-guard-') as directory:
+   root=Path(directory);context=root/'portal';context.mkdir(mode=0o700);work=root/'work';work.mkdir(mode=0o700)
+   roles={'tenant-admin':'admins','tenant-developer':'developers','tenant-viewer':'viewers'};groups={r:f'00000000-0000-4000-8000-{i:012d}' for i,r in enumerate(roles,1)}
+   d={'identity_run':True,'identity_membership_recovery_verified':True,'identity_scope':'gitlab-identity-memberships-v1','identity_context':'portal','identity_source_revision':'a'*40,'identity_platform_revision':'b'*40,'identity_contract_sha256':'c'*64,'identity_previous_invocation':'','identity_retry_generation':0,'identity_gitlab_origin':'https://gitlab.invalid','identity_keycloak_origin':'https://keycloak.invalid/auth','identity_keycloak_realm':'perkforge','identity_kubernetes_origin':'https://kubernetes.invalid','identity_receipt_uid':'22222222-2222-4222-8222-222222222222','identity_receipt_namespace':'tenant-identity-writer','identity_receipt_name':'portal-identity-evidence','identity_group_ids':groups}
+   d['identity_invocation']=hashlib.sha256(json.dumps({k:v for k,v in d.items() if k not in ('identity_scope','identity_run')},sort_keys=True,separators=(',',':')).encode()).hexdigest();now=dt.datetime.now(dt.timezone.utc).isoformat()
+   snapshot={'schema':1,'stage':'SnapshotVerified','context':'portal','source_revision':'a'*40,'contract_sha256':'c'*64,'origin':d['identity_keycloak_origin'],'realm':'perkforge','captured_at':now,'groups':[{'role':r,'id':groups[r],'path':'/tenants/portal/'+roles[r]} for r in sorted(roles)],'members':[]}
+   env={'schema':1,'context':'portal','source_revision':'a'*40,'platform_revision':'b'*40,'contract_sha256':'c'*64,'invocation':d['identity_invocation'],'previous_invocation':'','retry_generation':0,'receipt_uid':d['identity_receipt_uid'],'captured_at':now,'snapshot':snapshot,'identities':[]}
+   group={'schema':1,'context':'portal','origin':d['identity_gitlab_origin'],'source_revision':'a'*40,'parent_id':30,'group_id':31,'stage':'group-ready','previous_revisions':[]}
+   foundation={'schema':1,'phase':'GroupReady','context':'portal','invocation':d['identity_invocation'],'source_revision':'a'*40,'platform_revision':'b'*40,'parent_id':30,'group_id':31,'captured_at':now}
+   def save(path,value):path.write_text(json.dumps(value));path.chmod(0o600)
+   save(work/'phase-inputs.json',d);save(work/'envelope.json',env);save(context/'gitlab-group.json',group)
+   def verify():return subprocess.run(['python3',str(ROOT/'configuration/packages/gitlab/enrollment/phases/membership-state.py'),str(work/'phase-inputs.json'),str(work),str(context/'gitlab-group.json')],capture_output=True,text=True,timeout=5)
+   save(context/'foundation-result.json',foundation);self.assertEqual(verify().returncode,0)
+   for patch in ({'invocation':'d'*64},{'group_id':999},{'captured_at':(dt.datetime.now(dt.timezone.utc)-dt.timedelta(minutes=6)).isoformat()},{'captured_at':(dt.datetime.now(dt.timezone.utc)+dt.timedelta(minutes=1)).isoformat()}):
+    save(context/'foundation-result.json',{**foundation,**patch});self.assertNotEqual(verify().returncode,0)
+   (context/'foundation-result.json').unlink();self.assertNotEqual(verify().returncode,0)
