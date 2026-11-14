@@ -5,6 +5,9 @@
 
 ### Features
 
+* **mattermost:** prepare dedicated native PostgreSQL and file PVC backends ([#387](https://github.com/perkforge/perkforge-platform/pull/387)).
+* **mattermost:** stage scoped runtime custody, native activation and append-only chat DNS maintenance ([#396](https://github.com/perkforge/perkforge-platform/pull/396)).
+
 * **alerting:** provision scoped Portal Grafana ntfy routing ([#381](https://github.com/perkforge/perkforge-platform/issues/381)) ([5a862ac](https://github.com/perkforge/perkforge-platform/commit/5a862acb8450cce55ca0061d9de09ee7ce9d809e))
 * deliver platform-alerts with additive scoped credentials ([#386](https://github.com/perkforge/perkforge-platform/issues/386)) ([a88dea7](https://github.com/perkforge/perkforge-platform/commit/a88dea7658fa09419d6d7bdf8124ab1653128ae2))
 * **notifications:** add native Flux deployment outcome route ([#389](https://github.com/perkforge/perkforge-platform/issues/389)) ([bd8a5e7](https://github.com/perkforge/perkforge-platform/commit/bd8a5e76d629331fe91391a91d9a5c0414951a97))
