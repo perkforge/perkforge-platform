@@ -76,3 +76,26 @@ Any target using these staged prerequisites must include the reusable
 render, following the existing preowned namespace pattern. This does not delete
 live namespaces, change their labels, or grant the umbrella cluster-wide namespace
 authority. The local pilot composes this same portable component.
+
+## Storage-aware lab placement and guarded fix-forward
+
+Verify CSI drivers on the chosen **data-workload** node, not just CPU headroom.
+`mattermost_runtime_node_selector` places app/database; optional
+`mattermost_runtime_operator_node_selector` independently places the stateless
+operator. Optional `mattermost_runtime_app_requests` and
+`mattermost_runtime_database_requests` override only CPU/memory requests for the
+explicit target, not generic defaults or limits. No CSI installation, host
+privilege change or unrelated workload resizing is part of this procedure.
+
+For an already staged target, render the reviewed desired values, then run
+`update-values.yaml` with `mattermost_runtime_update_values=true`, verified
+`cluster_uid` and exact `previous_values_sha256` (all inputs use the same prefix).
+It checks the current value hash and replaces only this ConfigMap with its
+resourceVersion, preventing concurrent drift from being overwritten. Flux/Helm
+remain the workload owners. This is not a secret rotation or hidden root change.
+
+If a failed initial provision left a `volume.kubernetes.io/selected-node`
+annotation on a Pending, unbound claim, preserve its UID and data identity.
+After correcting the source placement, clear only that stale annotation with
+exact UID/phase/unbound/old-annotation preconditions so scheduling can retry.
+Never delete/recreate the claim, force a volume attach or alter another app.

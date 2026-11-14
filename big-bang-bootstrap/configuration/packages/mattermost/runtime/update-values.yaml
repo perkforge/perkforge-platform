@@ -1,0 +1,40 @@
+# Fix-forward of reviewed public target values. No credential or authority changes.
+- name: Update only the exact previously staged Mattermost values
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    mattermost_runtime_update_values: false
+  tasks:
+  - when: mattermost_runtime_update_values | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - mattermost_runtime_previous_values_sha256 is match('^[a-f0-9]{64}$')
+        - mattermost_runtime_output_dir is match('^/')
+    - ansible.builtin.command:
+        argv: [kubectl, get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: cluster
+      changed_when: false
+    - ansible.builtin.assert: {that: cluster.stdout == mattermost_runtime_cluster_uid}
+    - ansible.builtin.command:
+        argv: [kubectl, -n, bigbang, get, configmap, mattermost-runtime-values, -o, json]
+      register: current
+      changed_when: false
+    - ansible.builtin.set_fact:
+        current_object: '{{ current.stdout | from_json }}'
+        next_values: '{{ lookup("file", mattermost_runtime_output_dir + "/values.yaml", rstrip=false) }}'
+    - ansible.builtin.assert:
+        that:
+        - current_object.metadata.ownerReferences | default([]) | length == 0
+        - current_object.metadata.finalizers | default([]) | length == 0
+        - not (current_object.immutable | default(false) | bool)
+        - current_object.data.keys() | list == ['values.yaml']
+        - current_object.data['values.yaml'] | hash('sha256') == mattermost_runtime_previous_values_sha256
+        - (next_values | from_yaml).keys() | list == ['addons']
+        - (next_values | from_yaml).addons.keys() | sort == ['mattermost', 'mattermostOperator']
+    - name: Replace with exact resourceVersion precondition, not an unguarded apply
+      ansible.builtin.command:
+        argv: [kubectl, replace, -f, '-']
+        stdin: '{{ {"apiVersion":"v1", "kind":"ConfigMap", "metadata":{"name":"mattermost-runtime-values", "namespace":"bigbang", "resourceVersion":current_object.metadata.resourceVersion, "labels":current_object.metadata.labels | default({}), "annotations":current_object.metadata.annotations | default({})}, "data":{"values.yaml": next_values}} | to_json }}'
+      when: current_object.data['values.yaml'] != next_values

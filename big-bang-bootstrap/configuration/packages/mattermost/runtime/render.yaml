@@ -20,6 +20,11 @@
         - mattermost_runtime_issuer is match('^https://[a-z0-9.-]+(:[0-9]+)?(/auth)?/realms/perkforge$')
         - mattermost_runtime_storage_class is match('^[a-z0-9][a-z0-9.-]+$')
         - mattermost_runtime_node_selector is mapping and mattermost_runtime_node_selector | length > 0
+        - mattermost_runtime_operator_node_selector | default(mattermost_runtime_node_selector) is mapping
+        - mattermost_runtime_app_requests | default({}) is mapping
+        - mattermost_runtime_database_requests | default({}) is mapping
+        - (mattermost_runtime_app_requests | default({})).keys() | difference(['cpu', 'memory']) | length == 0
+        - (mattermost_runtime_database_requests | default({})).keys() | difference(['cpu', 'memory']) | length == 0
         - mattermost_runtime_api_cidrs | length > 0
         - mattermost_runtime_ingress_cidrs | length > 0
         - mattermost_runtime_traefik_selector is mapping and mattermost_runtime_traefik_selector | length > 0
