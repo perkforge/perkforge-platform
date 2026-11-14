@@ -93,6 +93,23 @@ class ContextContractTest(unittest.TestCase):
         with self.assertRaises(verify.ContractError):
             verify.validate_all([CONTEXT / 'portal.yaml', CONTEXT / 'portal.yaml'])
 
+    def test_two_contexts_share_team_not_authority(self):
+        other = yaml.safe_load(yaml.safe_dump(self.document).replace('portal', 'other'))
+        a = verify.validate(self.document)
+        b = verify.validate(other)
+        self.assertEqual(a['targets']['mattermost']['team_name'], b['targets']['mattermost']['team_name'])
+        self.assertNotEqual(a['targets']['mattermost']['channel_name'], b['targets']['mattermost']['channel_name'])
+        self.assertEqual(set(a['keycloak']['groups']), set(b['keycloak']['groups']))
+        self.assertFalse(set(a['keycloak']['groups'].values()) & set(b['keycloak']['groups'].values()))
+        with tempfile.TemporaryDirectory() as directory:
+            paths = [Path(directory)/name for name in ['a.yaml','b.yaml']]
+            for path, document in zip(paths, [self.document, other]):
+                path.write_text(yaml.safe_dump(document))
+            self.assertEqual(len(verify.validate_all(paths)), 2)
+        other['paas_context']['keycloak']['groups']['tenant-admin'] = a['keycloak']['groups']['tenant-admin']
+        with self.assertRaises(verify.ContractError):
+            verify.validate(other)
+
     def test_cli_rejects_bad_input_without_traceback(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'bad.yaml'
