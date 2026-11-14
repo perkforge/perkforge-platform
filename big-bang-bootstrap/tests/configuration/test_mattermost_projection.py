@@ -25,11 +25,11 @@ class NativeNjs(unittest.TestCase):
    d=pathlib.Path(d);d.chmod(0o755)
    subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN=localhost','-addext','subjectAltName=DNS:localhost','-keyout',str(d/'tls.key'),'-out',str(d/'tls.crt')],check=True,capture_output=True)
    (d/'tls.key').chmod(0o644);(d/'ca.crt').write_bytes((d/'tls.crt').read_bytes());(d/'resolver.conf').write_text('resolver 127.0.0.1;\n')
-   received=[]
+   received=[]; response_status=[200]
    class Handler(BaseHTTPRequestHandler):
     def log_message(self,*a):pass
     def do_POST(self):
-     received.append(json.loads(self.rfile.read(int(self.headers['Content-Length']))));self.send_response(200);self.end_headers();self.wfile.write(b'ok')
+     received.append(json.loads(self.rfile.read(int(self.headers['Content-Length']))));self.send_response(response_status[0]);self.end_headers();self.wfile.write(b'ok')
    srv=HTTPServer(('127.0.0.1',0),Handler);ctx=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);ctx.load_cert_chain(d/'tls.crt',d/'tls.key');srv.socket=ctx.wrap_socket(srv.socket,server_side=True);threading.Thread(target=srv.serve_forever,daemon=True).start()
    with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
    route={'sources':['tenant-portal-config/portal'],'title':'Portal deployments','link':'https://portal.example.invalid','token':'fixture-token','hook':f'https://localhost:{srv.server_port}/hooks/'+('h'*26)}
@@ -54,6 +54,15 @@ class NativeNjs(unittest.TestCase):
     self.assertEqual(send('/portal','wrong',event),403);self.assertEqual(send('/portal?override=1','fixture-token',event),403)
     event['involvedObject']['namespace']='foreign';self.assertEqual(send('/portal','fixture-token',event),400)
     self.assertEqual(len(received),1);self.assertNotIn('DO-NOT-FORWARD',json.dumps(received));self.assertEqual(list(received[0]),['text'])
+    event['involvedObject']['namespace']='tenant-portal-config'
+    response_status[0]=500;self.assertEqual(send('/portal','fixture-token',event),502)
+    self.assertEqual(len(received),2)
+    # IP URL fails the DNS-only certificate SAN; verify=true must fail closed.
+    route['hook']=route['hook'].replace('localhost','127.0.0.1')
+    (d/'routes.json').write_text(json.dumps({'/portal':route}))
+    self.assertEqual(send('/portal','fixture-token',event),400)
+    self.assertEqual(len(received),2)
+
    finally:
     p.terminate();out,err=p.communicate(timeout=10);srv.shutdown();srv.server_close()
    self.assertNotIn('fixture-token',err.decode());self.assertNotIn('hhhhhhhh',err.decode())

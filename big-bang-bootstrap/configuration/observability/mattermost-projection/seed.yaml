@@ -69,6 +69,31 @@
           - (records[item + '-v1'].headers | from_yaml) == {'Authorization':'Bearer ' + routes['/' + item].token}
           - records[item + '-v1']['ca.crt'] == projection_public_ca
         loop: [platform, portal]
+      - name: Allocate protected certificate validation files
+        ansible.builtin.tempfile: {state: directory, path: '{{ projection_private_dir }}', prefix: verify-tls-}
+        register: tlscheck
+      - name: Validate exact service identity, chain and key before custody write
+        block:
+        - ansible.builtin.copy:
+            dest: '{{ tlscheck.path }}/{{ item.key }}'
+            content: '{{ item.value }}'
+            mode: '0600'
+          loop: '{{ records["tls-v1"] | dict2items }}'
+        - ansible.builtin.copy: {dest: '{{ tlscheck.path }}/ca.crt', content: '{{ projection_public_ca }}', mode: '0600'}
+        - ansible.builtin.command:
+            argv: [openssl, verify, -CAfile, '{{ tlscheck.path }}/ca.crt', -verify_hostname, mattermost-event-projection.ntfy.svc, -purpose, sslserver, '{{ tlscheck.path }}/tls.crt']
+          changed_when: false
+        - ansible.builtin.command:
+            argv: [openssl, x509, -in, '{{ tlscheck.path }}/tls.crt', -pubkey, -noout]
+          register: certpub
+          changed_when: false
+        - ansible.builtin.command:
+            argv: [openssl, pkey, -in, '{{ tlscheck.path }}/tls.key', -pubout]
+          register: keypub
+          changed_when: false
+        - ansible.builtin.assert: {that: certpub.stdout == keypub.stdout}
+        always:
+        - ansible.builtin.file: {path: '{{ tlscheck.path }}', state: absent}
       - ansible.builtin.uri:
           url: '{{ projection_bao_server }}/v1/platform/data/notifications/mm-projection/{{ item.key }}'
           headers: '{{ bao_headers }}'
