@@ -59,3 +59,10 @@ unless exact payload/immutability already match. Keep all outputs secret-suppres
 verify readback, and use the native chart's explicit v2 reference. No additional
 users, password regeneration, role changes or Secret deletion is authorized by
 this repair. The corrected input remains manual custody, not ESO management.
+
+
+Native umbrella monitoring defaults would add Loki PrometheusRules/ServiceMonitors
+and Alloy ServiceMonitors outside the existing installer authority. This pilot
+explicitly disables only those optional logging monitoring objects (not existing
+Prometheus/Grafana). No installer grant is widened. Existing dashboards are kept;
+new logging exporter scraping/rules remain a separately reviewed follow-up.
