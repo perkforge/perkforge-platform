@@ -42,3 +42,24 @@ inside the existing `grafana-platform-alerts` record, preserving all receivers
 exact ESO payload and native Grafana provisioning after the coordinated reload.
 Do not induce production drops to test an alert; use native synthetic rule tests
 and clearly distinguish actual target/rule evaluation from notification delivery.
+
+The drop/retry query returns the actual reset-safe summed rate, not a boolean;
+Grafana's existing C > 0 threshold and persistence windows are unchanged. The
+notification summary includes the five-minute rate in entries/s or retries/s,
+formatted to six significant digits; nonfinite values display unavailable.
+This is a rate, not an inferred count or proof that every rejected batch entry
+was lost. The missing-telemetry rule remains a status condition.
+
+These rules cover writer delivery and missing scrape/counter telemetry, not
+source discovery completeness. Pinned Alloy v1.18 Kubernetes API source health
+only indicates valid configuration and exposes no source-specific debug metrics;
+per-target last-line/error metadata requires separate coverage design. Do not
+interpret scrape up=1 as proof every intended pod is being collected.
+
+Notification acceptance also includes actual transport templates: ntfy's existing
+200-character summary excerpt receives the rate first. Mattermost's bounded
+platform payload adds only fixed known log-signal names and native numeric A
+values/units (maximum three included alerts), never arbitrary annotations, labels
+or log lines. Native Grafana-to-local-sink tests verify fractional and zero rates.
+Alert annotation templates keep single dollars; contact-point payload templates
+escape dollars for their separate provisioning interpolation path.

@@ -83,7 +83,7 @@
               tlsConfig: {insecureSkipVerify: false, caCertificate: '{{ lookup("file", grafana_mattermost_ca_file, rstrip=false) }}'}
               payload:
                 template: >-
-                  {% raw %}{{ coll.Dict "text" (printf "%s: %d grouped platform alert(s). Triage: {% endraw %}{{ grafana_mattermost_triage_url }}{% raw %}" .Status (len .Alerts)) | data.ToJSON }}{% endraw %}
+                  {% raw %}{{ $$text := printf "%s: %d grouped platform alert(s). Triage: {% endraw %}{{ grafana_mattermost_triage_url }}{% raw %}" .Status (len .Alerts) }}{{ range .Alerts }}{{ $$signal := "" }}{{ $$unit := "" }}{{ if eq (index .Labels "alertname") "Log delivery drops sustained" }}{{ $$signal = "log-drops" }}{{ $$unit = "entries/s" }}{{ else if eq (index .Labels "alertname") "Log delivery retries sustained" }}{{ $$signal = "log-retries" }}{{ $$unit = "retries/s" }}{{ end }}{{ if $$signal }}{{ range $$key, $$value := .Values }}{{ if eq $$key "A" }}{{ $$rate := printf "%.6g" $$value }}{{ if or (eq $$rate "+Inf") (eq $$rate "-Inf") (eq $$rate "NaN") }}{{ $$rate = "unavailable" }}{{ end }}{{ $$text = printf "%s; %s=%s %s (5m)" $$text $$signal $$rate $$unit }}{{ end }}{{ end }}{{ end }}{{ end }}{{ coll.Dict "text" $$text | data.ToJSON }}{% endraw %}
       - name: An existing owned receiver may change only its payload template
         ansible.builtin.assert:
           that:
