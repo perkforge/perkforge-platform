@@ -1,0 +1,13 @@
+# Create-only approved foundation prerequisite; never replace or adopt unknown PVC.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: alloy-storage-alloy-alloy-logs-0
+  namespace: alloy
+  annotations:
+    platform.perkforge.io/cursor-owner: alloy-alloy-logs
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ alloy_cursor_storage_class }}
+  resources:
+    requests: {storage: {{ alloy_cursor_size }}}

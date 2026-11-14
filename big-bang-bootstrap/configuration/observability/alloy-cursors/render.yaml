@@ -1,0 +1,30 @@
+# Offline only; no PVC, pod, controller or root mutation.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    alloy_cursor_render: false
+    alloy_cursor_replicas: 0
+    alloy_cursor_size: 1Gi
+    alloy_cursor_storage_class: longhorn
+    alloy_cursor_node_selector: {storage.perkforge.io/worker: 'true'}
+  tasks:
+  - when: alloy_cursor_render | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - alloy_cursor_replicas is integer
+        - alloy_cursor_replicas in [0, 1]
+        - alloy_cursor_size is match('^[1-9][0-9]*Gi$')
+        - alloy_cursor_storage_class is match('^[a-z0-9][a-z0-9.-]*$')
+        - alloy_cursor_node_selector | length > 0
+        - alloy_cursor_output is match('^/[A-Za-z0-9_./-]+$') and alloy_cursor_output != '/'
+    - ansible.builtin.file: {path: '{{ alloy_cursor_output }}', state: directory, mode: '0700'}
+    - ansible.builtin.template:
+        src: values.yaml.j2
+        dest: '{{ alloy_cursor_output }}/values.yaml'
+        mode: '0600'
+    - ansible.builtin.template:
+        src: claim.yaml.j2
+        dest: '{{ alloy_cursor_output }}/claim.yaml'
+        mode: '0600'

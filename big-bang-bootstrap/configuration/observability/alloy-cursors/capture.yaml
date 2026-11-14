@@ -1,0 +1,91 @@
+# Authorized read-only cluster capture into a protected local artifact.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    alloy_cursor_capture: false
+    cursor_path: /tmp/alloy/pod_logs_via_kubernetes_api.feature/loki.source.kubernetes.pod_logs/positions.yml
+  tasks:
+  - when: alloy_cursor_capture | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - cursor_path == '/tmp/alloy/pod_logs_via_kubernetes_api.feature/loki.source.kubernetes.pod_logs/positions.yml'
+        - cursor_expected_cluster_uid is match('^[a-f0-9-]{36}$')
+        - cursor_expected_deployment_uid is match('^[a-f0-9-]{36}$')
+        - cursor_expected_pod_uid is match('^[a-f0-9-]{36}$')
+        - cursor_pod is match('^alloy-alloy-logs-[a-z0-9-]+$')
+        - cursor_output is match('^/[A-Za-z0-9_./-]+$') and cursor_output != '/'
+    - ansible.builtin.command: {argv: [kubectl, get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']}
+      register: cluster
+      changed_when: false
+    - ansible.builtin.assert: {that: cluster.stdout == cursor_expected_cluster_uid}
+    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, deployment, alloy-alloy-logs, -o, json]}
+      register: deployment
+      changed_when: false
+    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pod, '{{ cursor_pod }}', -o, json]}
+      register: pod
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (pod.stdout | from_json).metadata.ownerReferences | length == 1
+        - (pod.stdout | from_json).metadata.ownerReferences[0].kind == 'ReplicaSet'
+    - ansible.builtin.command:
+        argv: [kubectl, -n, alloy, get, replicaset, '{{ (pod.stdout | from_json).metadata.ownerReferences[0].name }}', -o, json]
+      register: rs
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (rs.stdout | from_json).metadata.uid == (pod.stdout | from_json).metadata.ownerReferences[0].uid
+        - (rs.stdout | from_json).metadata.ownerReferences | length == 1
+        - (rs.stdout | from_json).metadata.ownerReferences[0].kind == 'Deployment'
+        - (rs.stdout | from_json).metadata.ownerReferences[0].uid == cursor_expected_deployment_uid
+        - (deployment.stdout | from_json).metadata.uid == cursor_expected_deployment_uid
+        - (pod.stdout | from_json).metadata.uid == cursor_expected_pod_uid
+        - (deployment.stdout | from_json).spec.replicas == 1
+        - (pod.stdout | from_json).status.phase == 'Running'
+        - (pod.stdout | from_json).spec.containers | selectattr('name','equalto','alloy') | map(attribute='args') | flatten | select('equalto','--storage.path=/tmp/alloy') | list | length == 1
+    - ansible.builtin.command:
+        argv: [python3, -c, 'import pathlib,sys; p=pathlib.Path(sys.argv[1]); assert p.is_absolute() and p.resolve()==p and not p.exists()', '{{ cursor_output }}']
+      changed_when: false
+    - ansible.builtin.command: {argv: [mkdir, -m, '0700', --, '{{ cursor_output }}']}
+    - ansible.builtin.stat: {path: '{{ cursor_output }}/receipt.json'}
+      register: previous
+    - ansible.builtin.assert: {that: not previous.stat.exists, fail_msg: 'Use a new checkpoint destination; never replace a retained receipt.'}
+    - no_log: true
+      block:
+      - ansible.builtin.command:
+          argv: [kubectl, -n, alloy, exec, '{{ cursor_pod }}', -c, alloy, --, head, -c, '4194305', '{{ cursor_path }}']
+          strip_empty_ends: false
+        register: checkpoint
+        changed_when: false
+      - ansible.builtin.assert:
+          that: checkpoint.stdout.encode('utf-8') | length <= 4194304
+      - ansible.builtin.command:
+          argv: [kubectl, -n, alloy, exec, '{{ cursor_pod }}', -c, alloy, --, stat, -c, '%Y', '{{ cursor_path }}']
+        register: mtime
+        changed_when: false
+      - ansible.builtin.command: {argv: [date, '+%s']}
+        register: captured
+        changed_when: false
+      - ansible.builtin.copy: {content: '{{ checkpoint.stdout }}', dest: '{{ cursor_output }}/positions.yml', mode: '0600', force: false, follow: false}
+      - ansible.builtin.command:
+          argv: [python3, '{{ playbook_dir }}/verify_checkpoint.py', '{{ cursor_output }}/positions.yml', --capture-time, '{{ captured.stdout }}', --source-mtime, '{{ mtime.stdout }}', --expected-hash, '{{ checkpoint.stdout | hash("sha256") }}']
+        register: validation
+        changed_when: false
+      - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pod, '{{ cursor_pod }}', -o, 'jsonpath={.metadata.uid}']}
+        register: after
+        changed_when: false
+      - ansible.builtin.assert: {that: after.stdout == cursor_expected_pod_uid}
+      - ansible.builtin.copy:
+          dest: '{{ cursor_output }}/receipt.json'
+          mode: '0600'
+          content: >-
+            {{ {'cluster_uid':cursor_expected_cluster_uid,'deployment_uid':cursor_expected_deployment_uid,
+                'pod_uid':cursor_expected_pod_uid,'captured_at':captured.stdout | int,
+                'source_mtime':mtime.stdout | int,'path':cursor_path,
+                'selector':(deployment.stdout | from_json).spec.selector.matchLabels,
+                'image':((pod.stdout | from_json).status.containerStatuses | selectattr('name','equalto','alloy') | first).imageID | regex_replace('^docker-pullable://',''),
+                'verification':validation.stdout | from_json} | to_nice_json }}
+      always:
+      - ansible.builtin.set_fact: {checkpoint: {}, cacheable: false}

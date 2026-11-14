@@ -1,0 +1,26 @@
+# Append only after exact current collector volume-list preservation is checked.
+# Stage 0 and stage 1 differ ONLY in controller.replicas.
+alloy:
+  values:
+    upstream:
+      collectors:
+        alloy-logs:
+          alloy:
+            storagePath: /tmp/alloy
+          controller:
+            type: statefulset
+            replicas: {{ alloy_cursor_replicas | int }}
+            parallelRollout: false
+            enableStatefulSetAutoDeletePVC: false
+            updateStrategy: {type: RollingUpdate}
+            nodeSelector: {{ alloy_cursor_node_selector | to_json }}
+            volumes:
+              extra:
+              - {name: loki-ca, configMap: {name: loki-ca}}
+            volumeClaimTemplates:
+            - metadata: {name: alloy-storage}
+              spec:
+                accessModes: [ReadWriteOnce]
+                storageClassName: {{ alloy_cursor_storage_class }}
+                resources:
+                  requests: {storage: {{ alloy_cursor_size }}}

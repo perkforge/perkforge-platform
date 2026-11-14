@@ -1,0 +1,188 @@
+# Explicitly gated; run only AFTER reviewed stage 0 and old collector termination.
+# Claim must already exist with reviewed foundation ownership. This never adopts it.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    alloy_cursor_seed: false
+    alloy_cursor_seed_approved: false
+    cursor_claim: alloy-storage-alloy-alloy-logs-0
+    cursor_relative_path: pod_logs_via_kubernetes_api.feature/loki.source.kubernetes.pod_logs
+  tasks:
+  - when: alloy_cursor_seed | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - alloy_cursor_seed_approved | bool
+        - cursor_claim == 'alloy-storage-alloy-alloy-logs-0'
+        - cursor_relative_path == 'pod_logs_via_kubernetes_api.feature/loki.source.kubernetes.pod_logs'
+        - cursor_expected_cluster_uid is match('^[a-f0-9-]{36}$')
+        - cursor_expected_statefulset_uid is match('^[a-f0-9-]{36}$')
+        - cursor_expected_claim_uid is match('^[a-f0-9-]{36}$')
+        - cursor_seeder_image is match('^registry1[.]dso[.]mil/ironbank/opensource/grafana/alloy@sha256:[a-f0-9]{64}$')
+        - cursor_checkpoint_dir is match('^/[A-Za-z0-9_./-]+$') and cursor_checkpoint_dir != '/'
+    - ansible.builtin.set_fact:
+        receipt: '{{ lookup("file", cursor_checkpoint_dir + "/receipt.json") | from_json }}'
+    - ansible.builtin.command: {argv: [kubectl, get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']}
+      register: cluster
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - cluster.stdout == cursor_expected_cluster_uid
+        - receipt.cluster_uid == cursor_expected_cluster_uid
+        - cursor_seeder_image == receipt.image
+        - receipt.path == '/tmp/alloy/' + cursor_relative_path + '/positions.yml'
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/verify_checkpoint.py', '{{ cursor_checkpoint_dir }}/positions.yml', --capture-time, '{{ receipt.captured_at }}', --source-mtime, '{{ receipt.source_mtime }}', --expected-hash, '{{ receipt.verification.sha256 }}']
+      changed_when: false
+    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, statefulset, alloy-alloy-logs, -o, json]}
+      register: sts
+      changed_when: false
+    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, deployment, alloy-alloy-logs, --ignore-not-found, -o, name]}
+      register: old
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [kubectl, -n, alloy, get, pods, -l, '{{ receipt.selector.items() | map("join", "=") | join(",") }}', -o, json]
+      register: writers
+      changed_when: false
+    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pods, -o, json]}
+      register: namespace_pods
+      changed_when: false
+    - ansible.builtin.assert:
+        that: cursor_claim not in (item.spec.volumes | default([]) | selectattr('persistentVolumeClaim','defined') | map(attribute='persistentVolumeClaim.claimName') | list)
+      loop: '{{ (namespace_pods.stdout | from_json)["items"] }}'
+      loop_control: {label: '{{ item.metadata.name }}'}
+    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pvc, '{{ cursor_claim }}', -o, json]}
+      register: pvc
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - old.stdout == ''
+        - (writers.stdout | from_json)['items'] | length == 0
+        - (sts.stdout | from_json).metadata.uid == cursor_expected_statefulset_uid
+        - (sts.stdout | from_json).spec.replicas == 0
+        - (sts.stdout | from_json).status.observedGeneration == (sts.stdout | from_json).metadata.generation
+        - (sts.stdout | from_json).status.readyReplicas | default(0) == 0
+        - (sts.stdout | from_json).status.updatedReplicas | default(0) == 0
+        - (sts.stdout | from_json).spec.selector.matchLabels == receipt.selector
+        - (sts.stdout | from_json).spec.volumeClaimTemplates | length == 1
+        - (sts.stdout | from_json).spec.volumeClaimTemplates[0].metadata.name == 'alloy-storage'
+        - (sts.stdout | from_json).spec.volumeClaimTemplates[0].spec.accessModes == ['ReadWriteOnce']
+        - (sts.stdout | from_json).spec.volumeClaimTemplates[0].spec.storageClassName == 'longhorn'
+        - (sts.stdout | from_json).spec.volumeClaimTemplates[0].spec.resources.requests.storage == '1Gi'
+        - (sts.stdout | from_json).spec.template.spec.containers | selectattr('name','equalto','alloy') | map(attribute='args') | flatten | select('equalto','--storage.path=/tmp/alloy') | list | length == 1
+        - (sts.stdout | from_json).spec.template.spec.containers | selectattr('name','equalto','alloy') | map(attribute='volumeMounts') | flatten | selectattr('name','equalto','alloy-storage') | map(attribute='mountPath') | list == ['/tmp/alloy']
+        - (sts.stdout | from_json).status.currentReplicas | default(0) == 0
+        - (pvc.stdout | from_json).metadata.uid == cursor_expected_claim_uid
+        - (pvc.stdout | from_json).metadata.annotations['platform.perkforge.io/cursor-owner'] == 'alloy-alloy-logs'
+        - (pvc.stdout | from_json).spec.accessModes == ['ReadWriteOnce']
+        - (pvc.stdout | from_json).spec.storageClassName == 'longhorn'
+        - (pvc.stdout | from_json).spec.resources.requests.storage == '1Gi'
+        - (pvc.stdout | from_json).spec.volumeMode | default('Filesystem') == 'Filesystem'
+        - (pvc.stdout | from_json).spec.dataSource | default(none) == none
+        - (pvc.stdout | from_json).spec.dataSourceRef | default(none) == none
+        - (pvc.stdout | from_json).status.phase == 'Bound'
+    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pod, alloy-cursor-seeder, --ignore-not-found, -o, name]}
+      register: prior_seeder
+      changed_when: false
+    - ansible.builtin.assert: {that: prior_seeder.stdout == '', fail_msg: 'Never adopt or replace an existing seeder.'}
+    - ansible.builtin.set_fact:
+        seeder:
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: alloy-cursor-seeder
+            namespace: alloy
+            labels: {app.kubernetes.io/name: alloy-cursor-seeder}
+          spec:
+            restartPolicy: Never
+            activeDeadlineSeconds: 300
+            automountServiceAccountToken: false
+            nodeSelector: {storage.perkforge.io/worker: 'true'}
+            imagePullSecrets: [{name: private-registry}]
+            securityContext: {runAsNonRoot: true, runAsUser: 473, runAsGroup: 473, fsGroup: 473, seccompProfile: {type: RuntimeDefault}}
+            containers:
+            - name: seed
+              image: '{{ cursor_seeder_image }}'
+              command: [/bin/sh, -c, 'sleep 300']
+              resources: {requests: {cpu: 5m, memory: 16Mi}, limits: {memory: 32Mi}}
+              securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+              volumeMounts: [{name: cursor, mountPath: /cursor}]
+            volumes: [{name: cursor, persistentVolumeClaim: {claimName: '{{ cursor_claim }}'}}]
+    - block:
+      - ansible.builtin.command:
+          argv: [kubectl, create, -f, '-', -o, json]
+          stdin: '{{ seeder | to_json }}'
+        register: created
+      - ansible.builtin.command: {argv: [kubectl, -n, alloy, wait, pod/alloy-cursor-seeder, '--for=condition=Ready', '--timeout=90s']}
+      - name: Refuse unknown content; identical retry allowed, no overwrite
+        no_log: true
+        ansible.builtin.command:
+          argv:
+          - kubectl
+          - -n
+          - alloy
+          - exec
+          - -i
+          - alloy-cursor-seeder
+          - --
+          - /bin/sh
+          - -ec
+          - >-
+            if test -e /cursor/lost+found || test -L /cursor/lost+found; then
+              test -d /cursor/lost+found; test ! -L /cursor/lost+found;
+              recovered=$(find /cursor/lost+found -mindepth 1 -print); test -z "$recovered";
+            fi;
+            unexpected=$(find /cursor -mindepth 1 -path /cursor/lost+found -prune -o -mindepth 1 ! -path /cursor/lost+found ! -path /cursor/pod_logs_via_kubernetes_api.feature ! -path /cursor/{{ cursor_relative_path }} ! -path /cursor/{{ cursor_relative_path }}/positions.yml -print);
+            test -z "$unexpected";
+            links=$(find /cursor -type l -print); test -z "$links";
+            mkdir -p /cursor/{{ cursor_relative_path }};
+            cat > /cursor/{{ cursor_relative_path }}/positions.incoming;
+            if test -f /cursor/{{ cursor_relative_path }}/positions.yml; then
+              cmp /cursor/{{ cursor_relative_path }}/positions.incoming /cursor/{{ cursor_relative_path }}/positions.yml;
+              rm /cursor/{{ cursor_relative_path }}/positions.incoming;
+            else mv /cursor/{{ cursor_relative_path }}/positions.incoming /cursor/{{ cursor_relative_path }}/positions.yml; fi;
+            chmod 600 /cursor/{{ cursor_relative_path }}/positions.yml;
+            sync
+          stdin: '{{ lookup("file", cursor_checkpoint_dir + "/positions.yml", rstrip=false) }}'
+          stdin_add_newline: false
+      - ansible.builtin.command:
+          argv: [kubectl, -n, alloy, exec, alloy-cursor-seeder, --, sha256sum, '/cursor/{{ cursor_relative_path }}/positions.yml']
+        register: readback
+        changed_when: false
+      - ansible.builtin.assert: {that: 'readback.stdout.split()[0] == receipt.verification.sha256'}
+      - ansible.builtin.command:
+          argv: [python3, '{{ playbook_dir }}/verify_checkpoint.py', '{{ cursor_checkpoint_dir }}/positions.yml', --capture-time, '{{ receipt.captured_at }}', --source-mtime, '{{ receipt.source_mtime }}', --expected-hash, '{{ receipt.verification.sha256 }}']
+        changed_when: false
+      always:
+      - when: created is defined and created.stdout is defined and created.rc == 0
+        block:
+        - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pod, alloy-cursor-seeder, -o, json]}
+          register: actual
+          changed_when: false
+        - ansible.builtin.assert: {that: (actual.stdout | from_json).metadata.uid == (created.stdout | from_json).metadata.uid}
+        - ansible.builtin.command:
+            argv: [kubectl, delete, --raw, /api/v1/namespaces/alloy/pods/alloy-cursor-seeder, -f, '-']
+            stdin: '{{ {"apiVersion":"v1","kind":"DeleteOptions","preconditions":{"uid":(created.stdout | from_json).metadata.uid}} | to_json }}'
+        - ansible.builtin.command: {argv: [kubectl, -n, alloy, wait, pod/alloy-cursor-seeder, '--for=delete', '--timeout=90s']}
+    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, statefulset, alloy-alloy-logs, -o, json]}
+      register: final_sts
+      changed_when: false
+    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pvc, '{{ cursor_claim }}', -o, json]}
+      register: final_pvc
+      changed_when: false
+    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pods, -o, json]}
+      register: final_pods
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (final_sts.stdout | from_json).metadata.uid == cursor_expected_statefulset_uid
+        - (final_sts.stdout | from_json).metadata.resourceVersion == (sts.stdout | from_json).metadata.resourceVersion
+        - (final_sts.stdout | from_json).spec == (sts.stdout | from_json).spec
+        - (final_pvc.stdout | from_json).metadata.uid == cursor_expected_claim_uid
+    - ansible.builtin.assert:
+        that: cursor_claim not in (item.spec.volumes | default([]) | selectattr('persistentVolumeClaim','defined') | map(attribute='persistentVolumeClaim.claimName') | list)
+      loop: '{{ (final_pods.stdout | from_json)["items"] }}'
+      loop_control: {label: '{{ item.metadata.name }}'}
+    - ansible.builtin.debug:
+        msg: 'Seed verified and seeder removed. Stage 1 still requires reviewed source, fresh checkpoint bound and exact claim/controller rechecks; no rollout performed.'

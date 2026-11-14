@@ -1,0 +1,26 @@
+# Append only after exact current collector volume-list preservation is checked.
+# Stage 0 and stage 1 differ ONLY in controller.replicas.
+alloy:
+  values:
+    upstream:
+      collectors:
+        alloy-logs:
+          alloy:
+            storagePath: /tmp/alloy
+          controller:
+            type: statefulset
+            replicas: 1
+            parallelRollout: false
+            enableStatefulSetAutoDeletePVC: false
+            updateStrategy: {type: RollingUpdate}
+            nodeSelector: {"storage.perkforge.io/worker": "true"}
+            volumes:
+              extra:
+              - {name: loki-ca, configMap: {name: loki-ca}}
+            volumeClaimTemplates:
+            - metadata: {name: alloy-storage}
+              spec:
+                accessModes: [ReadWriteOnce]
+                storageClassName: longhorn
+                resources:
+                  requests: {storage: 1Gi}
