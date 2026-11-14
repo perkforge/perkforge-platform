@@ -58,3 +58,19 @@ roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: eso-loki-{{ con
 subjects: [{kind: ServiceAccount, name: external-secrets, namespace: external-secrets}]
 ---
 {% endfor %}
+# Native Alloy remote.kubernetes.secret requires its own exact consumer read.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: alloy-scoped-client-secret-reader, namespace: alloy, labels: {platform.perkforge.io/credential-owner: loki-boundary-v1}}
+rules:
+- apiGroups: ['']
+  resources: [secrets]
+  resourceNames: [loki-boundary-collector-v1]
+  verbs: [get, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: alloy-scoped-client-secret-reader, namespace: alloy, labels: {platform.perkforge.io/credential-owner: loki-boundary-v1}}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: alloy-scoped-client-secret-reader}
+subjects: [{kind: ServiceAccount, name: alloy-log-reader, namespace: alloy}]
+---

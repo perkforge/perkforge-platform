@@ -46,7 +46,7 @@
       - name: Bound generated artifacts to the four reviewed consumers
         ansible.builtin.assert:
           that:
-          - prerequisite_objects | length == 19
+          - prerequisite_objects | length == 21
           - consumer_objects | length == 8
           - prerequisite_objects | map(attribute='kind') | difference(['ConfigMap','Secret','ServiceAccount','Role','RoleBinding']) | length == 0
           - consumer_objects | map(attribute='kind') | difference(['SecretStore','ExternalSecret']) | length == 0
