@@ -26,3 +26,13 @@ spec:
         matchLabels: {app.kubernetes.io/component: gateway, app.kubernetes.io/instance: logging-loki}
     ports: [{protocol: TCP, port: 8080}]
 {% endif %}
+{% if grafana_rke2_ingress_backend_enabled | default(false) | bool %}
+  # Explicit RKE2 hostPort/Service443 translated backend, not broad node egress.
+  - to:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: rke2-traefik
+          app.kubernetes.io/instance: rke2-traefik-kube-system
+    ports: [{protocol: TCP, port: 8443}]
+{% endif %}

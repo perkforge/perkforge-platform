@@ -397,3 +397,15 @@ no live network enforcement or Operator reconciliation is claimed.
 See [portable deployment and fix-forward operations](DEPLOY.md) and
 [dedicated OpenBao/ESO delivery](eso/README.md). Renderers remain opt-in;
 source publication is not a claim of live acceptance.
+
+### RKE2 ingress translation and OIDC
+
+An allowed external ingress `/32:443` may not match a CNI post-DNAT destination.
+RKE2 Traefik hostPort/Service443 targets selected pods at TCP8443. The explicit
+flag `grafana_rke2_ingress_backend_enabled` adds only namespace `kube-system`
+plus BOTH `app.kubernetes.io/name=rke2-traefik` and
+`app.kubernetes.io/instance=rke2-traefik-kube-system` on8443. Default remains off;
+other providers select their reviewed equivalent without rebuilding images.
+Preserve existing egress and TLS/client settings. This is a separately approved
+network change, not a credential reset. Verify trusted-CA discovery and actual
+login from the Grafana workload after applying.
