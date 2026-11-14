@@ -80,6 +80,10 @@ alloy:
         namespaces: ["tenant-portal", "mattermost", "flux-system"]
         # null removes the earlier pilot opt-in selector instead of merging it.
         labelSelectors: null
+        # Native dropdown discovery needs the trusted pod identity indexed.
+        # Keep other structured metadata mappings unchanged.
+        structuredMetadata:
+          pod: null
         # Must follow the chart's user-controlled resource annotation labelmap.
         # Kubernetes annotation names cannot start with _, so that map cannot
         # forge the reserved __meta_* source labels used for this final reset.

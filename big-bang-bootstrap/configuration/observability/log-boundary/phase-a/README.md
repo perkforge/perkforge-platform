@@ -41,3 +41,10 @@ silent debug dropping or claim of general secret redaction is made.
 `boundary-values.yaml` and `collector-rbac.yaml`. The dashboard values derive from
 the reviewed `pod-log-dashboard/platform-profile.yaml` and renderer, wrapped by
 `dashboard-values.yaml.j2`; no alternate dashboard or datasource fallback.
+
+Pinned Alloy defaults move `pod` into structured metadata. The profile explicitly
+nulls only that mapping so the final Kubernetes-derived `pod` label remains
+indexed and native Loki pod-label discovery/chained dashboard variables work.
+Other metadata mappings remain unchanged. Historical records collected before this
+fix can expose pod in query results but not indexed label discovery; verify newly
+ingested streams rather than mistaking that metadata for working dropdowns.

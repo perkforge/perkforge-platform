@@ -122,6 +122,8 @@ class LokiScopeGateway(unittest.TestCase):
     self.assertIn('portal-runtime-v1',configs);self.assertIn('platform-unassigned-v1',configs)
     self.assertIn('REDACTED',configs);self.assertNotIn('observability.perkforge.io/logs',configs)
     self.assertIn('__meta_kubernetes_namespace',configs)
+    self.assertNotIn('\"pod\" = \"pod\"',configs)
+    self.assertIn('k8s_pod_name',configs)
     # Evaluate relevant native relabel rules in their actual rendered order.
     import re
     content=next(value for obj in new if obj['kind']=='ConfigMap' for value in obj.get('data',{}).values() if 'discovery.relabel "filtered_pods"' in value)
