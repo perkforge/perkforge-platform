@@ -50,3 +50,16 @@ change to generic candidate defaults. Before activation, budget PostgreSQL and
 operator separately, inspect scheduler requests rather than CPU usage alone,
 and select permitted target placement. Existing workloads must not be evicted or
 resized to fit this app. No physical node name/address is embedded here.
+
+The repeatable native check is
+`big-bang-bootstrap/tests/configuration/check_mattermost_backend_native.py` with
+explicit `--helm` and `--chart` paths. It renders the selected cached chart and
+uses the already-cached official image (`--pull=never`). It derives every
+container environment value and mounted directory from that StatefulSet,
+substitutes synthetic data for Secret references, and verifies the exact
+`POSTGRES_PASSWORD_FILE=/opt/bitnami/postgresql/secrets/postgres-password` path.
+Kubernetes Secret/ConfigMap projections are modeled read-only (including when the
+chart omits a redundant mount flag); socket, temporary and data directories are
+writable under UID/GID1001 with a read-only container root. Both rendered probes
+and the initdb/app-role/schema checks passed. No real Secret or cluster API is
+read by this check; temporary container and files are removed on exit.
