@@ -1,0 +1,26 @@
+# Native Grafana child-chart values. Merge with existing values, never replace SSO.
+# Preserve datasource UID so existing dashboards continue to resolve Prometheus.
+upstream:
+  envFromSecrets:
+  - name: grafana-query-auth
+  grafana.ini:
+    security:
+      data_source_proxy_whitelist: {{ gateway_service_host }}:8443
+  datasources:
+    datasourcesbb.yaml:
+      apiVersion: 1
+      datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        editable: false
+        url: https://{{ gateway_service_host }}:8443/platform
+        basicAuth: true
+        basicAuthUser: $GRAFANA_QUERY_USER
+        jsonData:
+          tlsAuthWithCACert: true
+          tlsSkipVerify: false
+        secureJsonData:
+          basicAuthPassword: $GRAFANA_QUERY_PASSWORD
+          tlsCACert: $GRAFANA_QUERY_CA_PEM

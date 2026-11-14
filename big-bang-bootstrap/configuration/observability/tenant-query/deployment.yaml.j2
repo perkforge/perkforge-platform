@@ -98,7 +98,7 @@ spec:
   - to:
     - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}
       podSelector: {matchLabels: {operator.prometheus.io/name: monitoring-monitoring-kube-prometheus}}
-    ports: [{protocol: TCP, port: 9090}]
+    ports: [{protocol: TCP, port: {{ 9443 if (backend_transport | default('direct-mtls')) == 'loopback-sidecar' else 9090 }}}]
   - to:
     - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
       podSelector: {matchLabels: {k8s-app: kube-dns}}
@@ -116,4 +116,4 @@ spec:
   - from:
     - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: {{ gateway_namespace | to_json }}}}
       podSelector: {matchLabels: {app.kubernetes.io/name: tenant-query-gateway}}
-    ports: [{protocol: TCP, port: 9090}]
+    ports: [{protocol: TCP, port: {{ 9443 if (backend_transport | default('direct-mtls')) == 'loopback-sidecar' else 9090 }}}]

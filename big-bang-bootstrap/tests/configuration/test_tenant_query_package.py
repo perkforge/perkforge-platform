@@ -92,6 +92,32 @@ class TenantQueryPackage(unittest.TestCase):
         built = subprocess.run(['kubectl', 'kustomize', str(self.folder)], capture_output=True, text=True, check=True)
         self.assertEqual(len(list(yaml.safe_load_all(built.stdout))), 6)
 
+    def test_sidecar_transport_pairs_service_address_with_pod_policy_port(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory); values = inputs(folder)
+            values.update(backend_transport='loopback-sidecar',
+                          metrics_upstream='https://monitoring-monitoring-kube-prometheus.monitoring.svc:9090',
+                          upstream_tls_name='monitoring-monitoring-kube-prometheus.monitoring.svc')
+            docs = render(folder, values)
+            for ports in [docs[4]['spec']['egress'][0]['ports'], docs[5]['spec']['ingress'][0]['ports']]:
+                self.assertEqual(ports, [{'protocol': 'TCP', 'port': 9443}])
+            config = docs[1]['data']['nginx.conf']
+            self.assertIn('https://monitoring-monitoring-kube-prometheus.monitoring.svc:9090', config)
+            self.assertIn('proxy_ssl_name monitoring-monitoring-kube-prometheus.monitoring.svc;', config)
+
+    def test_sidecar_transport_rejects_unpaired_address_and_identity(self):
+        for defect in ['mode', 'address', 'identity']:
+            with tempfile.TemporaryDirectory() as directory:
+                folder = Path(directory); values = inputs(folder)
+                values.update(backend_transport='loopback-sidecar',
+                              metrics_upstream='https://monitoring-monitoring-kube-prometheus.monitoring.svc:9090',
+                              upstream_tls_name='monitoring-monitoring-kube-prometheus.monitoring.svc')
+                if defect == 'mode': values['backend_transport'] = 'plaintext'
+                elif defect == 'address': values['metrics_upstream'] = 'https://127.0.0.1:9443'
+                else: values['upstream_tls_name'] = 'localhost'
+                with self.assertRaises(AssertionError): render(folder, values)
+                self.assertFalse((folder / 'deployment.yaml').exists())
+
     def test_discovery_limits_definition_ownership_not_resource_labels(self):
         spec = yaml.safe_load((BASE / 'discovery-values.yaml').read_text())['monitoring']['values']['upstream']['prometheus']['prometheusSpec']
         expected = {'serviceMonitorNamespaceSelector', 'podMonitorNamespaceSelector', 'probeNamespaceSelector', 'scrapeConfigNamespaceSelector', 'ruleNamespaceSelector'}

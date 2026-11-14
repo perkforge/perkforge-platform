@@ -1,0 +1,16 @@
+# Compose non-secret native Big Bang inputs; no live APIs or custom image build.
+- name: Compose query runtime values
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+  - ansible.builtin.assert:
+      that:
+      - query_values_render_enabled | default(false) | bool
+      - consumer_output_dir is match('^/[A-Za-z0-9_./-]+$')
+  - ansible.builtin.set_fact:
+      query_values: '{{ (lookup("file", playbook_dir + "/backend-values.yaml") | from_yaml) | combine({"grafana": {"values": lookup("file", consumer_output_dir + "/grafana-consumer.yaml") | from_yaml}}, recursive=true) }}'
+  - ansible.builtin.copy:
+      dest: '{{ consumer_output_dir }}/query-runtime-values.yaml'
+      mode: '0600'
+      content: '{{ {"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": "query-runtime-values", "namespace": "bigbang", "labels": {"perkforge.io/owner": "query-runtime"}}, "data": {"values.yaml": query_values | to_nice_yaml}} | to_nice_yaml }}'

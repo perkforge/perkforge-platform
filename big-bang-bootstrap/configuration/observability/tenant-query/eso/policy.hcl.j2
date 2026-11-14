@@ -1,0 +1,9 @@
+# Dedicated machine scope; no platform foundation, metadata, LIST or writes.
+{% for consumer in scope.consumers %}
+path "{{ query_eso_kv_mount }}/data/{{ query_eso_record_root }}/{{ scope.id }}/{{ consumer.name }}" {
+  capabilities = ["read"]
+}
+{% endfor %}
+path "auth/token/lookup-self" {
+  capabilities = ["read"]
+}

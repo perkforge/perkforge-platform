@@ -375,3 +375,25 @@ Prometheus rollout, Service target, split monitor, gateway destination port9443,
 and preserved PE/identity/log routes. Keep tenant grants closed until that tested
 migration is ready. Do not use the live cluster as an unapproved reconciliation
 experiment.
+
+### Pairing the inactive gateway with the backend sidecar
+
+For local package rendering, explicitly select `backend_transport: loopback-sidecar`
+together with `metrics_upstream: https://monitoring-monitoring-kube-prometheus.monitoring.svc:9090`
+and `upstream_tls_name: monitoring-monitoring-kube-prometheus.monitoring.svc`.
+This selects pod destination **9443** in both gateway egress and paired backend
+ingress policies while keeping the upstream Service port **9090**. Incorrect
+Service address, TLS identity or transport mode fails before output is written.
+The omitted/default `direct-mtls` mode preserves the earlier 9090 pod policy for
+its separate authenticated-native-backend candidate; it is not a raw HTTP fallback.
+
+This pairs inactive source contracts only. The backend overlay, ConfigMap, dedicated
+Secrets and split self-monitor still require coordinated deployment. Existing
+additive policies, Grafana egress and PE consumer migration remain unresolved;
+no live network enforcement or Operator reconciliation is claimed.
+
+## Existing-stack deployment
+
+See [portable deployment and fix-forward operations](DEPLOY.md) and
+[dedicated OpenBao/ESO delivery](eso/README.md). Renderers remain opt-in;
+source publication is not a claim of live acceptance.

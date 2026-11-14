@@ -1,0 +1,58 @@
+# Apply only the already-reviewed dedicated query identities and consumer manifests.
+- name: Activate dedicated query credential delivery
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+  - ansible.builtin.assert:
+      that:
+      - query_eso_activate | default(false) | bool
+      - query_eso_auth_mount is match('^[a-z0-9][a-z0-9-]*$')
+      - query_eso_identity_prefix is match('^[a-z]([a-z0-9-]{0,29}[a-z0-9])?$')
+  - ansible.builtin.uri:
+      url: '{{ query_eso_server }}/v1/sys/health'
+      ca_path: '{{ query_bao_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+    register: health
+  - ansible.builtin.assert:
+      that: health.json.cluster_id == query_bao_cluster_id and not health.json.sealed
+  - name: Configure exact machine policies and roles without logging credentials
+    no_log: true
+    block:
+    - ansible.builtin.set_fact:
+        query_headers: {X-Vault-Token: '{{ lookup("file", query_bao_token_file) | trim }}'}
+    - name: Create or converge only dedicated query policies
+      ansible.builtin.uri:
+        url: '{{ query_eso_server }}/v1/sys/policies/acl/{{ query_eso_identity_prefix }}-{{ item }}'
+        method: PUT
+        headers: '{{ query_headers }}'
+        ca_path: '{{ query_bao_ca_file }}'
+        use_proxy: false
+        use_netrc: false
+        follow_redirects: none
+        status_code: 204
+        body_format: json
+        body: {policy: '{{ lookup("file", query_eso_output_dir + "/" + query_eso_identity_prefix + "-" + item + ".hcl") }}'}
+      loop: [monitoring, gateway]
+    - name: Configure only dedicated exact-SA machine roles
+      ansible.builtin.uri:
+        url: '{{ query_eso_server }}/v1/auth/{{ query_eso_auth_mount }}/role/{{ query_eso_identity_prefix }}-{{ item }}'
+        method: POST
+        headers: '{{ query_headers }}'
+        ca_path: '{{ query_bao_ca_file }}'
+        use_proxy: false
+        use_netrc: false
+        follow_redirects: none
+        status_code: 204
+        body_format: json
+        body: '{{ lookup("file", query_eso_output_dir + "/" + query_eso_identity_prefix + "-" + item + ".json") | from_json }}'
+      loop: [monitoring, gateway]
+    always:
+    - ansible.builtin.set_fact: {query_headers: {}}
+      no_log: true
+  - name: Apply reviewed consumer declarations
+    ansible.builtin.command:
+      argv: [kubectl, apply, --server-side, --field-manager=query-runtime, -f, '{{ query_eso_output_dir }}/query-eso-consumers.yaml']
+    register: applied
+    changed_when: "'configured' in applied.stdout or 'created' in applied.stdout"

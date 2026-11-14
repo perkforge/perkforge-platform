@@ -1,0 +1,87 @@
+{% for scope in query_eso_scopes %}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: {{ query_eso_identity_prefix }}-{{ scope.id }}, namespace: {{ scope.namespace }}}
+automountServiceAccountToken: false
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata: {name: {{ query_eso_identity_prefix }}-{{ scope.id }}, namespace: {{ scope.namespace }}}
+spec:
+  controller: perkforge
+  provider:
+    vault:
+      server: {{ query_eso_server | to_json }}
+      path: {{ query_eso_kv_mount | to_json }}
+      version: v2
+      caProvider: {type: ConfigMap, name: {{ query_eso_ca_configmap }}, key: ca.crt}
+      auth:
+        kubernetes:
+          mountPath: {{ query_eso_auth_mount | to_json }}
+          role: {{ query_eso_identity_prefix }}-{{ scope.id }}
+          serviceAccountRef:
+            name: {{ query_eso_identity_prefix }}-{{ scope.id }}
+            audiences: [openbao-eso]
+---
+# Namespace-scoped controller writes. Kubernetes cannot restrict Secret CREATE by name.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: {{ query_eso_identity_prefix }}-consumer, namespace: {{ scope.namespace }}}
+rules:
+- apiGroups: ['']
+  resources: [secrets]
+  verbs: [get, create, update, patch]
+- apiGroups: [external-secrets.io]
+  resources: [externalsecrets]
+  verbs: [patch]
+- apiGroups: [external-secrets.io]
+  resources: [externalsecrets/status]
+  verbs: [update, patch]
+- apiGroups: [external-secrets.io]
+  resources: [secretstores/status]
+  verbs: [patch]
+- apiGroups: ['']
+  resources: [events]
+  verbs: [create, patch]
+- apiGroups: ['']
+  resources: [configmaps]
+  resourceNames: [{{ query_eso_ca_configmap }}]
+  verbs: [get]
+- apiGroups: ['']
+  resources: [serviceaccounts/token]
+  resourceNames: [{{ query_eso_identity_prefix }}-{{ scope.id }}]
+  verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: {{ query_eso_identity_prefix }}-consumer, namespace: {{ scope.namespace }}}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: {{ query_eso_identity_prefix }}-consumer}
+subjects:
+- {kind: ServiceAccount, name: {{ query_eso_controller_serviceaccount }}, namespace: {{ query_eso_controller_namespace }}}
+{% for consumer in scope.consumers %}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: {name: {{ consumer.name }}, namespace: {{ scope.namespace }}}
+spec:
+  refreshInterval: 1h
+  secretStoreRef: {kind: SecretStore, name: {{ query_eso_identity_prefix }}-{{ scope.id }}}
+  target:
+    name: {{ consumer.name }}
+    creationPolicy: Orphan
+    deletionPolicy: Retain
+    template:
+      engineVersion: v2
+      type: {{ consumer.type }}
+  data:
+{% for field in consumer.fields %}
+  - secretKey: {{ field | to_json }}
+    remoteRef:
+      key: {{ (query_eso_record_root ~ '/' ~ scope.id ~ '/' ~ consumer.name) | to_json }}
+      property: {{ field | to_json }}
+      conversionStrategy: Default
+      decodingStrategy: None
+{% endfor %}
+{% endfor %}
+{% endfor %}
