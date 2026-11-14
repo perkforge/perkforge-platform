@@ -1,0 +1,11 @@
+# Backend activation candidate only. Existing query-runtime-values retains the
+# authenticated Prometheus datasource override. Do not reuse logging-pilot Grafana
+# values, which predate the authenticated query gateway. No new human log access.
+alloy:
+  enabled: true
+  flux:
+    suspend: false
+loki:
+  enabled: true
+  flux:
+    suspend: false

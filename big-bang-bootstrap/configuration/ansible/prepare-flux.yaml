@@ -2,3 +2,22 @@
 - name: Select the pinned Flux prerequisite build
   ansible.builtin.set_fact:
     flux_manifest_path: '{{ flux_checkout }}/base/flux'
+# Optional environment placement; never edits pinned prerequisite files/resources.
+- name: Prepare explicitly selected kustomize-controller placement overlay
+  when: flux_kustomize_node_selector | default({}) | length > 0
+  block:
+  - ansible.builtin.assert:
+      that:
+      - flux_kustomize_node_selector is mapping
+      - flux_kustomize_node_selector.get('kubernetes.io/os', 'linux') == 'linux'
+      - flux_kustomize_node_selector | length <= 4
+  - ansible.builtin.file:
+      path: '{{ flux_checkout }}/base/perkforge-flux-placement'
+      state: directory
+      mode: '0700'
+  - ansible.builtin.template:
+      src: flux-placement.yaml.j2
+      dest: '{{ flux_checkout }}/base/perkforge-flux-placement/kustomization.yaml'
+      mode: '0600'
+  - ansible.builtin.set_fact:
+      flux_manifest_path: '{{ flux_checkout }}/base/perkforge-flux-placement'
