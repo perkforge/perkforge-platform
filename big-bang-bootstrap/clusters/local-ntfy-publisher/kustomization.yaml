@@ -1,0 +1,15 @@
+# Select only after ntfy-runtime-config is synced and ownership reviewed.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-ntfy-query
+patches:
+- target: {group: apps, version: v1, kind: StatefulSet, name: ntfy, namespace: ntfy}
+  patch: |-
+    - op: replace
+      path: /spec/template/spec/volumes/0
+      value:
+        name: config
+        secret:
+          secretName: ntfy-runtime-config
+          defaultMode: 288
