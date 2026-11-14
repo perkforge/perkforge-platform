@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: mattermost-identity-ca, namespace: mattermost}
+data:
+  ca.crt: {{ lookup('file', mattermost_runtime_ca_file, rstrip=false) | to_json }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: eso-mattermost, namespace: mattermost}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: eso-mattermost-consumer, namespace: mattermost}
+rules:
+- {apiGroups: [''], resources: [secrets], verbs: [get, create, update, patch]}
+- {apiGroups: [external-secrets.io], resources: [externalsecrets], verbs: [patch]}
+- {apiGroups: [external-secrets.io], resources: [externalsecrets/status], verbs: [update, patch]}
+- {apiGroups: [external-secrets.io], resources: [secretstores/status], verbs: [patch]}
+- {apiGroups: [''], resources: [events], verbs: [create, patch]}
+- {apiGroups: [''], resources: [configmaps], resourceNames: [mattermost-identity-ca], verbs: [get]}
+- {apiGroups: [''], resources: [serviceaccounts/token], resourceNames: [eso-mattermost], verbs: [create]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: eso-mattermost-consumer, namespace: mattermost}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: eso-mattermost-consumer}
+subjects:
+- {kind: ServiceAccount, name: external-secrets, namespace: external-secrets}
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata: {name: eso-mattermost, namespace: mattermost}
+spec:
+  controller: perkforge
+  provider:
+    vault:
+      server: {{ mattermost_runtime_bao_server | to_json }}
+      path: platform
+      version: v2
+      caProvider: {type: ConfigMap, name: mattermost-identity-ca, key: ca.crt}
+      auth:
+        kubernetes:
+          mountPath: kubernetes-eso
+          role: eso-mattermost
+          serviceAccountRef: {name: eso-mattermost, audiences: [openbao-eso]}
+{% for consumer in mattermost_runtime_consumers %}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: {name: {{ consumer.name }}, namespace: mattermost}
+spec:
+  refreshInterval: 1h
+  secretStoreRef: {kind: SecretStore, name: eso-mattermost}
+  target:
+    name: {{ consumer.name }}
+    creationPolicy: Orphan
+    deletionPolicy: Retain
+    template: {engineVersion: v2, type: {{ consumer.type }}}
+  data:
+{% for field, property in consumer.fields.items() %}
+  - secretKey: {{ field | to_json }}
+    remoteRef:
+      key: {{ mattermost_runtime_record | to_json }}
+      property: {{ property | to_json }}
+      conversionStrategy: Default
+      decodingStrategy: None
+{% endfor %}
+{% endfor %}

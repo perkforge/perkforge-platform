@@ -1,0 +1,49 @@
+# Public source-only rendering; no credentials or Kubernetes/API calls.
+- name: Render native Mattermost runtime selection
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    mattermost_runtime_render: false
+    mattermost_runtime_traefik_namespace: kube-system
+    mattermost_runtime_traefik_selector: {app.kubernetes.io/name: traefik}
+    mattermost_runtime_dns_namespace: kube-system
+    mattermost_runtime_dns_selector: {k8s-app: kube-dns}
+    mattermost_sso_origin: '{{ mattermost_runtime_origin }}'
+    mattermost_sso_issuer: '{{ mattermost_runtime_issuer }}'
+  tasks:
+  - when: mattermost_runtime_render | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - mattermost_runtime_origin is match('^https://[a-z0-9][a-z0-9.-]+[a-z0-9]$')
+        - mattermost_runtime_issuer is match('^https://[a-z0-9.-]+(:[0-9]+)?(/auth)?/realms/perkforge$')
+        - mattermost_runtime_storage_class is match('^[a-z0-9][a-z0-9.-]+$')
+        - mattermost_runtime_node_selector is mapping and mattermost_runtime_node_selector | length > 0
+        - mattermost_runtime_api_cidrs | length > 0
+        - mattermost_runtime_ingress_cidrs | length > 0
+        - mattermost_runtime_traefik_selector is mapping and mattermost_runtime_traefik_selector | length > 0
+        - mattermost_runtime_dns_selector is mapping and mattermost_runtime_dns_selector | length > 0
+        - mattermost_runtime_traefik_namespace is match('^[a-z0-9-]+$')
+        - mattermost_runtime_dns_namespace is match('^[a-z0-9-]+$')
+        - mattermost_runtime_output_dir is match('^/[A-Za-z0-9_./-]+$')
+        - mattermost_runtime_output_dir == mattermost_runtime_output_dir | realpath
+        - lookup('file', mattermost_runtime_ca_file, rstrip=false) | hash('sha256') == mattermost_runtime_ca_sha256
+    - ansible.builtin.assert:
+        that: item is match('^([0-9]{1,3}\.){3}[0-9]{1,3}/32$')
+      loop: '{{ mattermost_runtime_api_cidrs + mattermost_runtime_ingress_cidrs }}'
+    - name: Compose reviewed native overlays in order
+      ansible.builtin.set_fact:
+        mattermost_runtime_composed: '{{ mattermost_runtime_composed | default({}) | combine(lookup("file", playbook_dir + "/../" + item) | from_yaml, recursive=true) }}'
+      loop: [candidate-values.yaml, backend/database-values.yaml, backend/files-values.yaml, backend/lab-resources-values.yaml]
+    - ansible.builtin.set_fact:
+        mattermost_runtime_composed: '{{ mattermost_runtime_composed | combine(lookup("template", playbook_dir + "/../../../authorization/sso/mattermost/values.yaml.j2") | from_yaml, recursive=true) }}'
+    - ansible.builtin.file:
+        path: '{{ mattermost_runtime_output_dir }}'
+        state: directory
+        mode: '0700'
+    - ansible.builtin.template:
+        src: '{{ playbook_dir }}/{{ item }}.j2'
+        dest: '{{ mattermost_runtime_output_dir }}/{{ item }}'
+        mode: '0600'
+      loop: [values.yaml, network.yaml]

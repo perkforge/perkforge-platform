@@ -1,0 +1,25 @@
+{% set app = {'app': 'mattermost', 'installation.mattermost.com/installation': 'mattermost'} %}
+{% set pg = {'app.kubernetes.io/instance': 'mattermost', 'app.kubernetes.io/name': 'postgresql', 'app.kubernetes.io/component': 'primary'} %}
+{% set dns = {'to': [{'namespaceSelector': {'matchLabels': {'kubernetes.io/metadata.name': mattermost_runtime_dns_namespace}}, 'podSelector': {'matchLabels': mattermost_runtime_dns_selector}}], 'ports': [{'protocol': 'UDP', 'port': 53}, {'protocol': 'TCP', 'port': 53}]} %}
+{% set ingress_peer = {'namespaceSelector': {'matchLabels': {'kubernetes.io/metadata.name': mattermost_runtime_traefik_namespace}}, 'podSelector': {'matchLabels': mattermost_runtime_traefik_selector}} %}
+{% set api = {'to': [], 'ports': [{'protocol': 'TCP', 'port': 443}, {'protocol': 'TCP', 'port': 6443}]} %}
+{% set identity = {'to': [], 'ports': [{'protocol': 'TCP', 'port': 443}]} %}
+{% for cidr in mattermost_runtime_api_cidrs %}{% set _ = api['to'].append({'ipBlock': {'cidr': cidr}}) %}{% endfor %}
+{% for cidr in mattermost_runtime_ingress_cidrs %}{% set _ = identity['to'].append({'ipBlock': {'cidr': cidr}}) %}{% endfor %}
+{% set policies = [
+ {'name': 'default-deny', 'namespace': 'mattermost', 'spec': {'podSelector': {}, 'policyTypes': ['Ingress', 'Egress']}},
+ {'name': 'default-deny', 'namespace': 'mattermost-operator', 'spec': {'podSelector': {}, 'policyTypes': ['Ingress', 'Egress']}},
+ {'name': 'mattermost-app', 'namespace': 'mattermost', 'spec': {'podSelector': {'matchLabels': app}, 'policyTypes': ['Ingress', 'Egress'], 'ingress': [{'from': [ingress_peer], 'ports': [{'protocol':'TCP','port':8065}]}], 'egress': [dns, {'to':[{'podSelector':{'matchLabels':pg}}], 'ports':[{'protocol':'TCP','port':5432}]}, identity, {'to':[ingress_peer], 'ports':[{'protocol':'TCP','port':8443}]}]}},
+ {'name': 'mattermost-database', 'namespace': 'mattermost', 'spec': {'podSelector': {'matchLabels': pg}, 'policyTypes': ['Ingress', 'Egress'], 'ingress':[{'from':[{'podSelector':{'matchLabels':app}}], 'ports':[{'protocol':'TCP','port':5432}]}], 'egress':[]}},
+ {'name': 'mattermost-operator-api', 'namespace':'mattermost-operator', 'spec':{'podSelector':{}, 'policyTypes':['Egress'], 'egress':[dns,api]}}
+] %}
+{% for policy in policies %}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ policy.name }}
+  namespace: {{ policy.namespace }}
+spec:
+{{ policy.spec | to_nice_yaml(indent=2) | indent(2, true) }}
+{% endfor %}

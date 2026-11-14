@@ -1,0 +1,13 @@
+mattermost_runtime_consumers:
+- name: mattermost-postgresql-auth
+  type: Opaque
+  fields: {postgres-password: postgres_admin_password, password: postgres_app_password}
+- name: mattermost-database
+  type: Opaque
+  fields: {DB_CONNECTION_STRING: database_url, DB_CONNECTION_CHECK_URL: database_url}
+- name: mattermost-oidc-client
+  type: Opaque
+  fields: {client-secret: oidc_client_secret}
+- name: mattermost-tls
+  type: kubernetes.io/tls
+  fields: {tls.crt: tls_certificate, tls.key: tls_private_key}

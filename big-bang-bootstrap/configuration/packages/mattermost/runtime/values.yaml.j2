@@ -1,0 +1,42 @@
+{% set dns = {'to': [{'namespaceSelector': {'matchLabels': {'kubernetes.io/metadata.name': mattermost_runtime_dns_namespace}}, 'podSelector': {'matchLabels': mattermost_runtime_dns_selector}}], 'ports': [{'protocol': 'UDP', 'port': 53}, {'protocol': 'TCP', 'port': 53}]} %}
+{% set api = {'to': [], 'ports': [{'protocol': 'TCP', 'port': 443}, {'protocol': 'TCP', 'port': 6443}]} %}
+{% for cidr in mattermost_runtime_api_cidrs %}{% set _ = api['to'].append({'ipBlock': {'cidr': cidr}}) %}{% endfor %}
+{% set wait_patch = {'target': {'group': 'networking.k8s.io', 'version': 'v1', 'kind': 'NetworkPolicy', 'name': 'allow-egress-from-mattermost-wait-job-to-anywhere-any-port'}, 'patch': [{'op': 'replace', 'path': '/spec/egress', 'value': [dns, api]}] | to_json} %}
+{% set append_renderer = {'kustomize': {'patches': [wait_patch]}} %}
+{% set overlay %}
+addons:
+  mattermostOperator:
+    enabled: true
+    flux: {suspend: false}
+    values:
+      nodeSelector: {{ mattermost_runtime_node_selector | to_json }}
+  mattermost:
+    enabled: true
+    flux: {suspend: false}
+    values:
+      users: 100
+      replicaCount: 1
+      nodeSelector: {{ mattermost_runtime_node_selector | to_json }}
+      ingress:
+        enabled: true
+        host: {{ mattermost_runtime_origin | regex_replace('^https://', '') | to_json }}
+        tlsSecret: mattermost-tls
+        annotations: {kubernetes.io/ingress.class: traefik}
+      securityContext: {runAsNonRoot: true, runAsUser: 2000, runAsGroup: 2000, fsGroup: 2000, fsGroupChangePolicy: OnRootMismatch}
+      containerSecurityContext:
+        runAsNonRoot: true
+        runAsUser: 2000
+        runAsGroup: 2000
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      resourcePatch:
+        deployment:
+          patch: '[{"op":"replace","path":"/spec/strategy","value":{"type":"Recreate"}}]'
+      postgresql:
+        primary:
+          nodeSelector: {{ mattermost_runtime_node_selector | to_json }}
+          persistence: {storageClass: {{ mattermost_runtime_storage_class | to_json }}}
+{% endset %}
+{% set result = mattermost_runtime_composed | combine(overlay | from_yaml, recursive=true) %}
+{% set _ = result['addons']['mattermost']['postRenderers'].append(append_renderer) %}
+{{ result | to_nice_yaml(indent=2, width=1000) }}

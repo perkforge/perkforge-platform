@@ -1,0 +1,12 @@
+# Only the already-approved registry identity, never a new login or saved authfile.
+- ansible.builtin.command:
+    argv: [kubectl, -n, '{{ registry_namespace }}', get, secret, private-registry, --ignore-not-found, -o, json]
+  register: registry_target
+  changed_when: false
+- ansible.builtin.assert:
+    that: (registry_target.stdout | from_json).data == registry_data
+  when: registry_target.stdout != ''
+- ansible.builtin.command:
+    argv: [kubectl, create, -f, '-']
+    stdin: '{{ {"apiVersion":"v1", "kind":"Secret", "metadata":{"name":"private-registry", "namespace":registry_namespace}, "type":"kubernetes.io/dockerconfigjson", "data":registry_data} | to_json }}'
+  when: registry_target.stdout == ''
