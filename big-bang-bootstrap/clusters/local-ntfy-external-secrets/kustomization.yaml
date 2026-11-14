@@ -1,0 +1,6 @@
+# Native ESO active inputs must exist before selection. Preserve ntfy and prior apps.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-external-secrets-active
+- ../../configuration/packages/ntfy/local
