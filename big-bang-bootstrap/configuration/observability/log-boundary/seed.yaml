@@ -80,6 +80,44 @@
           - records['collector-v1'].username == 'pf-log-collector-write'
           - records['query-platform-v1'].username == 'pf-log-platform-read'
           - records['query-portal-v1'].username == 'pf-log-portal-read'
+      - name: Validate complete saved bundle before any remote write
+        ansible.builtin.assert:
+          that:
+          - records['gateway-v1'].keys() | list == ['.htpasswd']
+          - records['collector-v1'].keys() | sort == ['cert', 'key', 'password', 'tenantId', 'username']
+          - records['query-platform-v1'].keys() | sort == ['password', 'username']
+          - records['query-portal-v1'].keys() | sort == ['password', 'username']
+          - records['collector-v1'].tenantId == 'platform-unassigned-v1'
+          - records['collector-v1'].cert == '' and records['collector-v1'].key == ''
+          - records['gateway-v1']['.htpasswd'].endswith('\n')
+      - ansible.builtin.set_fact:
+          gateway_lines: '{{ records["gateway-v1"][".htpasswd"].splitlines() }}'
+          account_records: '{{ [records["collector-v1"], records["query-platform-v1"], records["query-portal-v1"]] }}'
+      - ansible.builtin.assert:
+          that:
+          - gateway_lines | length == (4 if legacy_line else 3)
+          - gateway_lines | map('regex_replace', ':.*$', '') | list == logging_accounts + (['platform-pilot'] if legacy_line else [])
+          - not legacy_line or gateway_lines[-1] == legacy_line
+      - ansible.builtin.assert:
+          that:
+          - item.password is match('^[a-f0-9]{64}$')
+          - gateway_lines[account_index].split(':') | length == 2
+          - gateway_lines[account_index].split(':')[1].split('$') | length == 4
+          - gateway_lines[account_index].split(':')[1].split('$')[1] == '6'
+        loop: '{{ account_records }}'
+        loop_control: {index_var: account_index}
+      - name: Verify persisted hashes match the exact persisted passwords
+        ansible.builtin.command:
+          argv: [openssl, passwd, '-6', '-salt', '{{ gateway_lines[account_index].split(":")[1].split("$")[2] }}', '-stdin']
+          stdin: '{{ item.password }}'
+        loop: '{{ account_records }}'
+        loop_control: {index_var: account_index}
+        register: verified_hashes
+        changed_when: false
+      - ansible.builtin.assert:
+          that: item.stdout | trim == gateway_lines[account_index].split(':')[1]
+        loop: '{{ verified_hashes.results }}'
+        loop_control: {index_var: account_index}
       - name: Preflight every existing destination before the first write
         ansible.builtin.uri:
           url: '{{ logging_bao_server }}/v1/platform/data/logging/boundary/{{ item.key }}'

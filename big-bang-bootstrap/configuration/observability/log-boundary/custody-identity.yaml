@@ -14,6 +14,9 @@
     status_code: [200, 404]
   register: existing_role
 - ansible.builtin.assert:
+    that: existing_role.json.data.bound_service_account_namespace_selector | default('') in ['', none]
+  when: existing_role.status == 200
+- ansible.builtin.assert:
     that: existing_role.json.data[item.key] == item.value
   loop: '{{ desired_role | dict2items }}'
   when: existing_role.status == 200

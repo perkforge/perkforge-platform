@@ -21,6 +21,15 @@
         - logging_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
         - logging_custody_output is match('^/[A-Za-z0-9_./-]+$')
         - logging_suffixes == ['gateway','collector','query-platform','query-portal']
+    - name: Bind native delivery to the explicitly approved cluster
+      ansible.builtin.command:
+        argv: [kubectl, get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: native_cluster
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - logging_expected_kube_system_uid is match('^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$')
+        - native_cluster.stdout == logging_expected_kube_system_uid
     - ansible.builtin.uri:
         url: '{{ logging_bao_server }}/v1/sys/health'
       register: health
@@ -34,6 +43,15 @@
           records: '{{ lookup("file", logging_private_dir + "/records.json") | from_json }}'
           prerequisite_objects: '{{ lookup("file", logging_custody_output + "/prerequisites.yaml") | from_yaml_all | select | list }}'
           consumer_objects: '{{ lookup("file", logging_custody_output + "/consumers.yaml") | from_yaml_all | select | list }}'
+      - name: Bound generated artifacts to the four reviewed consumers
+        ansible.builtin.assert:
+          that:
+          - prerequisite_objects | length == 19
+          - consumer_objects | length == 8
+          - prerequisite_objects | map(attribute='kind') | difference(['ConfigMap','Secret','ServiceAccount','Role','RoleBinding']) | length == 0
+          - consumer_objects | map(attribute='kind') | difference(['SecretStore','ExternalSecret']) | length == 0
+          - (prerequisite_objects + consumer_objects) | map(attribute='metadata.namespace') | difference(['logging','alloy','monitoring']) | length == 0
+          - prerequisite_objects | selectattr('kind','equalto','Secret') | map(attribute='metadata.name') | sort == ['loki-boundary-auth-v1','loki-boundary-collector-v1','loki-boundary-query-platform-v1','loki-boundary-query-portal-v1']
       - name: Preflight all dedicated native objects before any creation
         ansible.builtin.command:
           argv: [kubectl, -n, '{{ item.metadata.namespace }}', get, '{{ item.kind }}', '{{ item.metadata.name }}', --ignore-not-found, -o, json]

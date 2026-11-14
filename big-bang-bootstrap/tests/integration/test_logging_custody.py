@@ -41,6 +41,7 @@ class LoggingCustody(unittest.TestCase):
    def do_GET(self):
     if self.path=='/v1/sys/health':return self.reply(200,{'cluster_id':'synthetic-cluster','sealed':False})
     if self.headers.get('X-Vault-Token')!='synthetic-only':return self.reply(403,{})
+    self.server.reads+=1
     if self.path in self.server.records:return self.reply(200,{'data':{'data':self.server.records[self.path]}})
     self.reply(404,{})
    def do_POST(self):
@@ -51,7 +52,7 @@ class LoggingCustody(unittest.TestCase):
   with tempfile.TemporaryDirectory() as t:
    p=Path(t);cert=p/'ca.pem';key=p/'ca.key';token=p/'token';token.write_text('synthetic-only');token.chmod(0o600)
    subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-keyout',str(key),'-out',str(cert),'-days','1','-subj','/CN=localhost','-addext','subjectAltName=DNS:localhost'],check=True,capture_output=True)
-   server=ThreadingHTTPServer(('127.0.0.1',0),Bao);server.records={};server.writes=0
+   server=ThreadingHTTPServer(('127.0.0.1',0),Bao);server.records={};server.writes=0;server.reads=0
    tls=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);tls.load_cert_chain(cert,key);server.socket=tls.wrap_socket(server.socket,server_side=True)
    thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
    try:
@@ -62,6 +63,14 @@ class LoggingCustody(unittest.TestCase):
     # A partial remote write retry reuses the same local generated bundle.
     del server.records['/v1/platform/data/logging/boundary/query-portal-v1']
     third=run();self.assertEqual(third.returncode,0,third.stdout+third.stderr);self.assertEqual(server.records,before);self.assertEqual(server.writes,5)
+    saved=json.loads((p/'private/records.json').read_text());baseline_reads=server.reads
+    legacy=p/'legacy';legacy.write_text('platform-pilot:$6$synthetic$unchanged\n')
+    settings=yaml.safe_load(inputs.read_text());settings['logging_legacy_htpasswd_file']=str(legacy);inputs.write_text(yaml.safe_dump(settings))
+    mismatch=run();self.assertNotEqual(mismatch.returncode,0);self.assertEqual(server.reads,baseline_reads);self.assertEqual(server.writes,5)
+    settings.pop('logging_legacy_htpasswd_file');inputs.write_text(yaml.safe_dump(settings))
+    malformed=json.loads(json.dumps(saved));malformed['collector-v1']['tenantId']='foreign-scope';(p/'private/records.json').write_text(json.dumps(malformed))
+    rejected=run();self.assertNotEqual(rejected.returncode,0);self.assertEqual(server.reads,baseline_reads)
+    (p/'private/records.json').write_text(json.dumps(saved))
     server.records['/v1/platform/data/logging/boundary/collector-v1']['password']='foreign-conflict'
     conflict=run();self.assertNotEqual(conflict.returncode,0);self.assertEqual(server.writes,5)
    finally:server.shutdown();server.server_close();thread.join()
