@@ -1,0 +1,9 @@
+// Append after trusted Kubernetes metadata relabelling, never payload label extraction.
+// Default unknown/system/new namespaces to platform-only, then apply exact owned epochs.
+stage.tenant { value = "{{ log_fallback_scope }}" }
+{% for scope in log_scopes %}
+stage.match {
+  selector = "{namespace=\"{{ scope.namespace }}\"}"
+  stage.tenant { value = "{{ scope.scope_id }}" }
+}
+{% endfor %}

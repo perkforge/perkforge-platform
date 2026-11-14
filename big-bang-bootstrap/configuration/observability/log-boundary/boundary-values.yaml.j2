@@ -1,0 +1,47 @@
+# INACTIVE rendered native override. Requires reviewed custody/RBAC/rollout first.
+loki:
+  values:
+    loki:
+      querier:
+        multi_tenant_queries_enabled: true
+    gateway:
+      basicAuth:
+        existingSecret: loki-boundary-auth-v1
+      nginxConfig:
+        file: |
+{{ lookup('file', log_output_dir + '/nginx.conf') | indent(10, true) }}
+alloy:
+  values:
+    upstream:
+      podLogsViaKubernetesApi:
+        namespaces: {{ log_collection_namespaces | to_json }}
+        # null removes the earlier pilot opt-in selector instead of merging it.
+        labelSelectors: null
+        # Must follow the chart's user-controlled resource annotation labelmap.
+        # Kubernetes annotation names cannot start with _, so that map cannot
+        # forge the reserved __meta_* source labels used for this final reset.
+        extraDiscoveryRules: |
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_name"]
+            target_label = "container"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_container_name"]
+            separator = "/"
+            target_label = "job"
+          }
+        extraLogProcessingStages: |
+{{ log_original_processing_stages | indent(10, true) }}
+{{ lookup('file', log_output_dir + '/stages.alloy') | indent(10, true) }}
+      destinations:
+        local-loki:
+          secret:
+            name: loki-boundary-collector-v1
