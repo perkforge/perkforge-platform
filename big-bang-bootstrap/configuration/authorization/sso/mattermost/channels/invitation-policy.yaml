@@ -1,0 +1,74 @@
+# Separately confirmed global ordinary-member restriction. Never changes admin roles.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    mattermost_invitation_apply: false
+    mattermost_invitation_approved: false
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ mattermost_context_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      unredirected_headers: [Authorization]
+      timeout: 20
+  tasks:
+  - when: mattermost_invitation_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - mattermost_invitation_approved | bool
+        - mattermost_context_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+        - mattermost_channel_user_role_id is match('^[a-z0-9]{26}$')
+        - mattermost_channel_user_permissions is sequence and mattermost_channel_user_permissions is not string
+        - "'manage_private_channel_members' in mattermost_channel_user_permissions"
+    - no_log: true
+      block:
+      - ansible.builtin.command: {argv: [id, -u]}
+        register: local_uid
+        changed_when: false
+      - ansible.builtin.stat: {path: '{{ mattermost_context_token_file }}', follow: false}
+        register: token_stat
+      - ansible.builtin.stat: {path: '{{ mattermost_context_token_file | dirname }}', follow: false}
+        register: token_parent
+      - ansible.builtin.assert:
+          that:
+          - mattermost_context_token_file is match('^/') and mattermost_context_token_file | realpath == mattermost_context_token_file
+          - token_stat.stat.isreg and not token_stat.stat.islnk and token_stat.stat.mode == '0600' and token_stat.stat.uid == (local_uid.stdout | int)
+          - token_parent.stat.isdir and not token_parent.stat.islnk and token_parent.stat.mode == '0700' and token_parent.stat.uid == (local_uid.stdout | int)
+      - ansible.builtin.set_fact:
+          mh_headers: {Authorization: 'Bearer {{ lookup("file", mattermost_context_token_file) | trim }}'}
+          desired_permissions: '{{ mattermost_channel_user_permissions | difference(["manage_private_channel_members"]) | sort }}'
+      - ansible.builtin.uri:
+          url: '{{ mattermost_context_origin }}/api/v4/roles/name/{{ item }}'
+          headers: '{{ mh_headers }}'
+        loop: [channel_user, channel_admin, team_admin, system_admin]
+        register: role_before
+      - ansible.builtin.assert:
+          that:
+          - role_before.results[0].json.id == mattermost_channel_user_role_id
+          - role_before.results[0].json.name == 'channel_user'
+          - role_before.results[0].json.permissions | sort in [mattermost_channel_user_permissions | sort, desired_permissions]
+      - when: role_before.results[0].json.permissions | sort != desired_permissions
+        ansible.builtin.uri:
+          url: '{{ mattermost_context_origin }}/api/v4/roles/{{ mattermost_channel_user_role_id }}/patch'
+          headers: '{{ mh_headers }}'
+          method: PUT
+          body_format: json
+          body: {permissions: '{{ desired_permissions }}'}
+      - ansible.builtin.uri:
+          url: '{{ mattermost_context_origin }}/api/v4/roles/name/{{ item }}'
+          headers: '{{ mh_headers }}'
+        loop: [channel_user, channel_admin, team_admin, system_admin]
+        register: role_after
+      - ansible.builtin.assert:
+          that:
+          - role_after.results[0].json.id == mattermost_channel_user_role_id
+          - role_after.results[0].json.permissions | sort == desired_permissions
+          - role_before.results[1].json == role_after.results[1].json
+          - role_before.results[2].json == role_after.results[2].json
+          - role_before.results[3].json == role_after.results[3].json
+      always:
+      - ansible.builtin.set_fact: {mh_headers: {}, role_before: {}, role_after: {}, cacheable: false}

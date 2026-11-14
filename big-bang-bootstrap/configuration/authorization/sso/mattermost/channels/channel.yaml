@@ -1,0 +1,53 @@
+- ansible.builtin.set_fact:
+    channel_receipt_path: '{{ output_dir }}/channel-{{ target_channel.key }}.json'
+- ansible.builtin.stat: {path: '{{ channel_receipt_path }}', follow: false}
+  register: output_stat
+- when: output_stat.stat.exists
+  ansible.builtin.assert:
+    that: output_stat.stat.isreg and not output_stat.stat.islnk and output_stat.stat.mode == '0600' and output_stat.stat.uid == (local_uid.stdout | int)
+- ansible.builtin.set_fact:
+    channel_receipt: '{{ (lookup("file", channel_receipt_path) | from_json) if output_stat.stat.exists else {} }}'
+- ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/teams/{{ mc_bootstrap.ids.team_id }}/channels/name/{{ target_channel.key }}'
+    headers: '{{ mc_headers }}'
+    status_code: [200,404]
+  register: channel_existing
+- ansible.builtin.assert:
+    that:
+    - >-
+      (channel_existing.status == 404 and channel_receipt == {}) or
+      (channel_existing.status == 200 and channel_receipt.get('origin') == mattermost_context_origin and
+       channel_receipt.get('operator_id') == mc_bootstrap.operator_id and
+       channel_receipt.get('team_name') == 'perkforge' and channel_receipt.get('channel_name') == target_channel.key and
+       channel_receipt.get('ids', {}).get('team_id') == mc_bootstrap.ids.team_id and
+       channel_receipt.get('ids', {}).get('channel_id') == channel_existing.json.id)
+- when: channel_existing.status == 404
+  block:
+  - ansible.builtin.uri:
+      url: '{{ mattermost_context_origin }}/api/v4/channels'
+      headers: '{{ mc_headers }}'
+      method: POST
+      body_format: json
+      body: {team_id: '{{ mc_bootstrap.ids.team_id }}', name: '{{ target_channel.key }}', display_name: '{{ target_channel.value }}', type: P}
+      status_code: 201
+    register: channel_created
+  - ansible.builtin.set_fact:
+      channel_receipt: {origin: '{{ mattermost_context_origin }}', operator_id: '{{ mc_bootstrap.operator_id }}', team_name: perkforge, channel_name: '{{ target_channel.key }}', ids: {team_id: '{{ mc_bootstrap.ids.team_id }}', channel_id: '{{ channel_created.json.id }}'}}
+  - ansible.builtin.copy:
+      dest: '{{ channel_receipt_path }}'
+      mode: '0600'
+      content: '{{ channel_receipt | to_json }}'
+- ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/channels/{{ channel_receipt.ids.channel_id }}'
+    headers: '{{ mc_headers }}'
+  register: channel_verified
+- ansible.builtin.assert:
+    that:
+    - channel_verified.json.id == channel_receipt.ids.channel_id and channel_verified.json.team_id == mc_bootstrap.ids.team_id
+    - channel_verified.json.name == target_channel.key and channel_verified.json.type == 'P' and channel_verified.json.delete_at == 0
+- ansible.builtin.uri:
+    url: '{{ mattermost_context_origin }}/api/v4/channels/{{ channel_receipt.ids.channel_id }}/members/{{ mc_bootstrap.operator_id }}'
+    headers: '{{ mc_headers }}'
+  register: operator_member
+- ansible.builtin.assert:
+    that: operator_member.json.user_id == mc_bootstrap.operator_id and operator_member.json.roles.split() | sort == ['channel_admin', 'channel_user']

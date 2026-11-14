@@ -1,3 +1,14 @@
+- ansible.builtin.set_fact:
+    operational_groups:
+      platform-alerts: ['/platform/admins', '/platform/engineers']
+      platform-deployments: ['/platform/admins', '/platform/engineers']
+      portal-deployments: ['/platform/admins', '/platform/engineers', '/tenants/portal/admins', '/tenants/portal/developers', '/tenants/portal/viewers']
+- ansible.builtin.set_fact:
+    expected_groups: '{{ operational_groups[mc.channel_name] if mc.get("audience_model") == "operational-v1" else ["/tenants/" + mc.context_id + "/admins", "/tenants/" + mc.context_id + "/developers", "/tenants/" + mc.context_id + "/viewers", "/platform/engineers"] }}'
+- ansible.builtin.assert:
+    that:
+    - mc.get('audience_model', 'legacy') in ['legacy', 'operational-v1']
+    - mc.get('audience_model') != 'operational-v1' or (mc.team_name == 'perkforge' and mc.context_id == ('portal' if mc.channel_name == 'portal-deployments' else 'platform'))
 - ansible.builtin.assert:
     that:
     - mc.schema_version == 1
@@ -6,9 +17,9 @@
     - mc.channel_name is match('^[a-z][a-z0-9-]{1,62}$')
     - mattermost_keycloak_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
     - mattermost_keycloak_origin is not search('[\\x00-\\x20\\x7f]')
-    - mc.groups | length == 4
-    - mc.groups | map(attribute='path') | sort == ['/tenants/' + mc.context_id + '/admins', '/tenants/' + mc.context_id + '/developers', '/tenants/' + mc.context_id + '/viewers', '/platform/engineers'] | sort
-    - mc.groups | map(attribute='id') | unique | length == 4
+    - mc.groups | length == expected_groups | length
+    - mc.groups | map(attribute='path') | sort == expected_groups | sort
+    - mc.groups | map(attribute='id') | unique | length == expected_groups | length
     - mc.bindings | map(attribute='subject') | unique | length == mc.bindings | length
     - mc.bindings | map(attribute='user_id') | unique | length == mc.bindings | length
     - mc.exceptions | unique | length == mc.exceptions | length

@@ -21,6 +21,7 @@
     - ansible.builtin.assert:
         that:
         - mattermost_webhook_approved | bool
+        - (mattermost_hook_output_prefix | default('incoming-hook')) is match('^[a-z][a-z0-9-]{1,62}$')
         - mattermost_context_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
         - mattermost_context_origin is not search('[\\x00-\\x20\\x7f]')
     - no_log: true
@@ -48,12 +49,12 @@
       - ansible.builtin.set_fact:
           mh: '{{ lookup("file", mattermost_bootstrap_receipt_file) | from_json }}'
           mh_headers: {Authorization: 'Bearer {{ lookup("file", mattermost_context_token_file) | trim }}'}
-          mh_receipt_path: '{{ mattermost_bootstrap_receipt_file | dirname }}/incoming-hook-receipt.json'
-          mh_url_path: '{{ mattermost_bootstrap_receipt_file | dirname }}/incoming-hook.url'
+          mh_receipt_path: '{{ mattermost_bootstrap_receipt_file | dirname }}/{{ mattermost_hook_output_prefix | default("incoming-hook") }}-receipt.json'
+          mh_url_path: '{{ mattermost_bootstrap_receipt_file | dirname }}/{{ mattermost_hook_output_prefix | default("incoming-hook") }}.url'
       - ansible.builtin.assert:
           that:
           - mh.origin == mattermost_context_origin
-          - mh.team_name == 'perkforge' and mh.channel_name == 'portal-alerts'
+          - mh.team_name == 'perkforge' and mh.channel_name in ['portal-alerts', 'portal-deployments', 'platform-alerts', 'platform-deployments']
           - mh.operator_id is match('^[a-z0-9]{26}$')
           - mh.ids.team_id is match('^[a-z0-9]{26}$') and mh.ids.channel_id is match('^[a-z0-9]{26}$')
       - ansible.builtin.uri:
@@ -104,7 +105,7 @@
             headers: '{{ mh_headers }}'
             method: POST
             body_format: json
-            body: {channel_id: '{{ mh.ids.channel_id }}', channel_locked: true, display_name: Portal alerts, description: Platform-managed Portal Grafana alerts}
+            body: {channel_id: '{{ mh.ids.channel_id }}', channel_locked: true, display_name: '{{ mh.channel_name }}', description: Platform-managed operational notifications}
             status_code: 201
           register: mh_created
         - ansible.builtin.set_fact:

@@ -1,0 +1,74 @@
+# Create only the three requested private operational destinations. No membership grants.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    mattermost_channels_apply: false
+    mattermost_channels_approved: false
+    destinations:
+      portal-deployments: Portal deployments
+      platform-alerts: Platform alerts
+      platform-deployments: Platform deployments
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ mattermost_context_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      unredirected_headers: [Authorization]
+      timeout: 20
+  tasks:
+  - when: mattermost_channels_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - mattermost_channels_approved | bool
+        - mattermost_context_origin is match('^https://[A-Za-z0-9.-]+(:[0-9]+)?$')
+    - no_log: true
+      block:
+      - ansible.builtin.command: {argv: [id, -u]}
+        register: local_uid
+        changed_when: false
+      - ansible.builtin.stat: {path: '{{ item }}', follow: false}
+        loop: ['{{ mattermost_bootstrap_receipt_file }}', '{{ mattermost_context_token_file }}']
+        register: input_files
+      - ansible.builtin.assert:
+          that:
+          - item.item is match('^/') and item.item | realpath == item.item
+          - item.stat.isreg | default(false) and not (item.stat.islnk | default(false))
+          - item.stat.mode == '0600' and item.stat.uid == (local_uid.stdout | int)
+        loop: '{{ input_files.results }}'
+      - ansible.builtin.stat: {path: '{{ item | dirname }}', follow: false}
+        loop: ['{{ mattermost_bootstrap_receipt_file }}', '{{ mattermost_context_token_file }}']
+        register: parents
+      - ansible.builtin.assert:
+          that: item.stat.isdir and not item.stat.islnk and item.stat.mode == '0700' and item.stat.uid == (local_uid.stdout | int)
+        loop: '{{ parents.results }}'
+      - ansible.builtin.set_fact:
+          mc_bootstrap: '{{ lookup("file", mattermost_bootstrap_receipt_file) | from_json }}'
+          mc_headers: {Authorization: 'Bearer {{ lookup("file", mattermost_context_token_file) | trim }}'}
+          output_dir: '{{ mattermost_bootstrap_receipt_file | dirname }}'
+      - ansible.builtin.assert:
+          that:
+          - mc_bootstrap.origin == mattermost_context_origin
+          - mc_bootstrap.team_name == 'perkforge'
+          - mc_bootstrap.ids.team_id is match('^[a-z0-9]{26}$')
+          - mc_bootstrap.operator_id is match('^[a-z0-9]{26}$')
+      - ansible.builtin.uri:
+          url: '{{ mattermost_context_origin }}/api/v4/users/me'
+          headers: '{{ mc_headers }}'
+        register: native_me
+      - ansible.builtin.assert:
+          that: native_me.json.id == mc_bootstrap.operator_id and native_me.json.delete_at == 0 and native_me.json.roles.split() | sort == ['system_admin','system_user']
+      - ansible.builtin.uri:
+          url: '{{ mattermost_context_origin }}/api/v4/teams/{{ mc_bootstrap.ids.team_id }}'
+          headers: '{{ mc_headers }}'
+        register: native_team
+      - ansible.builtin.assert:
+          that: native_team.json.id == mc_bootstrap.ids.team_id and native_team.json.name == 'perkforge' and native_team.json.type == 'I' and native_team.json.delete_at == 0 and not native_team.json.allow_open_invite
+      - ansible.builtin.include_tasks: channel.yaml
+        loop: '{{ destinations | dict2items }}'
+        loop_control: {loop_var: target_channel}
+      always:
+      - ansible.builtin.set_fact: {mc_headers: {}, mc_bootstrap: {}, native_me: {}, native_team: {}, channel_receipt: {}, channel_existing: {}, channel_created: {}, channel_verified: {}, cacheable: false}
