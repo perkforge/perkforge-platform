@@ -7,8 +7,8 @@
   - ansible.builtin.assert:
       that:
       - query_eso_activate | default(false) | bool
-      - query_eso_auth_mount == 'kubernetes-eso'
-      - query_eso_identity_prefix == 'eso-query'
+      - query_eso_auth_mount is match('^[a-z0-9][a-z0-9-]*$')
+      - query_eso_identity_prefix is match('^[a-z]([a-z0-9-]{0,29}[a-z0-9])?$')
   - ansible.builtin.uri:
       url: '{{ query_eso_server }}/v1/sys/health'
       ca_path: '{{ query_bao_ca_file }}'
