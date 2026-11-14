@@ -1,6 +1,8 @@
 ---
 - ansible.builtin.assert:
     that: lab_dns_maintenance_scope in ['gitlab-dns-records-v1', 'nextcloud-dns-record-v1', 'grafana-dns-record-v1', 'harbor-dns-record-v1', 'portal-dns-record-v1', 'ntfy-dns-record-v1']
+- ansible.builtin.assert:
+    that: lab_dns_maintenance_failure_strategy | default('restore') in ['restore', 'fix-forward']
 - ansible.builtin.set_fact:
     dns_is_ntfy: "{{ lab_dns_maintenance_scope == 'ntfy-dns-record-v1' }}"
     dns_is_portal: "{{ lab_dns_maintenance_scope == 'portal-dns-record-v1' }}"
@@ -135,6 +137,10 @@
         that: item.stdout | trim is match('^[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+')
       loop: '{{ dns_external_answers.results }}'
     rescue:
+    - name: Preserve failed state for explicit fix-forward maintenance
+      ansible.builtin.fail:
+        msg: 'DNS maintenance failed in fix-forward mode. Current configuration and service state preserved; no automatic restore or additional restart attempted. Inspect the original failure and private backup, diagnose and repair forward before retrying with a fresh checksum.'
+      when: lab_dns_maintenance_failure_strategy | default('restore') == 'fix-forward'
     - ansible.builtin.stat:
         path: '{{ lab_dns_config }}'
         checksum_algorithm: sha256

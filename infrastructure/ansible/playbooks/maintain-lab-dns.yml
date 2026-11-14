@@ -4,6 +4,7 @@
   connection: local
   gather_facts: false
   vars:
+    lab_dns_maintenance_failure_strategy: restore
     lab_dns_maintenance_apply: false
     lab_dns_maintenance_scope: UNAPPROVED
     lab_dns_maintenance_expected_sha256: UNCONFIGURED
@@ -15,6 +16,7 @@
     block:
     - ansible.builtin.assert:
         that:
+        - lab_dns_maintenance_failure_strategy in ['restore', 'fix-forward']
         - lab_dns_maintenance_scope in ['gitlab-dns-records-v1', 'nextcloud-dns-record-v1', 'grafana-dns-record-v1', 'harbor-dns-record-v1', 'portal-dns-record-v1', 'ntfy-dns-record-v1']
         - lab_dns_maintenance_expected_sha256 is match('^[a-f0-9]{64}$')
         - lab_dns_maintenance_release_evidence is match('^/')
