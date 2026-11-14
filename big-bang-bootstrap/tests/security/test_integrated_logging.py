@@ -17,5 +17,5 @@ class IntegratedLogging(unittest.TestCase):
   self.assertEqual(b['spec']['postRenderers'][0]['kustomize']['patches'][:-2],a['spec']['postRenderers'][0]['kustomize']['patches'])
   b['spec']['valuesFrom']=a['spec']['valuesFrom'];b['spec']['postRenderers']=a['spec']['postRenderers'];self.assertEqual(a,b)
   v=yaml.safe_load(new[('ConfigMap','bigbang','values-integrated-logging')]['data']['values.yaml'])
-  self.assertEqual(v,{'alloy':{'enabled':True,'flux':{'suspend':False}},'loki':{'enabled':True,'flux':{'suspend':False}}})
+  self.assertEqual(v,{'alloy':{'enabled':True,'flux':{'suspend':False}},'loki':{'enabled':True,'flux':{'suspend':False},'values':{'singleBinary':{'nodeSelector':{'storage.perkforge.io/worker':'true'}}}}})
   self.assertNotIn('grafana',v)
