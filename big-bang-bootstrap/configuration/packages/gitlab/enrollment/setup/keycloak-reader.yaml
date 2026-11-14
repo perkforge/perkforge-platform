@@ -1,0 +1,131 @@
+- name: Prepare only one disabled canonical-group reader
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars: {kc_reader_run: false}
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ kc_reader_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      timeout: 10
+  tasks:
+  - ansible.builtin.debug:
+      msg: Default/check inert; apply leaves reader disabled PendingCustody, no secret retrieval or account grants.
+  - when: kc_reader_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/validate-kc-reader.py', '{{ kc_setup_token_file }}', '{{ kc_setup_receipt_file }}', '{{ kc_setup_inputs_file }}', --locked]
+      changed_when: false
+    - ansible.builtin.set_fact:
+        setup_stage: native-preflight
+        setup_headers: {Authorization: 'Bearer {{ lookup("file",kc_setup_token_file) | trim }}'}
+        reader_name: 'perkforge-{{ kc_reader_context }}-identity-reader'
+        policy_name: 'perkforge-{{ kc_reader_context }}-reader-actor'
+        permission_name: 'perkforge-{{ kc_reader_context }}-reader-groups'
+    - ansible.builtin.uri:
+        url: '{{ kc_reader_origin }}/admin/serverinfo'
+        headers: '{{ setup_headers }}'
+      register: server_info
+    - ansible.builtin.assert:
+        that: server_info.json.systemInfo.version == '26.8.1'
+    - ansible.builtin.uri:
+        url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}'
+        headers: '{{ setup_headers }}'
+      register: realm_before
+    - ansible.builtin.assert:
+        that:
+        - realm_before.json.realm == kc_reader_realm
+        - realm_before.json.adminPermissionsEnabled | default(false) or kc_reader_allow_enable_permissions
+    - ansible.builtin.uri:
+        url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/groups/{{ kc_reader_group_ids[item] }}'
+        headers: '{{ setup_headers }}'
+      loop: [tenant-admin, tenant-developer, tenant-viewer]
+      register: native_groups
+    - ansible.builtin.assert:
+        that:
+        - item.json.id == kc_reader_group_ids[item.item]
+        - item.json.path == '/tenants/' + kc_reader_context + '/' + {'tenant-admin':'admins','tenant-developer':'developers','tenant-viewer':'viewers'}[item.item]
+        - item.json.subGroupCount | int == 0
+      loop: '{{ native_groups.results }}'
+    - ansible.builtin.stat:
+        path: '{{ kc_setup_receipt_file }}'
+      register: receipt_stat
+    - ansible.builtin.set_fact:
+        setup_receipt: "{{ lookup('file',kc_setup_receipt_file) | from_json if receipt_stat.stat.exists else {'schema':1,'context':kc_reader_context,'source_revision':kc_reader_source_revision,'origin':kc_reader_origin,'realm':kc_reader_realm,'group_ids':kc_reader_group_ids,'reader_client_id':'','service_account_id':'','permissions_client_id':'','policy_id':'','permission_id':'','permissions_enable_requested':false,'permissions_observed_enabled':false,'stage':'Prepared'} }}"
+    - ansible.builtin.uri:
+        url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients?clientId={{ reader_name }}&max=2'
+        headers: '{{ setup_headers }}'
+      register: reader_lookup
+    - ansible.builtin.assert:
+        that:
+        - reader_lookup.json | length == (1 if setup_receipt.reader_client_id else 0)
+        - not setup_receipt.reader_client_id or reader_lookup.json[0].id == setup_receipt.reader_client_id
+    - ansible.builtin.assert:
+        that: not setup_receipt.permissions_observed_enabled or realm_before.json.adminPermissionsEnabled | default(false)
+    - ansible.builtin.set_fact: {setup_stage: permissions-enablement}
+    - when: not (realm_before.json.adminPermissionsEnabled | default(false))
+      block:
+      - ansible.builtin.set_fact:
+          setup_receipt: '{{ setup_receipt | combine({"permissions_enable_requested":true,"stage":"PermissionsEnablePending"}) }}'
+      - ansible.builtin.include_tasks: save-kc-receipt.yaml
+    - ansible.builtin.uri:
+        url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}'
+        headers: '{{ setup_headers }}'
+        method: PUT
+        body_format: json
+        body: {adminPermissionsEnabled: true}
+        status_code: 204
+      when: not (realm_before.json.adminPermissionsEnabled | default(false))
+    - ansible.builtin.uri:
+        url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}'
+        headers: '{{ setup_headers }}'
+      register: realm_after
+    - ansible.builtin.uri:
+        url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients?clientId=admin-permissions&max=2'
+        headers: '{{ setup_headers }}'
+      register: permissions_client
+    - ansible.builtin.assert:
+        that:
+        - realm_after.json.adminPermissionsEnabled is sameas true
+        - permissions_client.json | length == 1
+        - permissions_client.json[0].id == realm_after.json.adminPermissionsClient
+        - not setup_receipt.permissions_client_id or setup_receipt.permissions_client_id == permissions_client.json[0].id
+    - ansible.builtin.set_fact:
+        setup_receipt: '{{ setup_receipt | combine({"permissions_client_id":permissions_client.json[0].id,"permissions_observed_enabled":true,"stage":("PermissionsEnabled" if setup_receipt.stage in ["Prepared","PermissionsEnablePending"] else setup_receipt.stage)}) }}'
+        authz_base: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients/{{ permissions_client.json[0].id }}/authz/resource-server'
+    - ansible.builtin.include_tasks: save-kc-receipt.yaml
+    - ansible.builtin.uri:
+        url: '{{ authz_base }}/{{ item.path }}?name={{ item.name }}'
+        headers: '{{ setup_headers }}'
+        status_code: [200,204]
+      loop:
+      - {path: policy/search, name: '{{ policy_name }}', owned_id: '{{ setup_receipt.policy_id }}'}
+      - {path: permission/scope/search, name: '{{ permission_name }}', owned_id: '{{ setup_receipt.permission_id }}'}
+      register: existing_authorizations
+    - ansible.builtin.assert:
+        that:
+        - item.status == (200 if item.item.owned_id else 204)
+        - not item.item.owned_id or item.json.id == item.item.owned_id
+      loop: '{{ existing_authorizations.results }}'
+    - ansible.builtin.include_tasks: kc-client.yaml
+    - ansible.builtin.include_tasks: kc-policy.yaml
+    - ansible.builtin.set_fact:
+        setup_receipt: '{{ setup_receipt | combine({"stage":"PendingCustody"}) }}'
+    - ansible.builtin.include_tasks: save-kc-receipt.yaml
+    rescue:
+    - ansible.builtin.set_fact: {setup_failed: true}
+    always:
+    - ansible.builtin.set_fact:
+        setup_headers: {}
+        server_info: {}
+        reader_detail: {}
+  - ansible.builtin.fail:
+      msg: 'ReaderSetupFailed: {{ setup_stage | default("literal-validation") }}; inspect retained ownership receipt, no activation claimed.'
+    when: setup_failed | default(false)
+  - ansible.builtin.debug:
+      msg: 'ReaderSetupPendingCustody: disabled client only; secret custody and activation are separate.'
+    when: kc_reader_run | bool and not ansible_check_mode and not (setup_failed | default(false))
