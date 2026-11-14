@@ -1,7 +1,7 @@
 import datetime as dt,hashlib,json,os,ssl,subprocess,tempfile,threading,unittest
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit,parse_qs
 ROOT=Path(__file__).resolve().parents[2]
 SCRIPT=ROOT/'configuration/packages/gitlab/enrollment/read-keycloak-context.py'
 class Snapshot(unittest.TestCase):
@@ -24,6 +24,12 @@ class Snapshot(unittest.TestCase):
      if path.endswith('/members'):
       state['members']+=1
       if state['mode']=='failure':return self.respond(500,{})
+      if state['mode'] in ('page100','page500','page501','dup-page'):
+       if role!='tenant-admin':return self.respond(200,[])
+       first=int(parse_qs(urlsplit(self.path).query)['first'][0]);total={'page100':100,'page500':500,'page501':501,'dup-page':200}[state['mode']]
+       indexes=range(first,min(first+100,total))
+       if state['mode']=='dup-page' and first==100:indexes=range(0,100)
+       return self.respond(200,[{'id':f'20000000-0000-4000-8000-{i:012d}','enabled':True} for i in indexes])
       sub=subjects['tenant-admin'] if state['mode']=='conflict' else subjects[role]
       enabled=not(state['mode']=='drift' and state['members']>3)
       return self.respond(200,[{'id':sub,'enabled':enabled,'email':'PRIVATE-EMAIL-MUST-NOT-ESCAPE','username':'PRIVATE-NAME'}])
@@ -44,5 +50,9 @@ class Snapshot(unittest.TestCase):
    before=state['calls'];self.assertNotEqual(run().returncode,0);self.assertEqual(state['calls'],before);receipt.unlink()
    for mode in ['denied','failure','conflict','foreign','nested','drift']:
     state.update(mode=mode,members=0);self.assertNotEqual(run().returncode,0,mode);self.assertFalse(receipt.exists(),mode)
+   for mode,size in [('page100',100),('page500',500)]:
+    state.update(mode=mode,members=0);r=run();self.assertEqual(r.returncode,0,r.stderr);self.assertEqual(len(json.loads(receipt.read_text())['members']),size);receipt.unlink()
+   for mode in ['page501','dup-page']:
+    state.update(mode=mode,members=0);self.assertNotEqual(run().returncode,0);self.assertFalse(receipt.exists())
    self.assertEqual(state['writes'],0)
 if __name__=='__main__':unittest.main()
