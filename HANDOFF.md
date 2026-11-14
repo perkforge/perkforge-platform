@@ -45,9 +45,10 @@ See the [scoped logging runbook](big-bang-bootstrap/configuration/observability/
 and [Mattermost delivery](big-bang-bootstrap/configuration/observability/mattermost-projection/README.md).
 Logging #38, Grafana isolation #218 and context alert lifecycle #39 remain distinct
 acceptance work. Source publication is not deployment. Portal v0.7.1 and config
-v2.3.4 are published immutable current-state C4 artifacts; their coordinated
-enrollment/root selection is recorded by the final pin evidence. Source publication
-alone is not proof of application rollout or owner browser acceptance.
+v2.3.4 are now deployed through enrollment v2.5.3 and reviewed root `56dfa919`.
+The durable root and application reached Ready; actual compiled-asset/API denial
+and login-initiation checks passed, while fresh owner-browser acceptance remains
+separate. See the [rollout evidence and known transition-order limitation](big-bang-bootstrap/clusters/local-portal-pilot/README.md#verified-final-current-state-rollout-2026-11-14).
 
 ## Earlier integrated pilot snapshot (2026-11-14)
 
