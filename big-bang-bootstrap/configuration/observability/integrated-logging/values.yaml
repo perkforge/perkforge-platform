@@ -14,3 +14,8 @@ loki:
       # Persistent Loki must run only where the existing Longhorn CSI is installed.
       nodeSelector:
         storage.perkforge.io/worker: 'true'
+    gateway:
+      basicAuth:
+        # Same staged identity/hash; corrected line delimiter, original immutable
+        # input remains preserved. This prerequisite must exist before activation.
+        existingSecret: loki-gateway-auth-v2

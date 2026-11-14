@@ -41,3 +41,21 @@ Credentials are existing manually staged inputs, not claimed ESO-managed. The
 machine Loki identity has read/write tenant scope; this is platform-admin pilot
 access, not authorization to expose a datasource to customer tenants or broaden
 collection. No password/token value is rendered by this template or stored in Git.
+
+
+## Immutable staged authentication input correction
+
+The old immutable `logging/loki-gateway-auth` contains a literal backslash+n
+suffix instead of a newline after its SHA512-crypt entry. It cannot authenticate
+as-is. Existing source `logging-inputs.yaml` already rejects that malformed hash;
+this is target data repair, not a password rotation or generator relaxation.
+
+Preserve the old immutable Secret. Before selecting this root, stage corrected
+`logging/loki-gateway-auth-v2`, retaining the exact username/hash and replacing
+only the final two literal delimiter bytes with one newline. Require a single
+entry, exact old UID/resourceVersion/data, and in-memory verification against the
+existing protected query password before creation. Refuse an existing v2 object
+unless exact payload/immutability already match. Keep all outputs secret-suppressed,
+verify readback, and use the native chart's explicit v2 reference. No additional
+users, password regeneration, role changes or Secret deletion is authorized by
+this repair. The corrected input remains manual custody, not ESO management.
