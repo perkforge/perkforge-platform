@@ -139,7 +139,7 @@ class FluxNtfyNative(unittest.TestCase):
             cls.tokens[user] = match.group()
 
     def request(self, method, path, user=None, payload=None):
-        headers = {'Content-Type': 'application/json'}
+        headers = {'Content-Type': 'application/json', 'Click': 'https://headlamp.example.invalid/'}
         if user: headers['Authorization'] = 'Bearer ' + self.tokens[user]
         request = urllib.request.Request(self.url + path, method=method, headers=headers,
                                          data=json.dumps(payload).encode() if payload is not None else None)
@@ -170,6 +170,7 @@ class FluxNtfyNative(unittest.TestCase):
             self.assertIn('Chart version: 11.11.0-bb.0.', result['message'])
             self.assertIn('App version (chart metadata): 11.11.0.', result['message'])
             self.assertIn('Source: https://github.com/perkforge/perkforge-platform', result['message'])
+            self.assertEqual(result['click'], 'https://headlamp.example.invalid/')
             self.assertNotIn(SENTINEL, body)
             self.assertLess(len(result['message']), 700)
         code, body = self.request('GET', '/platform-deployments/json?poll=1&since=all', 'fixture-reader')

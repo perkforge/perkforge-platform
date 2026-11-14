@@ -22,6 +22,7 @@
         - ntfy_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
         - ntfy_deployments_runtime_dir == ntfy_deployments_runtime_dir | realpath
         - ntfy_deployments_runtime_dir is match('^/[A-Za-z0-9_./-]+$')
+        - deployment_click_url is match('^https://[a-z0-9.-]+(:[0-9]+)?/$')
         - lookup('file', deployment_ntfy_ca_file, rstrip=false) | hash('sha256') == deployment_ntfy_ca_sha256
     - ansible.builtin.template:
         src: consumers.yaml.j2
@@ -46,7 +47,7 @@
       - ansible.builtin.set_fact:
           headers: {X-Vault-Token: '{{ lookup("file", ntfy_bao_token_file) | trim }}'}
           desired_record:
-            headers: '{{ {"Authorization": "Bearer " + (lookup("file", ntfy_deployments_runtime_dir + "/publisher.token") | trim), "Click": "https://github.com/perkforge/perkforge-platform"} | to_nice_yaml }}'
+            headers: '{{ {"Authorization": "Bearer " + (lookup("file", ntfy_deployments_runtime_dir + "/publisher.token") | trim), "Click": deployment_click_url} | to_nice_yaml }}'
             ca.crt: '{{ lookup("file", deployment_ntfy_ca_file, rstrip=false) }}'
           desired_policy: 'path "platform/data/notifications/platform-deployments-v1/publisher" { capabilities = ["read"] } path "auth/token/lookup-self" { capabilities = ["read"] }'
           desired_role:

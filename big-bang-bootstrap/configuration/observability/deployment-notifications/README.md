@@ -118,6 +118,10 @@ rotate the token. Its only non-auth config addition is the dedicated template-di
 `deliver.yaml` first renders and then, only when separately enabled, creates or
 verifies the exact OpenBao publisher record/policy/short-lived SA-bound role. The
 foundation creates the empty `flux-deployment-publisher` target. ESO uses Merge and
+the protected `headers` includes a fixed `Click` header from the verified trusted
+`deployment_click_url` base URL (local Headlamp `/`, never a guessed deep path).
+The source link remains text; neither destination comes from event content.
+ESO
 can get/update/patch **only that named Secret**, not create/delete any Secret.
 The accompanying namespace Role additionally permits only its named TokenRequest,
 public CA get, own status updates and events. There is no network rule change.
