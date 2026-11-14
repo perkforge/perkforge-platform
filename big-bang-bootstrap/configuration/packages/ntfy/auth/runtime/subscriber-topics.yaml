@@ -1,0 +1,85 @@
+# Preserve existing phone credential; add only the requested exact platform topic.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ntfy_phone_apply: false
+  module_defaults:
+    ansible.builtin.uri:
+      ca_path: '{{ ntfy_bao_ca_file }}'
+      validate_certs: true
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+  tasks:
+  - when: ntfy_phone_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - ntfy_phone_username == 'corey-portal'
+        - ntfy_phone_add_topic == 'platform-alerts'
+        - ntfy_phone_subject is match('^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$')
+    - ansible.builtin.uri:
+        url: '{{ ntfy_bao_server }}/v1/sys/health'
+      register: health
+    - ansible.builtin.assert:
+        that: health.json.cluster_id == ntfy_bao_cluster_id and not health.json.sealed
+    - no_log: true
+      block:
+      - ansible.builtin.set_fact:
+          headers: {X-Vault-Token: '{{ lookup("file", ntfy_bao_token_file) | trim }}'}
+          prior: '{{ lookup("file", ntfy_phone_prior_validation) | from_json }}'
+      - ansible.builtin.uri:
+          url: '{{ ntfy_bao_server }}/v1/platform/data/{{ ntfy_record }}'
+          headers: '{{ headers }}'
+        register: current
+      - ansible.builtin.set_fact:
+          base: '{{ current.json.data.data["server.yml"] | from_yaml }}'
+          ntfy_accounts: '{{ prior.accounts }}'
+      - ansible.builtin.set_fact:
+          fragment: '{{ lookup("template", "../native-auth.yaml.j2") | from_yaml }}'
+          account: '{{ prior.accounts | selectattr("username", "equalto", ntfy_phone_username) | first }}'
+      - ansible.builtin.assert:
+          that:
+          - current.json.data.data.keys() | list == ['server.yml']
+          - base['auth-default-access'] == 'deny-all'
+          - base['auth-users'] == fragment['auth-users']
+          - base['auth-tokens'] == fragment['auth-tokens']
+          - base['auth-access'] == fragment['auth-access']
+          - account.kind == 'subscriber'
+          - account.role == 'platform-engineer'
+          - account.subject_id == ntfy_phone_subject
+          - ntfy_phone_add_topic in prior.approved_entitlements[ntfy_phone_subject].topics
+      - ansible.builtin.set_fact:
+          ntfy_accounts: []
+      - ansible.builtin.set_fact:
+          ntfy_accounts: '{{ ntfy_accounts + [item | combine({"topics": (item.topics + [ntfy_phone_add_topic]) | unique}) if item.username == ntfy_phone_username else item] }}'
+        loop: '{{ prior.accounts }}'
+      - ansible.builtin.copy:
+          dest: '{{ ntfy_phone_runtime_dir }}/unified-validation.json'
+          mode: '0600'
+          content: '{{ prior | combine({"accounts": ntfy_accounts, "previous_managed": prior.accounts | map(attribute="username") | list, "existing_users": prior.accounts | map(attribute="username") | list}) | to_json }}'
+      - ansible.builtin.command:
+          argv: [python3, '{{ playbook_dir }}/validate.py', '{{ ntfy_phone_runtime_dir }}/unified-validation.json']
+        changed_when: false
+      - ansible.builtin.set_fact:
+          config: '{{ base | combine(lookup("template", "../native-auth.yaml.j2") | from_yaml) | to_nice_yaml }}'
+      - ansible.builtin.assert:
+          that:
+          - (config | from_yaml)['auth-users'] == base['auth-users']
+          - (config | from_yaml)['auth-tokens'] == base['auth-tokens']
+          - (config | from_yaml)['auth-access'] | difference(base['auth-access']) | difference([ntfy_phone_username + ':' + ntfy_phone_add_topic + ':read-only']) | length == 0
+          - base['auth-access'] | difference((config | from_yaml)['auth-access']) | length == 0
+      - ansible.builtin.copy:
+          dest: '{{ ntfy_phone_runtime_dir }}/unified-server.yml'
+          mode: '0600'
+          content: '{{ config }}'
+      - when: base != (config | from_yaml)
+        ansible.builtin.uri:
+          url: '{{ ntfy_bao_server }}/v1/platform/data/{{ ntfy_record }}'
+          headers: '{{ headers }}'
+          method: POST
+          body_format: json
+          body: {options: {cas: '{{ current.json.data.metadata.version | int }}'}, data: {server.yml: '{{ config }}'}}
+      always:
+      - ansible.builtin.set_fact: {headers: {}, prior: {}, current: {}, base: {}, ntfy_accounts: [], fragment: {}, account: {}, config: ''}

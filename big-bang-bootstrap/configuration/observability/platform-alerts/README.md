@@ -118,3 +118,15 @@ Secret, rotate tokens or weaken collision guards to make a retry pass. If ntfy
 has already restarted with new users, its initial native-user guard also stops;
 verify the four exact users/ACLs and existing desired config instead of repeating
 account addition. No routine operation needs new cluster-wide grants.
+
+### One phone credential, multiple exact reader topics
+
+Keep the already-working Corey phone token rather than replace it per topic.
+`subscriber-topics.yaml` adds read-only platform-alerts to the verified existing
+corey-portal identity while preserving its tenant-portal-alerts permission,
+password and token. Publishers remain separate exact-topic write identities.
+The server account name is not its authorization boundary. No wildcard is used.
+After successful CAS, the authoritative protected prior becomes
+`unified-validation.json`; use that as `ntfy_phone_prior_validation` for a safe
+idempotent retry. Do not rerun from the old pre-change validation snapshot.
+The separately created corey-platform account is not deleted by this change.
