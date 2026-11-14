@@ -7,7 +7,7 @@ spec=importlib.util.spec_from_file_location('probe',path)
 probe=importlib.util.module_from_spec(spec); spec.loader.exec_module(probe)
 
 class ProbeTest(unittest.TestCase):
-    def run_probe(self, leak=False, approved=True):
+    def run_probe(self, leak=False, approved=True, malformed=False):
         calls=[]; receipts=[]; deleted=False
         def api(method,path,headers,body):
             nonlocal deleted
@@ -19,6 +19,7 @@ class ProbeTest(unittest.TestCase):
             if method=='DELETE': deleted=True; return 200,{}
             if path=='/api/serviceaccounts/7': return 404,{}
             if deleted:return 401,{}
+            if malformed and path=='/api/ds/query':return 400,{'message':'malformed'}
             if path=='/api/datasources':return 200,[{'uid':'own'}]
             if path=='/api/datasources/uid/own':return 200,{'orgId':2}
             if '/proxy/uid/own' in path:return 200,{'status':'success','data':{'result':[{'values':[['1','benign']]}]}}
@@ -39,3 +40,7 @@ class ProbeTest(unittest.TestCase):
     def test_inert_without_approval(self):
         with self.assertRaises(probe.ProbeFailure):self.run_probe(approved=False)
         self.assertEqual(self.calls,[])
+
+    def test_malformed_query_is_not_denial(self):
+        with self.assertRaises(probe.ProbeFailure):self.run_probe(malformed=True)
+        self.assertTrue(self.deleted);self.assertFalse(self.receipts[-1]['passed'])

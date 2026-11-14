@@ -75,13 +75,22 @@ def verify(api, record, *, approved=False, org_id, org_name, own_uid,
                 for extra in [{}, {'X-Grafana-Org-Id': '1'}]:
                     status, _ = api('GET', path, actor | extra, None)
                     require(status in (401, 403, 404), 'foreign datasource accessible')
-            status, _ = api('POST', '/api/ds/query', actor, {
+            status, denied = api('POST', '/api/ds/query', actor, {
                 'from': 'now-5m', 'to': 'now', 'queries': [{
                     'refId': 'A', 'datasource': {'uid': uid, 'type': 'loki'},
                     'expr': '{namespace="synthetic-denial"}', 'queryType': 'range', 'maxLines': 1}]})
-            require(status in (400, 401, 403, 404), 'foreign query API accepted')
+            require(status in (401, 403) or
+                    (status == 404 and denied.get('message') == 'Data source not found'),
+                    'foreign query API did not prove datasource denial')
         status, _ = api('POST', '/api/user/using/1', actor, None)
-        require(status in (401, 403, 404), 'foreign org switch accepted')
+        require(status in (304, 401, 403, 404), 'foreign org switch accepted')
+        # Native service accounts return304 for this human-only operation.
+        # Prove it was a no-op rather than treating304 itself as authorization proof.
+        status, source = api('GET', '/api/datasources/uid/'+own_uid, actor, None)
+        require(status == 200 and source['orgId'] == org_id, 'org changed after switch')
+        for uid in foreign_uids:
+            status, _ = api('GET', '/api/datasources/uid/'+uid, actor, None)
+            require(status in (401, 403, 404), 'foreign source accessible after switch')
         receipt['passed'] = True
     finally:
         if sa_id is not None:
