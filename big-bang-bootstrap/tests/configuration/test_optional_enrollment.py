@@ -26,6 +26,18 @@ class OptionalEnrollmentTests(unittest.TestCase):
         self.assertIn('grafana-ntfy-values', mounts)
         self.assertIn('grafana-platform-alerts-values', mounts)
 
+    def test_integrated_root_retains_app_and_notification_inputs(self):
+        objects = build(ROOT / 'clusters/local-integrated-logging')
+        source = next(o for o in objects if o['kind'] == 'GitRepository' and o['metadata']['name'] == 'tenant-enrollments')
+        evidence = json.loads((ROOT.parent / 'release-evidence.json').read_text())['dependencies']['active-portal-enrollment']
+        release_for(source, evidence)
+        umbrella = next(o for o in objects if o['kind'] == 'HelmRelease' and o['metadata']['name'] == 'bigbang')
+        mounts = {v['name'] for v in umbrella['spec']['valuesFrom']}
+        self.assertTrue({'grafana-ntfy-values', 'grafana-platform-alerts-values', 'mattermost-runtime-values', 'values-integrated-logging'} <= mounts)
+        parent = next(o for o in objects if o['kind'] == 'Kustomization' and o['metadata']['name'] == 'tenant-enrollments')
+        self.assertEqual(parent['spec']['path'], './clusters/local-nextcloud-portal')
+        self.assertFalse(parent['spec']['prune'])
+
     def test_nextcloud_stage_preserves_packages_except_explicit_operator_watch(self):
         baseline=build(ROOT/'clusters/local-gitlab-runner')
         proposed=build(ROOT/'clusters/local-nextcloud')
