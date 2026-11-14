@@ -1,0 +1,76 @@
+- ansible.builtin.set_fact: {setup_stage: exact-user-policy}
+- ansible.builtin.uri:
+    url: '{{ authz_base }}/policy/user'
+    headers: '{{ setup_headers }}'
+    method: POST
+    body_format: json
+    body:
+      name: '{{ policy_name }}'
+      type: user
+      logic: POSITIVE
+      users: ['{{ setup_receipt.service_account_id }}']
+    status_code: 201
+  when: not setup_receipt.policy_id
+  register: policy_created
+- when: policy_created is not skipped
+  block:
+  - ansible.builtin.assert:
+      that: policy_created.json.id is match('^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$')
+  - ansible.builtin.set_fact:
+      setup_receipt: '{{ setup_receipt | combine({"policy_id":policy_created.json.id,"stage":"PolicyCreated"}) }}'
+  - ansible.builtin.include_tasks: save-kc-receipt.yaml
+- ansible.builtin.uri:
+    url: '{{ authz_base }}/policy/{{ setup_receipt.policy_id }}'
+    headers: '{{ setup_headers }}'
+  register: owned_policy
+- ansible.builtin.assert:
+    that:
+    - owned_policy.json.id == setup_receipt.policy_id
+    - owned_policy.json.name == policy_name
+    - owned_policy.json.type == 'user'
+    - owned_policy.json.logic == 'POSITIVE'
+    - owned_policy.json.config.users | from_json == [setup_receipt.service_account_id]
+- ansible.builtin.set_fact: {setup_stage: exact-group-permission}
+- ansible.builtin.uri:
+    url: '{{ authz_base }}/permission/scope'
+    headers: '{{ setup_headers }}'
+    method: POST
+    body_format: json
+    body:
+      name: '{{ permission_name }}'
+      type: scope
+      resourceType: Groups
+      resources: '{{ kc_reader_group_ids.values() | list }}'
+      scopes: [view, view-members]
+      policies: ['{{ policy_name }}']
+      logic: POSITIVE
+      decisionStrategy: UNANIMOUS
+    status_code: 201
+  when: not setup_receipt.permission_id
+  register: permission_created
+- when: permission_created is not skipped
+  block:
+  - ansible.builtin.assert:
+      that: permission_created.json.id is match('^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$')
+  - ansible.builtin.set_fact:
+      setup_receipt: '{{ setup_receipt | combine({"permission_id":permission_created.json.id,"stage":"PermissionCreated"}) }}'
+  - ansible.builtin.include_tasks: save-kc-receipt.yaml
+- ansible.builtin.uri:
+    url: '{{ authz_base }}/policy/{{ setup_receipt.permission_id }}{{ item }}'
+    headers: '{{ setup_headers }}'
+  loop: ['', /resources, /scopes, /associatedPolicies]
+  register: owned_permission
+- ansible.builtin.assert:
+    that:
+    - owned_permission.results[0].json.id == setup_receipt.permission_id
+    - owned_permission.results[0].json.name == permission_name
+    - owned_permission.results[0].json.type == 'scope'
+    - owned_permission.results[0].json.logic == 'POSITIVE'
+    - owned_permission.results[0].json.decisionStrategy == 'UNANIMOUS'
+    - owned_permission.results[0].json.config.defaultResourceType == 'Groups'
+    - owned_permission.results[1].json | map(attribute='name') | list | sort == kc_reader_group_ids.values() | list | sort
+    - owned_permission.results[2].json | map(attribute='name') | list | sort == ['view','view-members']
+    - owned_permission.results[3].json | length == 1
+    - owned_permission.results[3].json[0].id == setup_receipt.policy_id
+    - owned_permission.results[3].json[0].name == policy_name
+    - owned_permission.results[3].json[0].type == 'user'

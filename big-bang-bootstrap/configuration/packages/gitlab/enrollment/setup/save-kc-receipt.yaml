@@ -1,0 +1,4 @@
+- ansible.builtin.copy:
+    dest: '{{ kc_setup_receipt_file }}'
+    mode: '0600'
+    content: '{{ setup_receipt | to_nice_json }}'

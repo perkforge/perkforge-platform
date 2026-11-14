@@ -1,0 +1,77 @@
+- ansible.builtin.set_fact: {setup_stage: disabled-client-creation}
+- name: Create only a disabled service client, never retrieve its generated secret here
+  ansible.builtin.uri:
+    url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients'
+    headers: '{{ setup_headers }}'
+    method: POST
+    body_format: json
+    body:
+      clientId: '{{ reader_name }}'
+      protocol: openid-connect
+      enabled: false
+      publicClient: false
+      clientAuthenticatorType: client-secret
+      serviceAccountsEnabled: true
+      standardFlowEnabled: false
+      directAccessGrantsEnabled: false
+      implicitFlowEnabled: false
+      fullScopeAllowed: false
+    status_code: 201
+  when: not setup_receipt.reader_client_id
+  register: created_reader
+- when: created_reader is not skipped
+  block:
+  - ansible.builtin.assert:
+      that:
+      - created_reader.location is match('^' + (kc_reader_origin | regex_escape) + '/admin/realms/' + (kc_reader_realm | regex_escape) + '/clients/[a-f0-9-]{36}$')
+  - ansible.builtin.set_fact:
+      setup_receipt: '{{ setup_receipt | combine({"reader_client_id":created_reader.location | basename,"stage":"ClientCreated"}) }}'
+  - ansible.builtin.include_tasks: save-kc-receipt.yaml
+- ansible.builtin.uri:
+    url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients/{{ setup_receipt.reader_client_id }}'
+    headers: '{{ setup_headers }}'
+  register: reader_detail
+- ansible.builtin.assert:
+    that:
+    - reader_detail.json.id == setup_receipt.reader_client_id
+    - reader_detail.json.clientId == reader_name
+    - reader_detail.json.protocol == 'openid-connect'
+    - reader_detail.json.enabled is sameas false
+    - reader_detail.json.publicClient is sameas false
+    - reader_detail.json.clientAuthenticatorType == 'client-secret'
+    - reader_detail.json.serviceAccountsEnabled is sameas true
+    - reader_detail.json.standardFlowEnabled is sameas false
+    - reader_detail.json.directAccessGrantsEnabled is sameas false
+    - reader_detail.json.implicitFlowEnabled is sameas false
+    - reader_detail.json.fullScopeAllowed is sameas false
+- ansible.builtin.uri:
+    url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients/{{ setup_receipt.reader_client_id }}/service-account-user'
+    headers: '{{ setup_headers }}'
+  register: service_user
+- ansible.builtin.assert:
+    that:
+    - service_user.json.id is match('^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$')
+    - service_user.json.serviceAccountClientId == reader_name
+    - not setup_receipt.service_account_id or setup_receipt.service_account_id == service_user.json.id
+- ansible.builtin.set_fact:
+    setup_receipt: '{{ setup_receipt | combine({"service_account_id":service_user.json.id}) }}'
+- ansible.builtin.include_tasks: save-kc-receipt.yaml
+- name: Refuse service-account group inheritance before attaching permissions
+  ansible.builtin.uri:
+    url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/users/{{ setup_receipt.service_account_id }}/groups?first=0&max=1'
+    headers: '{{ setup_headers }}'
+  register: service_groups
+- ansible.builtin.assert:
+    that: service_groups.json | length == 0
+- ansible.builtin.uri:
+    url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients?clientId=realm-management&max=2'
+    headers: '{{ setup_headers }}'
+  register: realm_management
+- ansible.builtin.assert:
+    that: realm_management.json | length == 1
+- ansible.builtin.uri:
+    url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/users/{{ setup_receipt.service_account_id }}/role-mappings/clients/{{ realm_management.json[0].id }}/composite'
+    headers: '{{ setup_headers }}'
+  register: management_roles
+- ansible.builtin.assert:
+    that: management_roles.json | length == 0
