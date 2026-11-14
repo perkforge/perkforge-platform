@@ -24,11 +24,13 @@ class Api(BaseHTTPRequestHandler):
     def do_GET(self):
         path=urllib.parse.unquote(self.path)
         if path.endswith('/default-client-scopes'):
-            self.reply([{'id':name,'name':name,'protocol':'openid-connect'} for name in ['basic','email','profile']])
+            self.reply([{'id':name,'name':name} for name in ['basic','email','profile']])
         elif path.endswith('/optional-client-scopes'): self.reply([])
         elif '/client-scopes/' in path and path.endswith('/protocol-mappers/models'):
             name=path.split('/client-scopes/')[1].split('/')[0]
             self.reply(yaml.safe_load((SOURCE.parents[1]/'client-scopes.yaml').read_text())['sso_expected_client_scopes'][name])
+        elif path.startswith('/admin/realms/perkforge/client-scopes/'):
+            name=path.rsplit('/',1)[-1];self.reply({'id':name,'name':name,'protocol':'openid-connect'})
         elif path == '/admin/realms/perkforge/clients/'+self.client_id:
             client=json.loads((SOURCE.parent/'client.json').read_text()); client['id']=self.client_id
             if self.drift: client['fullScopeAllowed']=True
