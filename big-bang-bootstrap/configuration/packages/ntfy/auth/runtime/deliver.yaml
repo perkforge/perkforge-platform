@@ -63,7 +63,7 @@
         follow_redirects: none
         status_code: 204
         body_format: json
-        body: {policy: 'path "platform/data/{{ ntfy_record }}" { capabilities = ["read"] }'}
+        body: {policy: 'path "platform/data/{{ ntfy_record }}" { capabilities = ["read"] } path "auth/token/lookup-self" { capabilities = ["read"] }'}
     - ansible.builtin.uri:
         url: '{{ ntfy_bao_server }}/v1/auth/kubernetes-eso/role/eso-ntfy-runtime'
         method: POST
