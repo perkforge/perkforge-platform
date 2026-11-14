@@ -15,17 +15,31 @@ configuration/
 tests/                             configuration/bootstrap/security/integration
 ```
 
-The default local root selects Longhorn, Rancher and OpenBao. The reviewed
-stage roots add Headlamp, then Keycloak and its database from the **same release**.
-An optional `clusters/local-headlamp-sso` root then selects only the reviewed
-Headlamp OIDC values, retaining all stage-3 packages. It requires a new immutable
-release plus separately approved credential delivery, API trust/restart and app
-activation. Publication alone does not promote the live source. The last verified
-deployment remains v0.14.0 at `clusters/local-keycloak`; Headlamp SSO is not active.
+## Current physical pilot and reusable stages
+
+The default `local` and earlier stage roots remain reusable installation building
+blocks, not a statement of the current target selection. As verified on
+2026-11-14, the physical target selects `local-integrated-logging` on Big Bang
+3.35.1. It preserves Portal, Nextcloud, Mattermost, authenticated Grafana/Prometheus
+query access and native notification routing while adding scoped Loki/Alloy.
+Use the [current handoff](../HANDOFF.md#verified-integrated-pilot-snapshot-2026-11-14)
+and [logging acceptance/runbook](configuration/observability/integrated-logging/README.md)
+for deployed evidence versus remaining acceptance. The old v0.14.0 Keycloak-only
+selection is historical, not the current runtime.
+
+Grafana SSO, ntfy contact points and the Mattermost baseline are deployed; this
+does not close the broader alert lifecycle/tenant work in #39, unresolved host
+collector coverage in #383, or full logging acceptance in #38. Portal's read-only
+enrollment baseline is live; its final architecture-auth release is underway,
+not yet verified live in this dated snapshot. Do not infer deployment from a PR,
+release or offline render. Keep the same pinned images/charts across environments
+and vary reviewed configuration only (BODA).
+
 See [ordered app stages](configuration/ansible/README.md#ordered-app-stages)
-for approval and acceptance boundaries. Initial seeds remain paused; never rerun
-bootstrap on the active cluster. This physical three-node lab is not HA or an IL2
-authorization claim.
+for installation and acceptance boundaries. Never rerun initial bootstrap or
+choose an older root to add a component to the active cluster. Promote only the
+reviewed composition that preserves its existing applications. This physical
+three-node pilot is not HA or an IL2 authorization claim.
 
 Start with [platform maintenance](../docs/platform/README.md): [applications and values](../docs/platform/applications.md), [targets/environments](../docs/platform/targets.md), and [impact profiles](../docs/platform/profiles.md). Use [operation order](configuration/ansible/README.md), [verification commands](tests/README.md), [infrastructure prerequisites](../infrastructure/README.md).
 
