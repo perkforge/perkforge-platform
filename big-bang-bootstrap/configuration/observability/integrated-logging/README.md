@@ -81,3 +81,19 @@ The local integrated profile selects the existing RKE2 DNS service name
 The chart default `kube-dns` Service does not exist in this cluster. This is
 environment configuration, not an image rebuild, IP pin or DNS/network change.
 Other environments select their existing DNS service through their own values.
+
+### Pinned Alloy platform-detection metadata
+
+The pinned Alloy 4.3.2-bb.2 dependency calls `validations.platform.detect`
+unconditionally from `_platform_validations.tpl` during server-side Helm
+rendering. Its `lookup "v1" "Node" "" ""` requires cluster Node **list** even
+on RKE2; setting `global.platform` only affects a separate resolver and does not
+skip this validation. Offline Helm rendering cannot establish that permission.
+The logging prerequisite adds the separate `alloy-installer-platform-detection`
+ClusterRole and binding: core `nodes`, **list only**, bound exclusively to
+`bigbang:alloy-installer`. It grants no get/watch/write, Secret access, or authority
+to the operator/collector. It exposes node metadata to the installer, not pod logs.
+Apply this source-owned prerequisite before retrying the native release; retain
+all existing scopes. Reassess when Big Bang updates its pinned dependency to
+support detection without this lookup. Do not falsify platform capabilities or
+patch the upstream chart to bypass its validation.

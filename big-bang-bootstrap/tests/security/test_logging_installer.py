@@ -21,6 +21,13 @@ class LoggingInstaller(unittest.TestCase):
     if x['kind']=='RoleBinding':self.assertTrue(allowed('Role',group,'roles',x['roleRef']['name'],'bind'))
    self.assertFalse(allowed('ClusterRole','rbac.authorization.k8s.io','clusterroles','cluster-admin','bind'))
   self.assertFalse(any(x['kind'] in ['ClusterRole','ClusterRoleBinding'] for _,ds in self.render.values() for x in ds))
+ def test_platform_detection_is_list_only_and_installer_only(self):
+  role=next(x for x in self.foundation if x['kind']=='ClusterRole' and x['metadata']['name']=='alloy-installer-platform-detection')
+  self.assertEqual(role['rules'],[{'apiGroups':[''],'resources':['nodes'],'verbs':['list']}])
+  binding=next(x for x in self.foundation if x['kind']=='ClusterRoleBinding' and x['metadata']['name']==role['metadata']['name'])
+  self.assertEqual(binding['roleRef'],{'apiGroup':'rbac.authorization.k8s.io','kind':'ClusterRole','name':role['metadata']['name']})
+  self.assertEqual(binding['subjects'],[{'kind':'ServiceAccount','name':'alloy-installer','namespace':'bigbang'}])
+
  def test_authenticated_tls_loki_and_retention(self):
   ds=self.render['loki'][1];config=next(x for x in ds if x['kind']=='ConfigMap' and 'config.yaml' in x.get('data',{}));c=yaml.safe_load(config['data']['config.yaml'])
   self.assertTrue(c['auth_enabled']);self.assertEqual(c['limits_config']['retention_period'],'72h');self.assertTrue(c['compactor']['retention_enabled']);self.assertEqual(c['storage_config']['filesystem']['directory'],'/var/loki/chunks');self.assertFalse(c['limits_config']['max_line_size_truncate'])
