@@ -42,7 +42,7 @@ files10Gi storage. It does not declare production/HA/restore acceptance.
    Target record input is0600 and all secret operations are no_log. No root switch
    occurs here. It refuses implicitly changing an already-staged values ConfigMap.
 6. Coordinate current root promotions, then select the reviewed immutable commit
-   and `clusters/local-mattermost-pilot`, which extends `local-platform-alerts`.
+   and `clusters/local-mattermost-pilot`, which extends `local-deployment-notifications`.
    Verify root/Big Bang/native operator/app/database readiness, volumes/UID2000
    fsGroup, RWO Recreate strategy, TLS/SiteURL, actual narrow traffic and preservation
    of Portal, Nextcloud, Grafana SSO/datasource/dashboards and alert rules.
