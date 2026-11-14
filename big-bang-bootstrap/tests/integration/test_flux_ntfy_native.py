@@ -12,6 +12,7 @@ import unittest
 import urllib.error
 import urllib.request
 import yaml
+from jinja2 import Environment, StrictUndefined
 from fixtures.render_helpers import build
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -20,6 +21,40 @@ SENTINEL = 'SYNTHETIC-PRIVATE-ERROR-DO-NOT-PUBLISH'
 
 
 class FluxNotificationContract(unittest.TestCase):
+    def test_eso_grant_is_named_merge_only_without_secret_creation(self):
+        env = Environment(undefined=StrictUndefined)
+        env.filters['to_json'] = json.dumps
+        rendered = env.from_string((SOURCE / 'consumers.yaml.j2').read_text()).render(ntfy_bao_server='https://bao.example.invalid')
+        objects = list(yaml.safe_load_all(rendered))
+        role = next(x for x in objects if x['kind'] == 'Role')
+        self.assertEqual(role['metadata']['namespace'], 'flux-system')
+        rule = next(r for r in role['rules'] if 'secrets' in r['resources'])
+        self.assertEqual(rule, {'apiGroups': [''], 'resources': ['secrets'],
+                         'resourceNames': ['flux-deployment-publisher'], 'verbs': ['get', 'update', 'patch']})
+        self.assertFalse(any(x['kind'] in {'ClusterRole', 'ClusterRoleBinding', 'NetworkPolicy'} for x in objects))
+        external = next(x for x in objects if x['kind'] == 'ExternalSecret')
+        self.assertEqual(external['spec']['target']['creationPolicy'], 'Merge')
+        self.assertEqual({x['secretKey'] for x in external['spec']['data']}, {'headers', 'ca.crt'})
+        secret = next(x for x in objects if x['kind'] == 'Secret')
+        self.assertNotIn('data', secret)
+        self.assertNotIn('stringData', secret)
+
+    def test_opt_in_root_only_adds_notifications_and_template_mount(self):
+        identity = lambda x: (x['kind'], x['metadata'].get('namespace'), x['metadata']['name'])
+        before = {identity(x): x for x in build(ROOT / 'clusters/local-platform-alerts')}
+        after = {identity(x): x for x in build(ROOT / 'clusters/local-deployment-notifications')}
+        self.assertTrue(set(before).issubset(after))
+        self.assertEqual({x[0] for x in set(after) - set(before)}, {'ConfigMap', 'Provider', 'Alert'})
+        for key in before:
+            if key == ('StatefulSet', 'ntfy', 'ntfy'):
+                pod = after[key]['spec']['template']['spec']
+                # Strategic merge order is not significant; remove only the new named entries.
+                pod['volumes'] = [x for x in pod['volumes'] if x['name'] != 'deployment-template']
+                container = next(x for x in pod['containers'] if x['name'] == 'ntfy')
+                self.assertTrue(any(x['name'] == 'deployment-template' and x['readOnly'] for x in container['volumeMounts']))
+                container['volumeMounts'] = [x for x in container['volumeMounts'] if x['name'] != 'deployment-template']
+            self.assertEqual(after[key], before[key], key)
+
     def test_default_off_exact_sources_and_credential_contract(self):
         objects = build(SOURCE)
         provider = next(x for x in objects if x['kind'] == 'Provider')
@@ -33,10 +68,7 @@ class FluxNotificationContract(unittest.TestCase):
         self.assertEqual(provider['spec']['address'], 'https://ntfy.UNCONFIGURED.invalid/platform-deployments?template=flux-deployment')
         self.assertEqual(alert['spec']['eventMetadata'], {'environment': 'UNCONFIGURED'})
         sources = alert['spec']['eventSources']
-        self.assertEqual({x['name'] for x in sources}, {'grafana', 'gitlab', 'harbor', 'keycloak',
-                         'mattermost', 'headlamp', 'openbao', 'rancher', 'longhorn', 'velero'})
-        self.assertTrue(all(x['namespace'] == 'bigbang' and x['kind'] == 'HelmRelease' for x in sources))
-        self.assertEqual(len(sources), 10)
+        self.assertEqual(sources, [{'kind': 'HelmRelease', 'name': '*', 'namespace': 'bigbang'}])
         self.assertFalse(any(x['kind'] in {'Secret', 'Deployment', 'Role', 'ClusterRole', 'NetworkPolicy'} for x in objects))
         self.assertFalse(any(x['metadata']['name'] == 'platform-deployments' for x in build(ROOT / 'clusters/local')))
 

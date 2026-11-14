@@ -5,12 +5,17 @@ ntfy 2.37.2 named template → `platform-deployments`**. No bridge, new image or
 polling controller. Related notification acceptance: #39. All resources remain
 unselected; Provider and Alert are suspended, endpoint/environment unconfigured.
 
-The explicit source list contains user-facing platform HelmReleases in `bigbang`.
-It excludes `bigbang` umbrella duplicates, database/operator dependencies, Source
-fetches, tenant namespaces and wildcards. Mattermost is an approved future source,
-not evidence it is already deployed. Add/remove sources deliberately for each
-platform installation; tenant deployment topics/routes require a separate audience
-and source review. Platform engineers need explicit native topic subscription
+The namespace-bounded source selects all platform HelmReleases in `bigbang`,
+including the umbrella and future Big Bang subcharts/dependencies. The umbrella
+is labeled platform orchestration; other releases are platform components. This
+is intentionally one event per relevant Helm action, not a claim the umbrella
+represents all children reaching application readiness. Source fetches and tenant
+control namespaces are excluded. Namespace ownership is the boundary: tenant
+HelmReleases must not be placed in `bigbang`. Its current writers are platform
+reconcilers/admins and trusted cluster controllers, not tenant roles; no admission
+rule guarantees future placement. Keep that boundary in onboarding reviews.
+Tenant deployment topics/routes require a separate audience and source review.
+Platform engineers need explicit native topic subscription
 rights; Keycloak membership alone is not an ntfy ACL.
 
 ## Event contract
@@ -98,3 +103,32 @@ Primary source contracts:
 - https://github.com/fluxcd/notification-controller/blob/v1.9.4/internal/server/event_handlers.go
 - https://github.com/fluxcd/helm-controller/blob/v1.6.4/internal/reconcile/install.go
 - https://github.com/fluxcd/helm-controller/blob/v1.6.4/internal/reconcile/upgrade.go
+
+## Scoped delivery and local opt-in
+
+`packages/ntfy/auth/runtime/deployment-audience.yaml` is default-off. It verifies
+the authoritative four-account snapshot against current OpenBao auth lists, adds
+only `flux-deployments` write-only and the existing `corey-portal` reader topic,
+preserves every previous hash/token/ACL, and uses CAS for the shared runtime.
+It stores generated publisher material only in the protected local output directory.
+A retry after CAS deliberately fails the prior-state guard: verify the five-account
+desired state and continue missing steps, never rerun from stale four-user input or
+rotate the token. Its only non-auth config addition is the dedicated template-dir.
+
+`deliver.yaml` first renders and then, only when separately enabled, creates or
+verifies the exact OpenBao publisher record/policy/short-lived SA-bound role. The
+foundation creates the empty `flux-deployment-publisher` target. ESO uses Merge and
+can get/update/patch **only that named Secret**, not create/delete any Secret.
+The accompanying namespace Role additionally permits only its named TokenRequest,
+public CA get, own status updates and events. There is no network rule change.
+A partial retry with an existing target stops: inspect exact desired objects
+privately and resume only missing steps without overwrite or credential rotation.
+
+The local opt-in root `clusters/local-deployment-notifications` extends the latest
+platform-alerts root and adds only the template mount and native notification
+objects. It is **not** selected by this change. The template-dir is separate from
+the existing protected `/etc/ntfy` configuration mount; current public/private
+mounts remain untouched. Verify existing template-dir is absent/compatible before
+setting it, coordinate the single ntfy replacement, and preserve root enrollment
+reference and both Grafana alert mounts when selecting this root. A later source
+update to this root must not inadvertently drop a newer app rollout stage.

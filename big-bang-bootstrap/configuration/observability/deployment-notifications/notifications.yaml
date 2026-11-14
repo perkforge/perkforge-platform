@@ -23,18 +23,10 @@ spec:
   eventSeverity: info
   eventMetadata:
     environment: UNCONFIGURED
-  # Explicit platform-owned app sources, not an umbrella, wildcard or tenant source.
+  # Platform control namespace only: umbrella and future managed subcharts.
+  # Tenant HelmReleases must remain in their separate tenant control namespaces.
   eventSources:
-  - {kind: HelmRelease, name: grafana, namespace: bigbang}
-  - {kind: HelmRelease, name: gitlab, namespace: bigbang}
-  - {kind: HelmRelease, name: harbor, namespace: bigbang}
-  - {kind: HelmRelease, name: keycloak, namespace: bigbang}
-  - {kind: HelmRelease, name: mattermost, namespace: bigbang}
-  - {kind: HelmRelease, name: headlamp, namespace: bigbang}
-  - {kind: HelmRelease, name: openbao, namespace: bigbang}
-  - {kind: HelmRelease, name: rancher, namespace: bigbang}
-  - {kind: HelmRelease, name: longhorn, namespace: bigbang}
-  - {kind: HelmRelease, name: velero, namespace: bigbang}
+  - {kind: HelmRelease, name: "*", namespace: bigbang}
   # Flux filters MESSAGE, not reason. Anchored official helm-controller v1.6.4 strings.
   # No periodic ReconciliationSucceeded, Source artifact fetches, drift or no-op spam.
   inclusionList:

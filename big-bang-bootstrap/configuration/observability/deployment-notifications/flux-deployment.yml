@@ -8,6 +8,8 @@ title: >-
   Helm release upgraded
   {{- else -}}Helm release update{{- end -}}
 message: >-
+  {{ if eq .involvedObject.name "bigbang" -}}Scope: platform orchestration (umbrella).
+  {{- else -}}Scope: platform component.{{- end }}
   App: {{ printf "%.63s" .involvedObject.name }}.
   Environment: {{ with .metadata.environment }}{{ printf "%.40s" . }}{{ else }}unspecified{{ end }}.
   Chart version: {{ with .metadata.revision }}{{ printf "%.96s" . }}{{ else }}unavailable{{ end }}.
