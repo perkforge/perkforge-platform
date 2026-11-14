@@ -1,0 +1,26 @@
+# INACTIVE rendered native override. Requires reviewed custody/RBAC/rollout first.
+loki:
+  values:
+    loki:
+      querier:
+        multi_tenant_queries_enabled: true
+    gateway:
+      basicAuth:
+        existingSecret: loki-boundary-auth-v1
+      nginxConfig:
+        file: |
+{{ lookup('file', log_output_dir + '/nginx.conf') | indent(10, true) }}
+alloy:
+  values:
+    upstream:
+      podLogsViaKubernetesApi:
+        namespaces: {{ log_collection_namespaces | to_json }}
+        # null removes the earlier pilot opt-in selector instead of merging it.
+        labelSelectors: null
+        extraLogProcessingStages: |
+{{ log_original_processing_stages | indent(10, true) }}
+{{ lookup('file', log_output_dir + '/stages.alloy') | indent(10, true) }}
+      destinations:
+        local-loki:
+          secret:
+            name: loki-boundary-collector-v1

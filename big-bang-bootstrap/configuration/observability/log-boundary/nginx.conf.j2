@@ -1,0 +1,67 @@
+worker_processes 1;
+error_log stderr warn;
+pid {{ log_runtime_dir }}/nginx.pid;
+events { worker_connections 1024; }
+http {
+  client_body_temp_path {{ log_runtime_dir }}/client_temp;
+  proxy_temp_path {{ log_runtime_dir }}/proxy_temp;
+  fastcgi_temp_path {{ log_runtime_dir }}/fastcgi_temp;
+  uwsgi_temp_path {{ log_runtime_dir }}/uwsgi_temp;
+  scgi_temp_path {{ log_runtime_dir }}/scgi_temp;
+  log_format scoped '$remote_user $request_method $uri $status';
+  access_log {{ log_runtime_dir }}/access.log scoped;
+  client_max_body_size 4m;
+  map $remote_user $read_scope {
+    default "";
+    "{{ log_platform_reader }}" "{{ log_all_query_scopes | join('|') }}";
+{% for reader in log_readers %}
+    "{{ reader.username }}" "{{ reader.scope_ids | sort | join('|') }}";
+{% endfor %}
+  }
+  map "$remote_user:$http_x_scope_orgid" $write_scope {
+    default "";
+{% for scope in [log_fallback_scope] + (log_scopes | map(attribute='scope_id') | list) %}
+    "{{ log_writer }}:{{ scope }}" "{{ scope }}";
+{% endfor %}
+  }
+  server {
+    listen {{ log_listen }} ssl;
+    server_name {{ log_server_name }};
+    ssl_certificate {{ log_cert_path }};
+    ssl_certificate_key {{ log_key_path }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    auth_basic "Scoped Loki";
+    auth_basic_user_file {{ log_htpasswd_path }};
+    proxy_ssl_verify on;
+    proxy_ssl_trusted_certificate {{ log_ca_path }};
+    proxy_ssl_server_name on;
+    proxy_ssl_name {{ log_upstream_tls_name }};
+    # URI encodings are unnecessary for API paths; query values remain unrestricted.
+    if ($request_uri ~ "^[^?]*%") { return 400; }
+    location = / { auth_basic off; return 200 "ready\n"; }
+    location = /loki/api/v1/push {
+      if ($request_method != POST) { return 405; }
+      if ($write_scope = "") { return 403; }
+      proxy_set_header X-Scope-OrgID $write_scope;
+      proxy_set_header Authorization "";
+      proxy_pass {{ log_upstream }};
+    }
+    # Native query paths only. Tenant federation is fixed by the server map,
+    # never a supplied header/selector. Streaming, rules/admin/delete/UI stay denied.
+    location ~ ^/loki/api/v1/(query|query_range|series)$ {
+      if ($request_method !~ ^(GET|POST)$) { return 405; }
+      if ($read_scope = "") { return 403; }
+      proxy_set_header X-Scope-OrgID $read_scope;
+      proxy_set_header Authorization "";
+      proxy_pass {{ log_upstream }};
+    }
+    location ~ ^/loki/api/v1/(labels|label/[a-zA-Z_][a-zA-Z0-9_]*/values)$ {
+      if ($request_method != GET) { return 405; }
+      if ($read_scope = "") { return 403; }
+      proxy_set_header X-Scope-OrgID $read_scope;
+      proxy_set_header Authorization "";
+      proxy_pass {{ log_upstream }};
+    }
+    location / { return 403; }
+  }
+}
