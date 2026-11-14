@@ -391,3 +391,9 @@ This pairs inactive source contracts only. The backend overlay, ConfigMap, dedic
 Secrets and split self-monitor still require coordinated deployment. Existing
 additive policies, Grafana egress and PE consumer migration remain unresolved;
 no live network enforcement or Operator reconciliation is claimed.
+
+## Existing-stack deployment
+
+See [portable deployment and fix-forward operations](DEPLOY.md) and
+[dedicated OpenBao/ESO delivery](eso/README.md). Renderers remain opt-in;
+source publication is not a claim of live acceptance.

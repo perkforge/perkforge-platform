@@ -1,0 +1,65 @@
+# Local source rendering only. No API, credentials, apply or namespace creation.
+- name: Render portable query credential consumers
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    query_eso_render_enabled: false
+    query_eso_kv_mount: platform
+    query_eso_auth_mount: kubernetes-eso
+    query_eso_identity_prefix: eso-query
+    query_eso_ca_configmap: query-openbao-ca
+    query_eso_controller_namespace: external-secrets
+    query_eso_controller_serviceaccount: external-secrets
+    query_eso_scopes:
+      - id: monitoring
+        namespace: '{{ query_eso_monitoring_namespace }}'
+        consumers:
+          - {name: query-backend-tls, type: kubernetes.io/tls, fields: [tls.crt, tls.key, ca.crt]}
+          - {name: query-backend-self-client, type: Opaque, fields: [tls.crt, tls.key, ca.crt]}
+          - {name: grafana-query-auth, type: Opaque, fields: [GRAFANA_QUERY_USER, GRAFANA_QUERY_PASSWORD, GRAFANA_QUERY_CA_PEM]}
+      - id: gateway
+        namespace: '{{ query_eso_gateway_namespace }}'
+        consumers:
+          - {name: query-gateway-tls, type: kubernetes.io/tls, fields: [tls.crt, tls.key, ca.crt]}
+          - {name: query-backend-client, type: Opaque, fields: [tls.crt, tls.key, ca.crt]}
+          - {name: portal-query-auth, type: Opaque, fields: [htpasswd]}
+          - {name: platform-query-auth, type: Opaque, fields: [htpasswd]}
+  tasks:
+    - name: Validate explicit source-only inputs before writing
+      ansible.builtin.assert:
+        that:
+          - query_eso_render_enabled is sameas true
+          - query_eso_output_dir is match('^/[A-Za-z0-9_./-]+$')
+          - query_eso_output_dir == (query_eso_output_dir | realpath)
+          - query_eso_server is match('^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?$')
+          - (query_eso_server | urlsplit('port')) is none or 1 <= (query_eso_server | urlsplit('port')) <= 65535
+          - query_eso_record_root is match('^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$')
+          - query_eso_kv_mount is match('^[a-z0-9][a-z0-9-]*$')
+          - query_eso_auth_mount is match('^[a-z0-9][a-z0-9-]*$')
+          - query_eso_identity_prefix is match('^[a-z]([a-z0-9-]{0,29}[a-z0-9])?$')
+          - query_eso_monitoring_namespace != query_eso_gateway_namespace
+    - name: Validate exact namespaces and resource names
+      ansible.builtin.assert:
+        that:
+          - item is match('^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$')
+      loop: ['{{ query_eso_monitoring_namespace }}', '{{ query_eso_gateway_namespace }}', '{{ query_eso_ca_configmap }}', '{{ query_eso_controller_namespace }}', '{{ query_eso_controller_serviceaccount }}']
+    - name: Render local consumer manifests without selecting a root
+      ansible.builtin.template:
+        src: '{{ playbook_dir }}/consumers.yaml.j2'
+        dest: '{{ query_eso_output_dir }}/query-eso-consumers.yaml'
+        mode: '0600'
+    - name: Render separate exact-path machine policy files
+      ansible.builtin.template:
+        src: '{{ playbook_dir }}/policy.hcl.j2'
+        dest: '{{ query_eso_output_dir }}/{{ query_eso_identity_prefix }}-{{ scope.id }}.hcl'
+        mode: '0600'
+      loop: '{{ query_eso_scopes }}'
+      loop_control: {loop_var: scope}
+    - name: Render separate exact-SA machine role files
+      ansible.builtin.template:
+        src: '{{ playbook_dir }}/role.json.j2'
+        dest: '{{ query_eso_output_dir }}/{{ query_eso_identity_prefix }}-{{ scope.id }}.json'
+        mode: '0600'
+      loop: '{{ query_eso_scopes }}'
+      loop_control: {loop_var: scope}

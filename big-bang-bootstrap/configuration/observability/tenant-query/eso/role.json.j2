@@ -1,0 +1,10 @@
+{
+  "bound_service_account_names": ["{{ query_eso_identity_prefix }}-{{ scope.id }}"],
+  "bound_service_account_namespaces": ["{{ scope.namespace }}"],
+  "audience": "openbao-eso",
+  "token_policies": ["{{ query_eso_identity_prefix }}-{{ scope.id }}"],
+  "token_ttl": 300,
+  "token_max_ttl": 900,
+  "token_explicit_max_ttl": 900,
+  "token_no_default_policy": true
+}

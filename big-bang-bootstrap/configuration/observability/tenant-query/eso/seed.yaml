@@ -1,0 +1,104 @@
+# Explicit, create-only runtime seed. Recovery/signing material stays outside Git/OpenBao.
+- name: Seed dedicated query runtime credentials
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    query_seed_apply: false
+    query_eso_kv_mount: platform
+  tasks:
+  - ansible.builtin.assert:
+      that:
+      - query_seed_apply | bool
+      - query_private_dir is match('^/[A-Za-z0-9_./-]+$')
+      - query_private_dir == (query_private_dir | realpath)
+      - query_server_dns is match('^[a-z0-9.-]+$')
+      - query_backend_dns is match('^[a-z0-9.-]+$')
+      - query_eso_record_root is match('^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$')
+      - query_eso_server is match('^https://[a-z0-9.-]+$')
+  - name: Verify physical target before loading bearer
+    ansible.builtin.uri:
+      url: '{{ query_eso_server }}/v1/sys/health'
+      ca_path: '{{ query_bao_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+    register: health
+  - ansible.builtin.assert:
+      that:
+      - health.json.cluster_id == query_bao_cluster_id
+      - health.json.initialized and not health.json.sealed
+  - name: Private create-only credentials and record delivery
+    no_log: true
+    block:
+    - ansible.builtin.file:
+        path: '{{ query_private_dir }}'
+        state: directory
+        mode: '0700'
+    - ansible.builtin.set_fact:
+        query_headers: {X-Vault-Token: '{{ lookup("file", query_bao_token_file) | trim }}'}
+    - name: Refuse existing runtime records before generating anything
+      ansible.builtin.uri:
+        url: '{{ query_eso_server }}/v1/{{ query_eso_kv_mount }}/data/{{ query_eso_record_root }}/{{ item }}'
+        headers: '{{ query_headers }}'
+        ca_path: '{{ query_bao_ca_file }}'
+        use_proxy: false
+        use_netrc: false
+        follow_redirects: none
+        status_code: 404
+      loop:
+      - monitoring/query-backend-tls
+      - monitoring/query-backend-self-client
+      - monitoring/grafana-query-auth
+      - gateway/query-gateway-tls
+      - gateway/query-backend-client
+      - gateway/portal-query-auth
+      - gateway/platform-query-auth
+    - name: Create dedicated local CA once
+      ansible.builtin.command:
+        argv: [openssl, req, -x509, -newkey, rsa:3072, -nodes, -days, '365', -subj, /CN=PerkForge Query Runtime CA, -keyout, '{{ query_private_dir }}/ca.key', -out, '{{ query_private_dir }}/ca.crt', -addext, 'basicConstraints=critical,CA:TRUE', -addext, 'keyUsage=critical,keyCertSign,cRLSign']
+        creates: '{{ query_private_dir }}/ca.crt'
+    - ansible.builtin.include_tasks: issue-cert.yaml
+      loop:
+      - {name: backend, usage: serverAuth, dns: '{{ query_backend_dns }}'}
+      - {name: gateway, usage: serverAuth, dns: '{{ query_server_dns }}'}
+      - {name: self-client, usage: clientAuth, dns: query-self-client}
+      - {name: gateway-client, usage: clientAuth, dns: query-gateway-client}
+      loop_control: {loop_var: certificate}
+    - name: Create separate random platform and Portal passwords once
+      ansible.builtin.shell: 'umask 077; openssl rand -hex 32 > {{ query_private_dir }}/{{ item }}.password'
+      args: {creates: '{{ query_private_dir }}/{{ item }}.password'}
+      loop: [platform, portal]
+    - ansible.builtin.command:
+        argv: [openssl, passwd, -apr1, -stdin]
+        stdin: '{{ lookup("file", query_private_dir + "/" + item + ".password") }}'
+      loop: [platform, portal]
+      register: hashes
+      changed_when: false
+    - ansible.builtin.set_fact:
+        records:
+          monitoring/query-backend-tls: {tls.crt: '{{ lookup("file", query_private_dir + "/backend.crt") }}', tls.key: '{{ lookup("file", query_private_dir + "/backend.key") }}', ca.crt: '{{ lookup("file", query_private_dir + "/ca.crt") }}'}
+          monitoring/query-backend-self-client: {tls.crt: '{{ lookup("file", query_private_dir + "/self-client.crt") }}', tls.key: '{{ lookup("file", query_private_dir + "/self-client.key") }}', ca.crt: '{{ lookup("file", query_private_dir + "/ca.crt") }}'}
+          gateway/query-gateway-tls: {tls.crt: '{{ lookup("file", query_private_dir + "/gateway.crt") }}', tls.key: '{{ lookup("file", query_private_dir + "/gateway.key") }}', ca.crt: '{{ lookup("file", query_private_dir + "/ca.crt") }}'}
+          gateway/query-backend-client: {tls.crt: '{{ lookup("file", query_private_dir + "/gateway-client.crt") }}', tls.key: '{{ lookup("file", query_private_dir + "/gateway-client.key") }}', ca.crt: '{{ lookup("file", query_private_dir + "/ca.crt") }}'}
+          monitoring/grafana-query-auth: {GRAFANA_QUERY_USER: platform, GRAFANA_QUERY_PASSWORD: '{{ lookup("file", query_private_dir + "/platform.password") }}', GRAFANA_QUERY_CA_PEM: '{{ lookup("file", query_private_dir + "/ca.crt") }}'}
+          gateway/platform-query-auth: {htpasswd: 'platform:{{ hashes.results[0].stdout }}'}
+          gateway/portal-query-auth: {htpasswd: 'portal:{{ hashes.results[1].stdout }}'}
+    - name: Create only exact approved records with CAS zero
+      ansible.builtin.uri:
+        url: '{{ query_eso_server }}/v1/{{ query_eso_kv_mount }}/data/{{ query_eso_record_root }}/{{ item.key }}'
+        method: POST
+        headers: '{{ query_headers }}'
+        ca_path: '{{ query_bao_ca_file }}'
+        use_proxy: false
+        use_netrc: false
+        follow_redirects: none
+        body_format: json
+        body: {options: {cas: 0}, data: '{{ item.value }}'}
+      loop: '{{ records | dict2items }}'
+    always:
+    - ansible.builtin.set_fact:
+        query_headers: {}
+        records: {}
+        hashes: {}
+      no_log: true
