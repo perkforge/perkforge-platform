@@ -1,0 +1,8 @@
+[
+  {"op":"test","path":"/metadata/uid","value":{{ log_namespace_uid | to_json }}},
+  {"op":"test","path":"/metadata/resourceVersion","value":{{ log_namespace_observed.metadata.resourceVersion | to_json }}},
+{% if log_namespace_observed.metadata.annotations is defined %}
+  {"op":"test","path":"/metadata/annotations","value":{{ log_namespace_observed.metadata.annotations | to_json }}},
+{% endif %}
+  {"op":"add","path":"/metadata/annotations","value":{{ (log_namespace_observed.metadata.annotations | default({}) | combine(log_guard_annotations)) | to_json }}}
+]
