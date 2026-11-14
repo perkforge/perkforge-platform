@@ -237,13 +237,14 @@ jobs:
       env:
         PREFLIGHT_SOURCES_DIR: ${{ runner.temp }}/minimal-sources
         FLUX_PORTAL_CASE_SCRIPT: ${{ github.workspace }}/big-bang-bootstrap/tests/security/portal_admission_cases.py
+        LOG_NAMESPACE_CASE_SCRIPT: ${{ github.workspace }}/big-bang-bootstrap/tests/log_namespace_cases.py
         FLUX_PORTAL_OPENAPI: ${{ github.workspace }}/big-bang-bootstrap/tests/fixtures/kubernetes-1.36.5.json
         PORTAL_ENROLLMENT_CHECKOUT: ${{ github.workspace }}/.inputs/enrollment
         PORTAL_APP_CHECKOUT: ${{ github.workspace }}/.inputs/app
         GOMAXPROCS: '2'
         GOMEMLIMIT: 512MiB
         GOFLAGS: -p=2
-      run: go test -run TestFluxPortalAdmission -count=1 -v
+      run: go test -run 'TestFluxPortalAdmission|TestLogNamespaceGuard' -count=1 -v
 
   # Preserve the original discovery and flags; independent HTTPS fixtures and
   # host/PXE suites run on isolated runners, never against the physical cluster.

@@ -1,0 +1,42 @@
+# Inactive artifact. Apply and verify admission before binding metadata/exposing logs.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: log-ownership-{{ log_namespace }}
+  labels:
+    platform.perkforge.io/owner: log-namespace-guard-v1
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    matchPolicy: Equivalent
+    resourceRules:
+    - apiGroups: ['']
+      apiVersions: [v1]
+      operations: [CREATE, UPDATE, DELETE]
+      resources: [namespaces, namespaces/status, namespaces/finalize]
+      resourceNames: [{{ log_namespace }}]
+      scope: Cluster
+  validations:
+  - expression: >-
+      request.operation == 'UPDATE' &&
+      oldObject != null && object != null &&
+      oldObject.metadata.uid == '{{ log_namespace_uid }}' &&
+      object.metadata.uid == '{{ log_namespace_uid }}' &&
+      object.metadata.name == '{{ log_namespace }}' &&
+      has(object.metadata.annotations) &&
+      'platform.perkforge.io/log-context' in object.metadata.annotations &&
+      object.metadata.annotations['platform.perkforge.io/log-context'] == '{{ log_context.id }}' &&
+      'platform.perkforge.io/log-scope' in object.metadata.annotations &&
+      object.metadata.annotations['platform.perkforge.io/log-scope'] == '{{ log_scope_id }}'
+    message: Namespace log ownership is locked; revoke tenant access before explicit epoch retirement and rebind.
+    reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: log-ownership-{{ log_namespace }}
+  labels:
+    platform.perkforge.io/owner: log-namespace-guard-v1
+spec:
+  policyName: log-ownership-{{ log_namespace }}
+  validationActions: [Deny]

@@ -1,0 +1,51 @@
+- name: Prepare inactive namespace log ownership guard
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    log_namespace_guard_render: false
+  tasks:
+  - name: Render only explicitly, with no cluster access or check-mode writes
+    when: log_namespace_guard_render | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - log_context.schema_version == 1
+        - log_context.id is match('^[a-z][a-z0-9-]{0,40}$')
+        - log_namespace is match('^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$')
+        - log_namespace in log_context.kubernetes.runtime_namespaces
+        - log_namespace not in log_context.kubernetes.control_namespaces
+        - log_namespace_uid is match('^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$')
+        - log_scope_id is match('^[a-z][a-z0-9-]{0,63}-v[1-9][0-9]*$') and log_scope_id | length <= 150
+        - log_scope_id != 'platform-unassigned-v1'
+        - log_namespace_observed.apiVersion == 'v1' and log_namespace_observed.kind == 'Namespace'
+        - log_namespace_observed.metadata.name == log_namespace
+        - log_namespace_observed.metadata.uid == log_namespace_uid
+        - log_namespace_observed.metadata.resourceVersion is match('^[0-9]+$')
+        - log_namespace_observed.metadata.deletionTimestamp | default(none) == none
+        - log_namespace_owner_labels is mapping and log_namespace_owner_labels | length > 0
+        - log_guard_output is match('^/[A-Za-z0-9_./-]+$')
+    - ansible.builtin.assert:
+        that: log_namespace_observed.metadata.labels[item.key] | default(none) == item.value
+      loop: '{{ log_namespace_owner_labels | dict2items }}'
+    - ansible.builtin.set_fact:
+        log_guard_annotations: {platform.perkforge.io/log-context: '{{ log_context.id }}', platform.perkforge.io/log-scope: '{{ log_scope_id }}'}
+    - name: Never adopt a conflicting ownership annotation
+      ansible.builtin.assert:
+        that: (log_namespace_observed.metadata.annotations | default({})).get(item.key, item.value) == item.value
+      loop: '{{ log_guard_annotations | dict2items }}'
+    - ansible.builtin.stat:
+        path: '{{ log_guard_output }}'
+        follow: false
+      register: guard_destination
+    - ansible.builtin.assert:
+        that: not guard_destination.stat.exists
+    - ansible.builtin.file:
+        path: '{{ log_guard_output }}'
+        state: directory
+        mode: '0700'
+    - ansible.builtin.template:
+        src: '{{ item }}.j2'
+        dest: '{{ log_guard_output }}/{{ item }}'
+        mode: '0600'
+      loop: [policy.yaml, namespace-patch.json]
