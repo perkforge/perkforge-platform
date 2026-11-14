@@ -137,6 +137,7 @@
           that:
           - (volume.stdout | from_json).spec.numberOfReplicas == 2
           - (volume.stdout | from_json).status.state == 'attached'
+          - (volume.stdout | from_json).metadata.name == (pv.stdout | from_json).spec.csi.volumeHandle
       - ansible.builtin.command:
           argv: [kubectl, -n, longhorn-system, get, engines.longhorn.io, -l, 'longhornvolume={{ (pv.stdout | from_json).spec.csi.volumeHandle }}', -o, json]
         register: engines
@@ -144,6 +145,7 @@
       - ansible.builtin.assert:
           that:
           - (engines.stdout | from_json)['items'] | selectattr('spec.active','equalto',true) | list | length == 1
+          - ((engines.stdout | from_json)['items'] | selectattr('spec.active','equalto',true) | first).spec.volumeName == (pv.stdout | from_json).spec.csi.volumeHandle
           - ((engines.stdout | from_json)['items'] | selectattr('spec.active','equalto',true) | first).status.replicaModeMap.values() | select('equalto','RW') | list | length == 2
       always:
       - when: created is defined and created.stdout is defined and created.rc == 0
@@ -152,19 +154,27 @@
             argv: [kubectl, delete, --raw, /api/v1/namespaces/alloy/pods/alloy-cursor-volume-check, -f, '-']
             stdin: '{{ {"apiVersion":"v1","kind":"DeleteOptions","preconditions":{"uid":(created.stdout | from_json).metadata.uid}} | to_json }}'
         - ansible.builtin.command: {argv: [kubectl, -n, alloy, wait, pod/alloy-cursor-volume-check, '--for=delete', '--timeout=90s']}
-    - ansible.builtin.command:
-        argv: [kubectl, -n, longhorn-system, get, volumes.longhorn.io, '{{ (pv.stdout | from_json).spec.csi.volumeHandle }}', -o, json]
-      register: detached
-      changed_when: false
-      until: (detached.stdout | from_json).status.state == 'detached'
-      retries: 30
-      delay: 2
-    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pods, -o, json]}
-      register: final_pods
-      changed_when: false
-    - ansible.builtin.assert:
-        that: cursor_claim not in (item.spec.volumes | default([]) | selectattr('persistentVolumeClaim','defined') | map(attribute='persistentVolumeClaim.claimName') | list)
-      loop: '{{ (final_pods.stdout | from_json)["items"] }}'
-      loop_control: {label: '{{ item.metadata.name }}'}
+        - when: pv is defined and pv.stdout is defined and pv.rc == 0
+          block:
+          - ansible.builtin.command:
+              argv: [kubectl, -n, longhorn-system, get, volumes.longhorn.io, '{{ (pv.stdout | from_json).spec.csi.volumeHandle }}', -o, json]
+            register: detached
+            changed_when: false
+            until: (detached.stdout | from_json).status.state == 'detached'
+            retries: 30
+            delay: 2
+          - ansible.builtin.assert:
+              that: volume is not defined or volume.rc != 0 or (detached.stdout | from_json).metadata.uid == (volume.stdout | from_json).metadata.uid
+        - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pvc, '{{ cursor_claim }}', -o, json]}
+          register: final_pvc
+          changed_when: false
+        - ansible.builtin.assert: {that: (final_pvc.stdout | from_json).metadata.uid == cursor_expected_claim_uid}
+        - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pods, -o, json]}
+          register: final_pods
+          changed_when: false
+        - ansible.builtin.assert:
+            that: cursor_claim not in (item.spec.volumes | default([]) | selectattr('persistentVolumeClaim','defined') | map(attribute='persistentVolumeClaim.claimName') | list)
+          loop: '{{ (final_pods.stdout | from_json)["items"] }}'
+          loop_control: {label: '{{ item.metadata.name }}'}
     - ansible.builtin.debug:
         msg: 'Exact claim bound, fresh filesystem verified, two replicas healthy while attached, helper deleted and volume detached. Collector untouched; checkpoint/pause not begun.'

@@ -107,6 +107,10 @@ class AlloyCursors(unittest.TestCase):
    local=script.replace('/cursor',str(root));env={**os.environ,'PATH':str(binpath)+':'+os.environ['PATH']}
    def run():return subprocess.run(['/bin/sh','-ec',local],capture_output=True,text=True,env=env)
    self.assertEqual(run().returncode,0);self.assertEqual(list(root.iterdir()),[])
+   outside=Path(t)/'unrelated';outside.write_text('preserve')
+   sync=binpath/'sync';sync.write_text('#!/bin/sh\nexit 1\n');sync.chmod(0o700)
+   self.assertNotEqual(run().returncode,0);self.assertEqual(list(root.iterdir()),[]);self.assertEqual(outside.read_text(),'preserve')
+   sync.unlink()
    (root/'lost+found').mkdir();self.assertEqual(run().returncode,0)
    foreign=root/'lost+found'/'unrelated';foreign.write_text('preserve');self.assertNotEqual(run().returncode,0);self.assertEqual(foreign.read_text(),'preserve')
    self.assertFalse((root/'.perkforge-cursor-preflight').exists())
