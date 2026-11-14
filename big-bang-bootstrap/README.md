@@ -15,29 +15,25 @@ configuration/
 tests/                             configuration/bootstrap/security/integration
 ```
 
-## Current physical pilot and reusable stages
+## Current physical target and reusable stages
 
-The default `local` and earlier stage roots remain reusable installation building
-blocks, not a statement of the current target selection. As verified on
-2026-11-14, the physical target selects `local-integrated-logging` on Big Bang
-3.35.1. It preserves Portal, Nextcloud, Mattermost, authenticated Grafana/Prometheus
-query access and native notification routing while adding scoped Loki/Alloy.
-Use the [current handoff](../HANDOFF.md#verified-integrated-pilot-snapshot-2026-11-14)
-and [logging acceptance/runbook](configuration/observability/integrated-logging/README.md)
-for deployed evidence versus remaining acceptance. The old v0.14.0 Keycloak-only
-selection is historical, not the current runtime.
+Earlier roots remain reusable installation building blocks, not the current target
+selection. The physical target has advanced to scoped logging and Mattermost
+composition, with Viewer-only Portal log access selected separately. Do not
+reapply the earlier integrated pilot to add features. Always inspect the exact
+selected source/path before serializing a new reviewed pin.
 
-Grafana SSO, ntfy contact points and the Mattermost baseline are deployed; this
-does not close the broader alert lifecycle/tenant work in #39, unresolved host
-collector coverage in #383, or full logging acceptance in #38. Portal's read-only
-enrollment baseline and final Portal v0.6.1 architecture-auth release are live
-through platform `947f99cc`, enrollment v2.5.2 and configuration v2.3.2. The
-[current handoff](../HANDOFF.md#mattermost-and-portal-baseline) records actual
-anonymous asset/API denial and exact-artifact isolated browser checks; fresh
-signed-in owner-browser acceptance remains pending. This supersedes the earlier
-same-day publication-only checkpoint, not the remaining Portal #12/#10 criteria.
-Do not infer deployment from a PR, release or offline render. Keep the same pinned images/charts across environments
-and vary reviewed configuration only (BODA).
+The [current handoff](../HANDOFF.md#current-scoped-observability-checkpoint-2026-11-14)
+separates actual cluster-wide discovery, scoped OpenBao/ESO custody, platform
+queries and controlled Viewer denial proof from actual human-login/lifecycle, durable
+transport/replay and full alert recovery acceptance. Grafana/Prometheus, Portal,
+Nextcloud and Mattermost are preserved. Native Big Bang/Registry One images and
+reviewed target values remain the BODA path; no environment-specific rebuild.
+
+Portal's published v0.7.0/configuration v2.3.3 C4 baseline is not yet a live image
+selection. Final current-state modeling and coordinated release pins remain
+underway; preserve compiled-asset authentication and disabled tenant-request
+preview inputs. Do not infer acceptance from an image release or Ready pod.
 
 See [ordered app stages](configuration/ansible/README.md#ordered-app-stages)
 for installation and acceptance boundaries. Never rerun initial bootstrap or
