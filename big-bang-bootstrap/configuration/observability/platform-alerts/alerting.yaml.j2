@@ -1,0 +1,71 @@
+apiVersion: 1
+contactPoints:
+- orgId: {{ platform_alerts_org_id }}
+  name: platform-resource-ntfy
+  receivers:
+  - uid: pf-platform-resource-ntfy
+    type: webhook
+    disableResolveMessage: false
+    settings:
+      url: {{ platform_alerts_url | to_json }}
+      httpMethod: POST
+      maxAlerts: 3
+      authorization_scheme: Bearer
+      authorization_credentials: {{ lookup('file', platform_alerts_token_file) | trim | to_json }}
+      tlsConfig:
+        insecureSkipVerify: false
+        caCertificate: {{ lookup('file', platform_alerts_ca_file) | to_json }}
+      payload:
+        template: >-
+          {% raw %}{{ $$click := "{% endraw %}{{ platform_alerts_grafana_url }}{% raw %}alerting/list" }}{{ $$message := printf "%s: %d included alert(s), %d truncated; open Grafana for all" .Status (len .Alerts) .TruncatedAlerts }}{{ range .Alerts }}{{ if .GeneratorURL }}{{ $$click = .GeneratorURL }}{{ end }}{{ $$message = printf "%s\n%.80s instance=%.80s namespace=%.80s pvc=%.80s device=%.80s mount=%.80s collector=%.80s\n%.200s\n%.240s\n%.240s" $$message (index .Labels "alertname") (index .Labels "instance") (index .Labels "namespace") (index .Labels "persistentvolumeclaim") (index .Labels "device") (index .Labels "mountpoint") (index .Labels "collector") (index .Annotations "summary") .GeneratorURL (index .Annotations "runbook_url") }}{{ end }}{{ coll.Dict "topic" "platform-alerts" "title" "Platform resource alerts" "message" $$message "click" $$click | data.ToJSON }}{% endraw %}
+ 
+groups:
+- orgId: {{ platform_alerts_org_id }}
+  name: platform-resources
+  folder: PerkForge platform resources
+  interval: 1m
+  rules:
+{% for rule in platform_alert_rules %}
+  - uid: pf-resource-{{ rule.id }}
+    title: {{ rule.title | to_json }}
+    condition: C
+    for: {{ rule.for }}
+    noDataState: NoData
+    execErrState: Error
+    isPaused: {{ ((rule.id == 'filesystem-space' and not platform_alerts_enable_host_filesystem | bool) or (rule.id == 'network' and not platform_alerts_enable_physical_network | bool)) | to_json }}
+    annotations:
+      summary: {{ rule.summary | to_json }}
+      runbook_url: {{ platform_alerts_runbook_url | to_json }}
+    labels:
+      context: platform
+      audience: platform-alerts
+      severity: warning
+    notification_settings:
+      receiver: platform-resource-ntfy
+      group_by: [context, alertname]
+      group_wait: 1m
+      group_interval: 10m
+      repeat_interval: 6h
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange: {from: 600, to: 0}
+      model:
+        datasource: {type: prometheus, uid: prometheus}
+        refId: A
+        instant: true
+        range: false
+        expr: {{ rule.expr | replace('__NETWORK_DEVICE_REGEX__', platform_alerts_network_device_regex) | replace('__DISK_DEVICE_REGEX__', platform_alerts_disk_device_regex) | to_json }}
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange: {from: 0, to: 0}
+      model:
+        type: threshold
+        refId: C
+        expression: A
+        conditions:
+        - evaluator: {type: gt, params: [0]}
+          operator: {type: and}
+          reducer: {type: last, params: []}
+          type: query
+{% endfor %}
