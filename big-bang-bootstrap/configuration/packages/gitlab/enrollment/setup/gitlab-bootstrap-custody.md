@@ -3,6 +3,14 @@
 Default-off source; **not activated or native-mint accepted**. A plan or this
 coordinator does not authorize its privileged execution.
 
+Before any apply, the operator must have the exact informed native/custody
+approval and a reviewed, runnable runtime/foundation bundle with its remaining
+activation steps and expiry budget established. These are operator prerequisites,
+not inferred from passing a JSON flag or from the presence of this source. The
+coordinator proves its exact custody preflight; it does **not** prove cluster
+admission, scheduling or workload readiness. Do not issue credentials early while
+those prerequisites are still unresolved.
+
 - `bootstrap-gitlab.py validate TOKEN RECEIPT INPUTS_JSON` validates literal
   selection/private paths without native or custody requests. Bare is inert.
 - `apply` is a one-time attempt under a native exclusive lock. Existing attempt
@@ -54,7 +62,8 @@ capability is granted. This source does not retire a bootstrap root credential.
 - Each new secret uses CAS0, then exact version1/data readback. Never overwrite a
   foreign existing record. Stored fields include token, setup ID, native token
   ID and explicit expiry. Runtime consumers select only their token property.
-- A protected nonsecret receipt records NativeRequested before execution. Lost
+- Protected receipts fsync both file and parent directory after create/replace.
+  A protected nonsecret receipt records NativeRequested before execution. Lost
   execution/result cannot be called rollback or automatically retried; native
   state may exist and needs manual inspection.
 - If custody write/readback fails after a verified mint response, revoke only the
