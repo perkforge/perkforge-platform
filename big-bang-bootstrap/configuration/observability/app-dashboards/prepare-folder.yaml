@@ -32,6 +32,20 @@
             that:
               - org.json.id == 1
               - org.json.name == app_dashboard_expected_org_name
+        - name: Verify the existing global administrator creating the empty folder
+          ansible.builtin.uri:
+            url: '{{ grafana_url }}/api/user'
+            user: '{{ grafana_admin_user }}'
+            password: '{{ grafana_admin_password }}'
+            force_basic_auth: true
+            ca_path: '{{ grafana_ca_file }}'
+            return_content: true
+          register: creator
+        - ansible.builtin.assert:
+            that:
+              - creator.json.isGrafanaAdmin == true
+              - creator.json.orgId == 1
+              - creator.json.id is integer and creator.json.id > 0
         - name: Inspect dedicated folder
           ansible.builtin.uri: &read
             url: '{{ grafana_url }}/api/folders/pf-platform-apps'
@@ -71,9 +85,8 @@
           register: permissions
         - ansible.builtin.assert:
             that:
-              - item.userId | default(0) == 0
               - item.teamId | default(0) == 0
-              - item.role in ['Viewer','Editor','Admin']
+              - (item.userId | default(0) == 0 and item.role in ['Viewer','Editor','Admin']) or (item.userId == creator.json.id and item.permission == 4 and not item.role)
               - item.inherited | default(false) == false
           loop: '{{ permissions.json }}'
         - name: Narrow empty folder to native Admin only

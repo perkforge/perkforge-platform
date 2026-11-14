@@ -33,7 +33,7 @@ class NativeAppDashboards(unittest.TestCase):
             provider = yaml.safe_load((folder / 'out/helm-values.yaml').read_text())['upstream']['dashboardProviders']['perkforge-app-resources.yaml']
             # Fixture-only filesystem mount replacement, never a deployment edit.
             provider['providers'][0]['options']['path'] = str(folder / 'out')
-            (provisioning / 'logs.yaml').write_text(yaml.safe_dump(provider))
+            (folder / 'provider-staged.yaml').write_text(yaml.safe_dump(provider))
             with socket.socket() as sock:
                 sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
             config = folder / 'grafana.ini'
@@ -58,12 +58,20 @@ class NativeAppDashboards(unittest.TestCase):
                     code,folder_info=api('GET','/api/folders/pf-platform-apps')
                     if code==404:self.assertEqual(api('POST','/api/folders',{'uid':'pf-platform-apps','title':'Platform Applications'})[0],200)
                     self.assertEqual(api('GET','/api/search?folderUIDs=pf-platform-apps&type=dash-db')[1],[])
+                    before_acl=api('GET','/api/folders/pf-platform-apps/permissions')[1]
+                    current_user=api('GET','/api/user')[1]
+                    self.assertTrue(any(x.get('userId')==current_user['id'] and x['permission']==4 for x in before_acl))
                     self.assertEqual(api('POST','/api/folders/pf-platform-apps/permissions',{'items':[{'role':'Admin','permission':4}]})[0],200)
+                    creator_id=api('GET','/api/user')[1]['id']
+                    # API-created folders include the authenticated creator Admin grant.
                     # Only now publish the already rendered dashboard files to the native watched directory.
+                    (provisioning/'logs.yaml').write_text((folder/'provider-staged.yaml').read_text())
                     for source in (folder/'staged').glob('*.json'):
                         (folder/'out'/source.name).write_bytes(source.read_bytes())
+                    self.assertEqual(api('POST','/api/admin/provisioning/dashboards/reload',{})[0],200)
                     for _ in range(400):
-                        code,dashboard=api('GET','/api/dashboards/uid/pf-app-nextcloud')
+                        try:code,dashboard=api('GET','/api/dashboards/uid/pf-app-nextcloud')
+                        except OSError:time.sleep(.1);continue
                         if code==200:break
                         time.sleep(.1)
                     else:self.fail('Native restricted dashboard import timed out')
