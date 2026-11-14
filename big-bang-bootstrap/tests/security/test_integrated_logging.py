@@ -33,6 +33,12 @@ class IntegratedLogging(unittest.TestCase):
    hr=next(x for x in outer if x['kind']=='HelmRelease' and x['metadata']['name']==name)
    rendered=helm(src/name/'chart',release_name(hr),hr['spec']['targetNamespace'],child_values(outer,name),('--include-crds',))
    self.assertFalse(any(x['kind'] in ['PrometheusRule','ServiceMonitor','ClusterRole','ClusterRoleBinding'] for x in rendered),name)
+   for obj in rendered:
+    if obj['kind'] in ['Deployment','StatefulSet']:
+     self.assertIn({'name':'private-registry'},obj['spec']['template']['spec'].get('imagePullSecrets',[]),obj['metadata']['name'])
+   if name=='alloy':
+    cr=next(obj for obj in rendered if obj['kind']=='Alloy')
+    self.assertIn({'name':'private-registry'},cr['spec']['global']['image']['pullSecrets'])
    if name=='loki':
     pod=next(x for x in rendered if x['kind']=='StatefulSet')['spec']['template']['spec']
     self.assertEqual(pod['nodeSelector']['storage.perkforge.io/worker'],'true')
