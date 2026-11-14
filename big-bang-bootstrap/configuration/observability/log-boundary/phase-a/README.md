@@ -88,3 +88,15 @@ counter deltas, not a claim each loss was an old record: a rejected batch can
 include mixed-age entries, and the exact per-entry disposition was not verified.
 No age policy was weakened and no lossless backfill claim is made. Acceptance
 uses a separate clean post-catch-up window beginning 14:54:46 UTC.
+
+### Collector-only measured memory correction
+
+The first all-namespace startup exceeded the pilot memory gate: cgroup usage
+reached 256,978,944/268,435,456 bytes (95.7%) with memory-max events, although no
+OOM or restart was observed. The targeted fix raises only collector memory
+request 128Mi→256Mi and limit 256Mi→512Mi, preserving 50m CPU, reloader resources,
+image, placement and all other workloads. Before rollout the eligible control
+node had about 5.7Gi of unrequested memory and over 1 CPU free; one surge pod
+requires only 306Mi/60m including the unchanged reloader. No Nextcloud workload
+move or sizing change is involved. This corrects measured headroom, not old-log
+HTTP400 rejection. Repeat fresh delivery and 75%-of-limit memory gates afterward.
