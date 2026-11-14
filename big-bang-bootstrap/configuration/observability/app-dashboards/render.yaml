@@ -45,3 +45,8 @@
             src: helm-values.yaml.j2
             dest: '{{ app_dashboards_output }}/helm-values.yaml'
             mode: '0600'
+        - name: Render portable umbrella values from the same native child maps
+          ansible.builtin.template:
+            src: values.yaml.j2
+            dest: '{{ app_dashboards_output }}/values.yaml'
+            mode: '0600'

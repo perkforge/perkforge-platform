@@ -9,6 +9,15 @@ def render(folder, **changes):
     (folder/'inputs.yaml').write_text(yaml.safe_dump(v))
     return subprocess.run(['ansible-playbook','-i','localhost,',str(SOURCE/'render.yaml'),'-e','@'+str(folder/'inputs.yaml')],capture_output=True,text=True,timeout=90,env={**os.environ,'ANSIBLE_LOCAL_TEMP':str(folder/'ansible')})
 class AppDashboards(unittest.TestCase):
+    def test_generated_runtime_is_exact_and_folder_gate_is_inert(self):
+        with tempfile.TemporaryDirectory() as t:
+            p=Path(t);r=render(p);self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+            self.assertEqual((p/'out/values.yaml').read_text(),(SOURCE/'runtime/values.yaml').read_text())
+            gate=yaml.safe_load((SOURCE/'prepare-folder.yaml').read_text())[0]
+            self.assertFalse(gate['vars']['app_dashboard_folder_apply'])
+            r=subprocess.run(['ansible-playbook','-i','localhost,',str(SOURCE/'prepare-folder.yaml')],capture_output=True,text=True,timeout=30)
+            self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+            self.assertIn('changed=0',r.stdout)
     def test_default_off(self):
         with tempfile.TemporaryDirectory() as t:
             p=Path(t);r=render(p,app_dashboards_render=False);self.assertEqual(r.returncode,0,r.stdout+r.stderr);self.assertFalse((p/'out').exists())
@@ -44,4 +53,47 @@ class AppDashboards(unittest.TestCase):
                 {'series':'kube_pod_info{namespace="fixture",pod="host",job="kube-state-metrics",host_network="true"}','values':'1x10'}],
                 'promql_expr_test':[{'expr':q,'eval_time':'5m','exp_samples':[{'labels':'{}','value':10}]},{'expr':q.replace('fixture','absent'),'eval_time':'5m','exp_samples':[]}]}]}
             (p/'prom.yaml').write_text(yaml.safe_dump(data));r=subprocess.run([binary,'test','rules',str(p/'prom.yaml')],capture_output=True,text=True);self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+    def test_optional_pinned_native_chart_mount_and_preservation(self):
+        chart = os.environ.get('GRAFANA_CHART_DIR')
+        if not chart:
+            self.skipTest('Set existing Grafana BB chart path for native Helm render; no download')
+        metadata = yaml.safe_load((Path(chart) / 'Chart.yaml').read_text())
+        self.assertEqual(metadata['version'], '13.2.4-bb.0')
+        self.assertEqual(metadata['appVersion'], '13.2.1')
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp); result = render(p)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            command = [os.environ.get('HELM_BIN', 'helm'), 'template', 'grafana', chart, '--namespace', 'monitoring']
+            baseline = subprocess.run(command, capture_output=True, text=True, check=True)
+            candidate = subprocess.run(command + ['-f', str(p / 'out/helm-values.yaml')], capture_output=True, text=True, check=True)
+            def objects(text):
+                return {(v['kind'], v['metadata']['name']): v for v in yaml.safe_load_all(text) if v}
+            before, after = objects(baseline.stdout), objects(candidate.stdout)
+            for key, obj in before.items():
+                if key[0] not in ['Deployment', 'ConfigMap']:
+                    self.assertEqual(after[key], obj)
+                if key[0] == 'ConfigMap':
+                    for name, data in obj.get('data', {}).items():
+                        self.assertEqual(after[key]['data'][name], data)
+            added = [v for k, v in after.items() if k not in before and k[0] == 'ConfigMap']
+            dashboard = next(v for v in added if 'nextcloud.json' in v.get('data', {}))
+            self.assertEqual(json.loads(dashboard['data']['nextcloud.json'])['panels'][-1]['datasource']['uid'], 'prometheus')
+            deployment = next(v for v in after.values() if v['kind'] == 'Deployment')
+            pod = deployment['spec']['template']['spec']
+            self.assertTrue(any(v.get('configMap', {}).get('name') == dashboard['metadata']['name'] for v in pod['volumes']))
+            old_pod = next(v for v in before.values() if v['kind'] == 'Deployment')['spec']['template']['spec']
+            for volume in old_pod['volumes']:
+                self.assertIn(volume, pod['volumes'])
+            for old_container in old_pod['containers']:
+                current = next(c for c in pod['containers'] if c['name'] == old_container['name'])
+                for key, value in old_container.items():
+                    if key == 'volumeMounts':
+                        for mount in value:
+                            self.assertIn(mount, current[key])
+                    else:
+                        self.assertEqual(current[key], value)
+            grafana = next(c for c in pod['containers'] if c['name'] == 'grafana')
+            self.assertTrue(any(v['mountPath'].endswith('/pf-app-resources/nextcloud.json') for v in grafana['volumeMounts']))
+
+
 if __name__=='__main__':unittest.main()

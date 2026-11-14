@@ -67,3 +67,28 @@ After separately approved rollout, verify native panels/no-data and safe control
 representative changes; do not stop household apps to manufacture evidence.
 Six starter dashboard expansion, wider scrape gaps, HTTP attribution, representative
 ingestion/cardinality/growth and #40 recovery remain separate #37 acceptance work.
+
+## Reviewed activation candidate (not selected by source publication)
+
+`local-app-resource-dashboards` inherits `local-private-observability`, preserving
+sharing disabled, durable Alloy, Portal Viewer mapping, all existing receivers
+and datasources. The generated runtime values add one ConfigMap/reference only;
+regeneration is tested byte-for-byte from the same explicit profile/templates.
+Native pinned chart renders preserve existing objects, mounts and container fields.
+
+Before selection, run the separately approved `prepare-folder.yaml` with protected
+existing admin credentials, trusted CA and verified org name. It defaults off and
+check-mode inert, refuses populated folders or unexpected user/team permissions,
+and requires an explicitly verified existing folder ID on retry. It creates only
+the missing fixed empty folder and narrows its permissions to native Admin. Never
+provision dashboards first and restrict later: native tests reproduced cached
+previous Viewer access after an ACL change. The safe sequence fixture proves an
+already-authenticated Viewer and a fresh Viewer both denied after Admin-only ACL
+is installed BEFORE file provisioning; Admin succeeds. This does not prove general
+permission-cache revocation or restrict preexisting shared datasource rights.
+
+All19 inventory apps were checked with285 live read-only queries across the first
+15 panels: every query HTTP200, with9–15 nonempty panels per app. Missing custom
+controller/hostNetwork/PVC sources are not fabricated. The final57 desired-replica/pod-count companion queries also returned HTTP200
+(44 nonempty); thus342 final-profile queries were checked across19 apps.
+No real app-down/traffic disturbance or production activation has occurred here.

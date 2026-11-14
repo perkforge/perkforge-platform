@@ -1,0 +1,3 @@
+grafana:
+  values:
+{{ lookup('ansible.builtin.file', app_dashboards_output ~ '/helm-values.yaml') | indent(4, true) }}
