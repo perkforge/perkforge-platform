@@ -1,0 +1,12 @@
+# Do not select before verified empty-folder Admin-only ACL preflight.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-private-observability
+- ../../configuration/observability/app-dashboards/runtime
+patches:
+- target: {group: helm.toolkit.fluxcd.io, version: v2, kind: HelmRelease, name: bigbang}
+  patch: |-
+    - op: add
+      path: /spec/valuesFrom/-
+      value: {kind: ConfigMap, name: values-app-resource-dashboards, valuesKey: values.yaml}

@@ -1,0 +1,98 @@
+---
+# Narrow permissions on a new EMPTY folder before provisioning any dashboard.
+- name: Prepare administrator-only native Grafana dashboard folder
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    app_dashboard_folder_apply: false
+    app_dashboard_expected_existing_folder_id: 0
+  tasks:
+    - name: Apply only with explicit scoped inputs and outside check mode
+      when: app_dashboard_folder_apply | bool and not ansible_check_mode
+      no_log: true
+      block:
+        - ansible.builtin.assert:
+            that:
+              - grafana_url is match('^https://[a-zA-Z0-9.-]+(:[0-9]+)?$')
+              - grafana_ca_file is match('^/.+')
+              - grafana_admin_user | length > 0
+              - grafana_admin_password | length > 0
+              - app_dashboard_expected_org_name | length > 0
+        - name: Verify exact platform organization
+          ansible.builtin.uri:
+            url: '{{ grafana_url }}/api/org'
+            user: '{{ grafana_admin_user }}'
+            password: '{{ grafana_admin_password }}'
+            force_basic_auth: true
+            ca_path: '{{ grafana_ca_file }}'
+            return_content: true
+          register: org
+        - ansible.builtin.assert:
+            that:
+              - org.json.id == 1
+              - org.json.name == app_dashboard_expected_org_name
+        - name: Inspect dedicated folder
+          ansible.builtin.uri: &read
+            url: '{{ grafana_url }}/api/folders/pf-platform-apps'
+            user: '{{ grafana_admin_user }}'
+            password: '{{ grafana_admin_password }}'
+            force_basic_auth: true
+            ca_path: '{{ grafana_ca_file }}'
+            return_content: true
+            status_code: [200, 404]
+          register: folder
+        - name: Create only missing exact folder
+          ansible.builtin.uri:
+            <<: *read
+            method: POST
+            url: '{{ grafana_url }}/api/folders'
+            body_format: json
+            body: {uid: pf-platform-apps, title: Platform Applications}
+            status_code: 200
+          when: folder.status == 404
+        - ansible.builtin.assert:
+            that:
+              - folder.status == 404 or (folder.json.title == 'Platform Applications' and folder.json.id == app_dashboard_expected_existing_folder_id and app_dashboard_expected_existing_folder_id | int > 0)
+        - name: Refuse existing dashboards before permission transition
+          ansible.builtin.uri:
+            <<: *read
+            url: '{{ grafana_url }}/api/search?type=dash-db&folderUIDs=pf-platform-apps&limit=1000'
+            status_code: 200
+          register: existing
+        - ansible.builtin.assert:
+            that: existing.json | length == 0
+            fail_msg: Never retrofit permissions after exposing dashboards; inspect and obtain a separate transition plan.
+        - name: Inspect native permissions and refuse unexpected ownership
+          ansible.builtin.uri:
+            <<: *read
+            url: '{{ grafana_url }}/api/folders/pf-platform-apps/permissions'
+            status_code: 200
+          register: permissions
+        - ansible.builtin.assert:
+            that:
+              - item.userId | default(0) == 0
+              - item.teamId | default(0) == 0
+              - item.role in ['Viewer','Editor','Admin']
+              - item.inherited | default(false) == false
+          loop: '{{ permissions.json }}'
+        - name: Narrow empty folder to native Admin only
+          ansible.builtin.uri:
+            <<: *read
+            method: POST
+            url: '{{ grafana_url }}/api/folders/pf-platform-apps/permissions'
+            body_format: json
+            body: {items: [{role: Admin, permission: 4}]}
+            status_code: 200
+        - name: Verify exact permission result
+          ansible.builtin.uri:
+            <<: *read
+            url: '{{ grafana_url }}/api/folders/pf-platform-apps/permissions'
+            status_code: 200
+          register: result
+        - ansible.builtin.assert:
+            that:
+              - result.json | length == 1
+              - result.json[0].role == 'Admin'
+              - result.json[0].permission == 4
+              - result.json[0].userId == 0 and result.json[0].teamId == 0
