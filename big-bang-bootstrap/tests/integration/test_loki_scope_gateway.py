@@ -122,6 +122,22 @@ class LokiScopeGateway(unittest.TestCase):
     self.assertIn('portal-runtime-v1',configs);self.assertIn('platform-unassigned-v1',configs)
     self.assertIn('REDACTED',configs);self.assertNotIn('observability.perkforge.io/logs',configs)
     self.assertIn('__meta_kubernetes_namespace',configs)
+    # Evaluate relevant native relabel rules in their actual rendered order.
+    import re
+    content=next(value for obj in new if obj['kind']=='ConfigMap' for value in obj.get('data',{}).values() if 'discovery.relabel "filtered_pods"' in value)
+    discovery=content.split('discovery.relabel "filtered_pods" {',1)[1].split('} // discovery.relabel "filtered_pods"',1)[0]
+    annotation=discovery.index('regex = "__meta_kubernetes_pod_annotation_resource_opentelemetry_io_(.+)"')
+    final_reset=discovery.rindex('source_labels = ["__meta_kubernetes_namespace"]')
+    self.assertGreater(final_reset,annotation)
+    labels={'__meta_kubernetes_namespace':'tenant-other','__meta_kubernetes_pod_name':'real-pod','__meta_kubernetes_pod_container_name':'real-container','__meta_kubernetes_pod_annotation_resource_opentelemetry_io_namespace':'tenant-portal'}
+    for rule in re.findall(r'\brule\s*\{([^{}]*)\}',discovery,re.S):
+     if 'action = "labelmap"' in rule and 'resource_opentelemetry' in rule:
+      for key,value in list(labels.items()):
+       prefix='__meta_kubernetes_pod_annotation_resource_opentelemetry_io_'
+       if key.startswith(prefix):labels[key[len(prefix):]]=value
+     elif 'target_label = "namespace"' in rule and '"__meta_kubernetes_namespace"' in rule:
+      labels['namespace']=labels['__meta_kubernetes_namespace']
+    self.assertEqual(labels['namespace'],'tenant-other')
 
  def test_existing_output_is_not_replaced(self):
   self.render(copy.deepcopy(self.inputs),expected=1)

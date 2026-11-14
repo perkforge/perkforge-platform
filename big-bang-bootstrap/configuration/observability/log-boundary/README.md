@@ -86,3 +86,12 @@ approved Grafana org; prove tenant A cannot query B/fallback/legacy through head
 LogQL, labels/series, datasource proxy or direct gateway requests. Keep tenant
 access disabled until all denial checks pass. Record actual collection coverage
 and resource budget separately from permissions capable of wider collection.
+
+The pinned chart maps `resource.opentelemetry.io/*` pod annotations into ordinary
+labels after its initial namespace/pod/container assignment. Therefore the boundary
+explicitly resets namespace, pod, container and job from reserved Kubernetes
+metadata in **final** `extraDiscoveryRules`, after every annotation/label mapping.
+This prevents an application annotation such as `resource.opentelemetry.io/namespace`
+from selecting another ownership partition. Kubernetes annotation name syntax
+forbids a leading underscore, so this map cannot manufacture reserved `__meta_*`
+source names. The exact-render regression checks rule ordering and malicious input.
