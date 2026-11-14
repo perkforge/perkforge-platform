@@ -3,6 +3,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata: {name: mattermost-event-projection, namespace: ntfy}
 rules:
+# Deployment health assessment lists ReplicaSets; metadata read only, namespace-local.
+- apiGroups: ['apps']
+  resources: [replicasets]
+  verbs: [get, list, watch]
 - apiGroups: ['apps']
   resources: [deployments]
   resourceNames: [mattermost-event-projection]
