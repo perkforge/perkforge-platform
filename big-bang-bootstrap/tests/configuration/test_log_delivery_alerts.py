@@ -73,4 +73,8 @@ class DeliveryAlerts(unittest.TestCase):
      else:self.fail('Native Grafana provisioning unavailable')
      self.assertEqual(len(actual),3)
      for rule in actual:self.assertEqual(rule['noDataState'],'KeepLast');self.assertEqual(rule['execErrState'],'Error');self.assertTrue(rule['isPaused']);self.assertEqual(rule['provenance'],'file')
+     for rule in actual:
+      if rule['uid']!='pf-log-delivery-telemetry':
+       self.assertIn('$values.A.Value',rule['annotations']['summary']);self.assertNotIn('$$',rule['annotations']['summary'])
+
     finally:process.terminate();process.wait(timeout=15)

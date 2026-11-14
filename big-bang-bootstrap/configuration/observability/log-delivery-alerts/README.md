@@ -55,3 +55,11 @@ source discovery completeness. Pinned Alloy v1.18 Kubernetes API source health
 only indicates valid configuration and exposes no source-specific debug metrics;
 per-target last-line/error metadata requires separate coverage design. Do not
 interpret scrape up=1 as proof every intended pod is being collected.
+
+Notification acceptance also includes actual transport templates: ntfy's existing
+200-character summary excerpt receives the rate first. Mattermost's bounded
+platform payload adds only fixed known log-signal names and native numeric A
+values/units (maximum three included alerts), never arbitrary annotations, labels
+or log lines. Native Grafana-to-local-sink tests verify fractional and zero rates.
+Alert annotation templates keep single dollars; contact-point payload templates
+escape dollars for their separate provisioning interpolation path.

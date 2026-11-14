@@ -105,5 +105,11 @@ else: assert 'annotate' in a or 'wait' in a
             deliveries=json.loads(state.read_text()).get('deliveries',[])
             self.assertEqual(len(deliveries),1);self.assertEqual(list(deliveries[0]),['text'])
             self.assertEqual(deliveries[0]['text'],'firing: 1 grouped platform alert(s). Triage: https://grafana.example.invalid/alerting/list')
+            for title,value,expected in [('Log delivery drops sustained',0.166666666,'log-drops=0.166667 entries/s (5m)'),('Log delivery retries sustained',0.0,'log-retries=0 retries/s (5m)')]:
+                result=request(base+'/'+selected['metadata']['name']+'/test',{'integration':integration,'alert':{'labels':{'alertname':title},'annotations':{'__values__':json.dumps({'A':value}),'summary':'DO NOT FORWARD RAW SUMMARY'}}})
+                self.assertEqual(result.get('status'),'success',result)
+                delivery=json.loads(state.read_text())['deliveries'][-1]['text']
+                self.assertIn(expected,delivery);self.assertNotIn('DO NOT FORWARD',delivery)
+
         finally:
             p.terminate();p.wait(timeout=15);log.close()
