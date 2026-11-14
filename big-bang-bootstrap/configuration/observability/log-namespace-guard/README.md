@@ -58,12 +58,13 @@ For each reviewed namespace, approve only:
    observed generation and empty `status.typeChecking.expressionWarnings`. Schema
    dry-run alone is not CEL runtime proof. Refuse any pre-existing foreign policy
    or Binding with that name; pin UID/resourceVersion for same-owner updates.
-2. Bind only that policy with validationActions Deny. Verify bound generation and
-   propagation using server-side dry-runs before tenant query access exists.
-3. Apply the generated additive Namespace JSON Patch with its tests and dedicated
-   field manager, then read back exact UID/context/epoch and all prior labels.
-   Until this patch completes, unrelated Namespace updates may fail; preserve
-   workload availability and do not remove the guard as a recovery shortcut.
+2. While the policy remains UNBOUND and tenant access remains off, apply the
+   generated additive Namespace JSON Patch with its tests and dedicated field
+   manager. Read back exact UID/context/epoch and all prior labels. Refetch and
+   verify the UID again immediately before binding; never adopt a replacement.
+3. Bind only that policy with validationActions Deny after metadata is verified.
+   Verify admission propagation using server-side dry-runs before tenant query
+   access exists. Seeding before binding avoids transient namespace status denial.
 4. Dry-run initial/unchanged ownership updates, unrelated metadata and existing
    foundation SSA successfully; dry-run annotation removal/epoch change, DELETE,
    and UID mismatch denied. CREATE on an extant name may only return AlreadyExists:
