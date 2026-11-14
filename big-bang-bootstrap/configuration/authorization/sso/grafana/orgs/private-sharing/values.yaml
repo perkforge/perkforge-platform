@@ -1,0 +1,10 @@
+# Explicit owner-selected global publication policy, not a default selection.
+grafana:
+  values:
+    upstream:
+      grafana.ini:
+        snapshots:
+          enabled: false
+          external_enabled: false
+        public_dashboards:
+          enabled: false

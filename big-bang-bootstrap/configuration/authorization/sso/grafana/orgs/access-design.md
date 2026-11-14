@@ -67,7 +67,7 @@ hiding Share/Edit controls is insufficient. A dashboard read link does not grant
 access, while an already published anonymous artifact does: the distinction must
 remain visible in operator guidance. Alert links use only authorized destinations.
 
-### Supported stricter sharing profile (proposal, not selected)
+### Owner-selected private sharing profile
 
 Where the owner requires **no anonymous Grafana artifacts**, use the pinned native
 server controls below as a separately reviewed configuration change:
@@ -80,16 +80,21 @@ external_enabled = false
 enabled = false
 ```
 
+The owner explicitly selected global sharing-off on 2026-11-14, including platform
+admins, while preserving ordinary authenticated viewing. The opt-in
+`private-sharing/values.yaml` implements only these three native fields; the
+`local-private-observability` root inherits every existing durable-logging object
+and appends one ConfigMap reference. Defaults and other selections are unchanged.
+
 The native fixture proves these deny snapshot creation/read even for the recovery
-admin and remove the public-dashboard create route. This is global, not per-org:
-it affects legitimate platform publishers too. It does not delete old stored
-artifacts or copies already exported to another server. Before activation, inventory
-existing publications with the authorized operator, agree handling/retention and
-verify both current URLs and direct APIs after rollout. No such change is made by
-this PR. Without this stricter profile, platform admins remain trusted publishers;
-Viewer-only tenants still cannot create these artifacts. Owner decision required:
-retain that trusted-publisher boundary, or disable sharing globally? Do not close
-this design decision by silently choosing for the owner.
+admin and remove the public-dashboard create route. This is global, not per-org.
+It does not delete old stored artifacts or copies already exported to another
+server. Before activation, inventory existing publications read-only and retain
+that evidence privately. Do not print bearer keys or delete publications. Verify
+existing publication URLs, if any, and direct APIs after rollout, plus ordinary
+authenticated dashboards, datasource health and OAuth configuration preservation.
+An existing externally copied artifact requires a separate handling decision;
+disabling this Grafana cannot retract copies. Source selection is not live proof.
 
 ## Pinned supported mechanisms and actual tests
 
@@ -109,7 +114,7 @@ loopback fixture, never a public service. It demonstrates:
   creation and native membership/invitation/datasource/service-account writes denied.
 - With sharing enabled, admin-created snapshot and public dashboard are anonymously
   readable. This preserves the risk as a regression, not a false-denial test.
-- With the proposed sharing-off controls, admin creation/anonymous snapshot reads
+- With the owner-selected sharing-off controls, admin creation/anonymous snapshot reads
   are denied and public-dashboard creation is unavailable, while org mapping,
   own dashboard reads and the previous revocation regressions still work.
 - Existing native mixed AdminA/ViewerB, PE Viewer, platform admin, unmapped-user,
@@ -136,10 +141,10 @@ Primary pinned source:
 | Roles, membership lifecycle and default deny | Explicit Viewer-only Portal matrix, independent PA/PE, canonical owned-client entitlements; native removal/session/token procedure, not automatic sync |
 | Supported versions/editions/options | Native OSS orgs + gateway partitions chosen over filters/folders/paid datasource RBAC; exact versions and rejected org Admin bypass documented |
 | Explore/API/header/alternate backend access | Server-fixed query scopes and live/native positive-negative probes; tail/write/admin paths excluded, not falsely claimed supported |
-| Folder/share/provisioning/snapshot paths | Source-owned read ACLs; Viewer write denials; native anonymous publication behavior and supported global-disable alternative proved. **Owner sharing decision remains** |
+| Folder/share/provisioning/snapshot paths | Source-owned read ACLs; Viewer write denials; native anonymous publication behavior and supported global-disable alternative proved. Owner selected global sharing-off; live activation/readback remains separate |
 | Positive/negative test plan | Existing fixtures/probe plus new enabled/disabled sharing regression; real human login/session and future broader-role rollout remain explicit controlled acceptance |
 | Reviewed matrix, flow, remaining decisions and staged rollout | This document + linked source/runbooks; current release preserves PA/PE/Viewer, future changes source-review→exact approval→native tests→bounded rollout→deny proof; fix forward without silently weakening boundaries |
 
-This source closes the missing investigation/test artifact, not the owner's sharing
-policy decision. #218 can be accepted as a design only after that choice and
-independent review; do not mark broader live tenant lifecycle completed with it.
+The owner has selected the supported global sharing-off control. Independent review
+and verified activation complete that selected boundary; do not mark broader live
+tenant lifecycle or fresh human login completed with this design evidence.

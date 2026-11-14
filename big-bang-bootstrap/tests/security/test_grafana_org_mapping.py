@@ -98,3 +98,15 @@ class GrafanaOrgMapping(unittest.TestCase):
         self.inputs['grafana_org_contexts'][0]['log_view_only']=True
         result=self.render(self.inputs);self.assertEqual(result.returncode,0,result.stdout+result.stderr)
         self.assertEqual(yaml.safe_load(extra[0]['data']['values.yaml']),yaml.safe_load((self.folder/'out/oauth-values.yaml').read_text()))
+
+    def test_private_sharing_root_preserves_every_existing_object(self):
+        from fixtures.render_helpers import build
+        baseline=build(ROOT/'big-bang-bootstrap/clusters/local-logging-cursor-durable')
+        actual=build(ROOT/'big-bang-bootstrap/clusters/local-private-observability')
+        extra=[o for o in actual if o['kind']=='ConfigMap' and o['metadata']['name']=='values-grafana-private-sharing']
+        self.assertEqual(len(extra),1)
+        remaining=[o for o in actual if o not in extra]
+        target=next(o for o in remaining if o['kind']=='HelmRelease' and o['metadata']['name']=='bigbang')
+        self.assertEqual(target['spec']['valuesFrom'].pop(),{'kind':'ConfigMap','name':'values-grafana-private-sharing','valuesKey':'values.yaml'})
+        self.assertEqual(remaining,baseline)
+        self.assertEqual(yaml.safe_load(extra[0]['data']['values.yaml']),{'grafana':{'values':{'upstream':{'grafana.ini':{'snapshots':{'enabled':False,'external_enabled':False},'public_dashboards':{'enabled':False}}}}}})
