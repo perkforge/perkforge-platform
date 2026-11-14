@@ -1,0 +1,36 @@
+{% for consumer in logging_consumers %}
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata: {name: eso-loki-{{ consumer.suffix }}, namespace: {{ consumer.namespace }}, labels: {platform.perkforge.io/credential-owner: loki-boundary-v1}}
+spec:
+  controller: perkforge
+  provider:
+    vault:
+      server: {{ logging_bao_server | to_json }}
+      path: platform
+      version: v2
+      caProvider: {type: ConfigMap, name: loki-boundary-openbao-ca, key: ca.crt}
+      auth:
+        kubernetes:
+          mountPath: kubernetes-eso
+          role: eso-loki-{{ consumer.suffix }}
+          serviceAccountRef: {name: eso-loki-{{ consumer.suffix }}, audiences: [openbao-eso]}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: {name: {{ consumer.secret }}, namespace: {{ consumer.namespace }}, labels: {platform.perkforge.io/credential-owner: loki-boundary-v1}}
+spec:
+  refreshInterval: 1h
+  secretStoreRef: {kind: SecretStore, name: eso-loki-{{ consumer.suffix }}}
+  target:
+    name: {{ consumer.secret }}
+    creationPolicy: Merge
+    deletionPolicy: Retain
+    template: {engineVersion: v2, mergePolicy: Replace, type: Opaque}
+  data:
+{% for field in consumer.fields %}
+  - secretKey: {{ field }}
+    remoteRef: {key: {{ consumer.record }}, property: {{ field }}, conversionStrategy: Default, decodingStrategy: None}
+{% endfor %}
+---
+{% endfor %}

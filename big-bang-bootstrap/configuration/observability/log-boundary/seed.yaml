@@ -1,0 +1,149 @@
+# Explicit reviewed runtime custody only. Never rotates/replaces an existing record.
+- name: Prepare and seed four dedicated logging records
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    logging_seed_apply: false
+    logging_legacy_htpasswd_file: ''
+    logging_accounts: [pf-log-collector-write, pf-log-platform-read, pf-log-portal-read]
+  module_defaults:
+    ansible.builtin.uri:
+      ca_path: '{{ logging_bao_ca_file }}'
+      validate_certs: true
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      timeout: 20
+  tasks:
+  - when: logging_seed_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - logging_private_dir is match('^/[A-Za-z0-9_./-]+$')
+        - logging_private_dir == logging_private_dir | realpath
+        - logging_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+        - logging_accounts == ['pf-log-collector-write', 'pf-log-platform-read', 'pf-log-portal-read']
+    - ansible.builtin.uri:
+        url: '{{ logging_bao_server }}/v1/sys/health'
+      register: health
+    - ansible.builtin.assert:
+        that: health.json.cluster_id == logging_bao_cluster_id and not health.json.sealed
+    - name: Preserve retry material and use create-only remote writes
+      no_log: true
+      block:
+      - ansible.builtin.file:
+          path: '{{ logging_private_dir }}'
+          state: directory
+          mode: '0700'
+      - ansible.builtin.stat:
+          path: '{{ logging_private_dir }}/records.json'
+          follow: false
+        register: bundle
+      - ansible.builtin.assert:
+          that: not bundle.stat.exists or (bundle.stat.isreg and not bundle.stat.islnk and bundle.stat.mode == '0600')
+      - ansible.builtin.set_fact:
+          legacy_line: '{{ lookup("file", logging_legacy_htpasswd_file) | trim if logging_legacy_htpasswd_file | length > 0 else "" }}'
+      - ansible.builtin.assert:
+          that: legacy_line == '' or (legacy_line is match('^platform-pilot:[^\r\n]+$') and legacy_line.split(':') | length == 2)
+      - when: not bundle.stat.exists
+        block:
+        - ansible.builtin.command:
+            argv: [openssl, rand, -hex, '32']
+          loop: '{{ logging_accounts }}'
+          register: passwords
+          changed_when: false
+        - ansible.builtin.command:
+            argv: [openssl, passwd, -6, -stdin]
+            stdin: '{{ item.stdout | trim }}'
+          loop: '{{ passwords.results }}'
+          register: hashes
+          changed_when: false
+        - ansible.builtin.set_fact:
+            new_records:
+              gateway-v1:
+                .htpasswd: "pf-log-collector-write:{{ hashes.results[0].stdout | trim }}\npf-log-platform-read:{{ hashes.results[1].stdout | trim }}\npf-log-portal-read:{{ hashes.results[2].stdout | trim }}\n{{ legacy_line + '\n' if legacy_line else '' }}"
+              collector-v1: {username: pf-log-collector-write, password: '{{ passwords.results[0].stdout | trim }}', tenantId: platform-unassigned-v1, cert: '', key: ''}
+              query-platform-v1: {username: pf-log-platform-read, password: '{{ passwords.results[1].stdout | trim }}'}
+              query-portal-v1: {username: pf-log-portal-read, password: '{{ passwords.results[2].stdout | trim }}'}
+        - ansible.builtin.copy:
+            dest: '{{ logging_private_dir }}/records.json'
+            content: '{{ new_records | to_nice_json }}'
+            mode: '0600'
+            force: false
+      - ansible.builtin.set_fact:
+          records: '{{ lookup("file", logging_private_dir + "/records.json") | from_json }}'
+          bao_headers: {X-Vault-Token: '{{ lookup("file", logging_bao_token_file) | trim }}'}
+      - ansible.builtin.assert:
+          that:
+          - records.keys() | sort == ['collector-v1', 'gateway-v1', 'query-platform-v1', 'query-portal-v1']
+          - records['collector-v1'].username == 'pf-log-collector-write'
+          - records['query-platform-v1'].username == 'pf-log-platform-read'
+          - records['query-portal-v1'].username == 'pf-log-portal-read'
+      - name: Validate complete saved bundle before any remote write
+        ansible.builtin.assert:
+          that:
+          - records['gateway-v1'].keys() | list == ['.htpasswd']
+          - records['collector-v1'].keys() | sort == ['cert', 'key', 'password', 'tenantId', 'username']
+          - records['query-platform-v1'].keys() | sort == ['password', 'username']
+          - records['query-portal-v1'].keys() | sort == ['password', 'username']
+          - records['collector-v1'].tenantId == 'platform-unassigned-v1'
+          - records['collector-v1'].cert == '' and records['collector-v1'].key == ''
+          - records['gateway-v1']['.htpasswd'].endswith('\n')
+      - ansible.builtin.set_fact:
+          gateway_lines: '{{ records["gateway-v1"][".htpasswd"].splitlines() }}'
+          account_records: '{{ [records["collector-v1"], records["query-platform-v1"], records["query-portal-v1"]] }}'
+      - ansible.builtin.assert:
+          that:
+          - gateway_lines | length == (4 if legacy_line else 3)
+          - gateway_lines | map('regex_replace', ':.*$', '') | list == logging_accounts + (['platform-pilot'] if legacy_line else [])
+          - not legacy_line or gateway_lines[-1] == legacy_line
+      - ansible.builtin.assert:
+          that:
+          - item.password is match('^[a-f0-9]{64}$')
+          - gateway_lines[account_index].split(':') | length == 2
+          - gateway_lines[account_index].split(':')[1].split('$') | length == 4
+          - gateway_lines[account_index].split(':')[1].split('$')[1] == '6'
+        loop: '{{ account_records }}'
+        loop_control: {index_var: account_index}
+      - name: Verify persisted hashes match the exact persisted passwords
+        ansible.builtin.command:
+          argv: [openssl, passwd, '-6', '-salt', '{{ gateway_lines[account_index].split(":")[1].split("$")[2] }}', '-stdin']
+          stdin: '{{ item.password }}'
+        loop: '{{ account_records }}'
+        loop_control: {index_var: account_index}
+        register: verified_hashes
+        changed_when: false
+      - ansible.builtin.assert:
+          that: item.stdout | trim == gateway_lines[account_index].split(':')[1]
+        loop: '{{ verified_hashes.results }}'
+        loop_control: {index_var: account_index}
+      - name: Preflight every existing destination before the first write
+        ansible.builtin.uri:
+          url: '{{ logging_bao_server }}/v1/platform/data/logging/boundary/{{ item.key }}'
+          headers: '{{ bao_headers }}'
+          status_code: [200, 404]
+        loop: '{{ records | dict2items }}'
+        register: prior
+      - ansible.builtin.assert:
+          that: item.status == 404 or item.json.data.data == item.item.value
+        loop: '{{ prior.results }}'
+      - name: Create only missing records; partial retries require exact equality
+        ansible.builtin.uri:
+          url: '{{ logging_bao_server }}/v1/platform/data/logging/boundary/{{ item.item.key }}'
+          headers: '{{ bao_headers }}'
+          method: POST
+          body_format: json
+          body: {options: {cas: 0}, data: '{{ item.item.value }}'}
+        loop: '{{ prior.results }}'
+        when: item.status == 404
+      - ansible.builtin.uri:
+          url: '{{ logging_bao_server }}/v1/platform/data/logging/boundary/{{ item.key }}'
+          headers: '{{ bao_headers }}'
+        loop: '{{ records | dict2items }}'
+        register: readback
+      - ansible.builtin.assert:
+          that: item.json.data.data == item.item.value
+        loop: '{{ readback.results }}'
+      always:
+      - ansible.builtin.set_fact: {bao_headers: {}, passwords: {}, hashes: {}, new_records: {}, records: {}, prior: {}, readback: {}}

@@ -1,0 +1,49 @@
+# Inactive renderer only: no credentials read, generated, written or applied.
+- name: Render exact logging custody prerequisites
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    logging_custody_render: false
+    logging_consumers:
+    - {suffix: gateway, namespace: logging, secret: loki-boundary-auth-v1, record: logging/boundary/gateway-v1, fields: [.htpasswd]}
+    - {suffix: collector, namespace: alloy, secret: loki-boundary-collector-v1, record: logging/boundary/collector-v1, fields: [username, password, tenantId, cert, key]}
+    - {suffix: query-platform, namespace: monitoring, secret: loki-boundary-query-platform-v1, record: logging/boundary/query-platform-v1, fields: [username, password]}
+    - {suffix: query-portal, namespace: monitoring, secret: loki-boundary-query-portal-v1, record: logging/boundary/query-portal-v1, fields: [username, password]}
+  tasks:
+  - when: logging_custody_render | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - logging_custody_output is match('^/[A-Za-z0-9_./-]+$')
+        - logging_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+        - logging_public_ca is search('-----BEGIN CERTIFICATE-----')
+        - "'PRIVATE KEY' not in logging_public_ca"
+    - ansible.builtin.stat:
+        path: '{{ logging_custody_output }}'
+        follow: false
+      register: custody_output
+    - ansible.builtin.assert:
+        that: not custody_output.stat.exists
+    - ansible.builtin.file:
+        path: '{{ logging_custody_output }}'
+        state: directory
+        mode: '0700'
+    - ansible.builtin.template:
+        src: custody-prerequisites.yaml.j2
+        dest: '{{ logging_custody_output }}/prerequisites.yaml'
+        mode: '0600'
+    - ansible.builtin.template:
+        src: custody-consumers.yaml.j2
+        dest: '{{ logging_custody_output }}/consumers.yaml'
+        mode: '0600'
+    - ansible.builtin.template:
+        src: custody-policy.hcl.j2
+        dest: '{{ logging_custody_output }}/eso-loki-{{ item.suffix }}.hcl'
+        mode: '0600'
+      loop: '{{ logging_consumers }}'
+    - ansible.builtin.template:
+        src: custody-role.json.j2
+        dest: '{{ logging_custody_output }}/eso-loki-{{ item.suffix }}.json'
+        mode: '0600'
+      loop: '{{ logging_consumers }}'

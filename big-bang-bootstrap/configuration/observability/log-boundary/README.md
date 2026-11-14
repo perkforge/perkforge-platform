@@ -95,3 +95,36 @@ This prevents an application annotation such as `resource.opentelemetry.io/names
 from selecting another ownership partition. Kubernetes annotation name syntax
 forbids a leading underscore, so this map cannot manufacture reserved `__meta_*`
 source names. The exact-render regression checks rule ordering and malicious input.
+
+## Dedicated runtime custody and Phase A
+
+`custody.yaml` renders only four fixed KV-v2 records under `platform`:
+`logging/boundary/{gateway,collector,query-platform,query-portal}-v1`.
+It emits separate exact-record policies, exact-SA short-lived auth roles, public CA,
+empty named target Secrets and Merge/Retain ExternalSecrets. ESO receives only
+named Secret get/update/patch, not namespace-wide Secret create/delete. The existing
+controller-wide cache is unchanged. No consumer may read another record.
+
+`seed.yaml` is explicit/default-off/check-mode inert. It creates a private retry
+bundle once, checks every remote record before writing, creates missing records
+with CAS zero, accepts only exact equal retries and verifies readback. Keep that
+protected bundle for partial retry; do not regenerate or overwrite mismatches.
+The optional `logging_legacy_htpasswd_file` must contain only the existing exact
+`platform-pilot` hash line, copied privately from the verified existing gateway
+Secret. It preserves that credential, not a new grant or password rotation.
+
+`activate-custody.yaml` is separately explicit. Existing resources must carry the
+exact source ownership label and match their expected content. It refuses foreign
+adoption, creates missing resources only, never reapplies empty Secret data, checks
+existing policies/roles for exact scope before writing missing identities, waits
+for ESO and verifies exact decoded payload. It selects no root and restarts nothing.
+
+Phase A uses `log_readers: []`, leaving tenant query authorization disabled even
+though its protected credential is prepared. `log_legacy_reader: platform-pilot`
+retains read-only access to its exact legacy pilot partition, preserving the old
+datasource while new platform queries use `loki-platform`/`pf-log-platform-read`.
+Legacy writes are rejected after cutover. Switch gateway/collector in a coordinated
+window after verifying the old opt-in pilot has no live producers; otherwise
+review buffering/collection impact before proceeding. The tenant lifecycle guard
+and actual cross-scope denials remain mandatory before tenant exposure, not a
+reason to block reviewed platform-only collection.

@@ -1,0 +1,60 @@
+# CREATE-ONLY guarded prerequisite: never apply empty data over an existing Secret.
+{% for namespace in logging_consumers | map(attribute='namespace') | unique %}
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: loki-boundary-openbao-ca, namespace: {{ namespace }}, labels: {platform.perkforge.io/credential-owner: loki-boundary-v1}}
+data:
+  ca.crt: {{ logging_public_ca | to_json }}
+---
+{% endfor %}
+{% for consumer in logging_consumers %}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ consumer.secret }}
+  namespace: {{ consumer.namespace }}
+  labels: {platform.perkforge.io/credential-owner: loki-boundary-v1}
+type: Opaque
+data: {}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: eso-loki-{{ consumer.suffix }}, namespace: {{ consumer.namespace }}, labels: {platform.perkforge.io/credential-owner: loki-boundary-v1}}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: eso-loki-{{ consumer.suffix }}, namespace: {{ consumer.namespace }}, labels: {platform.perkforge.io/credential-owner: loki-boundary-v1}}
+rules:
+- apiGroups: ['']
+  resources: [secrets]
+  resourceNames: [{{ consumer.secret }}]
+  verbs: [get, update, patch]
+- apiGroups: ['']
+  resources: [serviceaccounts/token]
+  resourceNames: [eso-loki-{{ consumer.suffix }}]
+  verbs: [create]
+- apiGroups: ['']
+  resources: [configmaps]
+  resourceNames: [loki-boundary-openbao-ca]
+  verbs: [get]
+- apiGroups: [external-secrets.io]
+  resources: [externalsecrets]
+  resourceNames: [{{ consumer.secret }}]
+  verbs: [patch]
+- apiGroups: [external-secrets.io]
+  resources: [externalsecrets/status]
+  resourceNames: [{{ consumer.secret }}]
+  verbs: [update, patch]
+- apiGroups: [external-secrets.io]
+  resources: [secretstores/status]
+  resourceNames: [eso-loki-{{ consumer.suffix }}]
+  verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: eso-loki-{{ consumer.suffix }}, namespace: {{ consumer.namespace }}, labels: {platform.perkforge.io/credential-owner: loki-boundary-v1}}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: eso-loki-{{ consumer.suffix }}}
+subjects: [{kind: ServiceAccount, name: external-secrets, namespace: external-secrets}]
+---
+{% endfor %}
