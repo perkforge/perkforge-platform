@@ -125,3 +125,13 @@ operator/collector permission, or automatic ServiceAccount modification occurs.
 Bounded restricted synthetic pods explicitly reference this Secret; clean up only
 the temporary test pods after acceptance. The pull Secret remains for repeatable
 acceptance and must never be committed or printed.
+
+The enabled `alloy-logs` collector explicitly receives the pinned Big Bang
+chart's restricted singleton config-reloader posture (UID/GID 65534,
+no privilege escalation, drop ALL, RuntimeDefault seccomp, read-only root).
+The same native image/version is retained; namespace Pod Security is not relaxed.
+Alloy itself retains UID/GID 473 and its restricted context. A bounded 64Mi
+`emptyDir` at `/tmp/alloy` permits its runtime state while preserving the
+read-only root and existing read-only Loki CA mount. This state is ephemeral,
+not a claim of durable collector offsets. Native Helm Ready alone does not prove
+that the operator-generated collector passed admission or collected logs.

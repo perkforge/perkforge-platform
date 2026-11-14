@@ -39,6 +39,13 @@ class IntegratedLogging(unittest.TestCase):
    if name=='alloy':
     cr=next(obj for obj in rendered if obj['kind']=='Alloy')
     self.assertIn({'name':'private-registry'},cr['spec']['global']['image']['pullSecrets'])
+    security=cr['spec']['configReloader']['securityContext']
+    self.assertFalse(security['allowPrivilegeEscalation']);self.assertTrue(security['runAsNonRoot']);self.assertTrue(security['readOnlyRootFilesystem'])
+    self.assertEqual(security['runAsUser'],65534);self.assertEqual(security['capabilities'],{'drop':['ALL']});self.assertEqual(security['seccompProfile'],{'type':'RuntimeDefault'})
+    self.assertIn({'name':'alloy-storage','mountPath':'/tmp/alloy'},cr['spec']['alloy']['mounts']['extra'])
+    self.assertIn({'name':'loki-ca','mountPath':'/loki-ca','readOnly':True},cr['spec']['alloy']['mounts']['extra'])
+    self.assertIn({'name':'alloy-storage','emptyDir':{'sizeLimit':'64Mi'}},cr['spec']['controller']['volumes']['extra'])
+    self.assertIn({'name':'loki-ca','configMap':{'name':'loki-ca'}},cr['spec']['controller']['volumes']['extra'])
    if name=='loki':
     config=next(x['data']['nginx.conf'] for x in rendered if x['kind']=='ConfigMap' and 'nginx.conf' in x.get('data',{}))
     self.assertIn('rke2-coredns-rke2-coredns.kube-system.svc.cluster.local',config)
