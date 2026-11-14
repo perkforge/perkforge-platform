@@ -1,0 +1,45 @@
+# Included only after full two-path ownership preflight. Re-read immediately before mutation.
+- ansible.builtin.uri:
+    url: '{{ gitlab_native_origin }}/api/v4/groups/{{ group_path | replace("/","%2F") }}?with_projects=false'
+    headers: '{{ group_headers }}'
+    status_code: [200,404]
+  register: group_current
+- ansible.builtin.assert:
+    that:
+    - group_current.status == 404 if group_existing_id | int == 0 else group_current.status == 200
+    - group_current.status == 404 or (group_current.json.id == group_existing_id | int and group_current.json.full_path == group_path and group_current.json.parent_id == group_parent_id and group_current.json.visibility == 'private')
+- ansible.builtin.uri:
+    url: '{{ gitlab_native_origin }}/api/v4/groups'
+    headers: '{{ group_headers }}'
+    method: POST
+    body_format: json
+    body:
+      name: '{{ group_name }}'
+      path: '{{ group_name }}'
+      parent_id: '{{ group_parent_id | default(omit, true) }}'
+      visibility: private
+      request_access_enabled: false
+    status_code: 201
+  register: group_created
+  when: group_existing_id | int == 0
+  changed_when: true
+- ansible.builtin.set_fact:
+    group_verified_id: '{{ group_created.json.id if group_existing_id | int == 0 else group_existing_id | int }}'
+- ansible.builtin.uri:
+    url: '{{ gitlab_native_origin }}/api/v4/groups/{{ group_verified_id }}?with_projects=false'
+    headers: '{{ group_headers }}'
+  register: group_readback
+- ansible.builtin.assert:
+    that:
+    - group_verified_id | type_debug == 'int' and group_verified_id > 0
+    - group_readback.json.id == group_verified_id
+    - group_readback.json.full_path == group_path
+    - group_readback.json.parent_id == group_parent_id
+    - group_readback.json.visibility == 'private'
+    - group_existing_id | int > 0 or not group_readback.json.request_access_enabled
+- ansible.builtin.set_fact:
+    group_prior: '{{ group_prior | combine({group_receipt_key: group_verified_id, "stage": group_stage}) }}'
+- ansible.builtin.copy:
+    dest: '{{ gitlab_group_receipt_file }}'
+    mode: '0600'
+    content: '{{ group_prior | to_nice_json }}'
