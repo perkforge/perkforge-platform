@@ -1,6 +1,51 @@
 # Current operator handoff
 
-## Verified integrated pilot snapshot (2026-11-14)
+## Current scoped-observability checkpoint (2026-11-14)
+
+This bounded checkpoint supersedes the earlier integrated-pilot/manual-custody
+claims below. It records verified outcomes, not continuous discovery or acceptance
+of every backlog item. Preserve the exact selected reviewed composition and BODA:
+native Big Bang images with target configuration, never environment rebuilds.
+
+- Cluster-wide Alloy API discovery is active; recent platform queries span many
+  namespaces. Distinct writer and read-only federation credentials use four exact
+  OpenBao/ESO deliveries. Legacy pilot reads remain separate.
+- Portal namespace ownership/epoch admission remains active. Its fixed reader,
+  organization-bound datasource and dashboard passed native temporary Viewer own-log
+  and foreign datasource/proxy/query/header/switch denial probes, followed by account
+  deletion and token revocation. All three authorized canonical tenant roles now map
+  to that organization as Viewer only; no human memberships changed, and platform
+  admin/engineer authority stays separate. The global recovery-creator exception remains.
+- Pinned fixtures deny Viewer membership, invitation, service-account and datasource
+  writes. A disposable org-Admin fixture allowed an unmapped existing user to be added;
+  Admin/Editor are therefore excluded from this log-view phase. Actual tenant-human
+  login, sharing/public snapshot and lifecycle acceptance remain open.
+- Platform dashboard queries and owner visual acceptance passed with earlier
+  dashboards preserved. The measured collector memory adjustment is Ready, no OOM.
+  A fresh 15-minute observation had zero additional drops and one retry of unknown
+  cause, not a zero-retry or lossless claim. The trusted-API timestamp cutoff matches
+  the 168-hour absolute-age bound; restart replay still encountered the separate
+  one-hour ordering window. Positions remain ephemeral. Durable cursor storage and
+  guarded migration are planned source work, not deployed/restart-verified.
+- New private Mattermost channels are visible to the owner. Native platform-alert
+  test delivery and genuine platform-deployment events are verified. Portal's real
+  rollout event remains pending the next actual application upgrade. Membership
+  application is one-shot, not continuous reconciliation.
+- Exact ServiceMonitor scrape and required counters/expressions are verified. Three
+  new unpaused delivery rules are loaded, healthy/inactive, preserving the prior nine
+  and existing Mattermost/ntfy receivers. These writer drop/retry and missing-scrape
+  signals do not measure source-discovery completeness or prove actual alert recovery.
+
+See the [scoped logging runbook](big-bang-bootstrap/configuration/observability/log-boundary/phase-a/README.md),
+[controlled Portal acceptance](big-bang-bootstrap/configuration/observability/log-boundary/phase-b/README.md),
+[Grafana identity](big-bang-bootstrap/configuration/authorization/sso/grafana/README.md)
+and [Mattermost delivery](big-bang-bootstrap/configuration/observability/mattermost-projection/README.md).
+Logging #38, Grafana isolation #218 and context alert lifecycle #39 remain distinct
+acceptance work. Source publication is not deployment. Portal v0.7.0 and config
+v2.3.3 are published immutable C4 baselines, not selected live; a final current-state
+model update and coordinated dependency/root rollout remain underway.
+
+## Earlier integrated pilot snapshot (2026-11-14)
 
 The physical target runs the selected `local-integrated-logging` composition on
 Big Bang 3.35.1, preserving Portal, Nextcloud, Mattermost, authenticated query
