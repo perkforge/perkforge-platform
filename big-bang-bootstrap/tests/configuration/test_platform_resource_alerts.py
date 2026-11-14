@@ -12,7 +12,7 @@ class PlatformResourceAlerts(unittest.TestCase):
    r=run(v);self.assertEqual(r.returncode,0,r.stdout+r.stderr);self.assertNotIn('synthetic-never-log',r.stdout+r.stderr)
    out=yaml.safe_load((p/'out/alerting.yaml').read_text());self.assertNotIn('policies',out)
    receiver=out['contactPoints'][0]['receivers'][0];self.assertFalse(receiver['settings']['tlsConfig']['insecureSkipVerify']);self.assertFalse(receiver['disableResolveMessage'])
-   tpl=receiver['settings']['payload']['template'];self.assertIn('data.ToJSON',tpl);self.assertIn('.GeneratorURL',tpl);self.assertIn('"click" $$click',tpl);self.assertNotIn('.CommonAnnotations',tpl)
+   tpl=receiver['settings']['payload']['template'];self.assertIn('data.ToJSON',tpl);self.assertIn('.GeneratorURL',tpl);self.assertIn('"click" $$click',tpl);self.assertNotIn('.CommonAnnotations',tpl);self.assertNotIn('TruncatedAlerts',tpl);self.assertIn('up to 3 shown',tpl)
    rules=out['groups'][0]['rules'];self.assertEqual(len(rules),7)
    self.assertEqual(receiver['settings']['maxAlerts'],3)
    self.assertEqual([r['uid'] for r in rules if r['isPaused']],['pf-resource-filesystem-space','pf-resource-network'])

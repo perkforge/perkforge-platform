@@ -72,3 +72,7 @@ KUBECONFIG=/dev/null PYTHONPATH=big-bang-bootstrap/tests \
 The source tests always run. Released-chain tests explicitly skip without both
 fixture paths; a skipped test is not a verified dependency chain. These tests make
 no cluster calls. Existing CI remains paused, not restored by this source change.
+
+## Identity explorer update
+
+The active `local-platform-alerts` composition selects published enrollment v2.3.0 (699e407b087ad7ec2672eebe11b2eacdecf2f15f), config v2.2.0 and the build-once Portal v0.4.0 image. Apply the matching enrollment-owned runtime-contract image allowlist before promoting this root. Preserve both existing Grafana notification mounts, the Nextcloud composite, explicit admin policy and unprivileged Portal runtime. No credentials or access expansion is introduced. After rollout verify `/#/explore/identityLifecycle`, current/planned status labels and unchanged sign-in; document content is not live security evidence. Publication alone does not switch the running source.

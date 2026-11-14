@@ -1,0 +1,40 @@
+# Explicit opt-in only after exact publisher/ESO and existing ntfy auth preservation checks.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-platform-alerts
+- ../../configuration/observability/deployment-notifications
+patches:
+- target: {group: apps, version: v1, kind: StatefulSet, name: ntfy, namespace: ntfy}
+  patch: |-
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata: {name: ntfy, namespace: ntfy}
+    spec:
+      template:
+        spec:
+          volumes:
+          - name: deployment-template
+            configMap: {name: ntfy-flux-deployment-template}
+          containers:
+          - name: ntfy
+            volumeMounts:
+            - name: deployment-template
+              mountPath: /etc/ntfy-templates
+              readOnly: true
+- target: {group: notification.toolkit.fluxcd.io, version: v1beta3, kind: Provider, name: platform-deployments, namespace: flux-system}
+  patch: |-
+    - op: replace
+      path: /spec/address
+      value: https://ntfy.perkforge.home.arpa/platform-deployments?template=flux-deployment
+    - op: replace
+      path: /spec/suspend
+      value: false
+- target: {group: notification.toolkit.fluxcd.io, version: v1beta3, kind: Alert, name: platform-deployments, namespace: flux-system}
+  patch: |-
+    - op: replace
+      path: /spec/eventMetadata/environment
+      value: local
+    - op: replace
+      path: /spec/suspend
+      value: false

@@ -13,6 +13,19 @@ from fixtures.selection import release_for
 ROOT = Path(__file__).resolve().parents[2]
 
 class OptionalEnrollmentTests(unittest.TestCase):
+    def test_active_portal_release_preserves_both_notification_mounts(self):
+        objects = build(ROOT / 'clusters/local-platform-alerts')
+        source = next(o for o in objects if o['kind'] == 'GitRepository' and o['metadata']['name'] == 'tenant-enrollments')
+        evidence = json.loads((ROOT.parent / 'release-evidence.json').read_text())['dependencies']['active-portal-enrollment']
+        release_for(source, evidence)
+        parent = next(o for o in objects if o['kind'] == 'Kustomization' and o['metadata']['name'] == 'tenant-enrollments')
+        self.assertEqual(parent['spec']['path'], './clusters/local-nextcloud-portal')
+        self.assertFalse(parent['spec']['prune'])
+        umbrella = next(o for o in objects if o['kind'] == 'HelmRelease' and o['metadata']['name'] == 'bigbang')
+        mounts = [v['name'] for v in umbrella['spec']['valuesFrom']]
+        self.assertIn('grafana-ntfy-values', mounts)
+        self.assertIn('grafana-platform-alerts-values', mounts)
+
     def test_nextcloud_stage_preserves_packages_except_explicit_operator_watch(self):
         baseline=build(ROOT/'clusters/local-gitlab-runner')
         proposed=build(ROOT/'clusters/local-nextcloud')

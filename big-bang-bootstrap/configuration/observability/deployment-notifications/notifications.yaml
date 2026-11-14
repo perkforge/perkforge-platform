@@ -1,0 +1,33 @@
+# Inactive, not selected by any cluster root. Existing Flux notification controller only.
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Provider
+metadata:
+  name: platform-deployments
+  namespace: flux-system
+spec:
+  type: generic
+  address: https://ntfy.UNCONFIGURED.invalid/platform-deployments?template=flux-deployment
+  secretRef: {name: flux-deployment-publisher}
+  certSecretRef: {name: flux-deployment-publisher}
+  timeout: 15s
+  suspend: true
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Alert
+metadata:
+  name: platform-deployments
+  namespace: flux-system
+spec:
+  providerRef: {name: platform-deployments}
+  suspend: true
+  eventSeverity: info
+  eventMetadata:
+    environment: UNCONFIGURED
+  # Platform control namespace only: umbrella and future managed subcharts.
+  # Tenant HelmReleases must remain in their separate tenant control namespaces.
+  eventSources:
+  - {kind: HelmRelease, name: "*", namespace: bigbang}
+  # Flux filters MESSAGE, not reason. Anchored official helm-controller v1.6.4 strings.
+  # No periodic ReconciliationSucceeded, Source artifact fetches, drift or no-op spam.
+  inclusionList:
+  - '^Helm (install|upgrade) (succeeded|failed) for release '

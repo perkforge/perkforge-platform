@@ -1,0 +1,113 @@
+# Dedicated publisher + existing phone identity, preserving all previous tokens.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ntfy_deployments_prepare: false
+    ntfy_deployments_apply: false
+    ntfy_native_image: docker.io/binwiederhier/ntfy:v2.37.2@sha256:1875ddcf815c8a3c981d6d78c67a93452d0abba79b1ab9520b1f5f5238902bd7
+  module_defaults:
+    ansible.builtin.uri:
+      ca_path: '{{ ntfy_bao_ca_file }}'
+      validate_certs: true
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+  tasks:
+  - when: ntfy_deployments_prepare | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - ntfy_deployments_runtime_dir is match('^/[A-Za-z0-9_./-]+$')
+        - ntfy_deployments_runtime_dir == ntfy_deployments_runtime_dir | realpath
+        - ntfy_deployments_record == 'notifications/platform-deployments-v1/publisher'
+        - ntfy_record != ntfy_deployments_record
+    - ansible.builtin.uri:
+        url: '{{ ntfy_bao_server }}/v1/sys/health'
+      register: health
+    - ansible.builtin.assert:
+        that: health.json.cluster_id == ntfy_bao_cluster_id and not health.json.sealed
+    - ansible.builtin.file:
+        path: '{{ ntfy_deployments_runtime_dir }}'
+        state: directory
+        mode: '0700'
+    - no_log: true
+      block:
+      - ansible.builtin.set_fact:
+          headers: {X-Vault-Token: '{{ lookup("file", ntfy_bao_token_file) | trim }}'}
+          prior: '{{ lookup("file", ntfy_deployments_prior_validation) | from_json }}'
+      - ansible.builtin.uri:
+          url: '{{ ntfy_bao_server }}/v1/platform/data/{{ ntfy_record }}'
+          headers: '{{ headers }}'
+        register: current
+      - ansible.builtin.set_fact:
+          base: '{{ current.json.data.data["server.yml"] | from_yaml }}'
+          ntfy_accounts: '{{ prior.accounts }}'
+          phone: '{{ prior.accounts | selectattr("username", "equalto", "corey-portal") | first }}'
+      - ansible.builtin.set_fact:
+          fragment: '{{ lookup("template", "../native-auth.yaml.j2") | from_yaml }}'
+      - ansible.builtin.assert:
+          that:
+          - current.json.data.data.keys() | list == ['server.yml']
+          - base['auth-default-access'] == 'deny-all'
+          - prior.accounts | map(attribute='username') | sort == ['corey-platform', 'corey-portal', 'grafana-platform', 'grafana-portal']
+          - phone.kind == 'subscriber' and phone.role == 'platform-engineer'
+          - prior.approved_entitlements[phone.subject_id].role == 'platform-engineer'
+          - base['auth-users'] == fragment['auth-users']
+          - base['auth-tokens'] == fragment['auth-tokens']
+          - base['auth-access'] == fragment['auth-access']
+      - ansible.builtin.shell: 'umask 077; openssl rand -hex 32 > {{ ntfy_deployments_runtime_dir }}/publisher.password'
+        args: {creates: '{{ ntfy_deployments_runtime_dir }}/publisher.password'}
+      - ansible.builtin.shell: 'umask 077; printf tk_ > {{ ntfy_deployments_runtime_dir }}/publisher.token; openssl rand -hex 15 | cut -c1-29 >> {{ ntfy_deployments_runtime_dir }}/publisher.token'
+        args: {creates: '{{ ntfy_deployments_runtime_dir }}/publisher.token'}
+      - ansible.builtin.stat:
+          path: '{{ ntfy_deployments_runtime_dir }}/validation.json'
+        register: saved
+      - when: not saved.stat.exists
+        ansible.builtin.command:
+          argv: [podman, run, -i, --rm, --pull=never, --network, none, --entrypoint, ntfy, '{{ ntfy_native_image }}', user, hash]
+          stdin: "{{ lookup('file', ntfy_deployments_runtime_dir + '/publisher.password') }}\n{{ lookup('file', ntfy_deployments_runtime_dir + '/publisher.password') }}"
+        register: hashed
+      - when: not saved.stat.exists
+        ansible.builtin.set_fact:
+          publisher: {username: flux-deployments, kind: publisher, role: service, subject_id: null, approved: true, topics: [platform-deployments], password_hash: '{{ hashed.stdout | trim }}', token: '{{ lookup("file", ntfy_deployments_runtime_dir + "/publisher.token") | trim }}'}
+      - when: saved.stat.exists
+        ansible.builtin.set_fact:
+          publisher: '{{ (lookup("file", ntfy_deployments_runtime_dir + "/validation.json") | from_json).accounts | selectattr("username", "equalto", "flux-deployments") | first }}'
+      - ansible.builtin.set_fact:
+          ntfy_accounts: []
+      - ansible.builtin.set_fact:
+          ntfy_accounts: '{{ ntfy_accounts + [item | combine({"topics": (item.topics + ["platform-deployments"]) | unique}) if item.username == "corey-portal" else item] }}'
+        loop: '{{ prior.accounts }}'
+      - ansible.builtin.set_fact:
+          ntfy_accounts: '{{ ntfy_accounts + [publisher] }}'
+          entitlements: '{{ prior.approved_entitlements | combine({"flux-deployments": {"kind": "publisher", "role": "service", "topics": ["platform-deployments"]}, phone.subject_id: prior.approved_entitlements[phone.subject_id] | combine({"topics": (prior.approved_entitlements[phone.subject_id].topics + ["platform-deployments"]) | unique})}) }}'
+      - ansible.builtin.copy:
+          dest: '{{ ntfy_deployments_runtime_dir }}/validation.json'
+          mode: '0600'
+          content: '{{ prior | combine({"accounts": ntfy_accounts, "approved_entitlements": entitlements, "previous_managed": prior.accounts | map(attribute="username") | list, "existing_users": prior.accounts | map(attribute="username") | list}) | to_json }}'
+      - ansible.builtin.command:
+          argv: [python3, '{{ playbook_dir }}/validate.py', '{{ ntfy_deployments_runtime_dir }}/validation.json']
+        changed_when: false
+      - ansible.builtin.set_fact:
+          config: '{{ base | combine(lookup("template", "../native-auth.yaml.j2") | from_yaml) | combine({"template-dir": "/etc/ntfy-templates"}) | to_nice_yaml }}'
+      - ansible.builtin.assert:
+          that:
+          - base.get('template-dir', '/etc/ntfy-templates') in ['', '/etc/ntfy-templates']
+          - base['auth-users'] | difference((config | from_yaml)['auth-users']) | length == 0
+          - base['auth-tokens'] | difference((config | from_yaml)['auth-tokens']) | length == 0
+          - base['auth-access'] | difference((config | from_yaml)['auth-access']) | length == 0
+          - publisher.token == lookup('file', ntfy_deployments_runtime_dir + '/publisher.token') | trim
+      - ansible.builtin.copy:
+          dest: '{{ ntfy_deployments_runtime_dir }}/server.yml'
+          mode: '0600'
+          content: '{{ config }}'
+      - when: ntfy_deployments_apply | bool
+        ansible.builtin.uri:
+          url: '{{ ntfy_bao_server }}/v1/platform/data/{{ ntfy_record }}'
+          method: POST
+          headers: '{{ headers }}'
+          body_format: json
+          body: {options: {cas: '{{ current.json.data.metadata.version | int }}'}, data: {server.yml: '{{ config }}'}}
+      always:
+      - ansible.builtin.set_fact: {headers: {}, current: {}, prior: {}, base: {}, ntfy_accounts: [], publisher: {}, phone: {}, config: '', hashed: {}, fragment: {}}

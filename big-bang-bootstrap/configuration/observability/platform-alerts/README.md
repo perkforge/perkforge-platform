@@ -62,8 +62,13 @@ must be verified separately before claiming end-to-end completion.
 ## Current local coverage finding (2026-11-14)
 
 Read-only platform queries confirmed CPU/memory3 nodes, PVC22 series and physical
-NVMe latency3 series. Filesystem collector fails on all nodes: SELinux denies
-`/host/proc/1/mountinfo`; no host filesystem free-space series. netdev emits
+NVMe latency3 series. Filesystem collector fails on all nodes with permission denied opening
+`/host/proc/1/mountinfo`; no host filesystem free-space series. The exact
+enforcement cause is not yet established, so do not assume a SELinux allow rule
+is the fix. A separately approved bounded audit-only probe on one node produced
+no exporter AVC; normal audit policy was restored and SELinux stayed Enforcing.
+The host files are readable by the same UID outside the container, audit reports
+no lost records, and the error recurs at each scrape. No access grants were made. netdev emits
 exporter pod eth0/lo counters, whereas netclass reports host interface speeds;
 these are not comparable. Host filesystem/network rules therefore default
 paused, rather than pretend coverage. Collector failure remains actionable.
@@ -85,7 +90,7 @@ For collector errors or missing data, restore metric coverage before treating
 an absent resource alert as healthy. Link out to the deployment's documented
 node/workload dashboards; account permissions still govern access.
 
-Payloads include at most3 alerts with explicit truncation count and bounded label
+Payloads include at most3 alerts with an explicit bounded-group notice and bounded label
 text; open Grafana for the complete group. Provisioning escapes Go `$` variables
 as `$$` because Grafana expands environment variables while loading YAML. Native
 Grafana13.2.1 import was verified with network disabled and synthetic paused
@@ -118,3 +123,15 @@ Secret, rotate tokens or weaken collision guards to make a retry pass. If ntfy
 has already restarted with new users, its initial native-user guard also stops;
 verify the four exact users/ACLs and existing desired config instead of repeating
 account addition. No routine operation needs new cluster-wide grants.
+
+### One phone credential, multiple exact reader topics
+
+Keep the already-working Corey phone token rather than replace it per topic.
+`subscriber-topics.yaml` adds read-only platform-alerts to the verified existing
+corey-portal identity while preserving its tenant-portal-alerts permission,
+password and token. Publishers remain separate exact-topic write identities.
+The server account name is not its authorization boundary. No wildcard is used.
+After successful CAS, the authoritative protected prior becomes
+`unified-validation.json`; use that as `ntfy_phone_prior_validation` for a safe
+idempotent retry. Do not rerun from the old pre-change validation snapshot.
+The separately created corey-platform account is not deleted by this change.
