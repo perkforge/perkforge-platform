@@ -10,7 +10,11 @@
     gitlab_membership_recovery_verified: false
     gitlab_native_origin: https://gitlab.UNCONFIGURED.invalid
     gitlab_native_ca_file: /UNCONFIGURED/public-ca
-    gitlab_native_token_file: /UNCONFIGURED/api-token
+    gitlab_native_token_file: /UNCONFIGURED/group-writer-token
+    gitlab_native_attestation_file: /UNCONFIGURED/attestation.json
+    gitlab_native_grant_receipt_file: /UNCONFIGURED/grant.json
+    gitlab_native_group_receipt_file: /UNCONFIGURED/group-receipt.json
+    gitlab_native_membership_inputs_file: /UNCONFIGURED/inputs.json
     gitlab_native_user_id: 0
     gitlab_native_subject: UNCONFIGURED
     gitlab_native_group_id: 0
@@ -31,6 +35,10 @@
   - when: gitlab_membership_run | bool and not ansible_check_mode
     no_log: true
     block:
+    - name: Require validated literal inputs and this invocation's whole-context lock
+      ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/verification/membership_inputs.py', '{{ gitlab_native_token_file }}', '{{ gitlab_native_attestation_file }}', '{{ gitlab_native_group_receipt_file }}', '{{ gitlab_native_membership_inputs_file }}', '{{ gitlab_native_grant_receipt_file }}', --locked]
+      changed_when: false
     - ansible.builtin.assert:
         that:
         - gitlab_membership_operation in ['inspect','grant','revoke']
@@ -43,37 +51,67 @@
         - gitlab_native_subject != 'UNCONFIGURED' and gitlab_native_subject | length > 0
         - gitlab_native_group_path is match('^tenants/[a-z][a-z0-9-]{0,62}$')
         - gitlab_native_access_level in [20,30,40,50]
-    - ansible.builtin.stat:
-        path: '{{ gitlab_native_token_file }}'
-        follow: false
-      register: gitlab_native_token_stat
-    - ansible.builtin.assert:
-        that:
-        - gitlab_native_token_file is match('^/') and gitlab_native_token_file | realpath == gitlab_native_token_file
-        - gitlab_native_token_stat.stat.isreg | default(false)
-        - not (gitlab_native_token_stat.stat.islnk | default(false))
-        - gitlab_native_token_stat.stat.mode == '0600'
-        - gitlab_native_token_stat.stat.pw_name == lookup('env','USER')
-        - gitlab_native_token_stat.stat.size > 0 and gitlab_native_token_stat.stat.size < 4096
     - ansible.builtin.set_fact:
         gitlab_native_headers: {PRIVATE-TOKEN: "{{ lookup('file',gitlab_native_token_file) | trim }}"}
         cacheable: false
+    - name: Verify dedicated non-admin writer bot and exact parent token authority
+      ansible.builtin.uri:
+        url: '{{ gitlab_native_origin }}/api/v4/{{ item }}'
+        headers: '{{ gitlab_native_headers }}'
+      loop: [user, personal_access_tokens/self]
+      register: gitlab_writer_identity
+    - ansible.builtin.assert:
+        that:
+        - gitlab_writer_identity.results[0].json.bot is sameas true
+        - gitlab_writer_identity.results[0].json.state == 'active'
+        - not (gitlab_writer_identity.results[0].json.is_admin | default(false))
+        - gitlab_writer_identity.results[1].json.active is sameas true
+        - gitlab_writer_identity.results[1].json.revoked is sameas false
+        - gitlab_writer_identity.results[1].json.user_id == gitlab_writer_identity.results[0].json.id
+        - gitlab_writer_identity.results[1].json.scopes == ['api']
+    - ansible.builtin.set_fact:
+        gitlab_group_binding: "{{ lookup('file',gitlab_native_group_receipt_file) | from_json }}"
+    - ansible.builtin.uri:
+        url: '{{ gitlab_native_origin }}/api/v4/groups/{{ gitlab_group_binding.parent_id }}/{{ item }}'
+        headers: '{{ gitlab_native_headers }}'
+      loop:
+      - 'members/{{ gitlab_writer_identity.results[0].json.id }}'
+      - 'access_tokens/{{ gitlab_writer_identity.results[1].json.id }}'
+      register: gitlab_writer_authority
+    - ansible.builtin.assert:
+        that:
+        - gitlab_writer_authority.results[0].json.id == gitlab_writer_identity.results[0].json.id
+        - gitlab_writer_authority.results[0].json.access_level == 50
+        - gitlab_writer_authority.results[1].json.id == gitlab_writer_identity.results[1].json.id
+        - gitlab_writer_authority.results[1].json.user_id == gitlab_writer_identity.results[0].json.id
+        - gitlab_writer_authority.results[1].json.access_level == 50
     - ansible.builtin.uri:
         url: '{{ gitlab_native_origin }}/api/v4/{{ item }}'
         headers: '{{ gitlab_native_headers }}'
-      loop: ['version','users/{{ gitlab_native_user_id }}','groups/{{ gitlab_native_group_id }}']
+      loop: ['version','groups/{{ gitlab_native_group_id }}','groups/{{ gitlab_group_binding.parent_id }}']
       register: gitlab_native_identity
     - ansible.builtin.assert:
         that:
         - gitlab_native_identity.results[0].json.version in ['19.4.2','19.4.2-ee']
-        - gitlab_native_identity.results[1].json.id == gitlab_native_user_id
-        - not gitlab_native_identity.results[1].json.is_admin
-        - gitlab_native_identity.results[1].json.state == 'active'
-        - gitlab_native_identity.results[1].json.identities | selectattr('provider','equalto','openid_connect') | list | length == 1
-        - (gitlab_native_identity.results[1].json.identities | selectattr('provider','equalto','openid_connect') | first).extern_uid == gitlab_native_subject
-        - gitlab_native_identity.results[2].json.id == gitlab_native_group_id
-        - gitlab_native_identity.results[2].json.full_path == gitlab_native_group_path
+        - gitlab_native_identity.results[1].json.id == gitlab_native_group_id
+        - gitlab_native_identity.results[1].json.full_path == gitlab_native_group_path
+        - gitlab_native_identity.results[1].json.visibility == 'private'
+        - gitlab_native_identity.results[1].json.parent_id == gitlab_group_binding.parent_id
+        - gitlab_native_identity.results[2].json.id == gitlab_group_binding.parent_id
+        - gitlab_native_identity.results[2].json.full_path == 'tenants'
         - gitlab_native_identity.results[2].json.visibility == 'private'
+        - gitlab_native_identity.results[2].json.parent_id == none
+    - name: Recheck native account remains active without privileged identity access
+      ansible.builtin.uri:
+        url: '{{ gitlab_native_origin }}/api/v4/users/{{ gitlab_native_user_id }}'
+        headers: '{{ gitlab_native_headers }}'
+      register: gitlab_native_user
+      when: gitlab_membership_operation != 'revoke'
+    - ansible.builtin.assert:
+        that:
+        - gitlab_native_user.json.id == gitlab_native_user_id
+        - gitlab_native_user.json.state == 'active'
+      when: gitlab_membership_operation != 'revoke'
     - ansible.builtin.uri:
         url: '{{ gitlab_native_origin }}/api/v4/groups/{{ gitlab_native_group_id }}/{{ item }}/{{ gitlab_native_user_id }}'
         headers: '{{ gitlab_native_headers }}'
@@ -88,9 +126,26 @@
         - item.json.membership_state | default('active') == 'active'
       loop: '{{ gitlab_native_before.results }}'
       when: item.status == 200
+    - ansible.builtin.stat:
+        path: '{{ gitlab_native_grant_receipt_file }}'
+      register: gitlab_prior_grant
+    - name: Existing direct membership requires our protected prior ownership receipt
+      ansible.builtin.assert:
+        that: gitlab_prior_grant.stat.exists
+      when: gitlab_membership_operation == 'grant' and gitlab_native_before.results[0].status == 200
+    - name: A revoked receipt cannot authorize adoption or removal of a later external grant
+      ansible.builtin.assert:
+        that: (lookup('file',gitlab_native_grant_receipt_file) | from_json).stage in ['Granted','GrantPending']
+      when: gitlab_native_before.results[0].status == 200 and gitlab_prior_grant.stat.exists
     - name: Do not duplicate or implicitly adopt inherited access
       ansible.builtin.assert:
         that: gitlab_native_before.results[1].status == 404
+      when: gitlab_membership_operation == 'grant' and gitlab_native_before.results[0].status == 404
+    - name: Record bounded intent before uncertain native write
+      ansible.builtin.copy:
+        dest: '{{ gitlab_native_grant_receipt_file }}'
+        mode: '0600'
+        content: "{{ {'schema':1,'origin':gitlab_native_origin,'context':gitlab_membership_context,'subject':gitlab_native_subject,'source_revision':gitlab_membership_source_revision,'native_user_id':gitlab_native_user_id,'group_id':gitlab_native_group_id,'role':gitlab_native_role,'access_level':gitlab_native_access_level,'stage':'GrantPending','attempted_at':now(utc=true,fmt='%Y-%m-%dT%H:%M:%SZ')} | to_nice_json }}"
       when: gitlab_membership_operation == 'grant' and gitlab_native_before.results[0].status == 404
     - ansible.builtin.uri:
         url: '{{ gitlab_native_origin }}/api/v4/groups/{{ gitlab_native_group_id }}/members'
@@ -127,9 +182,19 @@
         fail_msg: 'Membership removal is partial: effective/inherited group access remains. No other membership or credentials were touched.'
       loop: '{{ gitlab_native_after.results }}'
       when: gitlab_membership_operation == 'revoke'
+    - name: Persist only this verified owned membership outcome
+      ansible.builtin.copy:
+        dest: '{{ gitlab_native_grant_receipt_file }}'
+        mode: '0600'
+        content: "{{ {'schema':1,'origin':gitlab_native_origin,'context':gitlab_membership_context,'subject':gitlab_native_subject,'source_revision':gitlab_membership_source_revision,'native_user_id':gitlab_native_user_id,'group_id':gitlab_native_group_id,'role':gitlab_native_role,'access_level':gitlab_native_access_level,'stage':('Granted' if gitlab_membership_operation == 'grant' else 'Revoked')} | to_nice_json }}"
+      when: gitlab_membership_operation in ['grant','revoke']
     always:
     - ansible.builtin.set_fact:
         gitlab_native_headers: {}
+        gitlab_native_user: {}
+        gitlab_writer_identity: {}
+        gitlab_writer_authority: {}
+        gitlab_group_binding: {}
         gitlab_native_identity: {}
         gitlab_native_before: {}
         gitlab_native_after: {}
