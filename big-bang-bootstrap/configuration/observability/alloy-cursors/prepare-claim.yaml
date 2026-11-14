@@ -17,6 +17,10 @@
         desired: '{{ lookup("file", cursor_claim_manifest) | from_yaml }}'
     - ansible.builtin.assert:
         that:
+        - desired.apiVersion == 'v1'
+        - desired.keys() | sort == ['apiVersion','kind','metadata','spec']
+        - desired.metadata.keys() | sort == ['annotations','name','namespace']
+        - desired.metadata.annotations == {'platform.perkforge.io/cursor-owner':'alloy-alloy-logs'}
         - desired.kind == 'PersistentVolumeClaim'
         - desired.metadata.namespace == 'alloy'
         - desired.metadata.name == 'alloy-storage-alloy-alloy-logs-0'

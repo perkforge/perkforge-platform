@@ -44,6 +44,14 @@ class AlloyCursors(unittest.TestCase):
   spec=importlib.util.spec_from_file_location('checkpoint',SOURCE/'verify_checkpoint.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
   raw=b'positions:\n  ? path: cursor-example/pod:container\n    labels: namespace=example\n  : "1"\n'
   self.assertEqual(m.validate(raw)['targets'],1) # Quiet old offsets are legal.
+  with tempfile.TemporaryDirectory() as t:
+   p=Path(t)/'positions.yml';p.write_bytes(raw);self.assertEqual(m.read_bounded(p),raw)
+   link=Path(t)/'link';link.symlink_to(p)
+   with self.assertRaises(ValueError):m.read_bounded(link)
+   p.write_bytes(b'x'*(4*1024*1024+1))
+   with self.assertRaises(ValueError):m.read_bounded(p)
+   p.unlink();p.mkdir()
+   with self.assertRaises(ValueError):m.read_bounded(p)
   for bad in [b'positions: {}',b'not: positions',raw.replace(b'"1"',b'"garbage"'),raw.replace(b'"1"',str(int((time.time()+999)*1000000)).encode()),raw+raw.split(b'positions:\n')[1]]:
    with self.assertRaises(ValueError):m.validate(bad)
  def test_migration_default_and_check_mode_inert(self):
@@ -67,6 +75,26 @@ class AlloyCursors(unittest.TestCase):
    (target.parent/'positions.incoming').unlink()
    (root/'unknown').write_text('retain')
    self.assertNotEqual(run(raw).returncode,0);self.assertEqual((root/'unknown').read_text(),'retain')
+   (root/'unknown').unlink();lost=root/'lost+found';lost.mkdir()
+   self.assertEqual(run(raw).returncode,0)
+   (lost/'unexpected').write_text('retain');self.assertNotEqual(run(raw).returncode,0)
+   (lost/'unexpected').unlink();lost.rmdir();lost.symlink_to(root/'missing')
+   self.assertNotEqual(run(raw).returncode,0)
+ def test_seed_rejects_foreign_pvc_user_before_creating_anything(self):
+  import json,time
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t);binpath=root/'bin';binpath.mkdir();calls=root/'calls'
+   fake=binpath/'kubectl'
+   fake.write_text("#!/usr/bin/python3\nimport sys,json,os\na=sys.argv[1:]\nwith open(os.environ['CURSOR_CALLS'],'a') as f:f.write(json.dumps(a)+'\\n')\nif 'namespace' in a: print('11111111-1111-1111-1111-111111111111')\nelif 'statefulset' in a: print('{}')\nelif 'deployment' in a: print('')\nelif 'pods' in a: print(json.dumps({'items':[{'metadata':{'name':'unrelated-writer'},'spec':{'volumes':[{'persistentVolumeClaim':{'claimName':'alloy-storage-alloy-alloy-logs-0'}}]}}]}))\nelse: raise SystemExit('Unexpected mutation/query')\n")
+   fake.chmod(0o700)
+   raw='positions:\n  ? path: cursor-example/pod:container\n    labels: namespace=example\n  : "1"\n';(root/'positions.yml').write_text(raw)
+   receipt={'cluster_uid':'11111111-1111-1111-1111-111111111111','captured_at':int(time.time()),'source_mtime':int(time.time()),'image':'registry1.dso.mil/ironbank/opensource/grafana/alloy@sha256:'+'a'*64,'path':'/tmp/alloy/pod_logs_via_kubernetes_api.feature/loki.source.kubernetes.pod_logs/positions.yml','selector':{'app':'collector'},'verification':{'sha256':__import__('hashlib').sha256(raw.encode()).hexdigest()}}
+   (root/'receipt.json').write_text(json.dumps(receipt))
+   inputs={'alloy_cursor_seed':True,'alloy_cursor_seed_approved':True,'cursor_expected_cluster_uid':receipt['cluster_uid'],'cursor_expected_statefulset_uid':'22222222-2222-2222-2222-222222222222','cursor_expected_claim_uid':'33333333-3333-3333-3333-333333333333','cursor_checkpoint_dir':str(root),'cursor_seeder_image':receipt['image']}
+   f=root/'inputs.json';f.write_text(json.dumps(inputs))
+   r=subprocess.run(['ansible-playbook','-i','localhost,',str(SOURCE/'seed.yaml'),'-e','@'+str(f)],capture_output=True,text=True,env={**os.environ,'PATH':str(binpath)+':'+os.environ['PATH'],'CURSOR_CALLS':str(calls)})
+   self.assertNotEqual(r.returncode,0);self.assertIn('unrelated-writer',r.stdout)
+   self.assertNotIn('create',calls.read_text());self.assertNotIn('exec',calls.read_text())
  def test_exact_native_controller_and_preserved_container_contract(self):
   chart=os.environ.get('ALLOY_OPERATOR_CHART')
   if not chart:self.skipTest('Exact installed native operator child chart required')

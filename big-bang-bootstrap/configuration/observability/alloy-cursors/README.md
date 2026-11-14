@@ -97,7 +97,7 @@ capture/source-file modification time, not every individual offset.
 expected zero-replica StatefulSet and exact retained claim UID. It checks the
 checkpoint again before and after copying, uses the previous collector's exact
 resolved image digest with restricted nonroot/no-token context, rejects unknown
-volume content/symlinks, verifies readback hash, and UID-checks temporary seeder
+volume content/symlinks (including nonempty, symlink or unreadable lost+found), verifies readback hash, and UID-checks temporary seeder
 cleanup. It never starts the StatefulSet or selects a root. A partial incoming
 file deliberately blocks a retry: inspect exact expected digest/ownership and
 resolve through reviewed recovery, never blindly wipe it or other volume data.
@@ -106,3 +106,12 @@ After seeding, recheck the same UID/hash/freshness gates and zero writers before
 selecting the already-published stage-1 path. Longhorn readiness, command support
 in the pinned seeder image and actual admission remain runtime preflight gates;
 o live transition has been performed by these offline tests.
+
+Capture requires a new canonical nonsymlink directory and binds the pod through
+its ReplicaSet to the expected Deployment. Native metadata verifier uses bounded
+no-follow open/fstat/read, rejects changing/oversize/nonregular files, and prints
+only digest/counts. Seed pins all component/claim paths, rejects every existing
+namespace pod referencing the PVC (not only collector labels), and checks exact
+StatefulSet selector, claim template, storage mount, observed generation and
+zero replicas. Final controller resourceVersion/spec/claim UID and PVC-user
+checks detect concurrent reconciliation; failures do not authorize stage 1.

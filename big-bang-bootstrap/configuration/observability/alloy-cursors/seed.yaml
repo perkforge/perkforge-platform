@@ -14,6 +14,8 @@
     - ansible.builtin.assert:
         that:
         - alloy_cursor_seed_approved | bool
+        - cursor_claim == 'alloy-storage-alloy-alloy-logs-0'
+        - cursor_relative_path == 'pod_logs_via_kubernetes_api.feature/loki.source.kubernetes.pod_logs'
         - cursor_expected_cluster_uid is match('^[a-f0-9-]{36}$')
         - cursor_expected_statefulset_uid is match('^[a-f0-9-]{36}$')
         - cursor_expected_claim_uid is match('^[a-f0-9-]{36}$')
@@ -43,6 +45,13 @@
         argv: [kubectl, -n, alloy, get, pods, -l, '{{ receipt.selector.items() | map("join", "=") | join(",") }}', -o, json]
       register: writers
       changed_when: false
+    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pods, -o, json]}
+      register: namespace_pods
+      changed_when: false
+    - ansible.builtin.assert:
+        that: cursor_claim not in (item.spec.volumes | default([]) | selectattr('persistentVolumeClaim','defined') | map(attribute='persistentVolumeClaim.claimName') | list)
+      loop: '{{ (namespace_pods.stdout | from_json)["items"] }}'
+      loop_control: {label: '{{ item.metadata.name }}'}
     - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pvc, '{{ cursor_claim }}', -o, json]}
       register: pvc
       changed_when: false
@@ -52,6 +61,17 @@
         - (writers.stdout | from_json)['items'] | length == 0
         - (sts.stdout | from_json).metadata.uid == cursor_expected_statefulset_uid
         - (sts.stdout | from_json).spec.replicas == 0
+        - (sts.stdout | from_json).status.observedGeneration == (sts.stdout | from_json).metadata.generation
+        - (sts.stdout | from_json).status.readyReplicas | default(0) == 0
+        - (sts.stdout | from_json).status.updatedReplicas | default(0) == 0
+        - (sts.stdout | from_json).spec.selector.matchLabels == receipt.selector
+        - (sts.stdout | from_json).spec.volumeClaimTemplates | length == 1
+        - (sts.stdout | from_json).spec.volumeClaimTemplates[0].metadata.name == 'alloy-storage'
+        - (sts.stdout | from_json).spec.volumeClaimTemplates[0].spec.accessModes == ['ReadWriteOnce']
+        - (sts.stdout | from_json).spec.volumeClaimTemplates[0].spec.storageClassName == 'longhorn'
+        - (sts.stdout | from_json).spec.volumeClaimTemplates[0].spec.resources.requests.storage == '1Gi'
+        - (sts.stdout | from_json).spec.template.spec.containers | selectattr('name','equalto','alloy') | map(attribute='args') | flatten | select('equalto','--storage.path=/tmp/alloy') | list | length == 1
+        - (sts.stdout | from_json).spec.template.spec.containers | selectattr('name','equalto','alloy') | map(attribute='volumeMounts') | flatten | selectattr('name','equalto','alloy-storage') | map(attribute='mountPath') | list == ['/tmp/alloy']
         - (sts.stdout | from_json).status.currentReplicas | default(0) == 0
         - (pvc.stdout | from_json).metadata.uid == cursor_expected_claim_uid
         - (pvc.stdout | from_json).metadata.annotations['platform.perkforge.io/cursor-owner'] == 'alloy-alloy-logs'
@@ -109,8 +129,13 @@
           - /bin/sh
           - -ec
           - >-
-            test "$(find /cursor -mindepth 1 -path /cursor/lost+found -prune -o -mindepth 1 ! -path /cursor/lost+found ! -path /cursor/pod_logs_via_kubernetes_api.feature ! -path /cursor/{{ cursor_relative_path }} ! -path /cursor/{{ cursor_relative_path }}/positions.yml -print | wc -l)" -eq 0;
-            test "$(find /cursor -type l | wc -l)" -eq 0;
+            if test -e /cursor/lost+found || test -L /cursor/lost+found; then
+              test -d /cursor/lost+found; test ! -L /cursor/lost+found;
+              recovered=$(find /cursor/lost+found -mindepth 1 -print); test -z "$recovered";
+            fi;
+            unexpected=$(find /cursor -mindepth 1 -path /cursor/lost+found -prune -o -mindepth 1 ! -path /cursor/lost+found ! -path /cursor/pod_logs_via_kubernetes_api.feature ! -path /cursor/{{ cursor_relative_path }} ! -path /cursor/{{ cursor_relative_path }}/positions.yml -print);
+            test -z "$unexpected";
+            links=$(find /cursor -type l -print); test -z "$links";
             mkdir -p /cursor/{{ cursor_relative_path }};
             cat > /cursor/{{ cursor_relative_path }}/positions.incoming;
             if test -f /cursor/{{ cursor_relative_path }}/positions.yml; then
@@ -140,5 +165,24 @@
             argv: [kubectl, delete, --raw, /api/v1/namespaces/alloy/pods/alloy-cursor-seeder, -f, '-']
             stdin: '{{ {"apiVersion":"v1","kind":"DeleteOptions","preconditions":{"uid":(created.stdout | from_json).metadata.uid}} | to_json }}'
         - ansible.builtin.command: {argv: [kubectl, -n, alloy, wait, pod/alloy-cursor-seeder, '--for=delete', '--timeout=90s']}
+    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, statefulset, alloy-alloy-logs, -o, json]}
+      register: final_sts
+      changed_when: false
+    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pvc, '{{ cursor_claim }}', -o, json]}
+      register: final_pvc
+      changed_when: false
+    - ansible.builtin.command: {argv: [kubectl, -n, alloy, get, pods, -o, json]}
+      register: final_pods
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (final_sts.stdout | from_json).metadata.uid == cursor_expected_statefulset_uid
+        - (final_sts.stdout | from_json).metadata.resourceVersion == (sts.stdout | from_json).metadata.resourceVersion
+        - (final_sts.stdout | from_json).spec == (sts.stdout | from_json).spec
+        - (final_pvc.stdout | from_json).metadata.uid == cursor_expected_claim_uid
+    - ansible.builtin.assert:
+        that: cursor_claim not in (item.spec.volumes | default([]) | selectattr('persistentVolumeClaim','defined') | map(attribute='persistentVolumeClaim.claimName') | list)
+      loop: '{{ (final_pods.stdout | from_json)["items"] }}'
+      loop_control: {label: '{{ item.metadata.name }}'}
     - ansible.builtin.debug:
         msg: 'Seed verified and seeder removed. Stage 1 still requires reviewed source, fresh checkpoint bound and exact claim/controller rechecks; no rollout performed.'
