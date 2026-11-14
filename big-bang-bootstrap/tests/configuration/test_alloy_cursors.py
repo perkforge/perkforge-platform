@@ -51,6 +51,22 @@ class AlloyCursors(unittest.TestCase):
    for extra in [[],['--check','-e',{'capture':'alloy_cursor_capture','prepare-claim':'alloy_cursor_prepare','seed':'alloy_cursor_seed'}[name]+'=true']]:
     r=subprocess.run(['ansible-playbook','-i','localhost,',str(SOURCE/(name+'.yaml')),*extra],capture_output=True,text=True)
     self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+ def test_seed_script_refuses_unknown_and_mismatched_content(self):
+  play=yaml.safe_load((SOURCE/'seed.yaml').read_text())[0]
+  outer=play['tasks'][0]['block'];block=next(x['block'] for x in outer if 'block' in x)
+  command=next(x['ansible.builtin.command'] for x in block if x.get('name','').startswith('Refuse unknown'))
+  script=command['argv'][-1].replace('{{ cursor_relative_path }}','pod_logs_via_kubernetes_api.feature/loki.source.kubernetes.pod_logs')
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t);target=root/'pod_logs_via_kubernetes_api.feature/loki.source.kubernetes.pod_logs/positions.yml'
+   local=script.replace('/cursor',str(root))
+   raw='positions: example\n'
+   def run(data):return subprocess.run(['/bin/sh','-ec',local],input=data,text=True,capture_output=True)
+   self.assertEqual(run(raw).returncode,0);self.assertEqual(target.read_text(),raw)
+   self.assertEqual(run(raw).returncode,0) # Exact equality retry.
+   self.assertNotEqual(run('different').returncode,0);self.assertEqual(target.read_text(),raw)
+   (target.parent/'positions.incoming').unlink()
+   (root/'unknown').write_text('retain')
+   self.assertNotEqual(run(raw).returncode,0);self.assertEqual((root/'unknown').read_text(),'retain')
  def test_exact_native_controller_and_preserved_container_contract(self):
   chart=os.environ.get('ALLOY_OPERATOR_CHART')
   if not chart:self.skipTest('Exact installed native operator child chart required')
