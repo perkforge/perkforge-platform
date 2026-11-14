@@ -14,3 +14,21 @@ patches:
         name: mattermost-runtime-values
         valuesKey: values.yaml
         optional: false
+    - op: add
+      path: /spec/postRenderers/0/kustomize/patches/-
+      value:
+        target: {kind: Namespace, name: mattermost}
+        patch: |-
+          $patch: delete
+          apiVersion: v1
+          kind: Namespace
+          metadata: {name: mattermost}
+    - op: add
+      path: /spec/postRenderers/0/kustomize/patches/-
+      value:
+        target: {kind: Namespace, name: mattermost-operator}
+        patch: |-
+          $patch: delete
+          apiVersion: v1
+          kind: Namespace
+          metadata: {name: mattermost-operator}
