@@ -31,7 +31,11 @@ reviewed rendered files; none of these paths are tenant-writable.
 After ExternalSecret sync, the native `extraSecretMounts` mounts only `alerting.yaml`
 read-only at `/etc/grafana/provisioning/alerting/ntfy.yaml`. `local-portal-alerts`
 extends the integrated Portal root, retaining its exact enrollment selection,
-Nextcloud, Grafana SSO/query datasource and dashboards. Activation refuses a nonempty existing extraSecretMounts list instead of replacing
+Nextcloud, Grafana SSO/query datasource and dashboards. Activation reads effective stored Helm values (including Secret valuesFrom) under
+no_log, using the target `grafana_ntfy_helm_release` (default monitoring-grafana).
+Set `grafana_ntfy_helm_binary` to the existing verified executable path when Helm
+is not on PATH; this procedure never installs a binary.
+It refuses a nonempty existing extraSecretMounts list instead of replacing
 it; this initial target had none. Exact synchronized Secret payload equality is
 checked after ESO Ready and before exposing the values to a selected root. Never select
 an older ntfy-only root to add notifications. A coordinated Grafana restart imports

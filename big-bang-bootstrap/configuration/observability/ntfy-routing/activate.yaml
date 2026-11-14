@@ -5,6 +5,8 @@
   gather_facts: false
   vars:
     grafana_ntfy_activate: false
+    grafana_ntfy_helm_release: monitoring-grafana
+    grafana_ntfy_helm_binary: helm
     grafana_ntfy_secret: grafana-ntfy-alerting
     grafana_ntfy_auth_identity: eso-grafana-alerts
   module_defaults:
@@ -24,19 +26,24 @@
         - grafana_ntfy_monitoring_namespace is match('^[a-z][a-z0-9-]{0,62}$')
         - grafana_ntfy_auth_identity == 'eso-grafana-alerts'
         - grafana_ntfy_secret == 'grafana-ntfy-alerting'
+        - grafana_ntfy_helm_release is match('^[a-z][a-z0-9-]{0,62}$')
         - grafana_ntfy_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
     - ansible.builtin.uri:
         url: '{{ grafana_ntfy_bao_server }}/v1/sys/health'
       register: bao_health
     - ansible.builtin.assert:
         that: bao_health.json.cluster_id == grafana_ntfy_bao_cluster_id and not bao_health.json.sealed
-    - name: Refuse replacing any existing native extraSecretMounts list
-      ansible.builtin.command:
-        argv: [kubectl, -n, bigbang, get, helmrelease, grafana, -o, 'jsonpath={.spec.values.upstream.extraSecretMounts}']
-      register: existing_mounts
-      changed_when: false
-    - ansible.builtin.assert:
-        that: existing_mounts.stdout | trim in ['', '[]']
+    - name: Refuse replacing effective native extraSecretMounts, including valuesFrom
+      no_log: true
+      block:
+      - ansible.builtin.command:
+          argv: ['{{ grafana_ntfy_helm_binary }}', get, values, '{{ grafana_ntfy_helm_release }}', -n, '{{ grafana_ntfy_monitoring_namespace }}', -o, json]
+        register: existing_values
+        changed_when: false
+      - ansible.builtin.assert:
+          that: (existing_values.stdout | from_json).upstream.extraSecretMounts | default([]) | length == 0
+      always:
+      - ansible.builtin.set_fact: {existing_values: {}}
     - name: Refuse target collision before reading operator credentials
       ansible.builtin.command:
         argv: [kubectl, -n, '{{ grafana_ntfy_monitoring_namespace }}', get, secret, '{{ grafana_ntfy_secret }}', --ignore-not-found, -o, name]
