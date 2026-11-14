@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.44.0](https://github.com/perkforge/perkforge-platform/compare/v0.43.0...v0.44.0) (2026-11-14)
+
+
+### Features
+
+* **mattermost:** prepare dedicated native PostgreSQL and file PVC backends ([#387](https://github.com/perkforge/perkforge-platform/pull/387)).
+* **mattermost:** stage scoped runtime custody, native activation and append-only chat DNS maintenance ([#396](https://github.com/perkforge/perkforge-platform/pull/396)).
+
+* **alerting:** provision scoped Portal Grafana ntfy routing ([#381](https://github.com/perkforge/perkforge-platform/issues/381)) ([5a862ac](https://github.com/perkforge/perkforge-platform/commit/5a862acb8450cce55ca0061d9de09ee7ce9d809e))
+* deliver platform-alerts with additive scoped credentials ([#386](https://github.com/perkforge/perkforge-platform/issues/386)) ([a88dea7](https://github.com/perkforge/perkforge-platform/commit/a88dea7658fa09419d6d7bdf8124ab1653128ae2))
+* **notifications:** add native Flux deployment outcome route ([#389](https://github.com/perkforge/perkforge-platform/issues/389)) ([bd8a5e7](https://github.com/perkforge/perkforge-platform/commit/bd8a5e76d629331fe91391a91d9a5c0414951a97))
+* **notifications:** deliver scoped native platform deployment route ([#392](https://github.com/perkforge/perkforge-platform/issues/392)) ([fbbe1f2](https://github.com/perkforge/perkforge-platform/commit/fbbe1f2534af89c6486feeb0cc1b04f0e91c21d9))
+* **observability:** add portable platform resource alert catalog ([#384](https://github.com/perkforge/perkforge-platform/issues/384)) ([bc2d309](https://github.com/perkforge/perkforge-platform/commit/bc2d30921185c1f7b3f8fdfc32ac57f5267dcb2f))
+* **portal:** select reviewed integrated enrollment without changing existing apps ([#378](https://github.com/perkforge/perkforge-platform/issues/378)) ([14beda8](https://github.com/perkforge/perkforge-platform/commit/14beda8a89960cd2314d54065f8c08f1eefbeda4))
+* select released Portal identity explorer enrollment ([#394](https://github.com/perkforge/perkforge-platform/issues/394)) ([b90ca75](https://github.com/perkforge/perkforge-platform/commit/b90ca7510be1effd5fac37228ab1216232b0be88))
+
+
+### Bug Fixes
+
+* **alerting:** guard effective Helm secret mounts ([#382](https://github.com/perkforge/perkforge-platform/issues/382)) ([22db374](https://github.com/perkforge/perkforge-platform/commit/22db37445602abdf38b57c463538f3249aba3497))
+* **alerts:** avoid pointer-formatted truncated count ([#390](https://github.com/perkforge/perkforge-platform/issues/390)) ([177fe49](https://github.com/perkforge/perkforge-platform/commit/177fe499e5f9a527ed4fe263dc82899f3f3e2cd0))
+* **mattermost:** restrict pinned operator runtime writes ([#385](https://github.com/perkforge/perkforge-platform/issues/385)) ([5a3b193](https://github.com/perkforge/perkforge-platform/commit/5a3b193d76126f3347de7a3bfdc589b5f2237a3c))
+* **ntfy:** preserve one phone token across exact reader topics ([#388](https://github.com/perkforge/perkforge-platform/issues/388)) ([41d8c4e](https://github.com/perkforge/perkforge-platform/commit/41d8c4eec2b8f4a02e01790eb878813cf38f77cd))
+* **portal:** promote verified admin-only enrollment release ([#380](https://github.com/perkforge/perkforge-platform/issues/380)) ([e7152ac](https://github.com/perkforge/perkforge-platform/commit/e7152accff0829b77ac13471cf460293b35b6c9a))
+
 ## [0.43.0](https://github.com/perkforge/perkforge-platform/compare/v0.42.0...v0.43.0) (2026-11-14)
 
 
