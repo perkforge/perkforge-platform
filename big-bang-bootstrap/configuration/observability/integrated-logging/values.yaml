@@ -6,6 +6,9 @@ alloy:
   flux:
     suspend: false
   values:
+    upstream:
+      alloy-operator:
+        conflictCheck: false
     global:
       imagePullSecrets: [{name: private-registry}]
       image:

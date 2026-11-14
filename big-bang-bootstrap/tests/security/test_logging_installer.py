@@ -23,7 +23,7 @@ class LoggingInstaller(unittest.TestCase):
   self.assertFalse(any(x['kind'] in ['ClusterRole','ClusterRoleBinding'] for _,ds in self.render.values() for x in ds))
  def test_platform_detection_is_list_only_and_installer_only(self):
   role=next(x for x in self.foundation if x['kind']=='ClusterRole' and x['metadata']['name']=='alloy-installer-platform-detection')
-  self.assertEqual(role['rules'],[{'apiGroups':[''],'resources':['nodes'],'verbs':['list']}])
+  self.assertEqual(role['rules'],[{'apiGroups':[''],'resources':['nodes'],'verbs':['list']},{'apiGroups':[''],'resources':['namespaces'],'resourceNames':['alloy'],'verbs':['get']}])
   binding=next(x for x in self.foundation if x['kind']=='ClusterRoleBinding' and x['metadata']['name']==role['metadata']['name'])
   self.assertEqual(binding['roleRef'],{'apiGroup':'rbac.authorization.k8s.io','kind':'ClusterRole','name':role['metadata']['name']})
   self.assertEqual(binding['subjects'],[{'kind':'ServiceAccount','name':'alloy-installer','namespace':'bigbang'}])

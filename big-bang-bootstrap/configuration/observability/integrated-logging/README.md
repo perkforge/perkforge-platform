@@ -91,9 +91,22 @@ on RKE2; setting `global.platform` only affects a separate resolver and does not
 skip this validation. Offline Helm rendering cannot establish that permission.
 The logging prerequisite adds the separate `alloy-installer-platform-detection`
 ClusterRole and binding: core `nodes`, **list only**, bound exclusively to
-`bigbang:alloy-installer`. It grants no get/watch/write, Secret access, or authority
+`bigbang:alloy-installer`. The Node rule grants no get/watch/write, Secret access, or authority
 to the operator/collector. It exposes node metadata to the installer, not pod logs.
 Apply this source-owned prerequisite before retrying the native release; retain
 all existing scopes. Reassess when Big Bang updates its pinned dependency to
 support detection without this lookup. Do not falsify platform capabilities or
 patch the upstream chart to bypass its validation.
+
+The same pinned chart also performs a cluster-wide Deployment lookup for its
+optional operator conflict check. The scoped local overlay disables that native
+`upstream.alloy-operator.conflictCheck` check, **not** the operator's namespace
+boundary. Before first activation or adding another operator, the platform
+operator must inspect existing Alloy operator deployments and their
+`WATCH_NAMESPACE` settings and verify no overlap; the installer is deliberately
+not granted cluster Deployment visibility. The physical target was checked with
+no existing Alloy operator before this activation. `ownNamespaceOnly: true`
+remains mandatory. Upstream Helm NOTES additionally reads the release Namespace
+for Istio metadata; the metadata role permits **get only** on the single
+`alloy` Namespace, not list/watch or any Namespace mutation. This grant is only
+for `bigbang:alloy-installer`, never the operator/collector.
