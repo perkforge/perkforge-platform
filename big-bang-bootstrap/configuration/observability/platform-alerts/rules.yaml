@@ -1,0 +1,37 @@
+# Portable resource alert catalog. Expressions retain affected-resource dimensions.
+platform_alert_rules:
+- id: cpu
+  title: Node CPU sustained high
+  for: 15m
+  expr: '(1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > bool 0.85'
+  summary: CPU busy exceeds 85 percent for 15 minutes.
+- id: memory
+  title: Node memory headroom low
+  for: 10m
+  expr: '(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > bool 0.90'
+  summary: Available memory below 10 percent for 10 minutes; includes reclaimable cache.
+- id: pvc-space
+  title: Persistent volume space low
+  for: 15m
+  expr: '(min by (namespace, persistentvolumeclaim) (kubelet_volume_stats_available_bytes) / max by (namespace, persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes)) < bool 0.15'
+  summary: Persistent volume available capacity below 15 percent for 15 minutes.
+- id: filesystem-space
+  title: Node filesystem space low
+  for: 15m
+  expr: '(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"}) < bool 0.15 and on(instance, device, mountpoint) (node_filesystem_readonly == 0)'
+  summary: Host filesystem available capacity below 15 percent for 15 minutes.
+- id: collector
+  title: Node resource collector failed
+  for: 10m
+  expr: 'node_scrape_collector_success{collector=~"filesystem|diskstats|netdev|netclass|meminfo|cpu"} == bool 0'
+  summary: A required resource collector is failing; capacity coverage is incomplete.
+- id: network
+  title: Physical network link nearing capacity
+  for: 10m
+  expr: '((rate(node_network_receive_bytes_total{device=~"__NETWORK_DEVICE_REGEX__"}[5m]) / node_network_speed_bytes > bool 0.85) + (rate(node_network_transmit_bytes_total{device=~"__NETWORK_DEVICE_REGEX__"}[5m]) / node_network_speed_bytes > bool 0.85)) > bool 0 and on(instance, device) (node_network_speed_bytes > 0)'
+  summary: Receive OR transmit traffic exceeds 85 percent of reported link capacity for 10 minutes; full-duplex directions are not summed.
+- id: disk-latency
+  title: Physical disk service latency sustained high
+  for: 15m
+  expr: '(((rate(node_disk_read_time_seconds_total{device=~"__DISK_DEVICE_REGEX__"}[5m]) + rate(node_disk_write_time_seconds_total{device=~"__DISK_DEVICE_REGEX__"}[5m])) / (rate(node_disk_reads_completed_total{device=~"__DISK_DEVICE_REGEX__"}[5m]) + rate(node_disk_writes_completed_total{device=~"__DISK_DEVICE_REGEX__"}[5m]))) > bool 0.05) * on(instance, device) ((rate(node_disk_reads_completed_total[5m]) + rate(node_disk_writes_completed_total[5m])) > bool 10)'
+  summary: Average completed disk I/O exceeds 50 milliseconds with more than 10 IOPS for 15 minutes; busy percentage alone is not saturation.
