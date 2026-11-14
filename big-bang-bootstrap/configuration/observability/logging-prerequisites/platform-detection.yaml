@@ -1,0 +1,23 @@
+# Pinned Alloy upstream validation performs an unconditional Node list during Helm rendering.
+# Installer metadata access only: collector/operator retain their existing scopes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: alloy-installer-platform-detection
+rules:
+- apiGroups: ['']
+  resources: [nodes]
+  verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: alloy-installer-platform-detection
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: alloy-installer-platform-detection
+subjects:
+- kind: ServiceAccount
+  name: alloy-installer
+  namespace: bigbang
