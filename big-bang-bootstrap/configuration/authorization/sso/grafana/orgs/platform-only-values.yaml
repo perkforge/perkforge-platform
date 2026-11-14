@@ -1,0 +1,15 @@
+# Optional source-owned PhaseA overlay. Not selected by any default root.
+# Match explicit platform-only renderer; preserve all other provider settings.
+grafana:
+  values:
+    upstream:
+      grafana.ini:
+        auth.generic_oauth:
+          role_attribute_path: >-
+            contains(groups[*], '/platform/admins') && 'GrafanaAdmin' ||
+            (contains(groups[*], 'pf-observability-platform-viewer')
+            ) && 'None'
+          org_attribute_path: groups
+          org_mapping: >-
+            /platform/admins:1:Admin
+            pf-observability-platform-viewer:1:Viewer
