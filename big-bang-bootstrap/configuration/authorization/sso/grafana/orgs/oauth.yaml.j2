@@ -18,6 +18,6 @@ org_mapping: >-
   pf-observability-platform-viewer:1:Viewer
 {% for item in grafana_org_contexts %}
 {% for role, native_role in item.context.targets.grafana.role_mappings.items() %}
-  pf-observability-{{ item.context.id }}-{{ role }}:{{ item.org_id }}:{{ native_role }}
+  pf-observability-{{ item.context.id }}-{{ role }}:{{ item.org_id }}:{{ 'Viewer' if item.log_view_only | default(false) else native_role }}
 {% endfor %}
 {% endfor %}

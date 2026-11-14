@@ -69,3 +69,32 @@ class GrafanaOrgMapping(unittest.TestCase):
         self.assertTrue((baseline | section)['enabled'])
 
         self.assertNotEqual(self.render(self.inputs | {'grafana_org_platform_only':True}).returncode,0)
+
+    def test_log_view_override_is_per_context_and_preserves_other_defaults(self):
+        self.inputs['grafana_org_contexts'][0]['log_view_only']=True
+        other=copy.deepcopy(self.inputs['grafana_org_contexts'][0])
+        other=json.loads(json.dumps(other).replace('portal','other'))
+        other.update(org_id=3,log_view_only=False)
+        self.inputs['grafana_org_contexts'].append(other)
+        result=self.render(self.inputs);self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        oauth=yaml.safe_load((self.folder/'out/oauth.yaml').read_text())
+        for role in ['admin','developer','viewer']:
+            self.assertIn('pf-observability-portal-tenant-'+role+':2:Viewer',oauth['org_mapping'])
+        self.assertIn('pf-observability-other-tenant-admin:3:Admin',oauth['org_mapping'])
+        self.assertIn('pf-observability-other-tenant-developer:3:Editor',oauth['org_mapping'])
+        self.assertIn('/platform/admins:1:Admin',oauth['org_mapping'])
+        self.assertIn('pf-observability-platform-viewer:1:Viewer',oauth['org_mapping'])
+
+    def test_selected_root_is_additive_only(self):
+        from fixtures.render_helpers import build
+        baseline=build(ROOT/'big-bang-bootstrap/clusters/local-portal-log-acceptance')
+        actual=build(ROOT/'big-bang-bootstrap/clusters/local-portal-log-view')
+        extra=[o for o in actual if o['kind']=='ConfigMap' and o['metadata']['name']=='values-portal-log-oauth']
+        self.assertEqual(len(extra),1)
+        remaining=[o for o in actual if o not in extra]
+        target=next(o for o in remaining if o['kind']=='HelmRelease' and o['metadata']['name']=='bigbang')
+        self.assertEqual(target['spec']['valuesFrom'].pop(),{'kind':'ConfigMap','name':'values-portal-log-oauth','valuesKey':'values.yaml'})
+        self.assertEqual(remaining,baseline)
+        self.inputs['grafana_org_contexts'][0]['log_view_only']=True
+        result=self.render(self.inputs);self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertEqual(yaml.safe_load(extra[0]['data']['values.yaml']),yaml.safe_load((self.folder/'out/oauth-values.yaml').read_text()))

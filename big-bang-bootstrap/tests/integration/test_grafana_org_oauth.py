@@ -37,7 +37,9 @@ def port():
 
 class NativeGrafanaOrgOAuth(unittest.TestCase):
     platform_only=False
+    log_view_only=False
     def test_native_mixed_roles_engineer_and_owner(self):
+        Issuer.claims = {'mixed':['pf-observability-portal-tenant-admin','pf-observability-other-tenant-viewer'], 'engineer':['pf-observability-platform-viewer'], 'owner':['/platform/admins'], 'unknown':[]}
         binary = os.environ.get('GRAFANA_VALIDATE_BIN')
         if not binary: self.skipTest('Set checksum-pinned GRAFANA_VALIDATE_BIN; no download')
         pins = yaml.safe_load((SOURCE.parents[3]/'observability/tenant-query/sources.yaml').read_text())
@@ -47,6 +49,7 @@ class NativeGrafanaOrgOAuth(unittest.TestCase):
             other=json.loads(json.dumps(context).replace('portal','other'))
             inputs={'grafana_org_render':True,'grafana_org_output':str(folder/'render'), 'grafana_org_contexts':[
                 {'context':context,'org_id':2,'query_identity':'pf-log-portal-read'}, {'context':other,'org_id':3,'query_identity':'pf-log-other-read'}]}
+            if self.log_view_only: inputs['grafana_org_contexts'][0]['log_view_only']=True
             if self.platform_only: inputs.update(grafana_org_contexts=[],grafana_org_platform_only=True)
             run=subprocess.run(['ansible-playbook','-i','localhost,',str(SOURCE/'render.yaml'),'-e',json.dumps(inputs)], capture_output=True,text=True)
             self.assertEqual(run.returncode,0,run.stdout+run.stderr)
@@ -76,7 +79,7 @@ class NativeGrafanaOrgOAuth(unittest.TestCase):
 
                     source=urllib.request.Request(base+'/api/datasources',data=json.dumps({'uid':'platform-only','name':'platform-only','type':'prometheus','access':'proxy','url':'http://127.0.0.1:1'}).encode(),headers=admin|{'Content-Type':'application/json'})
                     urllib.request.urlopen(source).close()
-                    cases=[('engineer',{1:'Viewer'}),('owner',{1:'Admin'})] if self.platform_only else [('mixed',{2:'Admin',3:'Viewer'}),('engineer',{1:'Viewer'}),('owner',{1:'Admin'})]
+                    cases=[('engineer',{1:'Viewer'}),('owner',{1:'Admin'})] if self.platform_only else [('mixed',{2:'Viewer' if self.log_view_only else 'Admin',3:'Viewer'}),('engineer',{1:'Viewer'}),('owner',{1:'Admin'})]
                     for actor,expected in cases:
                         Issuer.subject=actor
                         browser=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
@@ -86,6 +89,20 @@ class NativeGrafanaOrgOAuth(unittest.TestCase):
                         orgs=json.load(browser.open(base+'/api/user/orgs'))
                         self.assertEqual({o['orgId']:o['role'] for o in orgs},expected, actor)
                         if actor == 'mixed':
+                            # Native Admin membership bypass is real; the initial
+                            # log-view profile must remove it, not just hide UI.
+                            create=urllib.request.Request(base+'/api/admin/users',data=json.dumps({'name':'Unmapped','login':'unmapped-local','email':'unmapped@example.test','password':'synthetic-fixture-only'}).encode(),headers=admin|{'Content-Type':'application/json'})
+                            urllib.request.urlopen(create).close()
+                            add=urllib.request.Request(base+'/api/org/users',data=json.dumps({'loginOrEmail':'unmapped-local','role':'Viewer'}).encode(),headers={'Content-Type':'application/json'})
+                            if self.log_view_only:
+                                with self.assertRaises(urllib.error.HTTPError) as denied: browser.open(add)
+                                self.assertEqual(denied.exception.code,403)
+                                for path,body in [('/api/org/invites',{'loginOrEmail':'unmapped-local','role':'Viewer','sendEmail':False}),('/api/serviceaccounts/',{'name':'disallowed','role':'Viewer'}),('/api/datasources',{'name':'disallowed','type':'loki','url':'http://127.0.0.1:9','access':'proxy'})]:
+                                    request=urllib.request.Request(base+path,data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+                                    with self.assertRaises(urllib.error.HTTPError) as blocked: browser.open(request)
+                                    self.assertEqual(blocked.exception.code,403)
+                            else:
+                                with browser.open(add) as response:self.assertEqual(response.status,200)
                             # Default auto_assign_org must not leak platform org or datasource.
                             for path,method in [('/api/user/using/1','POST'),('/api/datasources/uid/platform-only','GET')]:
                                 request=urllib.request.Request(base+path,headers={'X-Grafana-Org-Id':'1'},method=method)
@@ -127,3 +144,6 @@ class NativeGrafanaOrgOAuth(unittest.TestCase):
 
 class NativeGrafanaPlatformOnlyOAuth(NativeGrafanaOrgOAuth):
     platform_only=True
+
+class NativeGrafanaTenantLogViewOAuth(NativeGrafanaOrgOAuth):
+    log_view_only=True
