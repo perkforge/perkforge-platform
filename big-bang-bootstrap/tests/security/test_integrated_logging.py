@@ -17,7 +17,7 @@ class IntegratedLogging(unittest.TestCase):
   self.assertEqual(b['spec']['postRenderers'][0]['kustomize']['patches'][:-2],a['spec']['postRenderers'][0]['kustomize']['patches'])
   b['spec']['valuesFrom']=a['spec']['valuesFrom'];b['spec']['postRenderers']=a['spec']['postRenderers'];self.assertEqual(a,b)
   v=yaml.safe_load(new[('ConfigMap','bigbang','values-integrated-logging')]['data']['values.yaml'])
-  self.assertEqual(v['alloy']['flux'],{'suspend':False});self.assertFalse(v['alloy']['values']['monitoring']['enabled']);self.assertEqual(v['alloy']['values']['serviceMonitors'],[])
+  self.assertFalse(v['alloy']['values']['upstream']['alloy-operator']['conflictCheck']);self.assertEqual(v['alloy']['flux'],{'suspend':False});self.assertFalse(v['alloy']['values']['monitoring']['enabled']);self.assertEqual(v['alloy']['values']['serviceMonitors'],[])
   self.assertEqual(v['loki']['values']['singleBinary']['nodeSelector'],{'storage.perkforge.io/worker':'true'});self.assertEqual(v['loki']['values']['gateway']['basicAuth']['existingSecret'],'loki-gateway-auth-v2')
   for key in ['dashboards','serviceMonitor','rules']:self.assertFalse(v['loki']['values']['monitoring'][key]['enabled'])
   self.assertNotIn('grafana',v)
