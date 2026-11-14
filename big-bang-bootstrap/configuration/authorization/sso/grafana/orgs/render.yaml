@@ -50,3 +50,12 @@
         mode: '0600'
         force: false
       loop: [oauth.yaml, entitlements.yaml]
+    - name: Read rendered OAuth review payload for an additive composition overlay
+      ansible.builtin.set_fact:
+        rendered_org_oauth: '{{ lookup("file", grafana_org_output + "/oauth.yaml") | from_yaml }}'
+    - name: Overlay only org authorization fields, preserving existing SSO and custody
+      ansible.builtin.copy:
+        dest: '{{ grafana_org_output }}/oauth-values.yaml'
+        mode: '0600'
+        force: false
+        content: "{{ {'grafana':{'values':{'upstream':{'grafana.ini':{'auth.generic_oauth':{'role_attribute_path':rendered_org_oauth.role_attribute_path,'org_attribute_path':rendered_org_oauth.org_attribute_path,'org_mapping':rendered_org_oauth.org_mapping}}}}}} | to_nice_yaml }}"

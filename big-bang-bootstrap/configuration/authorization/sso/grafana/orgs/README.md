@@ -181,3 +181,12 @@ reuses the maintained basic/profile/email shared-scope mapper verifier. Optional
 scopes must be empty; keep requested OAuth scopes `openid profile email`. A second
 client or shared-scope `groups` mapper is refused before any grant. Read-only pilot
 preflight verified exactly this effective authority, not merely local mapper names.
+
+The renderer additionally emits `oauth-values.yaml`: a minimal Big Bang values
+map containing **only** `role_attribute_path`, `org_attribute_path`, `org_mapping`
+under Grafana's existing `upstream.grafana.ini.auth.generic_oauth`. It does not
+change provider enabled state, issuer/client, credentials, CA, PKCE, recovery or
+strict-mode settings. The approved composition must retain existing strict mode
+and role sync, and select this overlay only after exact scope/datasource checks.
+Platform-only rendering contains no tenant mappings; default rendering remains
+inert. No root or valuesFrom selection is changed by generating the file.
