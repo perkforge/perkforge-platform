@@ -102,3 +102,20 @@ kind: RoleBinding
 metadata: {name: external-secrets-installer, namespace: external-secrets}
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: external-secrets-installer}
 subjects: [{kind: ServiceAccount, name: external-secrets-installer, namespace: bigbang}]
+---
+# bb-common resolves the API Service target port during native Helm rendering.
+# Discovery only: no Service listing, writes, or wider installer authority.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: external-secrets-api-discovery, namespace: default}
+rules:
+- apiGroups: ['']
+  resources: [services]
+  resourceNames: [kubernetes]
+  verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: external-secrets-api-discovery, namespace: default}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: external-secrets-api-discovery}
+subjects: [{kind: ServiceAccount, name: external-secrets-installer, namespace: bigbang}]
