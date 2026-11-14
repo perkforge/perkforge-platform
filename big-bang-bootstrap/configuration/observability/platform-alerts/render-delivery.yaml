@@ -1,0 +1,26 @@
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    platform_delivery_render: false
+    platform_delivery_auth_identity: eso-platform-alerts
+    platform_delivery_secret: grafana-platform-alerts
+    platform_delivery_ca_configmap: query-openbao-ca
+  tasks:
+  - when: platform_delivery_render | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - platform_delivery_auth_identity == 'eso-platform-alerts'
+        - platform_delivery_secret == 'grafana-platform-alerts'
+        - platform_delivery_ca_configmap == 'query-openbao-ca'
+        - platform_delivery_monitoring_namespace is match('^[a-z][a-z0-9-]{0,62}$')
+        - platform_delivery_record is match('^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$')
+        - platform_delivery_bao_server is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+        - platform_delivery_expected_mounts | length > 0
+        - platform_delivery_output_dir == platform_delivery_output_dir | realpath
+    - ansible.builtin.template:
+        src: '{{ item }}.j2'
+        dest: '{{ platform_delivery_output_dir }}/{{ item }}'
+        mode: '0600'
+      loop: [consumers.yaml, values.yaml]

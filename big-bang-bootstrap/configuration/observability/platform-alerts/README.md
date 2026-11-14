@@ -92,3 +92,29 @@ Grafana13.2.1 import was verified with network disabled and synthetic paused
 rules; this is not a notification-delivery claim. `NoData` detects a wholly
 empty query, not an individual missing node among others; fleet-level expected
 node/collector inventory detection remains a separate improvement.
+
+## Additive delivery workflow
+
+`render-delivery.yaml` renders the dedicated `eso-platform-alerts` consumer and
+mount values from `platform_delivery_expected_mounts`, copied from the effective
+native Helm values. `activate.yaml` checks exact equality before reading the
+operator credential, checks path/Secret collisions, creates or verifies the
+exact OpenBao record/policy/role, then verifies ESO payload equality. It creates
+`grafana-platform-alerts-values`; it never selects a Flux root. Coordinate the
+`local-platform-alerts` root promotion with the active platform deployment.
+
+`packages/ntfy/auth/runtime/platform-audience.yaml` adds only grafana-platform
+(write) and corey-platform (read), both ordinary users, to platform-alerts. It
+compares prior native users and every current auth list, preserves all non-auth
+server settings, uses CAS, and accepts an already-written owner record only
+when exactly equal to the preserved credential. Re-running preparation reuses
+saved hashes/tokens rather than rotating them. A mismatch stops without overwrite.
+
+If Grafana activation stops after ESO creates its Secret, the target collision
+guard intentionally stops a blind retry. Read exact named Secret/payload and
+consumer identities privately, compare against rendered artifact, and resume
+only missing ConfigMap/root steps after equality verification. Never delete the
+Secret, rotate tokens or weaken collision guards to make a retry pass. If ntfy
+has already restarted with new users, its initial native-user guard also stops;
+verify the four exact users/ACLs and existing desired config instead of repeating
+account addition. No routine operation needs new cluster-wide grants.
