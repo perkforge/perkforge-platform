@@ -36,6 +36,7 @@
     - ansible.builtin.assert:
         that:
         - (canary_source.stdout | from_json).immutable
+        - (canary_source.stdout | from_json).data.keys() | list == ['.dockerconfigjson']
         - (canary_source.stdout | from_json).type == 'kubernetes.io/dockerconfigjson'
         - (canary_source.stdout | from_json).metadata.labels['perkforge.io/owner'] == 'logging-inputs-v1'
         - ((canary_source.stdout | from_json).data['.dockerconfigjson'] | b64decode | from_json).auths.keys() | list == ['registry1.dso.mil']
@@ -71,6 +72,8 @@
         that:
         - (canary_readback.stdout | from_json).data == canary_desired.data
         - (canary_readback.stdout | from_json).immutable
+        - (canary_readback.stdout | from_json).type == canary_desired.type
+        - (canary_readback.stdout | from_json).metadata.labels['perkforge.io/owner'] == 'logging-canary-registry-v1'
     always:
     - ansible.builtin.set_fact:
         canary_source: {}

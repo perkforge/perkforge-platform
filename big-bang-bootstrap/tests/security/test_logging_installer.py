@@ -34,6 +34,9 @@ class LoggingInstaller(unittest.TestCase):
   block=play['tasks'][1];self.assertTrue(block['no_log']);self.assertIn('not ansible_check_mode',block['when'])
   desired=next(t['ansible.builtin.set_fact']['canary_desired'] for t in block['block'] if 'canary_desired' in t.get('ansible.builtin.set_fact',{}))
   self.assertEqual(desired['metadata']['namespace'],'logging-pilot');self.assertEqual(desired['metadata']['name'],'private-registry');self.assertTrue(desired['immutable'])
+  assertions=[a for t in block['block'] for a in t.get('ansible.builtin.assert',{}).get('that',[])]
+  self.assertIn("(canary_source.stdout | from_json).data.keys() | list == ['.dockerconfigjson']",assertions)
+  self.assertIn('(canary_readback.stdout | from_json).type == canary_desired.type',assertions)
   commands=[t['ansible.builtin.command']['argv'] for t in block['block'] if 'ansible.builtin.command' in t]
   self.assertFalse(any(any(v in c for v in ['apply','patch','delete']) for c in commands))
 
