@@ -150,3 +150,9 @@ restore or additional restart is authorized by this plan. Parent #35 remains ope
 while its children do; planning completion must not be represented as implementation
 acceptance. The remaining budget assumptions require explicit review, not invented
 precision or a blanket “architecture complete” claim.
+
+## Capacity decision follow-up
+
+[Provisional capacity decision](capacity-decision.md) adds full shared-dependency
+accounting, an explicit assumption-based envelope and owner/trigger handoff. It
+does not claim an enforced aggregate ingress limit or representative load proof.
