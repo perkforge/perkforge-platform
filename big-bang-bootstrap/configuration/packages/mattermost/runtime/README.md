@@ -116,3 +116,53 @@ Closed bootstrap uses the native TeamSettings.EnableUserCreation and
 EmailSettings.EnableSignUpWithEmail fields (not ServiceSettings), both false.
 The single-replica lab also explicitly disables ClusterSettings.Enable. Verify
 the public client configuration after rollout before native owner linking.
+
+### Temporary native local-administration window
+
+`local-mode.yaml` is a default-off, check-mode-inert bridge for a separately
+approved bootstrap/recovery action. It changes only
+`MM_SERVICESETTINGS_ENABLELOCALMODE` and
+`MM_SERVICESETTINGS_LOCALMODESOCKETLOCATION` on the existing Mattermost CR.
+It uses cluster/CR UID, current resourceVersion and exact current environment
+array preconditions, retaining every unrelated environment entry and all labels.
+No Deployment, root selection, TCP listener, NetworkPolicy, account or credential
+is created by this helper. Native operator reconciliation owns the rollout.
+
+Supply verified `mattermost_runtime_cluster_uid` and `mattermost_runtime_cr_uid`,
+then explicitly set `mattermost_local_mode_apply=true`,
+`mattermost_local_mode_approved=true`, and
+`mattermost_local_mode_action=enabled` or `disabled`. The only allowed socket is
+`/var/tmp/mattermost-bootstrap.socket`. Enable waits for the operator-selected
+environment and Deployment rollout, then verifies a Unix socket owned by the app
+UID with mode0600. Disable forces the native CR flag false, waits for its actual
+rollout (not a possibly pending Helm operation), and verifies the socket is absent.
+An enable/readiness failure attempts this same disable operation before reporting
+failure. If cleanup itself fails, the run fails visibly: treat the privileged
+window as potentially open and complete disable before any further work.
+
+The successful enable invocation intentionally leaves the socket open for the
+approved operation. **The caller must use an outer `always`/`finally` cleanup to
+invoke disabled, including when custody or API work fails.** Separate command
+invocations cannot guarantee cleanup if their caller terminates. Do not run enable
+as a standalone unattended task, suspend GitOps, or claim expiry-based protection.
+GitOps may restore disabled settings; handle that by failing closed, not fighting
+reconciliation or silently re-enabling.
+
+Account identity/email are target inputs to the caller, not baked into this
+helper. With explicit owner approval, create the dedicated break-glass account
+through the native local `POST /api/v4/users` endpoint. Supply the protected JSON
+request on stdin through `kubectl exec -i` to native
+`curl --unix-socket /var/tmp/mattermost-bootstrap.socket --request POST
+--header 'Content-Type: application/json' --data-binary @- http://localhost/api/v4/users`.
+Never place its generated password in command arguments, environment overrides,
+Git, stdout, or chat; suppress/protect the response and verify only nonsecret
+identity fields. The account/password must have explicitly approved durable
+Bitwarden owner custody before reporting completion. No license/trial, public
+signup, password-login policy change, or grant to a normal user is implied.
+The caller must verify intended account privilege separately and leave global
+signup settings closed. Socket access itself is administrative authority.
+
+Offline verification executes real Ansible against a synthetic kubectl fixture:
+`python3 -m unittest discover -s big-bang-bootstrap/tests/bootstrap -p test_mattermost_local_mode.py -v`.
+It covers field preservation, guarded patch construction, failed-enable cleanup,
+disable verification, and check-mode inactivity. This is not live acceptance.

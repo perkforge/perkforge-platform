@@ -1,0 +1,80 @@
+# Internal include: caller must enforce approval, cluster identity and check-mode gates.
+- name: Read only the exact existing Mattermost object privately
+  ansible.builtin.command:
+    argv: [kubectl, -n, mattermost, get, mattermost, mattermost, -o, json]
+  register: local_cr_read
+  changed_when: false
+  no_log: true
+- no_log: true
+  block:
+  - ansible.builtin.set_fact:
+      local_cr: '{{ local_cr_read.stdout | from_json }}'
+      local_mode_names: [MM_SERVICESETTINGS_ENABLELOCALMODE, MM_SERVICESETTINGS_LOCALMODESOCKETLOCATION]
+  - ansible.builtin.set_fact:
+      local_env: '{{ local_cr.spec.mattermostEnv }}'
+  - ansible.builtin.assert:
+      that:
+      - local_cr.metadata.uid == mattermost_runtime_cr_uid
+      - local_cr.metadata.deletionTimestamp is not defined
+      - local_cr.spec.replicas | int == 1
+      - local_env | type_debug == 'list'
+      - local_env | map(attribute='name') | list | unique | length == local_env | length
+      - local_env | selectattr('name', 'equalto', 'MM_SERVICESETTINGS_ENABLELOCALMODE') | selectattr('valueFrom', 'defined') | list | length == 0
+      - local_env | selectattr('name', 'equalto', 'MM_SERVICESETTINGS_LOCALMODESOCKETLOCATION') | selectattr('valueFrom', 'defined') | list | length == 0
+  - ansible.builtin.set_fact:
+      local_next_env: '{{ (local_env | rejectattr("name", "in", local_mode_names) | list) + [{"name":"MM_SERVICESETTINGS_ENABLELOCALMODE", "value":local_mode_value}, {"name":"MM_SERVICESETTINGS_LOCALMODESOCKETLOCATION", "value":"/var/tmp/mattermost-bootstrap.socket"}] }}'
+  - name: Change only two environment fields with UID, resourceVersion and current-array tests
+    ansible.builtin.command:
+      argv: [kubectl, -n, mattermost, patch, mattermost, mattermost, --type=json, --patch-file=/dev/stdin]
+      stdin: '{{ [{"op":"test", "path":"/metadata/uid", "value":mattermost_runtime_cr_uid}, {"op":"test", "path":"/metadata/resourceVersion", "value":local_cr.metadata.resourceVersion}, {"op":"test", "path":"/spec/mattermostEnv", "value":local_env}, {"op":"replace", "path":"/spec/mattermostEnv", "value":local_next_env}] | to_json }}'
+    when: local_env != local_next_env
+- name: Wait until the native operator selects the intended local-mode value
+  ansible.builtin.command:
+    argv: [kubectl, -n, mattermost, get, deployment, mattermost, -o, json]
+  register: local_deployment
+  changed_when: false
+  no_log: true
+  until: >-
+    ((local_deployment.stdout | from_json).spec.template.spec.containers | selectattr('name', 'equalto', 'mattermost') | first).env
+    | selectattr('name', 'equalto', 'MM_SERVICESETTINGS_ENABLELOCALMODE') | map(attribute='value') | list == [local_mode_value]
+  retries: 60
+  delay: 3
+- name: Wait for the operator-owned deployment rollout, not Helm reconciliation
+  ansible.builtin.command:
+    argv: [kubectl, -n, mattermost, rollout, status, deployment/mattermost, --timeout=180s]
+  changed_when: false
+- name: Require the current Mattermost pod to be ready
+  ansible.builtin.command:
+    argv: [kubectl, -n, mattermost, get, pods, '-l=app=mattermost,installation.mattermost.com/installation=mattermost', -o, json]
+  register: local_pods_read
+  changed_when: false
+  no_log: true
+- no_log: true
+  block:
+  - ansible.builtin.set_fact:
+      local_pods: '{{ (local_pods_read.stdout | from_json)["items"] | rejectattr("metadata.deletionTimestamp", "defined") | list }}'
+  - ansible.builtin.assert:
+      that:
+      - local_pods | length == 1
+      - local_pods[0].status.conditions | selectattr('type', 'equalto', 'Ready') | map(attribute='status') | list == ['True']
+  - ansible.builtin.set_fact:
+      local_pod_name: '{{ local_pods[0].metadata.name }}'
+- name: Verify enabled socket is Unix-only and owner-only
+  ansible.builtin.command:
+    argv: [kubectl, -n, mattermost, exec, '{{ local_pod_name }}', -c, mattermost, --, sh, -ec, 'test -S /var/tmp/mattermost-bootstrap.socket; test "$(stat -c %a /var/tmp/mattermost-bootstrap.socket)" = 600; test "$(stat -c %u /var/tmp/mattermost-bootstrap.socket)" = "$(id -u)"']
+  changed_when: false
+  when: local_mode_value == 'true'
+- name: Verify disabled native socket is unavailable
+  ansible.builtin.command:
+    argv: [kubectl, -n, mattermost, exec, '{{ local_pod_name }}', -c, mattermost, --, sh, -ec, 'test ! -S /var/tmp/mattermost-bootstrap.socket; test ! -e /var/tmp/mattermost-bootstrap.socket']
+  changed_when: false
+  when: local_mode_value == 'false'
+- ansible.builtin.set_fact:
+    local_cr_read: {}
+    local_cr: {}
+    local_env: []
+    local_next_env: []
+    local_deployment: {}
+    local_pods_read: {}
+    local_pods: []
+  no_log: true

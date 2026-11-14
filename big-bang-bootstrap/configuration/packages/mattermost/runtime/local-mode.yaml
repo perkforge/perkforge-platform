@@ -1,0 +1,35 @@
+# Temporary native Unix socket bridge. No credential or account handling.
+- name: Guarded Mattermost local administration window
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    mattermost_local_mode_apply: false
+    mattermost_local_mode_approved: false
+    mattermost_local_mode_action: disabled
+  tasks:
+  - when: mattermost_local_mode_apply | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - mattermost_local_mode_approved | bool
+        - mattermost_local_mode_action in ['enabled', 'disabled']
+        - mattermost_runtime_cluster_uid | length > 0
+        - mattermost_runtime_cr_uid | length > 0
+    - ansible.builtin.command:
+        argv: [kubectl, get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: local_cluster
+      changed_when: false
+    - ansible.builtin.assert:
+        that: local_cluster.stdout == mattermost_runtime_cluster_uid
+    - block:
+      - ansible.builtin.include_tasks: local-mode-tasks.yaml
+        vars:
+          local_mode_value: '{{ "true" if mattermost_local_mode_action == "enabled" else "false" }}'
+      rescue:
+      - name: Force native disabled configuration after any enable or readiness failure
+        ansible.builtin.include_tasks: local-mode-tasks.yaml
+        vars:
+          local_mode_value: 'false'
+      - ansible.builtin.fail:
+          msg: Local-mode operation failed; disabled configuration and socket absence verified. Do not continue account setup.
