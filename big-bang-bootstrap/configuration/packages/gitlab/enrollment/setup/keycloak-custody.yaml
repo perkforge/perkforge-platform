@@ -1,0 +1,152 @@
+- ansible.builtin.import_playbook: keycloak-reader.yaml
+- name: Custody and accept only the owned disabled reader
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars: {run: false}
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ kc_reader_ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      timeout: 10
+  tasks:
+  - when: run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/activate-keycloak.py', locked-preflight, '{{ kc_setup_token_file }}', '{{ custody_token_file }}', '{{ kc_setup_receipt_file }}', '{{ custody_receipt_file }}', '{{ custody_inputs_file }}']
+      changed_when: false
+    - ansible.builtin.set_fact:
+        owned: '{{ lookup("file",kc_setup_receipt_file) | from_json }}'
+        operator_headers: {Authorization: 'Bearer {{ lookup("file",kc_setup_token_file) | trim }}'}
+        custody_headers: {X-Vault-Token: '{{ lookup("file",custody_token_file) | trim }}'}
+        activation_attempted: false
+        disable_result: not-attempted
+        issued_ttl: unknown
+        activation_stage: foreign-probe-preflight
+    - ansible.builtin.uri:
+        url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/groups/{{ foreign_group_id }}'
+        headers: '{{ operator_headers }}'
+      register: foreign_group
+    - ansible.builtin.assert:
+        that: foreign_group.json.id == foreign_group_id
+    - ansible.builtin.set_fact: {activation_stage: secret-custody}
+    - ansible.builtin.uri:
+        url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients/{{ owned.reader_client_id }}/client-secret'
+        headers: '{{ operator_headers }}'
+      register: client_secret
+    - ansible.builtin.assert:
+        that:
+        - client_secret.json.type == 'secret'
+        - client_secret.json.value is string
+        - client_secret.json.value | length >= 16
+        - client_secret.json.value | length <= 4096
+    - ansible.builtin.set_fact:
+        record_data:
+          client_id: 'perkforge-{{ kc_reader_context }}-identity-reader'
+          client_secret: '{{ client_secret.json.value }}'
+          setup_id: '{{ setup_id }}'
+          native_client_id: '{{ owned.reader_client_id }}'
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/platform/data/identity/keycloak/portal-membership-reader-v1'
+        ca_path: '{{ ca_file }}'
+        headers: '{{ custody_headers }}'
+        method: POST
+        body_format: json
+        body: {options: {cas: 0}, data: '{{ record_data }}'}
+      register: stored
+    - ansible.builtin.assert:
+        that: stored.json.data.version == 1
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/platform/data/identity/keycloak/portal-membership-reader-v1'
+        ca_path: '{{ ca_file }}'
+        headers: '{{ custody_headers }}'
+      register: observed
+    - ansible.builtin.assert:
+        that:
+        - observed.json.data.metadata.version == 1
+        - observed.json.data.data == record_data
+    - ansible.builtin.set_fact: {activation_stage: enable-owned-client, activation_attempted: true}
+    - ansible.builtin.uri:
+        url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients/{{ owned.reader_client_id }}'
+        headers: '{{ operator_headers }}'
+        method: PUT
+        body_format: json
+        body: {enabled: true}
+        status_code: 204
+    - ansible.builtin.uri:
+        url: '{{ kc_reader_origin }}/realms/{{ kc_reader_realm }}/protocol/openid-connect/token'
+        method: POST
+        body_format: form-urlencoded
+        body: {grant_type: client_credentials, client_id: '{{ record_data.client_id }}', client_secret: '{{ record_data.client_secret }}'}
+      register: issued
+    - ansible.builtin.set_fact:
+        issued_ttl: '{{ issued.json.expires_in if issued.json.expires_in is integer else "unknown" }}'
+    - ansible.builtin.assert:
+        that:
+        - issued.json.token_type | lower == 'bearer'
+        - issued.json.expires_in is integer
+        - issued.json.expires_in > 0
+        - issued.json.expires_in <= 300
+    - ansible.builtin.set_fact:
+        reader_headers: {Authorization: 'Bearer {{ issued.json.access_token }}'}
+        activation_stage: selected-read-acceptance
+    - ansible.builtin.uri:
+        url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/groups/{{ item }}'
+        headers: '{{ reader_headers }}'
+      loop: '{{ kc_reader_group_ids.values() | list }}'
+      register: selected
+    - ansible.builtin.assert:
+        that: item.json.id == item.item
+      loop: '{{ selected.results }}'
+    - ansible.builtin.uri:
+        url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/groups/{{ item }}/members?first=0&max=1'
+        headers: '{{ reader_headers }}'
+      loop: '{{ kc_reader_group_ids.values() | list }}'
+    - ansible.builtin.set_fact: {activation_stage: foreign-and-manage-denials}
+    - ansible.builtin.uri:
+        url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/groups/{{ foreign_group_id }}'
+        headers: '{{ reader_headers }}'
+        status_code: [403, 404]
+    - name: Empty representation cannot mutate pinned 26.8.1 group; require actual permission denial
+      ansible.builtin.uri:
+        url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/groups/{{ item }}'
+        headers: '{{ reader_headers }}'
+        method: PUT
+        body_format: json
+        body: {}
+        status_code: 403
+      loop: '{{ kc_reader_group_ids.values() | list }}'
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/record-kc-custody.py', '{{ custody_receipt_file }}', '{{ setup_id }}', ReaderAccessVerified, verified, not-attempted, '{{ issued_ttl }}']
+      changed_when: true
+    rescue:
+    - ansible.builtin.set_fact: {disable_result: not-attempted}
+    - when: activation_attempted | default(false)
+      block:
+      - ansible.builtin.uri:
+          url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients/{{ owned.reader_client_id }}'
+          headers: '{{ operator_headers }}'
+          method: PUT
+          body_format: json
+          body: {enabled: false}
+          status_code: 204
+      - ansible.builtin.uri:
+          url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients/{{ owned.reader_client_id }}'
+          headers: '{{ operator_headers }}'
+        register: disabled
+      - ansible.builtin.assert:
+          that:
+          - disabled.json.id == owned.reader_client_id
+          - disabled.json.enabled is sameas false
+      - ansible.builtin.set_fact: {disable_result: verified-disabled}
+      rescue:
+      - ansible.builtin.set_fact: {disable_result: unverified}
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/record-kc-custody.py', '{{ custody_receipt_file }}', '{{ setup_id }}', ManualRecovery, '{{ activation_stage | default("preflight") }}', '{{ disable_result }}', '{{ issued_ttl | default("unknown") }}']
+      failed_when: false
+    - ansible.builtin.fail:
+        msg: Activation failed; custody and issued-token residual require review; no record deletion or rotation.
