@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.48.0](https://github.com/perkforge/perkforge-platform/compare/v0.47.0...v0.48.0) (2026-11-15)
+
+
+### Features
+
+* **identity:** add gated Portal onboarding source stage A ([98d80ca](https://github.com/perkforge/perkforge-platform/commit/98d80cae1289f0b88e00701b2819462f2a4f97b1))
+* **identity:** add paired gated Portal onboarding overlay ([2c99aab](https://github.com/perkforge/perkforge-platform/commit/2c99aabb1fdbbb7b499e2b319a69bf0408807ac1))
+* **identity:** pair normalized membership release source ([dc8cf4d](https://github.com/perkforge/perkforge-platform/commit/dc8cf4d59a0c46e7d2f2390ab2844ce4cb4983e5))
+* **identity:** prepublish paired membership release root ([75b5ef0](https://github.com/perkforge/perkforge-platform/commit/75b5ef03f0795fe326281ea631f010fc8184c439))
+* **identity:** stage foundation-only adoption before onboarding ([5e5f6c3](https://github.com/perkforge/perkforge-platform/commit/5e5f6c318bc2da1905733b3eae930c3e1149a2f8))
+* **identity:** stage foundation-only adoption before onboarding ([9327c88](https://github.com/perkforge/perkforge-platform/commit/9327c885d2772afba13f7c6002e8f91114d8a498))
+
+
+### Bug Fixes
+
+* **identity:** hold existing onboarding root before source transition ([36e1406](https://github.com/perkforge/perkforge-platform/commit/36e1406fdd6d12efcce8bc9cf57936fdb1f8ac5d))
+* **identity:** pair final pod-budget guarded membership stage ([100ab18](https://github.com/perkforge/perkforge-platform/commit/100ab188fef4790de16706d37dfc2a0f2098f4bf))
+* **identity:** pair native-health corrected membership source ([37c7843](https://github.com/perkforge/perkforge-platform/commit/37c7843b2e48dfd10b05519ae9802f257b7c838b))
+* **identity:** pin corrected foundation and attestation stage ([a1703ed](https://github.com/perkforge/perkforge-platform/commit/a1703edf6d253fc78058924b20cf55c7cba10a3e))
+* **identity:** pin corrected runtime while preserving staged root hold ([1c660b7](https://github.com/perkforge/perkforge-platform/commit/1c660b74a47c1428d538086a08755ff5f7ea4966))
+* **identity:** pin evidence-preserving foundation and pilot stages ([7adee38](https://github.com/perkforge/perkforge-platform/commit/7adee381c1bf7cf1267923b17ae3f8827fcd7980))
+* **identity:** pin final pod-budget guarded held runtime stage ([b939447](https://github.com/perkforge/perkforge-platform/commit/b939447948e5c6d6ab6e86eae49f2c646da2ce12))
+* **identity:** pin guarded initializer stage A ([5218175](https://github.com/perkforge/perkforge-platform/commit/521817502fee046158f1651c92246b845033861a))
+* **identity:** pin guarded initializer stage B ([eadd4ad](https://github.com/perkforge/perkforge-platform/commit/eadd4ad0943abb8ede1b329a60a91e88adfbf6f1))
+* **identity:** pin metadata-preserving held stage A ([c73bb7d](https://github.com/perkforge/perkforge-platform/commit/c73bb7db3126a4d21680df9765bba4ce2f49ccf2))
+* **identity:** pin metadata-preserving release stage B ([7e58f0d](https://github.com/perkforge/perkforge-platform/commit/7e58f0df1c148ae200486e28e716eb66e084ffe9))
+* **identity:** pin separately gated membership stage ([3fc86fc](https://github.com/perkforge/perkforge-platform/commit/3fc86fcc37f482b343be252ddf6c4cfc25db9be5))
+* **identity:** select corrected Flux health source stages ([9e7ebf7](https://github.com/perkforge/perkforge-platform/commit/9e7ebf707885667823df0710ee24fd5df796eae5))
+* **identity:** select guarded initializer source stages ([429e81d](https://github.com/perkforge/perkforge-platform/commit/429e81d8585d043d997aceb5ab1ccc904ea8a660))
+* **identity:** select native-health corrected foundation stage A ([f06d546](https://github.com/perkforge/perkforge-platform/commit/f06d5463b3fc8174c41981f22012072ac21b1f9a))
+* **identity:** stage corrected artifact with all children held ([973c885](https://github.com/perkforge/perkforge-platform/commit/973c885e794bc1c3aa6fd57a4a9d0c11939aecd2))
+* **identity:** stage corrected held and gated phase checkpoints ([b2504f7](https://github.com/perkforge/perkforge-platform/commit/b2504f784a4a91d2326a9b8eeca4af0901415867))
+* **identity:** stage old-artifact child pause checkpoint ([a263453](https://github.com/perkforge/perkforge-platform/commit/a263453ab59e1f1394f477551957e1de2696db31))
+* **identity:** stage old-artifact child pause checkpoint ([889001c](https://github.com/perkforge/perkforge-platform/commit/889001ceac25f358eb4bcd4a43e33452bbf58270))
+* **identity:** staged GitOps hold and reviewed runtime pins ([9c4274a](https://github.com/perkforge/perkforge-platform/commit/9c4274ab49ba5767273da9996ec88f858f0a22f0))
+
 ## [0.47.0](https://github.com/perkforge/perkforge-platform/compare/v0.46.0...v0.47.0) (2026-11-15)
 
 
