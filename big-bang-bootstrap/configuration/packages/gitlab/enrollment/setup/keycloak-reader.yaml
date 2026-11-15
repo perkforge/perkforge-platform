@@ -21,10 +21,12 @@
         argv: [python3, '{{ playbook_dir }}/validate-kc-reader.py', '{{ kc_setup_token_file }}', '{{ kc_setup_receipt_file }}', '{{ kc_setup_inputs_file }}', --locked]
       changed_when: false
     - ansible.builtin.set_fact:
+        identity_contract: '{{ lookup("identity_context",kc_reader_context) }}'
+    - ansible.builtin.set_fact:
         setup_stage: native-preflight
-        reader_name: 'perkforge-{{ kc_reader_context }}-identity-reader'
-        policy_name: 'perkforge-{{ kc_reader_context }}-reader-actor'
-        permission_name: 'perkforge-{{ kc_reader_context }}-reader-groups'
+        reader_name: '{{ identity_contract.client_id }}'
+        policy_name: '{{ identity_contract.actor_policy_name }}'
+        permission_name: '{{ identity_contract.permission_name }}'
     - ansible.builtin.uri:
         url: '{{ kc_reader_origin }}/admin/serverinfo'
         headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
@@ -54,7 +56,7 @@
         path: '{{ kc_setup_receipt_file }}'
       register: receipt_stat
     - ansible.builtin.set_fact:
-        setup_receipt: "{{ lookup('file',kc_setup_receipt_file) | from_json if receipt_stat.stat.exists else {'schema':1,'context':kc_reader_context,'source_revision':kc_reader_source_revision,'origin':kc_reader_origin,'realm':kc_reader_realm,'group_ids':kc_reader_group_ids,'reader_client_id':'','service_account_id':'','permissions_client_id':'','policy_id':'','permission_id':'','permissions_enable_requested':false,'permissions_observed_enabled':false,'stage':'Prepared'} }}"
+        setup_receipt: "{{ lookup('file',kc_setup_receipt_file) | from_json if receipt_stat.stat.exists else {'schema':1,'context_digest':identity_contract.digest,'context':kc_reader_context,'source_revision':kc_reader_source_revision,'origin':kc_reader_origin,'realm':kc_reader_realm,'group_ids':kc_reader_group_ids,'reader_client_id':'','service_account_id':'','permissions_client_id':'','policy_id':'','permission_id':'','permissions_enable_requested':false,'permissions_observed_enabled':false,'stage':'Prepared'} }}"
     - ansible.builtin.uri:
         url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients?clientId={{ reader_name }}&max=2'
         headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}

@@ -45,12 +45,12 @@
         - client_secret.json.value | length <= 4096
     - ansible.builtin.set_fact:
         record_data:
-          client_id: 'perkforge-{{ kc_reader_context }}-identity-reader'
+          client_id: '{{ identity_contract.client_id }}'
           client_secret: '{{ client_secret.json.value }}'
           setup_id: '{{ setup_id }}'
           native_client_id: '{{ owned.reader_client_id }}'
     - ansible.builtin.uri:
-        url: '{{ bao_origin }}/v1/platform/data/identity/keycloak/portal-membership-reader-v1'
+        url: '{{ bao_origin }}/v1/platform/data/{{ identity_contract.record }}'
         ca_path: '{{ ca_file }}'
         headers: '{{ custody_headers }}'
         method: POST
@@ -60,7 +60,7 @@
     - ansible.builtin.assert:
         that: stored.json.data.version == 1
     - ansible.builtin.uri:
-        url: '{{ bao_origin }}/v1/platform/data/identity/keycloak/portal-membership-reader-v1'
+        url: '{{ bao_origin }}/v1/platform/data/{{ identity_contract.record }}'
         ca_path: '{{ ca_file }}'
         headers: '{{ custody_headers }}'
       register: observed

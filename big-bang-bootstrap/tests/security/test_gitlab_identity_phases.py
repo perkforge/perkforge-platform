@@ -1,9 +1,10 @@
-import copy,datetime as dt,hashlib,json,os,ssl,subprocess,tempfile,threading,unittest
+import copy,importlib.util,datetime as dt,hashlib,json,os,ssl,subprocess,tempfile,threading,unittest
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from urllib.parse import urlsplit,parse_qs
 ROOT=Path(__file__).resolve().parents[2]
 PHASE=ROOT/'configuration/packages/gitlab/enrollment/phases'
+spec=importlib.util.spec_from_file_location('context_contract',PHASE.parent/'identity_context.py');context_contract=importlib.util.module_from_spec(spec);spec.loader.exec_module(context_contract)
 class IdentityPhases(unittest.TestCase):
  def test_native_attestor_cas_pending_and_retry_fences(self):
   with tempfile.TemporaryDirectory(prefix='identity-phases-') as directory:
@@ -61,9 +62,9 @@ class IdentityPhases(unittest.TestCase):
    r,w,d=run();self.assertEqual(r.returncode,0,(w/'run.log').read_text() if (w/'run.log').exists() else r.stderr);self.assertEqual(state['patches'],1);self.assertFalse(json.loads(r.stdout)['membership_ready']);first=d['identity_invocation']
    # Same attempt is not silently overwritten with a fresh observation.
    r,_,_=run();self.assertNotEqual(r.returncode,0);self.assertEqual(state['patches'],1)
-   state.update(member=True,pending=True);r,w,d=run({'identity_retry_generation':1,'identity_previous_invocation':first});self.assertEqual(r.returncode,0,(w/'run.log').read_text());self.assertEqual(json.loads(r.stdout)['pending_identity_count'],1);self.assertEqual(state['patches'],2);second=d['identity_invocation']
+   state.update(member=True,pending=True);r,w,d=run({'identity_context_digest':context_contract.derive('portal')['digest'],'identity_retry_generation':1,'identity_previous_invocation':first});self.assertEqual(r.returncode,0,(w/'run.log').read_text());self.assertEqual(json.loads(r.stdout)['pending_identity_count'],1);self.assertEqual(state['patches'],2);second=d['identity_invocation']
    # A new authorized retry uses the same code SHA but a new invocation, and notices approval.
-   state['pending']=False;r,w,d=run({'identity_retry_generation':2,'identity_previous_invocation':second});self.assertEqual(r.returncode,0,(w/'run.log').read_text());self.assertEqual(json.loads(r.stdout)['pending_identity_count'],0);third=d['identity_invocation'];self.assertEqual(state['patches'],3)
+   state['pending']=False;r,w,d=run({'identity_context_digest':context_contract.derive('portal')['digest'],'identity_retry_generation':2,'identity_previous_invocation':second});self.assertEqual(r.returncode,0,(w/'run.log').read_text());self.assertEqual(json.loads(r.stdout)['pending_identity_count'],0);third=d['identity_invocation'];self.assertEqual(state['patches'],3)
    for flags in [{'race':True},{'foreign':True}]:
     state.update(flags);r,_,_=run({'identity_retry_generation':3,'identity_previous_invocation':third});self.assertNotEqual(r.returncode,0);self.assertEqual(state['patches'],3);state.update({k:False for k in flags})
    r,_,_=run({'identity_retry_generation':4,'identity_previous_invocation':third},desired=False);self.assertNotEqual(r.returncode,0);self.assertEqual(state['patches'],3)

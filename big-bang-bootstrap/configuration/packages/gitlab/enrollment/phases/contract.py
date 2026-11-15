@@ -4,6 +4,7 @@ import argparse,datetime as dt,hashlib,json,os,re,sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from verify_group_paths import safe
+from identity_context import derive
 UUID=r'[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}'
 ROLES={'tenant-admin','tenant-developer','tenant-viewer'}
 def unique(pairs):
@@ -25,13 +26,16 @@ def age(value):
  if t.tzinfo is None or not 0<=(dt.datetime.now(dt.timezone.utc)-t).total_seconds()<=300:raise ValueError('stale evidence')
 def inputs(path,phase):
  d=read(path)
- patterns={'identity_context':r'[a-z][a-z0-9-]{0,30}','identity_source_revision':r'[a-f0-9]{40}','identity_platform_revision':r'[a-f0-9]{40}','identity_contract_sha256':r'[a-f0-9]{64}','identity_invocation':r'[a-f0-9]{64}','identity_previous_invocation':r'(?:[a-f0-9]{64})?','identity_gitlab_origin':r'https://[A-Za-z0-9.-]+(?::[0-9]+)?','identity_keycloak_origin':r'https://[A-Za-z0-9.-]+(?::[0-9]+)?(?:/auth)?','identity_keycloak_realm':r'[A-Za-z0-9_-]{1,64}','identity_kubernetes_origin':r'https://[A-Za-z0-9.-]+(?::[0-9]+)?','identity_receipt_uid':UUID,'identity_receipt_namespace':r'tenant-identity-writer','identity_receipt_name':r'[a-z][a-z0-9-]{0,30}-identity-evidence'}
+ patterns={'identity_context':r'[a-z][a-z0-9-]{0,30}','identity_source_revision':r'[a-f0-9]{40}','identity_platform_revision':r'[a-f0-9]{40}','identity_contract_sha256':r'[a-f0-9]{64}','identity_invocation':r'[a-f0-9]{64}','identity_previous_invocation':r'(?:[a-f0-9]{64})?','identity_gitlab_origin':r'https://[A-Za-z0-9.-]+(?::[0-9]+)?','identity_keycloak_origin':r'https://[A-Za-z0-9.-]+(?::[0-9]+)?(?:/auth)?','identity_keycloak_realm':r'[A-Za-z0-9_-]{1,64}','identity_kubernetes_origin':r'https://[A-Za-z0-9.-]+(?::[0-9]+)?','identity_receipt_uid':UUID,'identity_receipt_namespace':r'[a-z][a-z0-9-]{0,62}','identity_receipt_name':r'[a-z][a-z0-9-]{0,30}-identity-evidence'}
+ if isinstance(d,dict) and 'identity_context_digest' in d:patterns['identity_context_digest']=r'[a-f0-9]{64}'
  if not isinstance(d,dict) or set(d)!=set(patterns)|{'identity_run','identity_scope','identity_retry_generation','identity_group_ids','identity_membership_recovery_verified'}:raise ValueError('unexpected fields')
  for k,p in patterns.items():
   if not isinstance(d[k],str) or not re.fullmatch(p,d[k]):raise ValueError('nonliteral field')
  if type(d['identity_membership_recovery_verified']) is not bool or (phase=='memberships' and d['identity_membership_recovery_verified'] is not True):raise ValueError('recovery prerequisite')
  if phase not in ('attest','memberships') or d['identity_run'] is not True or d['identity_scope']!='gitlab-identity-'+phase+'-v1':raise ValueError('phase scope')
- if d['identity_context'] in ('platform','system','default','tenants') or d['identity_receipt_name']!=d['identity_context']+'-identity-evidence':raise ValueError('context binding')
+ selected=derive(d['identity_context'])
+ if d['identity_receipt_namespace']!=selected['writer_namespace'] or d['identity_receipt_name']!=selected['evidence_name']:raise ValueError('context binding')
+ if d.get('identity_context_digest')!=selected['digest'] and not (d['identity_context']=='portal' and 'identity_context_digest' not in d):raise ValueError('context digest')
  if type(d['identity_retry_generation']) is not int or not 0<=d['identity_retry_generation']<=1000000:raise ValueError('retry generation')
  if d['identity_previous_invocation']=='' and d['identity_retry_generation']!=0:raise ValueError('prior attempt required')
  g=d['identity_group_ids']
@@ -43,6 +47,7 @@ def inputs(path,phase):
 def envelope(d,path):
  e=read(path)
  binding={'schema':1,'context':d['identity_context'],'source_revision':d['identity_source_revision'],'platform_revision':d['identity_platform_revision'],'contract_sha256':d['identity_contract_sha256'],'invocation':d['identity_invocation'],'previous_invocation':d['identity_previous_invocation'],'retry_generation':d['identity_retry_generation'],'receipt_uid':d['identity_receipt_uid']}
+ if 'identity_context_digest' in d:binding['context_digest']=d['identity_context_digest']
  if not isinstance(e,dict) or set(e)!=set(binding)|{'captured_at','snapshot','identities'} or any(e.get(k)!=v for k,v in binding.items()):raise ValueError('envelope binding')
  age(e['captured_at']);s=e['snapshot']
  sb={'schema':1,'stage':'SnapshotVerified','context':binding['context'],'source_revision':binding['source_revision'],'contract_sha256':binding['contract_sha256'],'origin':d['identity_keycloak_origin']}
