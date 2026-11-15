@@ -70,3 +70,21 @@ and [pinned same-key serialization](https://github.com/kubernetes-sigs/controlle
 The first old-pin hold and later corrected-source hold are separate selections.
 Skipping the first verification could let an already running old reconcile see
 newly admitted source shapes. This document authorizes no live transition.
+
+### Safe selection when the hold path is new
+
+Inspect every consumer of the enclosing GitRepository and the currently selected
+path before changing its revision. A commit can contain a held overlay and an
+unselected released overlay; changing the revision first while retaining the old
+onboarding path can select the wrong stage. At the verified pre-child checkpoint,
+if the current artifact lacks the new hold path, select that path first and wait
+for the new root generation to report the expected missing-path ArtifactFailed
+against the unchanged old artifact. The pinned controller returns before apply
+or prune on this failure. Only then select the reviewed old-pin hold commit.
+Continue with the suspension/quiescence proof above; do not treat the deliberate
+missing-path failure itself as suspension. Preserve existing workloads throughout.
+
+The pilot repository also feeds the Velero backend HelmChart with Revision
+reconciliation. Its unchanged chart bytes can still cause a metadata-equivalent
+Helm reconciliation when the source revision changes. Verify consumer templates,
+values and hooks before selection; do not promise that no other reconciler runs.
