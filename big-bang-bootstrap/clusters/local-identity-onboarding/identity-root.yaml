@@ -31,9 +31,10 @@ spec:
   healthChecks:
   - {apiVersion: kustomize.toolkit.fluxcd.io/v1, kind: Kustomization, name: identity-portal-foundation, namespace: flux-system}
   - {apiVersion: kustomize.toolkit.fluxcd.io/v1, kind: Kustomization, name: identity-portal-attest, namespace: flux-system}
+  - {apiVersion: kustomize.toolkit.fluxcd.io/v1, kind: Kustomization, name: identity-portal-memberships, namespace: flux-system}
   dependsOn:
   - name: identity-portal-foundation-controls
     readyExpr: >-
-      dep.spec.commonMetadata.annotations['platform.perkforge.io/foundation-sha256'] == '340c989400984b5587c19363e3d64e3adfdc0b0b155112c380183e5c749a70c3'
+      dep.spec.commonMetadata.annotations['platform.perkforge.io/foundation-sha256'] == '85cf7ecff82a67d9c8ac09b4a9b602c7f6df154871bae57116e71af3414559ca'
       && dep.metadata.generation == dep.status.observedGeneration
       && dep.status.conditions.exists(e, e.type == 'Ready' && e.status == 'True')
