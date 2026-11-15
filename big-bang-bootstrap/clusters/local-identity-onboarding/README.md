@@ -7,8 +7,8 @@ policy, alerts and workload values remain unchanged. No credential material or
 bootstrap security grant is included here.
 
 Prepublish/review the paired enrollment and platform stages before live work.
-Enrollment A `0732cff9aff9815d1bedec4b94ff2883ce75b577` holds memberships;
-B `a1812ec14b8955e760e26166e33c99f38c4be66e` releases only after actual issuer/SSA
+Enrollment A `b222f888581225f6dc0741bd0a64c3ca4183383b` holds memberships;
+B `d341e062d78ce983510cee933912516e065f8d66` releases only after actual issuer/SSA
 acceptance. Both use the same released executable pins and Job inputs/names.
 Preserve both commits through a normal merge commit, not squash/rebase.
 
@@ -35,3 +35,9 @@ receipt lifetime, use a new explicit attempt rather than weaken freshness.
 Failed readiness retains claim/receipts and does not trigger blind rollback or
 old-Job replay. See the paired enrollment `docs/identity/portal-activation.md` for
 exact executable provenance, budgets and remaining acceptance limits.
+
+First select corrected H through local-identity-child-pause and verify all three
+children held on the corrected source. Only then select A at this path to resume
+foundation/attest with memberships held. H remains pinned independently at B.
+The new Job suffix is 74a1fd77a43038f5; no predecessor receipt existed, so retry
+generation zero and empty predecessor remain intentional.
