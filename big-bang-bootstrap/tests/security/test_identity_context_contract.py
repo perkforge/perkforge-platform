@@ -11,9 +11,11 @@ class Contract(unittest.TestCase):
   self.assertEqual(c.policy_text('portal'),(P.parent/'setup/keycloak-custody-policy.hcl').read_text())
   self.assertEqual(d['writer_namespace'],'tenant-identity-writer')
   self.assertEqual(d['evidence_name'],'portal-identity-evidence')
+  self.assertEqual(d['declaration_reconciler'],'identity-declaration-reconciler')
+  self.assertEqual(d['evidence_policy'],'identity-evidence-fields')
  def test_alternate_isolated_shared_gitlab(self):
   a,b=c.derive('portal'),c.derive('workshop')
-  for k in ('client_id','record','bootstrap_policy','eso_role','eso_service_account','writer_namespace','attestor_namespace','writer_eso_role','reader_eso_role','evidence_name','digest'):
+  for k in ('client_id','record','bootstrap_policy','eso_role','eso_service_account','writer_namespace','attestor_namespace','writer_eso_role','reader_eso_role','evidence_name','group_reconciler','attestor_reconciler','declaration_reconciler','declaration_policy','evidence_policy','phase_prefix','digest'):
    self.assertNotEqual(a[k],b[k],k)
   for k in ('gitlab_writer_record','gitlab_reader_record'):self.assertEqual(a[k],b[k])
   self.assertNotIn('portal',c.policy_text('workshop'))
@@ -23,7 +25,7 @@ class Contract(unittest.TestCase):
   for bad in ('', 'platform','tenants','system','default','Portal','../portal','foo/bar','foo*','{{lookup(x)}}','a'*32,'foo-',None,{}):
    with self.assertRaises(ValueError):c.derive(bad)
   d=c.derive('a'*31)
-  for key in ('writer_namespace','attestor_namespace','writer_eso_role','reader_eso_role','eso_role','evidence_name'):self.assertLessEqual(len(d[key]),63)
+  for key in ('writer_namespace','attestor_namespace','writer_eso_role','reader_eso_role','eso_role','evidence_name','group_reconciler','attestor_reconciler','declaration_reconciler','declaration_policy','evidence_policy','phase_prefix'):self.assertLessEqual(len(d[key]),63)
 
 class PhaseBinding(unittest.TestCase):
  def test_alternate_namespace_digest_and_recomputed_crossed_invocation(self):
