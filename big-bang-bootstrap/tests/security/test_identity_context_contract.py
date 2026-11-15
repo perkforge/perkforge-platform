@@ -41,4 +41,24 @@ class PhaseBinding(unittest.TestCase):
    missing=dict(d);missing.pop('identity_context_digest')
    with self.assertRaises(ValueError):check(missing)
 
+class LegacyPreparation(unittest.TestCase):
+ def test_only_portal_preparation_may_omit_digest(self):
+  import json,tempfile
+  spec=importlib.util.spec_from_file_location('reader_guard',P.parent/'setup/validate-kc-reader.py');guard=importlib.util.module_from_spec(spec);spec.loader.exec_module(guard)
+  with tempfile.TemporaryDirectory() as directory:
+   root=Path(directory);token=root/'token';ca=root/'ca';receipt=root/'receipt';inputs=root/'inputs'
+   for f in (token,ca):f.write_text('OFFLINE');f.chmod(0o600)
+   groups={role:f'00000000-0000-4000-8000-{i:012d}' for i,role in enumerate(('tenant-admin','tenant-developer','tenant-viewer'),1)}
+   for context in ('portal','workshop'):
+    d={'kc_reader_context':context,'kc_reader_source_revision':'a'*40,'kc_reader_origin':'https://keycloak.example.test/auth','kc_reader_realm':'example','kc_reader_ca_file':str(ca),'kc_reader_run':True,'kc_reader_scope':'canonical-group-reader-setup-v1','kc_reader_group_ids':groups,'kc_reader_allow_enable_permissions':False}
+    r={'schema':1,'context':context,'source_revision':'a'*40,'origin':d['kc_reader_origin'],'realm':'example','group_ids':groups,'stage':'PendingCustody','permissions_enable_requested':True,'permissions_observed_enabled':True,**{k:f'00000000-0000-4000-8000-{i:012d}' for i,k in enumerate(('reader_client_id','service_account_id','permissions_client_id','policy_id','permission_id'),10)}}
+    inputs.write_text(json.dumps(d));inputs.chmod(0o600);receipt.write_text(json.dumps(r));receipt.chmod(0o600);before=receipt.read_bytes()
+    if context=='portal':guard.validate(str(token),str(receipt),str(inputs),'--validate')
+    else:
+     with self.assertRaises(ValueError):guard.validate(str(token),str(receipt),str(inputs),'--validate')
+    self.assertEqual(receipt.read_bytes(),before)
+    r['context_digest']=c.derive(context)['digest'];receipt.write_text(json.dumps(r));guard.validate(str(token),str(receipt),str(inputs),'--validate')
+    r['context_digest']='0'*64;receipt.write_text(json.dumps(r))
+    with self.assertRaises(ValueError):guard.validate(str(token),str(receipt),str(inputs),'--validate')
+
 if __name__=='__main__':unittest.main()
