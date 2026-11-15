@@ -1,10 +1,10 @@
 # Existing identity-root hold
 
-This source-owned intermediate retains the current reviewed enrollment A
-`dd675360a87bbd1df545e75f522666e9c6b22e6b`, keeps the foundation root active,
+This reviewed second holding stage selects corrected enrollment A
+`8b04be30c091eb92a2bc029945182ff0179f3e4e`, keeps the foundation root active,
 and declares the existing `flux-system/identity-portal` with `spec.suspend: true`.
-Its remaining specification is byte-equivalent after YAML parsing to platform
-A `5218175` (the previously selected stage). The full application composition,
+Its remaining specification preserves the previously selected platform A
+`5218175`, with only the reviewed foundation readiness hash updated. The full application composition,
 service account, dependencies, source, health checks and permission boundaries
 are preserved. No Pod or Job is selected directly.
 
@@ -25,9 +25,8 @@ are preserved. No Pod or Job is selected directly.
   This stage is appropriate only at the verified pre-child checkpoint. Stop
   and reassess if any child/workload exists; do not delete it as implicit cleanup.
 - Resume only through a separately reviewed active onboarding composition and
-  explicit workload-start notice after all runtime gates. The stale A health
-  expectations here are intentional while suspended, not a new-source readiness
-  claim. A later pin change requires coherent reviewed expectations before resume.
+  explicit workload-start notice after all runtime gates. The A health expectations remain explicit and must match before resume;
+  suspension itself is not a new-source readiness claim.
 
 The pinned [Flux kustomize-controller v1.9.5 reconciliation source](https://github.com/fluxcd/kustomize-controller/blob/v1.9.5/internal/controller/kustomization_controller.go#L168-L172)
 returns for a suspended Kustomization before resolving its source, dependencies,
@@ -50,3 +49,24 @@ do not substitute an arbitrary sleep or stale Ready condition.
 
 See [deferred status handling](https://github.com/fluxcd/kustomize-controller/blob/v1.9.5/internal/controller/kustomization_controller.go#L1192-L1215)
 and [pinned same-key serialization](https://github.com/kubernetes-sigs/controller-runtime/blob/v0.24.1/pkg/internal/controller/controller.go#L272-L280).
+
+### Ordered source transitions
+
+1. First select this path at immutable platform ancestor
+   `5992baf62f69d74ee22de75af473dae401d3e72e`. That version retains the old
+   enrollment pin `dd675360a87bbd1df545e75f522666e9c6b22e6b`. Confirm native
+   suspension and zero phase children/Jobs before moving further.
+2. Then select this path at the reviewed corrected A platform stage. This
+   version selects corrected enrollment A and keeps `suspend: true`. Verify
+   foundation/admission readiness and the native kubelet preflight separately.
+3. Only after those gates and the promised workload-start notice select the
+   corresponding `local-identity-onboarding` A stage. Its explicit
+   `suspend: false` resumes the existing parent; membership remains held in
+   enrollment A. Do not rely on omission of the SSA-managed suspend field.
+4. Select onboarding B only after real nonempty evidence survives metadata SSA
+   and all freshness/identity gates pass. B changes only onboarding source,
+   readiness hash and membership health selection; HOLD/foundation retain A.
+
+The first old-pin hold and later corrected-source hold are separate selections.
+Skipping the first verification could let an already running old reconcile see
+newly admitted source shapes. This document authorizes no live transition.

@@ -1,7 +1,7 @@
 import copy,pathlib,subprocess,unittest,yaml
 ROOT=pathlib.Path(__file__).resolve().parents[2]
-A='dd675360a87bbd1df545e75f522666e9c6b22e6b'
-HASH='57dcd74a31370e56fb626a23dd6c610c8baf2927837852222bd64b1fdacf54bb'
+A='8b04be30c091eb92a2bc029945182ff0179f3e4e'
+HASH='788e75e3e56e1fdcfbe7709ed7fbebcc8b80675b2b63952410d070e568268a74'
 def render(path):
  return {(o['apiVersion'],o['kind'],o['metadata'].get('namespace'),o['metadata']['name']):o for o in yaml.safe_load_all(subprocess.check_output(['kubectl','kustomize',str(ROOT/'clusters'/path)],text=True)) if o}
 class Hold(unittest.TestCase):
@@ -20,4 +20,22 @@ class Hold(unittest.TestCase):
   foundation_key=key[:-1]+('identity-portal-foundation-root',)
   self.assertEqual(b[foundation_key],render('local-identity-foundation')[foundation_key])
   self.assertNotIn('suspend',b[foundation_key]['spec'])
+ def test_stage_pin_and_suspend_matrix(self):
+  trees={name:render(name) for name in ('local-identity-foundation','local-identity-hold','local-identity-onboarding')}
+  source=('source.toolkit.fluxcd.io/v1','GitRepository','flux-system','tenant-enrollments')
+  root=('kustomize.toolkit.fluxcd.io/v1','Kustomization','flux-system','identity-portal')
+  self.assertEqual(trees['local-identity-foundation'][source]['spec']['ref'],{'commit':A})
+  self.assertEqual(trees['local-identity-hold'][source]['spec']['ref'],{'commit':A})
+  self.assertNotIn(root,trees['local-identity-foundation'])
+  hold=trees['local-identity-hold'][root];active=copy.deepcopy(trees['local-identity-onboarding'][root])
+  self.assertIs(hold['spec']['suspend'],True);self.assertIs(active['spec']['suspend'],False)
+  pin=trees['local-identity-onboarding'][source]['spec']['ref']['commit']
+  self.assertIn(pin,(A,'4bd027f1b0bc8f352f56cf470786a5021536e813'))
+  if pin!=A:
+   self.assertEqual(active['spec']['healthChecks'].pop()['name'],'identity-portal-memberships')
+   expr=active['spec']['dependsOn'][0]['readyExpr']
+   self.assertIn('7a9b8e12167ef2ab03356ec993fbb08b1c95083e98168fdccc2954b732098754',expr)
+   active['spec']['dependsOn'][0]['readyExpr']=expr.replace('7a9b8e12167ef2ab03356ec993fbb08b1c95083e98168fdccc2954b732098754',HASH)
+  active['spec']['suspend']=True
+  self.assertEqual(active,hold)
 if __name__=='__main__':unittest.main()

@@ -1,6 +1,6 @@
 import copy,pathlib,subprocess,unittest,yaml
 ROOT=pathlib.Path(__file__).resolve().parents[2]
-A='dd675360a87bbd1df545e75f522666e9c6b22e6b'
+A='8b04be30c091eb92a2bc029945182ff0179f3e4e'
 def render(path):
  return {(o['apiVersion'],o['kind'],o['metadata'].get('namespace'),o['metadata']['name']):o for o in yaml.safe_load_all(subprocess.check_output(['kubectl','kustomize',str(ROOT/'clusters'/path)],text=True)) if o}
 class FoundationOnly(unittest.TestCase):
