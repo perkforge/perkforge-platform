@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.0](https://github.com/perkforge/perkforge-platform/compare/v0.45.0...v0.46.0) (2026-11-15)
+
+
+### Features
+
+* **identity:** guard bootstrap custody issuer ([#490](https://github.com/perkforge/perkforge-platform/issues/490)) ([2197ba3](https://github.com/perkforge/perkforge-platform/commit/2197ba397a4d050a472a98d98e5a199f82d6ec91))
+
 ## [0.45.0](https://github.com/perkforge/perkforge-platform/compare/v0.44.0...v0.45.0) (2026-11-15)
 
 
