@@ -53,7 +53,10 @@
 - ansible.builtin.assert:
     that:
     - service_user.json.id is match('^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$')
-    - service_user.json.serviceAccountClientId == reader_name
+    # The native owned-client endpoint binds this user; the API omits the
+    # internal serviceAccountClientId field. Retain stable receipt UUID below.
+    - service_user.json.username == "service-account-" + reader_name
+    - service_user.json.serviceAccountClientId is not defined or service_user.json.serviceAccountClientId == reader_name
     - not setup_receipt.service_account_id or setup_receipt.service_account_id == service_user.json.id
 - ansible.builtin.set_fact:
     setup_receipt: '{{ setup_receipt | combine({"service_account_id":service_user.json.id}) }}'

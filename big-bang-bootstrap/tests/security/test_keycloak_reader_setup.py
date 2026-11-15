@@ -47,7 +47,7 @@ class ReaderSetup(unittest.TestCase):
       if name=='realm-management':return self.reply(200,[{'id':ids['management'],'clientId':name}])
       return self.reply(200,[state['client']] if state['client'] else [])
      if p==base+'/clients/'+ids['reader']:return self.reply(200,state['client'])
-     if p==base+'/clients/'+ids['reader']+'/service-account-user':return self.reply(200,{'id':ids['service'],'serviceAccountClientId':'perkforge-portal-identity-reader'})
+     if p==base+'/clients/'+ids['reader']+'/service-account-user':return self.reply(200,{'id':ids['service'],'username':'service-account-perkforge-portal-identity-reader'})
      if p==base+'/users/'+ids['service']+'/groups':return self.reply(200,[])
      if p==base+'/users/'+ids['service']+'/role-mappings/clients/'+ids['management']+'/composite':return self.reply(200,[{'name':'view-users'}] if state['bad_role'] else [])
      authz=base+'/clients/'+ids['permissions']+'/authz/resource-server'
