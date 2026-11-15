@@ -62,7 +62,7 @@ class Issuer(unittest.TestCase):
    state['mode']='cluster';self.assertNotEqual(run('--apply').returncode,0);self.assertEqual(state['root_calls'],0);self.assertEqual(state['writes'],[]);receipt.unlink()
    state['mode']='nonroot';self.assertNotEqual(run('--apply').returncode,0);self.assertEqual(state['writes'],[]);receipt.unlink()
    state['mode']='';state['policies']['eso-identity-reader']='foreign';self.assertNotEqual(run('--apply').returncode,0);self.assertEqual(state['writes'],[]);receipt.unlink();state['policies']={}
-   p=run('--apply');self.assertEqual(p.returncode,0,p.stdout+p.stderr);self.assertEqual(len(state['policies']),5);self.assertEqual(len(state['roles']),3);self.assertEqual(state['mint'],2);self.assertEqual(json.loads(receipt.read_text())['stage'],'Issued');self.assertNotEqual(run('--apply').returncode,0)
+   p=run('--apply');self.assertEqual(p.returncode,0,p.stdout+p.stderr);self.assertEqual(len(state['policies']),5);self.assertEqual(len(state['roles']),3);self.assertEqual(state['mint'],2);self.assertEqual(json.loads(receipt.read_text())['stage'],'Issued');before=receipt.read_bytes();self.assertNotEqual(run('--apply').returncode,0);self.assertEqual(receipt.read_bytes(),before)
    p=run('--cleanup');self.assertEqual(p.returncode,0,p.stdout+p.stderr);self.assertFalse(state['tokens']);self.assertEqual(json.loads(receipt.read_text())['stage'],'Cleaned');self.assertEqual(len(state['policies']),5)
    for mode in ('extra','lost'):
     receipt.unlink()

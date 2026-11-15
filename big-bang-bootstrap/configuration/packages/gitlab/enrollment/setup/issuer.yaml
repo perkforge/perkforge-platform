@@ -15,9 +15,11 @@
   - when: run | bool and not ansible_check_mode
     no_log: true
     block:
+    - ansible.builtin.set_fact: {issuer_started: false}
     - ansible.builtin.command:
         argv: [python3, '{{ playbook_dir }}/issuer-state.py', locked, '{{ issuer_root_file }}', '{{ issuer_receipt_file }}', '{{ issuer_inputs_file }}']
       changed_when: true
+    - ansible.builtin.set_fact: {issuer_started: true}
     - name: Verify public cluster identity before reading root credential
       ansible.builtin.uri:
         url: '{{ bao_origin }}/v1/sys/health'
@@ -108,9 +110,10 @@
     rescue:
     - name: Revoke only verified newly returned accessors; unknown issuance remains manual
       ansible.builtin.include_tasks: issuer-cleanup.yaml
-      when: issuer_headers is defined
+      when: issuer_started | default(false) and issuer_headers is defined
     - ansible.builtin.command:
         argv: [python3, '{{ playbook_dir }}/issuer-state.py', record, '{{ issuer_receipt_file }}', '{{ setup_id }}', ManualRecovery]
       failed_when: false
+      when: issuer_started | default(false)
     - ansible.builtin.fail:
         msg: Issuer partial effects retained; no automatic remint, root or policy deletion.
