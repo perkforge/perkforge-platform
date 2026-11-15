@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.47.0](https://github.com/perkforge/perkforge-platform/compare/v0.46.0...v0.47.0) (2026-11-15)
+
+
+### Features
+
+* **identity:** bind custody issuer to selected context ([c3d2dbd](https://github.com/perkforge/perkforge-platform/commit/c3d2dbde21721067dcd46228ae04ced320440bb4))
+* **identity:** centralize selected-context custody contract ([f1a8a56](https://github.com/perkforge/perkforge-platform/commit/f1a8a56837357888d6d9a143cda58b7f8ec62967))
+
+
+### Bug Fixes
+
+* **identity:** bind service account through owned native endpoint ([9cd7073](https://github.com/perkforge/perkforge-platform/commit/9cd7073b6c8ffd01d690cacab8fa489f0706396c))
+* **identity:** namespace global reconciler and admission identities ([a886222](https://github.com/perkforge/perkforge-platform/commit/a8862222d1da8f1247ea865b137a0dc5a5e820ab))
+* **identity:** refresh short operator sessions safely ([8e823e2](https://github.com/perkforge/perkforge-platform/commit/8e823e2ac66949fa0474effc7ca01b49c04173ae))
+* **identity:** refresh short operator sessions safely ([3faa4e3](https://github.com/perkforge/perkforge-platform/commit/3faa4e3a0e4cfc4d560d97c80963952bdbd88636))
+* **identity:** validate native permission client representation ([44c1908](https://github.com/perkforge/perkforge-platform/commit/44c1908e5dc1a70f2319200b55d2522e508f46a0))
+
 ## [0.46.0](https://github.com/perkforge/perkforge-platform/compare/v0.45.0...v0.46.0) (2026-11-15)
 
 
