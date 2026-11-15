@@ -75,6 +75,27 @@ class NativeNtfyAuth(deployment.NtfyDeployment):
             request(a['token'],'tenant-other-alerts',post=True,ok=False)
             request(a['token'],'tenant-other-alerts',ok=False)
 
+        # Native rotation against only this synthetic fixture DB. A replaced
+        # declared token must not silently retain access after restart.
+        info=json.loads(run('podman','inspect',name).stdout)[0]
+        config_path=Path(next(m['Source'] for m in info['Mounts'] if m['Destination']=='/etc/ntfy/server.yml'))
+        config=yaml.safe_load(config_path.read_text())
+        rotated=accounts(); rotated[0]['token']='tk_'+'c'*29
+        config.update(render(rotated))
+        config_path.write_text(yaml.safe_dump(config))
+        run('podman','restart',name)
+        for _ in range(30):
+            probe=run('podman','exec',name,'wget','-qO-','https://localhost:8443/v1/health',check=False)
+            if probe.returncode==0:break
+            time.sleep(1)
+        self.assertEqual(probe.returncode,0)
+        request(rotated[0]['token'],'tenant-portal-alerts',post=True)
+        request(rotated[0]['token'],'tenant-portal-alerts',ok=False)
+        request(rotated[0]['token'],'tenant-other-alerts',post=True,ok=False)
+        request(pub['token'],'tenant-portal-alerts',post=True,ok=False,status=401)
+        request(sub['token'],'tenant-portal-alerts')
+        pub=rotated[0]
+
         # Native declarative offboarding against only this synthetic fixture DB.
         info=json.loads(run('podman','inspect',name).stdout)[0]
         config_path=Path(next(m['Source'] for m in info['Mounts'] if m['Destination']=='/etc/ntfy/server.yml'))

@@ -53,6 +53,9 @@ ready. No live access or deletion is authorized by this document.
 Verification: six checks pass including an opt-in native isolated fixture proving
 publisher write/subscriber read, inverse/cross-topic denial, and removal of a
 synthetic managed subscriber on restart invalidating its old token while retaining
-the publisher. Token rotation and real membership/offboarding remain unverified.
+the publisher. A synthetic publisher token replacement also proves the new token
+works after restart, the old token returns 401, the subscriber stays usable, and
+write-only/exact-topic scope remains enforced. Real credential rotation and
+membership/offboarding remain unverified; these checks do not authorize them.
 Run `RUN_NTFY_DEPLOYMENT_NATIVE=1 PYTHONPATH=big-bang-bootstrap/tests python3 -m
 unittest configuration.test_ntfy_auth -v` with the pre-pulled pinned official image.
