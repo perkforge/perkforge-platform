@@ -19,6 +19,6 @@ spec:
   dependsOn:
   - name: identity-portal-foundation-controls
     readyExpr: >-
-      dep.spec.commonMetadata.annotations['platform.perkforge.io/foundation-sha256'] == '340c989400984b5587c19363e3d64e3adfdc0b0b155112c380183e5c749a70c3'
+      dep.spec.commonMetadata.annotations['platform.perkforge.io/foundation-sha256'] == '17f937b0fb0882681b2feb209063f40bacfe76d406d13e45a232a4db06215475'
       && dep.metadata.generation == dep.status.observedGeneration
       && dep.status.conditions.exists(e, e.type == 'Ready' && e.status == 'True')

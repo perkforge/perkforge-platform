@@ -7,8 +7,8 @@ policy, alerts and workload values remain unchanged. No credential material or
 bootstrap security grant is included here.
 
 Prepublish/review the paired enrollment and platform stages before live work.
-Enrollment A `dd675360a87bbd1df545e75f522666e9c6b22e6b` holds memberships;
-B `aba4d7caaeca1b81eeab0d74ed9d9a1bbcc7b711` releases only after actual issuer/SSA
+Enrollment A `0732cff9aff9815d1bedec4b94ff2883ce75b577` holds memberships;
+B `a1812ec14b8955e760e26166e33c99f38c4be66e` releases only after actual issuer/SSA
 acceptance. Both use the same released executable pins and Job inputs/names.
 Preserve both commits through a normal merge commit, not squash/rebase.
 
