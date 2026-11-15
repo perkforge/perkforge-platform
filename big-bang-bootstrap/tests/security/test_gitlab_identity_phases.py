@@ -30,7 +30,7 @@ class IdentityPhases(unittest.TestCase):
       if p.endswith('/members'):return self.respond(200,[{'id':subject,'enabled':True}] if state['member'] and role=='tenant-developer' else [])
       return self.respond(200,{'id':groups[role],'path':'/tenants/portal/'+roles[role],'subGroupCount':0})
      if p.startswith('/api/v4/'):
-      if self.headers.get('PRIVATE-TOKEN')!='OFFLINE-READER':return self.respond(403,{})
+      if self.headers.get('PRIVATE-TOKEN')!='OFFLINE-READER.native_01-02':return self.respond(403,{})
       if p.endswith('/personal_access_tokens/self'):return self.respond(200,{'active':True,'revoked':False,'scopes':['read_api'],'expires_at':'2099-01-01'})
       if p.endswith('/users'):return self.respond(200,[] if state['pending'] else [{'id':21,'is_admin':False,'state':'active','identities':[{'provider':'openid_connect','extern_uid':subject}]}])
      if p=='/api/v1/namespaces/tenant-identity-writer/configmaps/portal-identity-evidence':
@@ -53,7 +53,7 @@ class IdentityPhases(unittest.TestCase):
     nonlocal serial
     serial+=1;w=root/str(serial);w.mkdir(mode=0o700);d={**base,**(extra or {})};material={k:v for k,v in d.items() if k not in ('identity_invocation','identity_scope','identity_run')};d['identity_invocation']=hashlib.sha256(json.dumps(material,sort_keys=True,separators=(',',':')).encode()).hexdigest()
     if desired:state['desired']=d['identity_invocation']
-    files={'phase-inputs.json':json.dumps(d),'gitlab-reader':'OFFLINE-READER','kc-client-id':'snapshot-reader','kc-client-secret':'OFFLINE-KC-SECRET','api-token':'OFFLINE-API','lab-ca.crt':(root/'ca').read_text(),'api-ca.crt':(root/'ca').read_text()}
+    files={'phase-inputs.json':json.dumps(d),'gitlab-reader':'OFFLINE-READER.native_01-02','kc-client-id':'snapshot-reader','kc-client-secret':'OFFLINE-KC-SECRET','api-token':'OFFLINE-API','lab-ca.crt':(root/'ca').read_text(),'api-ca.crt':(root/'ca').read_text()}
     for name,value in files.items():(w/name).write_text(value);(w/name).chmod(0o600)
     r=subprocess.run(['bash',str(PHASE/'run-attestor.sh'),mode,str(w/'phase-inputs.json'),str(w)],capture_output=True,text=True,timeout=90,env={**os.environ,'ANSIBLE_LOCAL_TEMP':str(w/'local'),'ANSIBLE_REMOTE_TEMP':str(w/'remote')})
     self.assertNotIn('OFFLINE-',r.stdout+r.stderr)

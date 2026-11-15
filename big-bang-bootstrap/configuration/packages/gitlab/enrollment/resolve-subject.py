@@ -143,7 +143,7 @@ def main(argv=None):
     owned = os.fstat(fd)
     try:
         token = read_private(args.token, 4096).decode('ascii').strip()
-        if not re.fullmatch(r'[A-Za-z0-9_-]{8,4096}', token):
+        if not re.fullmatch(r'[A-Za-z0-9_.-]{8,4096}', token):
             raise ValueError('invalid reader token encoding')
         result = resolve(data, token)
         encoded = (json.dumps(result, sort_keys=True) + '\n').encode()
