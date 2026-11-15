@@ -18,7 +18,7 @@ recommended_lab:
     image_digest: sha256:70664ebcfa1100361b5bdc28bbf06fdbe08db2dc4ad7bd14de33c5e05fe8ea8e
     instances: 1
     requests:
-      cpu: '1'
+      cpu: 250m
       memory: 2Gi
     limits:
       cpu: '2'
