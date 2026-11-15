@@ -1,0 +1,24 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: identity-portal
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 6m
+  path: ./clusters/local-identity-portal
+  sourceRef: {kind: GitRepository, name: tenant-enrollments}
+  serviceAccountName: identity-declaration-reconciler
+  prune: false
+  force: false
+  wait: false
+  suspend: true
+  healthChecks:
+  - {apiVersion: kustomize.toolkit.fluxcd.io/v1, kind: Kustomization, name: identity-portal-foundation, namespace: flux-system}
+  - {apiVersion: kustomize.toolkit.fluxcd.io/v1, kind: Kustomization, name: identity-portal-attest, namespace: flux-system}
+  dependsOn:
+  - name: identity-portal-foundation-controls
+    readyExpr: >-
+      dep.spec.commonMetadata.annotations['platform.perkforge.io/foundation-sha256'] == '57dcd74a31370e56fb626a23dd6c610c8baf2927837852222bd64b1fdacf54bb'
+      && dep.metadata.generation == dep.status.observedGeneration
+      && dep.status.conditions.exists(e, e.type == 'Ready' && e.status == 'True')

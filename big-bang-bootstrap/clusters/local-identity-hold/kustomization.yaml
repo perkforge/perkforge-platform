@@ -1,0 +1,12 @@
+# Hold an existing phase root before selecting corrected enrollment source.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../local-identity-foundation
+- identity-hold.yaml
+patches:
+- target: {group: source.toolkit.fluxcd.io, kind: GitRepository, name: tenant-enrollments, namespace: flux-system}
+  patch: |-
+    - op: replace
+      path: /spec/ref
+      value: {commit: dd675360a87bbd1df545e75f522666e9c6b22e6b}
