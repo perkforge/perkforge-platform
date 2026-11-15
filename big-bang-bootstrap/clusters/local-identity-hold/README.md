@@ -1,7 +1,7 @@
 # Existing identity-root hold
 
 This reviewed second holding stage selects corrected enrollment A
-`8b04be30c091eb92a2bc029945182ff0179f3e4e`, keeps the foundation root active,
+`da172740021a61752901828e29a9b35e53fddddc`, keeps the foundation root active,
 and declares the existing `flux-system/identity-portal` with `spec.suspend: true`.
 Its remaining specification preserves the previously selected platform A
 `5218175`, with only the reviewed foundation readiness hash updated. The full application composition,
