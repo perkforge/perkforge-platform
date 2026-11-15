@@ -1,7 +1,7 @@
 # Foundation-only adoption checkpoint
 
 This optional intermediate root inherits all current application resources and
-selects enrollment stage A `dd675360a87bbd1df545e75f522666e9c6b22e6b`.
+selects enrollment stage A `0732cff9aff9815d1bedec4b94ff2883ce75b577`.
 It adds only `identity-portal-foundation-root`, which reconciles the reviewed
 admission and controls stages. It does **not** create `identity-portal`, any
 phase Kustomization, initializer or Job. Membership remains held in stage A.
