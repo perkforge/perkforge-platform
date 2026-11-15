@@ -9,13 +9,14 @@ wrapper, wildcard ACL, auth-mount creation/reconfiguration or root rotation exis
 
 `run-issuer.sh --validate ROOT_FILE NEW_RECEIPT INPUTS.json` is network-inert.
 `--apply` is separately gated; default/check are inert. Inputs are exactly
-run:true, scope:identity-custody-issuer-v1, setup_id:64hex, bao_origin HTTPS,
+run:true, identity_context:canonical slug, scope:identity-custody-issuer-v1,
+setup_id:64hex, bao_origin HTTPS,
 public ca_file and expected cluster_id UUID. Protected ownership/ancestry,
 nonblocking native receipt lock and literal schema are required. Public health
 checks exact OpenBao2.7.2 cluster before reading/sending root. Source preflight
 verifies the existing kubernetes-eso mount/config; it does not rebuild it.
 
-## Fixed effects
+## Fixed effects (Portal names shown; selected-context derivation below)
 
 - Setup ACLs: tenant-identity-bootstrap-gitlab-v1 (two exact GL records) and
   tenant-identity-bootstrap-keycloak-v1 (one exact KC record), byte-exact existing
@@ -61,3 +62,28 @@ Actual local Ansible/synthetic TLS fixtures use fake credentials and cover fixed
 scope, foreign objects, health-before-root, default/validation inertness, extra
 policy refusal, exact accessor cleanup and lost second mint. This is not live
 root-use, ESO authentication or GitLab/Keycloak acceptance.
+
+## Selected-context authority (source-only)
+
+New issuance requires an explicit `identity_context` in the protected literal
+selection. The shared `identity_context.py` contract derives the Keycloak custody
+record, bootstrap/ESO policy, and all three consumers' ESO role/service-account and
+namespace bindings. No caller-supplied policy text is accepted. Portal preserves
+its existing authority names and exact ACL bytes. Other contexts receive distinct
+Keycloak authority and distinct ESO roles; the GitLab parent writer and instance
+reader records/policies remain intentionally shared platform authority.
+
+New receipts use schema 2 and bind the selected context and contract digest before
+any native request. A crossed context or changed contract fails closed; this is an
+integrity binding, not independent authorization. Cleanup derives its expected
+native token policy from that same receipt and still checks exact accessor,
+display name, expiry and non-root ownership before revocation. Legacy schema-1
+receipts mean Portal only. Omitted context is permitted only for cleanup of such
+an existing matching receipt, never for new issuance. No receipt migration or
+automatic remint is performed.
+
+Use a separate private attempt directory for each issuance; the fixed token-file
+names deliberately prevent adopting or overwriting a previous attempt. Source
+selection does not authorize another context's live policies, credentials or
+membership. Initializer/runtime/admission and GitOps source ownership remain
+separate reviewed components. This change performs no live issuance or rollout.

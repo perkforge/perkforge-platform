@@ -18,6 +18,12 @@
     - ansible.builtin.command:
         argv: [python3, '{{ playbook_dir }}/issuer-state.py', locked-cleanup, '{{ issuer_root_file }}', '{{ issuer_receipt_file }}', '{{ issuer_inputs_file }}']
       changed_when: false
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/issuer-state.py', contract, '{{ issuer_receipt_file }}', '{{ setup_id }}']
+      register: issuer_context_result
+      changed_when: false
+    - ansible.builtin.set_fact:
+        issuer_contract: '{{ issuer_context_result.stdout | from_json }}'
     - ansible.builtin.uri:
         url: '{{ bao_origin }}/v1/sys/health'
       register: health
