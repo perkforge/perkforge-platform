@@ -61,7 +61,7 @@
     - ansible.builtin.copy:
         dest: '{{ phase_work }}/envelope.json'
         mode: '0600'
-        content: "{{ {'schema':1,'context':identity_context,'source_revision':identity_source_revision,'platform_revision':identity_platform_revision,'contract_sha256':identity_contract_sha256,'invocation':identity_invocation,'previous_invocation':identity_previous_invocation,'retry_generation':identity_retry_generation,'receipt_uid':identity_receipt_uid,'captured_at':now(utc=true,fmt='%Y-%m-%dT%H:%M:%SZ'),'snapshot':observed_snapshot,'identities':observed_identities} | to_json }}"
+        content: "{{ {'schema':1,'context':identity_context,'source_revision':identity_source_revision,'platform_revision':identity_platform_revision,'contract_sha256':identity_contract_sha256,'invocation':identity_invocation,'previous_invocation':identity_previous_invocation,'retry_generation':identity_retry_generation,'receipt_uid':identity_receipt_uid,'captured_at':now(utc=true,fmt='%Y-%m-%dT%H:%M:%SZ'),'snapshot':observed_snapshot,'identities':observed_identities} | combine({'context_digest':identity_context_digest} if identity_context_digest is defined else {}) | to_json }}"
     - ansible.builtin.command:
         argv: [python3, '{{ playbook_dir }}/contract.py', --phase, attest, --inputs, '{{ phase_inputs }}', --envelope, '{{ phase_work }}/envelope.json']
       changed_when: false

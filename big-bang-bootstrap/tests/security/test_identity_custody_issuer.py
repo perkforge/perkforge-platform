@@ -4,6 +4,7 @@ from pathlib import Path
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 ROOT=Path(__file__).resolve().parents[2];S=ROOT/'configuration/packages/gitlab/enrollment/setup'
 class Issuer(unittest.TestCase):
+ context="portal"
  def test_fixed_scope_and_uncertainty(self):
   with tempfile.TemporaryDirectory(prefix='issuer-fixture-') as directory:
    r=Path(directory);subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN=localhost','-addext','subjectAltName=DNS:localhost','-keyout',str(r/'key'),'-out',str(r/'ca')],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=True);(r/'ca').chmod(0o644)
@@ -53,7 +54,7 @@ class Issuer(unittest.TestCase):
       assert body['accessor']!='ROOT-ACCESSOR';state['tokens'].pop(body['accessor'],None);state['writes'].append('revoke');return self.reply(204)
      raise AssertionError('unexpected write '+p)
    server=ThreadingHTTPServer(('127.0.0.1',0),H);tls=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);tls.load_cert_chain(r/'ca',r/'key');server.socket=tls.wrap_socket(server.socket,server_side=True);threading.Thread(target=server.serve_forever,daemon=True).start();self.addCleanup(server.server_close);self.addCleanup(server.shutdown)
-   origin='https://localhost:'+str(server.server_port);token=r/'root';token.write_text('FAKE-ROOT');token.chmod(0o600);inputs=r/'inputs';inputs.write_text(json.dumps({'run':True,'scope':'identity-custody-issuer-v1','setup_id':setup,'bao_origin':origin,'ca_file':str(r/'ca'),'cluster_id':cluster}));inputs.chmod(0o600);receipt=r/'receipt'
+   origin='https://localhost:'+str(server.server_port);token=r/'root';token.write_text('FAKE-ROOT');token.chmod(0o600);inputs=r/'inputs';inputs.write_text(json.dumps({'identity_context':self.context,'run':True,'scope':'identity-custody-issuer-v1','setup_id':setup,'bao_origin':origin,'ca_file':str(r/'ca'),'cluster_id':cluster}));inputs.chmod(0o600);receipt=r/'receipt'
    def run(mode):
     p=subprocess.run(['bash',str(S/'run-issuer.sh'),mode,str(token),str(receipt),str(inputs)],capture_output=True,text=True,timeout=120,env={**os.environ,'ANSIBLE_LOCAL_TEMP':str(r/'local'),'ANSIBLE_REMOTE_TEMP':str(r/'remote')})
     for secret in ('FAKE-ROOT','FAKE-CHILD','ACCESSOR-'):self.assertNotIn(secret,p.stdout+p.stderr)
@@ -63,6 +64,14 @@ class Issuer(unittest.TestCase):
    state['mode']='nonroot';self.assertNotEqual(run('--apply').returncode,0);self.assertEqual(state['writes'],[]);receipt.unlink()
    state['mode']='';state['policies']['eso-identity-reader']='foreign';self.assertNotEqual(run('--apply').returncode,0);self.assertEqual(state['writes'],[]);receipt.unlink();state['policies']={}
    p=run('--apply');self.assertEqual(p.returncode,0,p.stdout+p.stderr);self.assertEqual(len(state['policies']),5);self.assertEqual(len(state['roles']),3);self.assertEqual(state['mint'],2);self.assertEqual(json.loads(receipt.read_text())['stage'],'Issued');before=receipt.read_bytes();self.assertNotEqual(run('--apply').returncode,0);self.assertEqual(receipt.read_bytes(),before)
+   current=json.loads(inputs.read_text());crossed=dict(current,identity_context='orchard' if self.context=='portal' else 'portal');inputs.write_text(json.dumps(crossed));before_writes=list(state['writes']);self.assertNotEqual(run('--cleanup').returncode,0);self.assertEqual(state['writes'],before_writes);inputs.write_text(json.dumps(current))
+   suffix='' if self.context=='portal' else '-'+self.context
+   for kind in ('writer','reader','keycloak'):
+    role=state['roles']['eso-identity-'+kind+suffix]
+    namespace=('tenant-identity-'+('writer' if kind=='writer' else 'attestor')) if self.context=='portal' else ('tenant-identity-'+self.context+'-'+('writer' if kind=='writer' else 'attestor'))
+    self.assertEqual(role['bound_service_account_namespaces'],[namespace]);self.assertEqual(role['bound_service_account_names'],['eso-identity-'+kind+suffix])
+   kc_policy='tenant-identity-bootstrap-keycloak'+suffix+'-v1'
+   self.assertIn('identity/keycloak/'+self.context+'-membership-reader-v1',state['policies'][kc_policy]);self.assertEqual(json.loads(receipt.read_text())['identity_context'],self.context)
    p=run('--cleanup');self.assertEqual(p.returncode,0,p.stdout+p.stderr);self.assertFalse(state['tokens']);self.assertEqual(json.loads(receipt.read_text())['stage'],'Cleaned');self.assertEqual(len(state['policies']),5)
    for mode in ('extra','lost'):
     receipt.unlink()
@@ -72,3 +81,6 @@ class Issuer(unittest.TestCase):
     self.assertNotEqual(run('--apply').returncode,0);self.assertEqual(json.loads(receipt.read_text())['stage'],'ManualRecovery');self.assertNotEqual(run('--apply').returncode,0)
     self.assertEqual(len(state['tokens']),1 if mode=='lost' else 0)
     self.assertTrue(all(x.startswith(('mint:','revoke')) for x in state['writes']))
+
+class Alternate(Issuer):
+ context="orchard"

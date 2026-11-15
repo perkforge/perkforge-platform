@@ -9,7 +9,7 @@
     method: POST
     body_format: json
     body:
-      policies: ['tenant-identity-bootstrap-{{ purpose }}-v1']
+      policies: ['{{ issuer_contract.token_policies[purpose] }}']
       no_default_policy: true
       display_name: 'identity-{{ setup_id }}-{{ purpose }}'
       ttl: 3600
@@ -28,7 +28,7 @@
   register: child_identity
 - ansible.builtin.assert:
     that:
-    - child_identity.json.data.policies == ['tenant-identity-bootstrap-' + purpose + '-v1']
+    - child_identity.json.data.policies == [issuer_contract.token_policies[purpose]]
     - child_identity.json.data.identity_policies | default([]) == []
     - child_identity.json.data.renewable is sameas false
     - child_identity.json.data.period | default(0) == 0

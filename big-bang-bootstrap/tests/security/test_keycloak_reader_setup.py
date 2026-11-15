@@ -1,11 +1,14 @@
 """Default-off setup against a pinned-shape synthetic TLS API, never real permissions."""
-import copy,json,os,ssl,subprocess,tempfile,threading,unittest
+import copy,importlib.util,json,os,ssl,subprocess,tempfile,threading,unittest
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from urllib.parse import urlsplit,parse_qs
 ROOT=Path(__file__).resolve().parents[2];SETUP=ROOT/'configuration/packages/gitlab/enrollment/setup'
+spec=importlib.util.spec_from_file_location("contract",SETUP.parent/"identity_context.py");contract=importlib.util.module_from_spec(spec);spec.loader.exec_module(contract)
 class ReaderSetup(unittest.TestCase):
+ context="portal"
  def test_disabled_setup_idempotency_partial_and_foreign_denials(self):
+  context=self.context;selected=contract.derive(context)
   with tempfile.TemporaryDirectory(prefix='kc-reader-setup-') as directory:
    root=Path(directory);subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN=localhost','-addext','subjectAltName=DNS:localhost','-keyout',str(root/'key'),'-out',str(root/'ca')],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);(root/'ca').chmod(0o644)
    ids={k:f'00000000-0000-4000-8000-{i:012d}' for i,k in enumerate(['permissions','reader','service','management','policy','permission'],10)};roles={'tenant-admin':'admins','tenant-developer':'developers','tenant-viewer':'viewers'};groups={r:f'11111111-1111-4111-8111-{i:012d}' for i,r in enumerate(roles,1)}
@@ -24,9 +27,12 @@ class ReaderSetup(unittest.TestCase):
     def do_GET(self):
      if self.path.startswith('/v1/'):
       assert self.headers.get('X-Vault-Token')=='OFFLINE-BAO'
-      if self.path=='/v1/auth/token/lookup-self':return self.reply(200,{'data':{'policies':['root'] if state['fail_mode']=='root' else ['tenant-identity-bootstrap-keycloak-v1'],'identity_policies':[],'renewable':False,'ttl':1800}})
-      if '/sys/policies/' in self.path:return self.reply(200,{'data':{'policy':(SETUP/'keycloak-custody-policy.hcl').read_text()}})
-      if '/metadata/' in self.path:return self.reply(404) if state['record'] is None else self.reply(200,{'data':{}})
+      if self.path=='/v1/auth/token/lookup-self':return self.reply(200,{'data':{'policies':['root'] if state['fail_mode']=='root' else [contract.derive('other')['bootstrap_policy'] if state['fail_mode']=='cross-policy' else selected['bootstrap_policy']],'identity_policies':[],'renewable':False,'ttl':1800}})
+      if '/sys/policies/' in self.path:
+       assert self.path=='/v1/sys/policies/acl/'+selected['bootstrap_policy'];return self.reply(200,{'data':{'policy':contract.policy_text('other' if state['fail_mode']=='cross-acl' else context)}})
+      if '/metadata/' in self.path:
+       assert self.path=='/v1/platform/metadata/'+selected['record'];return self.reply(404) if state['record'] is None else self.reply(200,{'data':{}})
+      assert self.path=='/v1/platform/data/'+selected['record']
       return self.reply(200,{'data':{'metadata':{'version':1},'data':state['record']}})
      if self.headers.get('Authorization')=='Bearer OFFLINE-READER':
       if self.path.endswith('/'+foreign):return self.reply(200,{'id':foreign}) if state['fail_mode']=='foreign' else self.reply(403,{})
@@ -40,14 +46,14 @@ class ReaderSetup(unittest.TestCase):
      if p==base:return self.reply(200,{'realm':'perkforge','adminPermissionsEnabled':state['enabled'],'adminPermissionsClient':(state['permissions_rep'] if state['permissions_rep'] is not None else {'id':ids['permissions'],'clientId':'admin-permissions'}) if state['enabled'] else None})
      if p==base+'/groups/'+foreign:return self.reply(200,{'id':foreign})
      if p.startswith(base+'/groups/'):
-      role=next(r for r,g in groups.items() if p.endswith('/'+g));return self.reply(200,{'id':groups[role],'path':'/tenants/'+('foreign' if state['bad_group'] else 'portal')+'/'+roles[role],'subGroupCount':0})
+      role=next(r for r,g in groups.items() if p.endswith('/'+g));return self.reply(200,{'id':groups[role],'path':'/tenants/'+('foreign' if state['bad_group'] else context)+'/'+roles[role],'subGroupCount':0})
      if p==base+'/clients':
       name=q['clientId'][0]
       if name=='admin-permissions':return self.reply(200,[{'id':ids['permissions'],'clientId':name}] if state['enabled'] else [])
       if name=='realm-management':return self.reply(200,[{'id':ids['management'],'clientId':name}])
       return self.reply(200,[state['client']] if state['client'] else [])
      if p==base+'/clients/'+ids['reader']:return self.reply(200,state['client'])
-     if p==base+'/clients/'+ids['reader']+'/service-account-user':return self.reply(200,{'id':ids['service'],'username':'service-account-perkforge-portal-identity-reader'})
+     if p==base+'/clients/'+ids['reader']+'/service-account-user':return self.reply(200,{'id':ids['service'],'username':'service-account-'+selected['client_id']})
      if p==base+'/users/'+ids['service']+'/groups':return self.reply(200,[])
      if p==base+'/users/'+ids['service']+'/role-mappings/clients/'+ids['management']+'/composite':return self.reply(200,[{'name':'view-users'}] if state['bad_role'] else [])
      authz=base+'/clients/'+ids['permissions']+'/authz/resource-server'
@@ -72,7 +78,7 @@ class ReaderSetup(unittest.TestCase):
     def do_POST(self):
      if self.path.startswith('/v1/'):
       assert self.headers.get('X-Vault-Token')=='OFFLINE-BAO'
-      body=json.loads(self.rfile.read(int(self.headers['Content-Length'])));assert body['options']=={'cas':0}
+      body=json.loads(self.rfile.read(int(self.headers['Content-Length'])));assert body['options']=={'cas':0};assert self.path=='/v1/platform/data/'+selected['record'];assert body['data']['client_id']==selected['client_id']
       if state['record'] is not None:return self.reply(400,{})
       state['record']=body['data'];return self.reply(503,{}) if state['fail_mode']=='cas' else self.reply(200,{'data':{'version':1}})
      if state['custody_mode'] and self.path.endswith('/token'):
@@ -85,12 +91,12 @@ class ReaderSetup(unittest.TestCase):
       assert body['enabled'] is False and body['serviceAccountsEnabled'] is True and all(body[k] is False for k in ['publicClient','standardFlowEnabled','directAccessGrantsEnabled','implicitFlowEnabled','fullScopeAllowed']);state['client']={**body,'id':ids['reader']};state['writes'].append('disabled-client');return self.reply(503 if state['uncertain'] else 201,location=origin+base+'/clients/'+ids['reader'])
      authz=base+'/clients/'+ids['permissions']+'/authz/resource-server'
      if self.path==authz+'/policy/user':
-      assert body=={'name':'perkforge-portal-reader-actor','type':'user','logic':'POSITIVE','users':[ids['service']]};state['policy']={'id':ids['policy'],'name':body['name'],'type':'user','logic':'POSITIVE','config':{'users':json.dumps(body['users'])}};state['writes'].append('policy');return self.reply(503 if state['uncertain_policy'] else 201,{'id':ids['policy']})
+      assert body=={'name':selected['actor_policy_name'],'type':'user','logic':'POSITIVE','users':[ids['service']]};state['policy']={'id':ids['policy'],'name':body['name'],'type':'user','logic':'POSITIVE','config':{'users':json.dumps(body['users'])}};state['writes'].append('policy');return self.reply(503 if state['uncertain_policy'] else 201,{'id':ids['policy']})
      if self.path==authz+'/permission/scope':
-      assert body['resourceType']=='Groups' and set(body['resources'])==set(groups.values()) and body['scopes']==['view','view-members'] and body['policies']==['perkforge-portal-reader-actor'] and body['decisionStrategy']=='UNANIMOUS';state['permission']={'id':ids['permission'],'name':body['name'],'type':'scope','logic':'POSITIVE','decisionStrategy':'UNANIMOUS','config':{'defaultResourceType':'Groups'}};state['writes'].append('permission');return self.reply(201,{'id':ids['permission']})
+      assert body['resourceType']=='Groups' and set(body['resources'])==set(groups.values()) and body['scopes']==['view','view-members'] and body['policies']==[selected['actor_policy_name']] and body['decisionStrategy']=='UNANIMOUS';state['permission']={'id':ids['permission'],'name':body['name'],'type':'scope','logic':'POSITIVE','decisionStrategy':'UNANIMOUS','config':{'defaultResourceType':'Groups'}};state['writes'].append('permission');return self.reply(201,{'id':ids['permission']})
      self.reply(404,{})
    server=ThreadingHTTPServer(('127.0.0.1',0),H);tls=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);tls.load_cert_chain(root/'ca',root/'key');server.socket=tls.wrap_socket(server.socket,server_side=True);threading.Thread(target=server.serve_forever,daemon=True).start();self.addCleanup(server.server_close);self.addCleanup(server.shutdown);origin='https://localhost:'+str(server.server_port)
-   token=root/'operator';token.write_text('OFFLINE-OPERATOR');token.chmod(0o600);receipt=root/'reader.json';inputs=root/'inputs.json';base={'kc_reader_run':True,'kc_reader_scope':'canonical-group-reader-setup-v1','kc_reader_context':'portal','kc_reader_source_revision':'a'*40,'kc_reader_origin':origin+'/auth','kc_reader_realm':'perkforge','kc_reader_group_ids':groups,'kc_reader_allow_enable_permissions':True,'kc_reader_ca_file':str(root/'ca')}
+   token=root/'operator';token.write_text('OFFLINE-OPERATOR');token.chmod(0o600);receipt=root/'reader.json';inputs=root/'inputs.json';base={'kc_reader_run':True,'kc_reader_scope':'canonical-group-reader-setup-v1','kc_reader_context':context,'kc_reader_source_revision':'a'*40,'kc_reader_origin':origin+'/auth','kc_reader_realm':'perkforge','kc_reader_group_ids':groups,'kc_reader_allow_enable_permissions':True,'kc_reader_ca_file':str(root/'ca')}
    def run(mode='--apply',changes=None,check=False):
     inputs.write_text(json.dumps({**base,**(changes or {})}));inputs.chmod(0o600);command=['bash',str(SETUP/'run-kc-reader.sh'),mode,str(token),str(receipt),str(inputs)]
     if check:command=['ansible-playbook','-i','localhost,',str(SETUP/'keycloak-reader.yaml'),'--check','-e','@'+str(inputs)]
@@ -118,7 +124,12 @@ class ReaderSetup(unittest.TestCase):
     for secret in ('OFFLINE-OPERATOR','OFFLINE-BAO','OFFLINE-CLIENT-SECRET','OFFLINE-READER'):self.assertNotIn(secret,p.stdout+p.stderr)
     return p
    self.assertEqual(activate('validate').returncode,0);self.assertFalse(attempt.exists());self.assertIsNone(state['record'])
+   # Cross-context substitution must fail locally, before any native request.
+   prior_calls=state['calls'];original=receipt.read_bytes();cross=json.loads(original);cross['context']='other';receipt.write_text(json.dumps(cross))
+   self.assertNotEqual(activate('validate').returncode,0);self.assertEqual(state['calls'],prior_calls);receipt.write_bytes(original)
    state['fail_mode']='root';self.assertNotEqual(activate().returncode,0);self.assertFalse(attempt.exists());self.assertIsNone(state['record']);self.assertFalse(state['client']['enabled'])
+   for mismatch in ('cross-policy','cross-acl'):
+    state['fail_mode']=mismatch;self.assertNotEqual(activate().returncode,0);self.assertFalse(attempt.exists());self.assertIsNone(state['record']);self.assertFalse(state['client']['enabled'])
    state['fail_mode']=''
    for failure,ttl in [('',300),('cas',300),('foreign',300),('manage',300),('',301),('disable',301)]:
     state.update(fail_mode=failure,reader_ttl=ttl,record=None);state['client']['enabled']=False
@@ -157,3 +168,6 @@ class ReaderSetup(unittest.TestCase):
     return original(str(b) if calls==2 else path,flags,*args,**kwargs)
    with patch.object(module.os,'open',side_effect=replacement):
     with self.assertRaises(ValueError):module.read(str(a))
+
+class AlternateReaderSetup(ReaderSetup):
+ context="workshop"

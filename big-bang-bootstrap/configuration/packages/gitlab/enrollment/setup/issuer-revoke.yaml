@@ -12,7 +12,7 @@
     - ansible.builtin.assert:
         that:
         - owned_token.key in ['gitlab','keycloak']
-        - owned_identity.json.data.policies == ['tenant-identity-bootstrap-' + owned_token.key + '-v1']
+        - owned_identity.json.data.policies == [issuer_contract.token_policies[owned_token.key]]
         - owned_identity.json.data.display_name == 'token-identity-' + setup_id + '-' + owned_token.key
         - owned_identity.json.data.explicit_max_ttl == 3600
         - owned_token.value != root_identity.json.data.accessor

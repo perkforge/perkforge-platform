@@ -116,3 +116,27 @@ not a claim that every later operator fix was present in that historical commit.
 An abrupt termination can interrupt native disable/rollback logic. Session logout
 is not a rollback of native effects; an unverified logout or helper result is
 reported as manual review, never normal completion.
+
+### Selected context authority contract
+
+`../identity_context.py` is the single, pure versioned naming/authority contract.
+The selected canonical context is a bounded literal slug, not an arbitrary KV
+path, ACL, namespace, or client name. Setup still verifies the exact three native
+`/tenants/<context>/{admins,developers,viewers}` IDs before creating authority.
+The declaration/contract is configuration, not permission to perform setup.
+
+Portal uses the explicit `portal-legacy-v1` binding, preserving existing names
+and ACL bytes. Other contexts derive separate KC client/policy/permission,
+single-record custody policy, ESO auth identities, namespaces and evidence name.
+GitLab parent writer/identity reader **records and read policies remain shared
+platform conventions**; their per-context ESO roles must bind separate consumers.
+New receipts bind the contract digest. Only existing schema-1 Portal preparation
+receipts may omit it; they retain every original native ID/context/origin/revision
+check. No existing receipt or authority is silently renamed, retargeted or adopted.
+
+This source change does not migrate live Portal state or grant another tenant
+access. Alternate-context provider fixtures are not alternate-context runtime
+acceptance: the enrollment renderer, immutable bundle allowlist, admission,
+initializer, ESO consumers and phase inputs must consume this same pinned
+contract before such a deployment is supported. Environment target profiles
+remain separate from tenant-context identity selection.

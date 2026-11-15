@@ -20,6 +20,12 @@
         argv: [python3, '{{ playbook_dir }}/issuer-state.py', locked, '{{ issuer_root_file }}', '{{ issuer_receipt_file }}', '{{ issuer_inputs_file }}']
       changed_when: true
     - ansible.builtin.set_fact: {issuer_started: true}
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/issuer-state.py', contract, '{{ issuer_receipt_file }}', '{{ setup_id }}']
+      register: issuer_context_result
+      changed_when: false
+    - ansible.builtin.set_fact:
+        issuer_contract: '{{ issuer_context_result.stdout | from_json }}'
     - name: Verify public cluster identity before reading root credential
       ansible.builtin.uri:
         url: '{{ bao_origin }}/v1/sys/health'
@@ -64,16 +70,14 @@
         - auth_config.json.data.pem_keys | default([]) == []
         - auth_config.json.data.issuer | default('') == ''
     - ansible.builtin.set_fact:
-        issuer_policies:
-          tenant-identity-bootstrap-gitlab-v1: '{{ lookup("file",playbook_dir + "/gitlab-custody-policy.hcl",rstrip=false) }}'
-          tenant-identity-bootstrap-keycloak-v1: '{{ lookup("file",playbook_dir + "/keycloak-custody-policy.hcl",rstrip=false) }}'
-          eso-identity-writer: 'path "platform/data/identity/gitlab/tenants-writer-v1" { capabilities = ["read"] } path "auth/token/lookup-self" { capabilities = ["read"] }'
-          eso-identity-reader: 'path "platform/data/identity/gitlab/tenant-reader-v1" { capabilities = ["read"] } path "auth/token/lookup-self" { capabilities = ["read"] }'
-          eso-identity-keycloak: 'path "platform/data/identity/keycloak/portal-membership-reader-v1" { capabilities = ["read"] } path "auth/token/lookup-self" { capabilities = ["read"] }'
+        issuer_policies: '{{ {"tenant-identity-bootstrap-gitlab-v1": lookup("file",playbook_dir + "/gitlab-custody-policy.hcl",rstrip=false), issuer_contract.names.bootstrap_policy: issuer_contract.keycloak_policy, "eso-identity-writer": "path \"platform/data/identity/gitlab/tenants-writer-v1\" { capabilities = [\"read\"] } path \"auth/token/lookup-self\" { capabilities = [\"read\"] }", "eso-identity-reader": "path \"platform/data/identity/gitlab/tenant-reader-v1\" { capabilities = [\"read\"] } path \"auth/token/lookup-self\" { capabilities = [\"read\"] }", issuer_contract.names.eso_policy: "path \"platform/data/" + issuer_contract.names.record + "\" { capabilities = [\"read\"] } path \"auth/token/lookup-self\" { capabilities = [\"read\"] }"} }}'
         issuer_roles: {}
     - ansible.builtin.set_fact:
-        issuer_roles: '{{ issuer_roles | combine({item: {"bound_service_account_names":[item],"bound_service_account_namespaces":["tenant-identity-writer" if item == "eso-identity-writer" else "tenant-identity-attestor"],"audience":"openbao-eso","token_policies":[item],"token_no_default_policy":true,"token_ttl":300,"token_max_ttl":900,"token_explicit_max_ttl":900}}) }}'
-      loop: [eso-identity-writer, eso-identity-reader, eso-identity-keycloak]
+        issuer_roles: '{{ issuer_roles | combine({item.role: {"bound_service_account_names":[item.sa],"bound_service_account_namespaces":[item.namespace],"audience":"openbao-eso","token_policies":[item.policy],"token_no_default_policy":true,"token_ttl":300,"token_max_ttl":900,"token_explicit_max_ttl":900}}) }}'
+      loop:
+      - {role: '{{ issuer_contract.names.writer_eso_role }}', sa: '{{ issuer_contract.names.writer_eso_service_account }}', namespace: '{{ issuer_contract.names.writer_namespace }}', policy: eso-identity-writer}
+      - {role: '{{ issuer_contract.names.reader_eso_role }}', sa: '{{ issuer_contract.names.reader_eso_service_account }}', namespace: '{{ issuer_contract.names.attestor_namespace }}', policy: eso-identity-reader}
+      - {role: '{{ issuer_contract.names.eso_role }}', sa: '{{ issuer_contract.names.eso_service_account }}', namespace: '{{ issuer_contract.names.attestor_namespace }}', policy: '{{ issuer_contract.names.eso_policy }}'}
     - ansible.builtin.uri:
         url: '{{ bao_origin }}/v1/sys/policies/acl/{{ item.key }}'
         headers: '{{ issuer_headers }}'

@@ -4,6 +4,7 @@ import json,os,re,sys,stat
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from verify_group_paths import safe,verify
+from identity_context import derive
 UUID=r'[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}'
 def read(path):
  safe(path)
@@ -29,11 +30,15 @@ def validate(token,receipt,path,mode):
  for key,pattern in patterns.items():
   if not isinstance(d[key],str) or not re.fullmatch(pattern,d[key]):raise ValueError('literal fields')
  if d['kc_reader_context'] in ('platform','tenants','system','default') or d['kc_reader_scope']!='canonical-group-reader-setup-v1' or d['kc_reader_run'] is not True or type(d['kc_reader_allow_enable_permissions']) is not bool:raise ValueError('scope')
+ contract=derive(d['kc_reader_context'])
  groups=d['kc_reader_group_ids']
  if not isinstance(groups,dict) or set(groups)!={'tenant-admin','tenant-developer','tenant-viewer'} or any(not isinstance(v,str) or not re.fullmatch(UUID,v) for v in groups.values()) or len(set(groups.values()))!=3:raise ValueError('groups')
  safe(d['kc_reader_ca_file'],private=False,limit=262144)
  if os.path.lexists(receipt):
   r=read(receipt);binding={'schema':1,'context':d['kc_reader_context'],'source_revision':d['kc_reader_source_revision'],'origin':d['kc_reader_origin'],'realm':d['kc_reader_realm'],'group_ids':groups}
+  # Only pre-contract Portal receipts have a legacy compatibility path.
+  if 'context_digest' in r:binding['context_digest']=contract['digest']
+  elif d['kc_reader_context']!='portal':raise ValueError('Unbound context receipt')
   ids={'reader_client_id','service_account_id','permissions_client_id','policy_id','permission_id'}
   if not isinstance(r,dict) or set(r)!=set(binding)|ids|{'stage','permissions_enable_requested','permissions_observed_enabled'} or any(r.get(k)!=v for k,v in binding.items()):raise ValueError('foreign receipt')
   if any(not isinstance(r[k],str) or not re.fullmatch('(?:'+UUID+')?',r[k]) for k in ids) or r['stage'] not in ('Prepared','PermissionsEnablePending','PermissionsEnabled','ClientCreated','PolicyCreated','PermissionCreated','PendingCustody'):raise ValueError('receipt state')
