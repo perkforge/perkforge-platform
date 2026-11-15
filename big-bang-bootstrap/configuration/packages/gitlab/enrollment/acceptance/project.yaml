@@ -32,6 +32,9 @@
           context: '{{ gitlab_acceptance_context }}'
           origin: '{{ gitlab_acceptance_origin }}'
           source_revision: '{{ gitlab_acceptance_source_revision }}'
+    - ansible.builtin.include_tasks: authority.yaml
+      vars:
+        acceptance_parent_id: '{{ ag.parent_id }}'
     - ansible.builtin.uri:
         url: '{{ gitlab_acceptance_origin }}/api/v4/{{ item }}'
         headers: '{{ ah }}'

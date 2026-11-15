@@ -1,0 +1,44 @@
+# Included only inside guarded live block; no grants or credential changes.
+- ansible.builtin.uri:
+    url: '{{ gitlab_acceptance_origin }}/api/v4/{{ item }}'
+    headers: {PRIVATE-TOKEN: '{{ lookup("file",gitlab_acceptance_token) | trim }}'}
+  loop: [user, personal_access_tokens/self, version]
+  register: acceptance_authority
+- ansible.builtin.command:
+    argv: [date, -u, '+%Y-%m-%d']
+  register: acceptance_today
+  changed_when: false
+- ansible.builtin.assert:
+    that:
+    - acceptance_authority.results[0].json.id == gitlab_acceptance_actor_id
+    - acceptance_authority.results[0].json.state == 'active'
+    - acceptance_authority.results[0].json.bot is sameas true
+    - acceptance_authority.results[0].json.is_admin is sameas false
+    - acceptance_authority.results[1].json.id | type_debug == 'int'
+    - acceptance_authority.results[1].json.id > 0
+    - acceptance_authority.results[1].json.user_id == gitlab_acceptance_actor_id
+    - acceptance_authority.results[1].json.active is sameas true
+    - acceptance_authority.results[1].json.revoked is sameas false
+    - acceptance_authority.results[1].json.scopes == ['api']
+    - acceptance_authority.results[1].json.expires_at is string
+    - acceptance_authority.results[1].json.expires_at is match('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+    - acceptance_authority.results[1].json.expires_at > acceptance_today.stdout
+    - acceptance_authority.results[2].json.version in ['19.4.2','19.4.2-ee']
+- ansible.builtin.uri:
+    url: '{{ gitlab_acceptance_origin }}/api/v4/groups/{{ acceptance_parent_id }}/{{ item }}'
+    headers: {PRIVATE-TOKEN: '{{ lookup("file",gitlab_acceptance_token) | trim }}'}
+  loop:
+  - 'members/{{ gitlab_acceptance_actor_id }}'
+  - 'access_tokens/{{ acceptance_authority.results[1].json.id }}'
+  register: acceptance_parent_authority
+- ansible.builtin.assert:
+    that:
+    - acceptance_parent_authority.results[0].json.id == gitlab_acceptance_actor_id
+    - acceptance_parent_authority.results[0].json.access_level == 50
+    - acceptance_parent_authority.results[1].json.id == acceptance_authority.results[1].json.id
+    - acceptance_parent_authority.results[1].json.user_id == gitlab_acceptance_actor_id
+    - acceptance_parent_authority.results[1].json.access_level == 50
+    - acceptance_parent_authority.results[1].json.active is sameas true
+    - acceptance_parent_authority.results[1].json.revoked is sameas false
+    - acceptance_parent_authority.results[1].json.scopes == ['api']
+    - acceptance_parent_authority.results[1].json.expires_at == acceptance_authority.results[1].json.expires_at

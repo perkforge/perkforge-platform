@@ -47,6 +47,9 @@ def check(token,receipt,inputs,mode):
   if not isinstance(p,dict) or p.get('stage')!='project-ready' or p.get('context')!=g['context'] or p.get('group_id')!=g['group_id'] or p.get('origin')!=g['origin'] or p.get('source_revision')!=v['gitlab_acceptance_source_revision'] or type(p.get('project_id')) is not int or p['project_id']<=0:raise ValueError()
   # Dedicated native runner custody dir. validate canonical ancestry via prospective leaf.
   safe(v['gitlab_acceptance_runner_directory']+'/runner-token',optional=True,limit=4096)
+  rp=v['gitlab_acceptance_runner_directory']+'/runner-receipt.json'
+  safe(rp,optional=True,limit=65536)
+  if os.path.lexists(rp) and not isinstance(read(rp),dict):raise ValueError()
  if mode=='prepare':verify(token,receipt,prepare=True)
  if mode=='locked':verify(token,receipt,require_locked=True)
  return v

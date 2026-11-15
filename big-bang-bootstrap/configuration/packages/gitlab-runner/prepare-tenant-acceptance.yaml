@@ -37,6 +37,9 @@
     - ansible.builtin.set_fact:
         acceptance_group: '{{ lookup("file", gitlab_acceptance_group_receipt) | from_json }}'
         acceptance_project: '{{ lookup("file", gitlab_acceptance_project_receipt) | from_json }}'
+    - ansible.builtin.include_tasks: '{{ playbook_dir }}/../gitlab/enrollment/acceptance/authority.yaml'
+      vars:
+        acceptance_parent_id: '{{ acceptance_group.parent_id }}'
     - ansible.builtin.assert:
         that:
         - acceptance_project.stage == 'project-ready'

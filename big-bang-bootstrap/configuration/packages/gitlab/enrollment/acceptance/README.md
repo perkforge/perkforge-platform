@@ -21,12 +21,25 @@ No additional vars, templates/lookups, namespace/path/tag/image overrides accept
 Use canonical context and protected source-owned group receipt, not untrusted UI
 input. Selected source revision cannot silently change an existing project receipt.
 
+Both operations require the source-established parent Owner group-token writer:
+exact active nonadmin bot ID, token-self active/not revoked/exact `api` scope,
+expiry strictly after the current UTC date, exact parent direct Owner membership
+and parent access-token ID/user/scope/expiry readback. This token has authority
+across the tenants subtree, not only this selected project. Native API permission
+checks still govern each operation; no fallback actor or scope changes. The pinned
+19.4.2 global API `api` scope also covers the user/runners route; its additional
+`create_runner` scope is an alternative, not a silently added requirement.
+
 Project setup rechecks exact private parent/group and active nonadmin operator,
 refuses foreign existing paths, writes intent before POST and exact ID afterward.
 CI/shared/group runners/AutoDevOps remain disabled. An uncertain POST or incomplete
 verification is MANUAL RECOVERY, not a blind repeat/adoption/delete. `project-ready`
 means only project preparation, not source seed, branch, runner or CI readiness.
-Native version/field compatibility remains a live gate; synthetic TLS is not proof.
+The source requires native version19.4.2 (or19.4.2-ee). Actual field/permission
+compatibility remains a live gate; synthetic TLS is not proof. Initial project
+default_branch is null; seeding/protection is a separate reviewed operation.
+Receipts use native Ansible atomic replacement, not a proven power-loss-durable
+transaction; preserve uncertain effects for manual recovery.
 
 Runner preparation requires that separately reviewed repository seeding and main
 protection already exist while CI remains disabled. It checks exact private
@@ -50,3 +63,7 @@ parameter. No arbitrary shell/environment dump/package install/deployment. Lates
 incident semantics intentionally do not promise every between-poll transition.
 
 Run: `PYTHONPATH=big-bang-bootstrap/tests python3 -m unittest security.test_tenant_acceptance_preparation -v`.
+
+Source contract references: pinned `lib/api/user_runners.rb`, `lib/api/api_guard.rb`
+and `lib/api/api.rb` at GitLab19.4.2; existing platform membership writer checks
+provide the parent-bot provenance pattern. No new actor creation is in this adapter.
