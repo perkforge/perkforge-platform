@@ -82,3 +82,21 @@ real accounts. Runtime image/issuer admission/Flux dependency generation and
 native delivery remain separate acceptance gates. Existing recovery acceptance
 is documented in the established GitLab runbooks; no new recovery test is
 implied by source fixtures.
+
+### Retrying a partially completed finite attempt
+
+`identity_previous_invocation` identifies the preceding foundation attempt. The
+optional `identity_previous_attestation_invocation` independently selects the
+expected issuer receipt: an empty string requires an actually empty, exact-owned
+ConfigMap; a 64-character lowercase digest requires that exact prior envelope.
+Omitting the field retains the earlier coupled predecessor behavior. Both
+selections are bound into the new invocation, and an explicit publication
+predecessor is carried in the resulting envelope. Nonempty publication history
+cannot be paired with an empty foundation predecessor.
+
+This permits a reviewed retry after foundation succeeded but attestation failed
+without fabricating an earlier attestation or deleting/resetting receipts. Empty
+expectations still require UID, desired-invocation and resourceVersion CAS; they
+never adopt or overwrite existing data. Foundation native-ID/source-revision CAS,
+failed Job retention, explicit retry generation, and membership hold are unchanged.
+Changing the source/declaration is not authorization to replay a live Job.

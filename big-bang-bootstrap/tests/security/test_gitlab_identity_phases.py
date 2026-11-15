@@ -69,4 +69,21 @@ class IdentityPhases(unittest.TestCase):
     state.update(flags);r,_,_=run({'identity_retry_generation':3,'identity_previous_invocation':third});self.assertNotEqual(r.returncode,0);self.assertEqual(state['patches'],3);state.update({k:False for k in flags})
    r,_,_=run({'identity_retry_generation':4,'identity_previous_invocation':third},desired=False);self.assertNotEqual(r.returncode,0);self.assertEqual(state['patches'],3)
    self.assertEqual(state['native_writes'],0)
+   # Separate synthetic partial-success state: foundation completed, issuer never published.
+   state['data']={};partial={'identity_previous_invocation':'d'*64,'identity_retry_generation':5}
+   r,_,_=run(partial);self.assertNotEqual(r.returncode,0);self.assertEqual(state['patches'],3) # legacy predecessor still requires an envelope
+   partial['identity_previous_attestation_invocation']=''
+   for flags in ({'race':True},{'foreign':True}):
+    state.update(flags);r,_,_=run(partial);self.assertNotEqual(r.returncode,0);self.assertEqual(state['patches'],3);state.update({k:False for k in flags})
+   r,w,d=run(partial);self.assertEqual(r.returncode,0,(w/'run.log').read_text());self.assertEqual(state['patches'],4)
+   published=json.loads(state['data']['receipt.json']);self.assertEqual(published['previous_invocation'],'d'*64);self.assertEqual(published['previous_attestation_invocation'],'');published_inv=d['identity_invocation']
+   r,_,_=run(partial);self.assertNotEqual(r.returncode,0);self.assertEqual(state['patches'],4) # no overwrite when empty was expected
+   next_attempt={**partial,'identity_previous_invocation':'e'*64,'identity_retry_generation':6,'identity_previous_attestation_invocation':published_inv}
+   r,w,d=run(next_attempt);self.assertEqual(r.returncode,0,(w/'run.log').read_text());self.assertEqual(state['patches'],5)
+   r,_,_=run({**next_attempt,'identity_previous_attestation_invocation':'f'*64});self.assertNotEqual(r.returncode,0);self.assertEqual(state['patches'],5)
+   for malformed in (True,'A'*64,'short'):
+    r,_,_=run({**partial,'identity_previous_attestation_invocation':malformed},mode='--validate');self.assertNotEqual(r.returncode,0)
+   r,_,_=run({'identity_previous_attestation_invocation':'d'*64},mode='--validate');self.assertNotEqual(r.returncode,0)
+   self.assertEqual(state['native_writes'],0)
+
 if __name__=='__main__':unittest.main()

@@ -28,6 +28,7 @@ def inputs(path,phase):
  d=read(path)
  patterns={'identity_context':r'[a-z][a-z0-9-]{0,30}','identity_source_revision':r'[a-f0-9]{40}','identity_platform_revision':r'[a-f0-9]{40}','identity_contract_sha256':r'[a-f0-9]{64}','identity_invocation':r'[a-f0-9]{64}','identity_previous_invocation':r'(?:[a-f0-9]{64})?','identity_gitlab_origin':r'https://[A-Za-z0-9.-]+(?::[0-9]+)?','identity_keycloak_origin':r'https://[A-Za-z0-9.-]+(?::[0-9]+)?(?:/auth)?','identity_keycloak_realm':r'[A-Za-z0-9_-]{1,64}','identity_kubernetes_origin':r'https://[A-Za-z0-9.-]+(?::[0-9]+)?','identity_receipt_uid':UUID,'identity_receipt_namespace':r'[a-z][a-z0-9-]{0,62}','identity_receipt_name':r'[a-z][a-z0-9-]{0,30}-identity-evidence'}
  if isinstance(d,dict) and 'identity_context_digest' in d:patterns['identity_context_digest']=r'[a-f0-9]{64}'
+ if isinstance(d,dict) and 'identity_previous_attestation_invocation' in d:patterns['identity_previous_attestation_invocation']=r'(?:[a-f0-9]{64})?'
  if not isinstance(d,dict) or set(d)!=set(patterns)|{'identity_run','identity_scope','identity_retry_generation','identity_group_ids','identity_membership_recovery_verified'}:raise ValueError('unexpected fields')
  for k,p in patterns.items():
   if not isinstance(d[k],str) or not re.fullmatch(p,d[k]):raise ValueError('nonliteral field')
@@ -36,6 +37,7 @@ def inputs(path,phase):
  selected=derive(d['identity_context'])
  if d['identity_receipt_namespace']!=selected['writer_namespace'] or d['identity_receipt_name']!=selected['evidence_name']:raise ValueError('context binding')
  if d.get('identity_context_digest')!=selected['digest'] and not (d['identity_context']=='portal' and 'identity_context_digest' not in d):raise ValueError('context digest')
+ if d.get('identity_previous_attestation_invocation',d['identity_previous_invocation']) and not d['identity_previous_invocation']:raise ValueError('attestation predecessor requires prior attempt')
  if type(d['identity_retry_generation']) is not int or not 0<=d['identity_retry_generation']<=1000000:raise ValueError('retry generation')
  if d['identity_previous_invocation']=='' and d['identity_retry_generation']!=0:raise ValueError('prior attempt required')
  g=d['identity_group_ids']
@@ -48,6 +50,7 @@ def envelope(d,path):
  e=read(path)
  binding={'schema':1,'context':d['identity_context'],'source_revision':d['identity_source_revision'],'platform_revision':d['identity_platform_revision'],'contract_sha256':d['identity_contract_sha256'],'invocation':d['identity_invocation'],'previous_invocation':d['identity_previous_invocation'],'retry_generation':d['identity_retry_generation'],'receipt_uid':d['identity_receipt_uid']}
  if 'identity_context_digest' in d:binding['context_digest']=d['identity_context_digest']
+ if 'identity_previous_attestation_invocation' in d:binding['previous_attestation_invocation']=d['identity_previous_attestation_invocation']
  if not isinstance(e,dict) or set(e)!=set(binding)|{'captured_at','snapshot','identities'} or any(e.get(k)!=v for k,v in binding.items()):raise ValueError('envelope binding')
  age(e['captured_at']);s=e['snapshot']
  sb={'schema':1,'stage':'SnapshotVerified','context':binding['context'],'source_revision':binding['source_revision'],'contract_sha256':binding['contract_sha256'],'origin':d['identity_keycloak_origin']}
