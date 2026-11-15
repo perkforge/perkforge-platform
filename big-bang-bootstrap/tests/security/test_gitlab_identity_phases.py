@@ -30,7 +30,7 @@ class IdentityPhases(unittest.TestCase):
       if p.endswith('/members'):return self.respond(200,[{'id':subject,'enabled':True}] if state['member'] and role=='tenant-developer' else [])
       return self.respond(200,{'id':groups[role],'path':'/tenants/portal/'+roles[role],'subGroupCount':0})
      if p.startswith('/api/v4/'):
-      if self.headers.get('PRIVATE-TOKEN')!='OFFLINE-READER':return self.respond(403,{})
+      if self.headers.get('PRIVATE-TOKEN')!='OFFLINE-READER.native_01-02':return self.respond(403,{})
       if p.endswith('/personal_access_tokens/self'):return self.respond(200,{'active':True,'revoked':False,'scopes':['read_api'],'expires_at':'2099-01-01'})
       if p.endswith('/users'):return self.respond(200,[] if state['pending'] else [{'id':21,'is_admin':False,'state':'active','identities':[{'provider':'openid_connect','extern_uid':subject}]}])
      if p=='/api/v1/namespaces/tenant-identity-writer/configmaps/portal-identity-evidence':
@@ -53,7 +53,7 @@ class IdentityPhases(unittest.TestCase):
     nonlocal serial
     serial+=1;w=root/str(serial);w.mkdir(mode=0o700);d={**base,**(extra or {})};material={k:v for k,v in d.items() if k not in ('identity_invocation','identity_scope','identity_run')};d['identity_invocation']=hashlib.sha256(json.dumps(material,sort_keys=True,separators=(',',':')).encode()).hexdigest()
     if desired:state['desired']=d['identity_invocation']
-    files={'phase-inputs.json':json.dumps(d),'gitlab-reader':'OFFLINE-READER','kc-client-id':'snapshot-reader','kc-client-secret':'OFFLINE-KC-SECRET','api-token':'OFFLINE-API','lab-ca.crt':(root/'ca').read_text(),'api-ca.crt':(root/'ca').read_text()}
+    files={'phase-inputs.json':json.dumps(d),'gitlab-reader':'OFFLINE-READER.native_01-02','kc-client-id':'snapshot-reader','kc-client-secret':'OFFLINE-KC-SECRET','api-token':'OFFLINE-API','lab-ca.crt':(root/'ca').read_text(),'api-ca.crt':(root/'ca').read_text()}
     for name,value in files.items():(w/name).write_text(value);(w/name).chmod(0o600)
     r=subprocess.run(['bash',str(PHASE/'run-attestor.sh'),mode,str(w/'phase-inputs.json'),str(w)],capture_output=True,text=True,timeout=90,env={**os.environ,'ANSIBLE_LOCAL_TEMP':str(w/'local'),'ANSIBLE_REMOTE_TEMP':str(w/'remote')})
     self.assertNotIn('OFFLINE-',r.stdout+r.stderr)
@@ -69,4 +69,21 @@ class IdentityPhases(unittest.TestCase):
     state.update(flags);r,_,_=run({'identity_retry_generation':3,'identity_previous_invocation':third});self.assertNotEqual(r.returncode,0);self.assertEqual(state['patches'],3);state.update({k:False for k in flags})
    r,_,_=run({'identity_retry_generation':4,'identity_previous_invocation':third},desired=False);self.assertNotEqual(r.returncode,0);self.assertEqual(state['patches'],3)
    self.assertEqual(state['native_writes'],0)
+   # Separate synthetic partial-success state: foundation completed, issuer never published.
+   state['data']={};partial={'identity_previous_invocation':'d'*64,'identity_retry_generation':5}
+   r,_,_=run(partial);self.assertNotEqual(r.returncode,0);self.assertEqual(state['patches'],3) # legacy predecessor still requires an envelope
+   partial['identity_previous_attestation_invocation']=''
+   for flags in ({'race':True},{'foreign':True}):
+    state.update(flags);r,_,_=run(partial);self.assertNotEqual(r.returncode,0);self.assertEqual(state['patches'],3);state.update({k:False for k in flags})
+   r,w,d=run(partial);self.assertEqual(r.returncode,0,(w/'run.log').read_text());self.assertEqual(state['patches'],4)
+   published=json.loads(state['data']['receipt.json']);self.assertEqual(published['previous_invocation'],'d'*64);self.assertEqual(published['previous_attestation_invocation'],'');published_inv=d['identity_invocation']
+   r,_,_=run(partial);self.assertNotEqual(r.returncode,0);self.assertEqual(state['patches'],4) # no overwrite when empty was expected
+   next_attempt={**partial,'identity_previous_invocation':'e'*64,'identity_retry_generation':6,'identity_previous_attestation_invocation':published_inv}
+   r,w,d=run(next_attempt);self.assertEqual(r.returncode,0,(w/'run.log').read_text());self.assertEqual(state['patches'],5)
+   r,_,_=run({**next_attempt,'identity_previous_attestation_invocation':'f'*64});self.assertNotEqual(r.returncode,0);self.assertEqual(state['patches'],5)
+   for malformed in (True,'A'*64,'short'):
+    r,_,_=run({**partial,'identity_previous_attestation_invocation':malformed},mode='--validate');self.assertNotEqual(r.returncode,0)
+   r,_,_=run({'identity_previous_attestation_invocation':'d'*64},mode='--validate');self.assertNotEqual(r.returncode,0)
+   self.assertEqual(state['native_writes'],0)
+
 if __name__=='__main__':unittest.main()
