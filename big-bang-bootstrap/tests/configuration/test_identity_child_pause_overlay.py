@@ -1,7 +1,7 @@
 import copy,pathlib,subprocess,unittest,yaml
 ROOT=pathlib.Path(__file__).resolve().parents[2]
-PIN='8bc0dd10acef2f40971502a26f42f74f16e5b9f4'
-HASH='c5cde73be1b1c02ed0d71db4172be70aec4751b15d0ed2c07cce6185620ce7df'
+PIN='6890df6284170548c389742e61de7a0db6d00ef4'
+HASH='26fc17d269d3da67bbd202361fe3259117e6a6ce6d564a58d97ef35191e792f8'
 def render(path):
  return {(o['apiVersion'],o['kind'],o['metadata'].get('namespace'),o['metadata']['name']):o for o in yaml.safe_load_all(subprocess.check_output(['kubectl','kustomize',str(ROOT/'clusters'/path)],text=True)) if o}
 class Pause(unittest.TestCase):

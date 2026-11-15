@@ -3,13 +3,14 @@
 Select H only after the old attempt's three children are proven suspended and
 quiescent. Keep the existing local-identity-child-pause path and parent explicitly
 unsuspended so it can apply child holds while switching to enrollment
-`8bc0dd10acef2f40971502a26f42f74f16e5b9f4` with foundation digest
-`c5cde73be1b1c02ed0d71db4172be70aec4751b15d0ed2c07cce6185620ce7df`.
+`6890df6284170548c389742e61de7a0db6d00ef4` with foundation digest
+`26fc17d269d3da67bbd202361fe3259117e6a6ce6d564a58d97ef35191e792f8`.
 
-The corrected released artifact has new Job suffix 74a1fd77a43038f5, but all three
+The corrected released artifact has new Job suffix 54819c8b56bfc3e8, but all three
 children remain suspended. No provider Job may start at H. Preserve the failed
-predecessor Job and receipts. Retry generation zero and empty predecessor are
-deliberate: no issuer receipt existed; new code revision changes the invocation.
+predecessor Job and receipts. Retry generation one binds the actual successful foundation predecessor and an
+explicitly empty attestation predecessor. No issuer receipt existed; source CAS
+migrates the owned group receipt rather than recreating the native group.
 
 Before A, verify exact child UIDs, suspend:true, current-leader post-generation
 suspension handling, new source/Job identity and no active predecessor work.
