@@ -1,22 +1,21 @@
-# Old-artifact child pause checkpoint
+# Corrected-artifact all-child hold checkpoint
 
-Select this source only as the reviewed transition from the existing old-artifact
-onboarding A checkpoint. It retains the complete application composition and
-keeps the parent `identity-portal` explicitly unsuspended so it can apply all
-three child holds. It selects enrollment
-`8c87378462386399ee02e08127ae138aac0353d7` with foundation digest
-`655ec3623b60d13f23f0e917ef1facdca45206d24916f7635e1b4a6ce3dea5db`.
+Select H only after the old attempt's three children are proven suspended and
+quiescent. Keep the existing local-identity-child-pause path and parent explicitly
+unsuspended so it can apply child holds while switching to enrollment
+`8bc0dd10acef2f40971502a26f42f74f16e5b9f4` with foundation digest
+`c5cde73be1b1c02ed0d71db4172be70aec4751b15d0ed2c07cce6185620ce7df`.
 
-That enrollment stage retains executable5621, platformb904, the existing bundle,
-provider invocation, inputs and Job names. Only foundation/attest suspend fields
-change; membership was already held. No new executable or provider attempt is
-selected. The failed Job and receipt volume remain intact.
+The corrected released artifact has new Job suffix 74a1fd77a43038f5, but all three
+children remain suspended. No provider Job may start at H. Preserve the failed
+predecessor Job and receipts. Retry generation zero and empty predecessor are
+deliberate: no issuer receipt existed; new code revision changes the invocation.
 
-Parent/child health can remain failed or unknown while paused. Do not weaken
-health checks or interpret stale Ready as proof. Before replacing the artifact,
-verify each exact child UID and suspend:true, the current leader's post-change
-suspension branch, continuity and no active predecessor work. A parent-only hold
-does not stop independent children or running Jobs. Stop on ambiguity; no deletion
-or retry is implied. Audit every shared-source consumer, including metadata-only
-Helm reconciliations. Subsequent corrected-artifact held/resume stages remain
-separate reviewed transitions. This source is not a live selection authorization.
+Before A, verify exact child UIDs, suspend:true, current-leader post-generation
+suspension handling, new source/Job identity and no active predecessor work.
+Failed or unknown parent/child Ready is not suspension proof. A parent-only hold
+is insufficient. Do not weaken health, delete Jobs or infer automatic retry.
+Audit shared-source consumers including metadata-only Helm reconciliations.
+Image and budgets remain unchanged. A resumes foundation/attest only; B releases
+membership only after fresh issuer/SSA acceptance. Those separate immutable
+checkpoints require their live gates; this document is not execution authority.
