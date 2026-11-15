@@ -1,0 +1,39 @@
+- ansible.builtin.set_fact:
+    current_issuance_purpose: "{{ purpose }}"
+- ansible.builtin.command:
+    argv: [python3, '{{ playbook_dir }}/issuer-state.py', record, '{{ issuer_receipt_file }}', '{{ setup_id }}', 'Requesting-{{ purpose }}']
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ bao_origin }}/v1/auth/token/create'
+    headers: '{{ issuer_headers }}'
+    method: POST
+    body_format: json
+    body:
+      policies: ['tenant-identity-bootstrap-{{ purpose }}-v1']
+      no_default_policy: true
+      display_name: 'identity-{{ setup_id }}-{{ purpose }}'
+      ttl: 3600
+      explicit_max_ttl: 3600
+      renewable: false
+  register: issued_token
+- ansible.builtin.set_fact:
+    issued_purposes: '{{ issued_purposes + [purpose] }}'
+- ansible.builtin.command:
+    argv: [python3, '{{ playbook_dir }}/issuer-state.py', token, '{{ issuer_receipt_file }}', '{{ setup_id }}', '{{ purpose }}']
+    stdin: '{{ issued_token.json | to_json }}'
+  changed_when: true
+- ansible.builtin.uri:
+    url: '{{ bao_origin }}/v1/auth/token/lookup-self'
+    headers: {X-Vault-Token: '{{ issued_token.json.auth.client_token }}'}
+  register: child_identity
+- ansible.builtin.assert:
+    that:
+    - child_identity.json.data.policies == ['tenant-identity-bootstrap-' + purpose + '-v1']
+    - child_identity.json.data.identity_policies | default([]) == []
+    - child_identity.json.data.renewable is sameas false
+    - child_identity.json.data.period | default(0) == 0
+    - child_identity.json.data.ttl >= 900
+    - child_identity.json.data.ttl <= 3600
+    - child_identity.json.data.explicit_max_ttl == 3600
+    - child_identity.json.data.accessor != root_identity.json.data.accessor
+- ansible.builtin.set_fact: {issued_token: {}, child_identity: {}}

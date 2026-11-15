@@ -1,0 +1,47 @@
+- name: Revoke only exact issuance-owned setup tokens
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars: {run: false}
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      timeout: 10
+  tasks:
+  - when: run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/issuer-state.py', locked-cleanup, '{{ issuer_root_file }}', '{{ issuer_receipt_file }}', '{{ issuer_inputs_file }}']
+      changed_when: false
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/sys/health'
+      register: health
+    - ansible.builtin.assert:
+        that:
+        - health.json.cluster_id == cluster_id
+        - health.json.initialized is sameas true
+        - health.json.sealed is sameas false
+        - health.json.version == '2.7.2'
+    - ansible.builtin.set_fact:
+        issuer_headers: {X-Vault-Token: '{{ lookup("file",issuer_root_file) | trim }}'}
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/auth/token/lookup-self'
+        headers: '{{ issuer_headers }}'
+      register: root_identity
+    - ansible.builtin.assert:
+        that: root_identity.json.data.policies == ['root']
+    - ansible.builtin.include_tasks: issuer-cleanup.yaml
+    - ansible.builtin.set_fact:
+        final_receipt: '{{ lookup("file",issuer_receipt_file) | from_json }}'
+    - ansible.builtin.assert:
+        that:
+        - final_receipt.accessors | length == 2
+        - final_receipt.revoked | sort == ['gitlab','keycloak']
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/issuer-state.py', record, '{{ issuer_receipt_file }}', '{{ setup_id }}', Cleaned]
+      changed_when: true

@@ -1,0 +1,14 @@
+- ansible.builtin.uri:
+    url: '{{ bao_origin }}/v1/sys/policies/acl/{{ item.key }}'
+    headers: '{{ issuer_headers }}'
+    method: PUT
+    body_format: json
+    body: {policy: '{{ item.value }}'}
+    status_code: 204
+  when: issuer_policy_before.results[policy_index].status == 404
+- ansible.builtin.uri:
+    url: '{{ bao_origin }}/v1/sys/policies/acl/{{ item.key }}'
+    headers: '{{ issuer_headers }}'
+  register: policy_readback
+- ansible.builtin.assert:
+    that: policy_readback.json.data.policy == item.value

@@ -1,0 +1,38 @@
+- block:
+  - ansible.builtin.uri:
+      url: '{{ bao_origin }}/v1/auth/token/lookup-accessor'
+      headers: '{{ issuer_headers }}'
+      method: POST
+      body_format: json
+      body: {accessor: '{{ owned_token.value }}'}
+      status_code: [200,400]
+    register: owned_identity
+  - when: owned_identity.status == 200
+    block:
+    - ansible.builtin.assert:
+        that:
+        - owned_token.key in ['gitlab','keycloak']
+        - owned_identity.json.data.policies == ['tenant-identity-bootstrap-' + owned_token.key + '-v1']
+        - owned_identity.json.data.display_name == 'token-identity-' + setup_id + '-' + owned_token.key
+        - owned_identity.json.data.explicit_max_ttl == 3600
+        - owned_token.value != root_identity.json.data.accessor
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/auth/token/revoke-accessor'
+        headers: '{{ issuer_headers }}'
+        method: POST
+        body_format: json
+        body: {accessor: '{{ owned_token.value }}'}
+        status_code: 204
+  - ansible.builtin.uri:
+      url: '{{ bao_origin }}/v1/auth/token/lookup-accessor'
+      headers: '{{ issuer_headers }}'
+      method: POST
+      body_format: json
+      body: {accessor: '{{ owned_token.value }}'}
+      status_code: 400
+  - ansible.builtin.command:
+      argv: [python3, '{{ playbook_dir }}/issuer-state.py', revoked, '{{ issuer_receipt_file }}', '{{ setup_id }}', '{{ owned_token.key }}']
+    changed_when: true
+  rescue:
+  - ansible.builtin.debug:
+      msg: Exact owned token revocation unverified; manual recovery required.
