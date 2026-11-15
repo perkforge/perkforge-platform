@@ -46,7 +46,8 @@ class MattermostFixture(unittest.TestCase):
                              f'/api/v4/teams/{T}/members?page=0&per_page=200':'team_members',
                              f'/api/v4/channels/{C}/members?page=0&per_page=200':'channel_members',
                              f'/api/v4/hooks/incoming/{H}':'hook'}
-                    data = s.get('extra_paths', {}).get(self.path, s.get(paths.get(self.path)))
+                    sequence = s.get('response_sequences', {}).get(self.path)
+                    data = sequence.pop(0) if sequence else s.get('extra_paths', {}).get(self.path, s.get(paths.get(self.path)))
                     if data is None: status, data = 404, {}
                 self.send_response(status)
                 self.send_header('Content-Type', 'application/json')
@@ -55,6 +56,8 @@ class MattermostFixture(unittest.TestCase):
             def do_POST(self):
                 s['calls'].append(('POST', self.path))
                 if s.get('apply_fixture') and self.path == f'/api/v4/channels/{C}/members':
+                    if s.get('fail_membership_add'):
+                        self.send_error(503); return
                     body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
                     s['channel_members'].append(dict(channel_id=C,user_id=body['user_id'],roles='channel_user channel_admin' if s.get('elevate_after_add') else 'channel_user'))
                     self.send_response(201); self.send_header('Content-Type','application/json'); self.end_headers(); self.wfile.write(b'{}')
