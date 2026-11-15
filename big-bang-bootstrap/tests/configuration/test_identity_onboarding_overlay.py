@@ -1,7 +1,7 @@
 import copy,pathlib,subprocess,unittest,yaml
 ROOT=pathlib.Path(__file__).resolve().parents[2]
-A='b222f888581225f6dc0741bd0a64c3ca4183383b';B='d341e062d78ce983510cee933912516e065f8d66'
-HASHES={A:'dc2a00cc139c22459066c1c066fa6d4026b1e06cf7aea9e90720d95f0d2d61ce',B:'4a2ce4e06b3f5fef2038e21a718ecc270b6b7e92cb7728af724d3e328a39198f'}
+A='ccfb231c3ad0e70af8682d535d320ca0449d2897';B='e3c1878a219b402b7b7a1cb3776f1d2fab6e1328'
+HASHES={A:'402b9fe44daf08eb2a4d83eacffc474d559f5e0e079fbffb1b66289bb3b11d8f',B:'bd8959372d3fc06667c389dc9e5a822859c76da3e28ba1a98892a4f8ccd758c4'}
 def render(path):
  return {(o['apiVersion'],o['kind'],o['metadata'].get('namespace'),o['metadata']['name']):o for o in yaml.safe_load_all(subprocess.check_output(['kubectl','kustomize',str(ROOT/'clusters'/path)],text=True)) if o}
 class Overlay(unittest.TestCase):

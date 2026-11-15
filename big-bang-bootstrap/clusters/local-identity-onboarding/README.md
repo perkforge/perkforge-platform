@@ -7,8 +7,8 @@ policy, alerts and workload values remain unchanged. No credential material or
 bootstrap security grant is included here.
 
 Prepublish/review the paired enrollment and platform stages before live work.
-Enrollment A `b222f888581225f6dc0741bd0a64c3ca4183383b` holds memberships;
-B `d341e062d78ce983510cee933912516e065f8d66` releases only after actual issuer/SSA
+Enrollment A `ccfb231c3ad0e70af8682d535d320ca0449d2897` holds memberships;
+B `e3c1878a219b402b7b7a1cb3776f1d2fab6e1328` releases only after actual issuer/SSA
 acceptance. Both use the same released executable pins and Job inputs/names.
 Preserve both commits through a normal merge commit, not squash/rebase.
 
@@ -39,5 +39,5 @@ exact executable provenance, budgets and remaining acceptance limits.
 First select corrected H through local-identity-child-pause and verify all three
 children held on the corrected source. Only then select A at this path to resume
 foundation/attest with memberships held. H remains pinned independently at B.
-The new Job suffix is 74a1fd77a43038f5; no predecessor receipt existed, so retry
-generation zero and empty predecessor remain intentional.
+The new Job suffix is 54819c8b56bfc3e8; the actual prior foundation is bound at retry generation one, while the
+explicit attestation predecessor remains empty because no issuer receipt existed.
