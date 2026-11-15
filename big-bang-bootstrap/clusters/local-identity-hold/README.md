@@ -33,3 +33,20 @@ The pinned [Flux kustomize-controller v1.9.5 reconciliation source](https://gith
 returns for a suspended Kustomization before resolving its source, dependencies,
 or applying manifests. This source inspection is not a live suspension test.
 This overlay adds no grants, credentials, image changes, or automatic retries.
+
+### Suspension readback
+
+The pinned controller emits the INFO log `Reconciliation is suspended for this
+object`, but no dedicated Suspended condition or Kubernetes event. Its deferred
+status patch may retain old Ready/Reconciling conditions; observedGeneration is
+not a reliable suspension acknowledgement. Verify the exact root UID and
+`suspend: true`, the unchanged enrollment pin, and a post-hold suspension log
+for this namespace/name from the single active controller leader. Controller
+runtime serializes reconciliations of the same object, so observing that newer
+suspension branch establishes that the previous same-key run has finished in
+that controller. Recheck that no phase children or Jobs exist. If logs or leader
+continuity cannot establish this, retain the old source and admission denial;
+do not substitute an arbitrary sleep or stale Ready condition.
+
+See [deferred status handling](https://github.com/fluxcd/kustomize-controller/blob/v1.9.5/internal/controller/kustomization_controller.go#L1192-L1215)
+and [pinned same-key serialization](https://github.com/kubernetes-sigs/controller-runtime/blob/v0.24.1/pkg/internal/controller/controller.go#L272-L280).
