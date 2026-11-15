@@ -16,6 +16,7 @@
       directAccessGrantsEnabled: false
       implicitFlowEnabled: false
       fullScopeAllowed: false
+      attributes: {access.token.lifespan: "300"}
     status_code: 201
   when: not setup_receipt.reader_client_id
   register: created_reader
@@ -44,6 +45,7 @@
     - reader_detail.json.directAccessGrantsEnabled is sameas false
     - reader_detail.json.implicitFlowEnabled is sameas false
     - reader_detail.json.fullScopeAllowed is sameas false
+    - reader_detail.json.attributes['access.token.lifespan'] == '300'
 - ansible.builtin.uri:
     url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients/{{ setup_receipt.reader_client_id }}/service-account-user'
     headers: '{{ setup_headers }}'
