@@ -9,4 +9,4 @@ patches:
   patch: |-
     - op: replace
       path: /spec/ref
-      value: {commit: cf30914f793358507c71348a3ca1bd25bd654198}
+      value: {commit: 73648e47d1fd4bb6ba901820df23db4df45a9dd6}
