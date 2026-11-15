@@ -1,4 +1,4 @@
-# Select only after exact root-owned guard/grant and private-volume gates pass.
+# Select only after approved root-owned guards/grants and native adoption gates pass.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
