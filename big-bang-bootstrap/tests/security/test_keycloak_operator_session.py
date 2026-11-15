@@ -47,6 +47,7 @@ class Wrapper(unittest.TestCase):
                  'username_file': 'unused', 'password_file': 'unused',
                  'owned_receipt': 'unused', 'reader_inputs': 'unused'}
             state = {'logout': False, 'refreshes': 0}
+            report = {}
             class Session:
                 refresh = 'old-refresh'
                 def __init__(self, _):
@@ -74,10 +75,13 @@ class Wrapper(unittest.TestCase):
                  patch.object(m.subprocess, 'Popen', side_effect=launch):
                 if refresh_failure or logout_failure:
                     with self.assertRaises(m.Blocked):
-                        m.run(d)
+                        m.run(d, report)
                 else:
-                    m.run(d)
+                    m.run(d, report)
             self.assertTrue(state['logout'])
+            self.assertEqual(report['logout_verified'], not logout_failure)
+            self.assertTrue(report['artifact_removed'])
+            self.assertIsInstance(report['helper_exit'], int)
             self.assertGreater(state['refreshes'], 0)
             self.assertFalse(Path(d['token_file']).exists())
             self.assertIsNotNone(children[0].poll())

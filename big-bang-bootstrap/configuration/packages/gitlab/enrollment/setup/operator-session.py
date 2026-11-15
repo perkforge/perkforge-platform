@@ -211,7 +211,8 @@ def stop(child):
     child.wait(timeout=1)
 
 
-def run(d):
+def run(d, report=None):
+    report = {} if report is None else report
     session = Session(d)
     artifact = Artifact(d['token_file'])
     child = None
@@ -262,6 +263,7 @@ def run(d):
             finally:
                 artifact.remove()
                 cleanup_ok = True
+                report.update(helper_exit=None if child is None else child.returncode, logout_verified=logout_ok, artifact_removed=cleanup_ok)
     if not success or not logout_ok or not cleanup_ok:
         raise Blocked('HelperOrCleanupUnverified')
 
@@ -280,14 +282,15 @@ def main():
         signal.signal(sig, interrupted)
     signal.signal(signal.SIGALRM, alarm_handler)
     signal.alarm(285)
+    report = {}
     try:
         if len(sys.argv) != 3:
             raise Blocked('InvalidArguments')
-        run(selection(sys.argv[2]))
-        print('{"stage":"HelperCompletedSessionClosed"}')
+        run(selection(sys.argv[2]), report)
+        print(json.dumps({"stage":"HelperCompletedSessionClosed", **report}))
         return 0
     except Exception:
-        print('{"stage":"ManualReviewRequired","category":"OperatorSessionOrHelperUnverified"}')
+        print(json.dumps({"stage":"ManualReviewRequired","category":"OperatorSessionOrHelperUnverified", **report}))
         return 1
     finally:
         signal.alarm(0)

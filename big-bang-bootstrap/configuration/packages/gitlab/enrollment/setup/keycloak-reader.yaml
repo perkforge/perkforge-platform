@@ -91,7 +91,9 @@
         that:
         - realm_after.json.adminPermissionsEnabled is sameas true
         - permissions_client.json | length == 1
-        - permissions_client.json[0].id == realm_after.json.adminPermissionsClient
+        - realm_after.json.adminPermissionsClient is mapping
+        - realm_after.json.adminPermissionsClient.clientId == "admin-permissions"
+        - permissions_client.json[0].id == realm_after.json.adminPermissionsClient.id
         - not setup_receipt.permissions_client_id or setup_receipt.permissions_client_id == permissions_client.json[0].id
     - ansible.builtin.set_fact:
         setup_receipt: '{{ setup_receipt | combine({"permissions_client_id":permissions_client.json[0].id,"permissions_observed_enabled":true,"stage":("PermissionsEnabled" if setup_receipt.stage in ["Prepared","PermissionsEnablePending"] else setup_receipt.stage)}) }}'
