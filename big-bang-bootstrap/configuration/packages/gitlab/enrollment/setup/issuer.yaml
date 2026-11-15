@@ -1,0 +1,119 @@
+- name: Issue only fixed identity setup and ESO authority
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars: {run: false}
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      timeout: 10
+  tasks:
+  - when: run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.set_fact: {issuer_started: false}
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/issuer-state.py', locked, '{{ issuer_root_file }}', '{{ issuer_receipt_file }}', '{{ issuer_inputs_file }}']
+      changed_when: true
+    - ansible.builtin.set_fact: {issuer_started: true}
+    - name: Verify public cluster identity before reading root credential
+      ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/sys/health'
+      register: health
+    - ansible.builtin.assert:
+        that:
+        - health.json.cluster_id == cluster_id
+        - health.json.initialized is sameas true
+        - health.json.sealed is sameas false
+        - health.json.version == '2.7.2'
+    - ansible.builtin.set_fact:
+        issuer_headers: {X-Vault-Token: '{{ lookup("file",issuer_root_file) | trim }}'}
+        issued_purposes: []
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/auth/token/lookup-self'
+        headers: '{{ issuer_headers }}'
+      register: root_identity
+    - ansible.builtin.assert:
+        that:
+        - root_identity.json.data.policies == ['root']
+        - root_identity.json.data.identity_policies | default([]) == []
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/sys/auth'
+        headers: '{{ issuer_headers }}'
+      register: auth_mounts
+    - ansible.builtin.assert:
+        that:
+        - auth_mounts.json.data['kubernetes-eso/'].type == 'kubernetes'
+        - auth_mounts.json.data['kubernetes-eso/'].description == 'PerkForge eso-machine-v1'
+        - auth_mounts.json.data['kubernetes-eso/'].config.default_lease_ttl == 300
+        - auth_mounts.json.data['kubernetes-eso/'].config.max_lease_ttl == 900
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/auth/kubernetes-eso/config'
+        headers: '{{ issuer_headers }}'
+      register: auth_config
+    - ansible.builtin.assert:
+        that:
+        - auth_config.json.data.kubernetes_host == 'https://kubernetes.default.svc:443'
+        - auth_config.json.data.disable_local_ca_jwt is sameas false
+        - not (auth_config.json.data.token_reviewer_jwt_set | default(false))
+        - auth_config.json.data.kubernetes_ca_cert | default('') == ''
+        - auth_config.json.data.pem_keys | default([]) == []
+        - auth_config.json.data.issuer | default('') == ''
+    - ansible.builtin.set_fact:
+        issuer_policies:
+          tenant-identity-bootstrap-gitlab-v1: '{{ lookup("file",playbook_dir + "/gitlab-custody-policy.hcl",rstrip=false) }}'
+          tenant-identity-bootstrap-keycloak-v1: '{{ lookup("file",playbook_dir + "/keycloak-custody-policy.hcl",rstrip=false) }}'
+          eso-identity-writer: 'path "platform/data/identity/gitlab/tenants-writer-v1" { capabilities = ["read"] } path "auth/token/lookup-self" { capabilities = ["read"] }'
+          eso-identity-reader: 'path "platform/data/identity/gitlab/tenant-reader-v1" { capabilities = ["read"] } path "auth/token/lookup-self" { capabilities = ["read"] }'
+          eso-identity-keycloak: 'path "platform/data/identity/keycloak/portal-membership-reader-v1" { capabilities = ["read"] } path "auth/token/lookup-self" { capabilities = ["read"] }'
+        issuer_roles: {}
+    - ansible.builtin.set_fact:
+        issuer_roles: '{{ issuer_roles | combine({item: {"bound_service_account_names":[item],"bound_service_account_namespaces":["tenant-identity-writer" if item == "eso-identity-writer" else "tenant-identity-attestor"],"audience":"openbao-eso","token_policies":[item],"token_no_default_policy":true,"token_ttl":300,"token_max_ttl":900,"token_explicit_max_ttl":900}}) }}'
+      loop: [eso-identity-writer, eso-identity-reader, eso-identity-keycloak]
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/sys/policies/acl/{{ item.key }}'
+        headers: '{{ issuer_headers }}'
+        status_code: [200,404]
+      loop: '{{ issuer_policies | dict2items }}'
+      register: issuer_policy_before
+    - ansible.builtin.assert:
+        that: item.status == 404 or item.json.data.policy == item.item.value
+      loop: '{{ issuer_policy_before.results }}'
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/auth/kubernetes-eso/role/{{ item.key }}'
+        headers: '{{ issuer_headers }}'
+        status_code: [200,404]
+      loop: '{{ issuer_roles | dict2items }}'
+      register: issuer_role_before
+    - ansible.builtin.include_tasks: issuer-role-check.yaml
+      vars:
+        issuer_current_role: '{{ item.json.data }}'
+        issuer_desired_role: '{{ item.item.value }}'
+      when: item.status == 200
+      loop: '{{ issuer_role_before.results }}'
+    - ansible.builtin.include_tasks: issuer-policy.yaml
+      loop: '{{ issuer_policies | dict2items }}'
+      loop_control: {index_var: policy_index}
+    - ansible.builtin.include_tasks: issuer-role.yaml
+      loop: '{{ issuer_roles | dict2items }}'
+      loop_control: {index_var: role_index}
+    - ansible.builtin.include_tasks: issuer-token.yaml
+      loop: [gitlab,keycloak]
+      loop_control: {loop_var: purpose}
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/issuer-state.py', record, '{{ issuer_receipt_file }}', '{{ setup_id }}', Issued]
+      changed_when: true
+    rescue:
+    - name: Revoke only verified newly returned accessors; unknown issuance remains manual
+      ansible.builtin.include_tasks: issuer-cleanup.yaml
+      when: issuer_started | default(false) and issuer_headers is defined
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/issuer-state.py', record, '{{ issuer_receipt_file }}', '{{ setup_id }}', ManualRecovery]
+      failed_when: false
+      when: issuer_started | default(false)
+    - ansible.builtin.fail:
+        msg: Issuer partial effects retained; no automatic remint, root or policy deletion.

@@ -1,0 +1,17 @@
+- ansible.builtin.set_fact:
+    cleanup_receipt: '{{ lookup("file",issuer_receipt_file) | from_json }}'
+- ansible.builtin.set_fact:
+    cleanup_accessors: '{{ cleanup_receipt.accessors }}'
+- when: issued_token is defined and issued_token.json is defined and issued_token.json.auth is defined and issued_token.json.auth.accessor is defined and current_issuance_purpose | default('') in ['gitlab','keycloak']
+  block:
+  - ansible.builtin.assert:
+      that:
+      - issued_token.json.auth.accessor is match('^[A-Za-z0-9_-]{8,256}$')
+      - current_issuance_purpose not in cleanup_accessors or cleanup_accessors[current_issuance_purpose] == issued_token.json.auth.accessor
+  - ansible.builtin.set_fact:
+      cleanup_accessors: '{{ cleanup_accessors | combine({current_issuance_purpose:issued_token.json.auth.accessor}) }}'
+- ansible.builtin.assert:
+    that: cleanup_receipt.setup_id == setup_id
+- ansible.builtin.include_tasks: issuer-revoke.yaml
+  loop: '{{ cleanup_accessors | dict2items }}'
+  loop_control: {loop_var: owned_token}

@@ -1,0 +1,16 @@
+- ansible.builtin.uri:
+    url: '{{ bao_origin }}/v1/auth/kubernetes-eso/role/{{ item.key }}'
+    headers: '{{ issuer_headers }}'
+    method: POST
+    body_format: json
+    body: '{{ item.value }}'
+    status_code: 204
+  when: issuer_role_before.results[role_index].status == 404
+- ansible.builtin.uri:
+    url: '{{ bao_origin }}/v1/auth/kubernetes-eso/role/{{ item.key }}'
+    headers: '{{ issuer_headers }}'
+  register: role_readback
+- ansible.builtin.include_tasks: issuer-role-check.yaml
+  vars:
+    issuer_current_role: '{{ role_readback.json.data }}'
+    issuer_desired_role: '{{ item.value }}'
