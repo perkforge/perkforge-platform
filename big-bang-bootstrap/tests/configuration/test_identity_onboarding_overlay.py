@@ -1,6 +1,6 @@
 import copy,pathlib,subprocess,unittest,yaml
 ROOT=pathlib.Path(__file__).resolve().parents[2]
-A='4838b8a4de5ed67bced99011f33e55cca9d880d3';B='d7c2804fb7576ec1c4df35ac236a4dd9502755db'
+A='fd51eeaf0ad6123c089826aee3687e449c4c2979';B='ca5f5ada8f83b8e42279b71e8a40e2e3755c3472'
 HASHES={A:'8e1bdf54bc0f5cb62bf719c017ca1893794fbec1531166a827f59c0324a369a3',B:'1a6306c3714c82280c8ea414ee3e7386383eddbbb92eadd2cafac45ffb50ca35'}
 def render(path):
  return {(o['apiVersion'],o['kind'],o['metadata'].get('namespace'),o['metadata']['name']):o for o in yaml.safe_load_all(subprocess.check_output(['kubectl','kustomize',str(ROOT/'clusters'/path)],text=True)) if o}
