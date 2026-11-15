@@ -81,3 +81,38 @@ The synthetic HTTPS fixture uses these pinned shapes and dummy credentials. It
 covers disabled preparation, no-op repeat, partial response recovery/refusal,
 foreign resource drift and zero secret/token requests. Native target acceptance
 is still required after the separately authorized custody/activation stage.
+
+### Short operator sessions
+
+The native master-realm operator token may last only 60 seconds. Do not extend
+realm lifetimes to complete setup. Operator request headers are resolved from a
+protected bearer file for every request, not retained as an Ansible fact. The
+bounded operator-session wrapper uses the existing supported refresh grant and
+atomically replaces a private `{access_token, expires_at}` artifact; refresh
+credentials stay in memory. The lookup rejects a session with 15 seconds or less
+remaining before issuing the request. Original externally managed plain-token
+inputs remain supported, but their lifetime must cover their use.
+
+Refreshing a session does not increase the operator's permissions. A refresh or
+supervisor failure stops the operation and preserves partial-effect receipts;
+logout and local session cleanup do not undo already-created resources. Inspect
+the retained state before another attempt. No perpetual process, realm setting
+change, or workload bootstrap credential is introduced.
+
+Use `python3 operator-session.py apply /private/session.json` only for an approved
+operator action. The protected literal JSON selects `mode: prepare` or `activate`,
+`origin`, `ca_file`, existing `username_file` and `password_file`, a new
+`token_file`, `owned_receipt`, and `reader_inputs`. Activation additionally selects
+`bao_token`, `custody_receipt`, and `custody_inputs`. The wrapper invokes only its
+fixed sibling setup helper. It validates those selections before reading operator
+credentials, refreshes in memory at most every 20 seconds, and bounds the helper
+and cleanup to 300 seconds. No arbitrary command or authentication target is
+accepted. Do not reuse an uncertain attempt without inspecting its native and
+local receipts.
+
+Record the actual reviewed operator commit/hash separately from the pilot's
+`source_revision` selection: that field binds the intended enrollment contract,
+not a claim that every later operator fix was present in that historical commit.
+An abrupt termination can interrupt native disable/rollback logic. Session logout
+is not a rollback of native effects; an unverified logout or helper result is
+reported as manual review, never normal completion.

@@ -22,19 +22,18 @@
       changed_when: false
     - ansible.builtin.set_fact:
         setup_stage: native-preflight
-        setup_headers: {Authorization: 'Bearer {{ lookup("file",kc_setup_token_file) | trim }}'}
         reader_name: 'perkforge-{{ kc_reader_context }}-identity-reader'
         policy_name: 'perkforge-{{ kc_reader_context }}-reader-actor'
         permission_name: 'perkforge-{{ kc_reader_context }}-reader-groups'
     - ansible.builtin.uri:
         url: '{{ kc_reader_origin }}/admin/serverinfo'
-        headers: '{{ setup_headers }}'
+        headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
       register: server_info
     - ansible.builtin.assert:
         that: server_info.json.systemInfo.version == '26.8.1'
     - ansible.builtin.uri:
         url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}'
-        headers: '{{ setup_headers }}'
+        headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
       register: realm_before
     - ansible.builtin.assert:
         that:
@@ -42,7 +41,7 @@
         - realm_before.json.adminPermissionsEnabled | default(false) or kc_reader_allow_enable_permissions
     - ansible.builtin.uri:
         url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/groups/{{ kc_reader_group_ids[item] }}'
-        headers: '{{ setup_headers }}'
+        headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
       loop: [tenant-admin, tenant-developer, tenant-viewer]
       register: native_groups
     - ansible.builtin.assert:
@@ -58,7 +57,7 @@
         setup_receipt: "{{ lookup('file',kc_setup_receipt_file) | from_json if receipt_stat.stat.exists else {'schema':1,'context':kc_reader_context,'source_revision':kc_reader_source_revision,'origin':kc_reader_origin,'realm':kc_reader_realm,'group_ids':kc_reader_group_ids,'reader_client_id':'','service_account_id':'','permissions_client_id':'','policy_id':'','permission_id':'','permissions_enable_requested':false,'permissions_observed_enabled':false,'stage':'Prepared'} }}"
     - ansible.builtin.uri:
         url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients?clientId={{ reader_name }}&max=2'
-        headers: '{{ setup_headers }}'
+        headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
       register: reader_lookup
     - ansible.builtin.assert:
         that:
@@ -74,7 +73,7 @@
       - ansible.builtin.include_tasks: save-kc-receipt.yaml
     - ansible.builtin.uri:
         url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}'
-        headers: '{{ setup_headers }}'
+        headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
         method: PUT
         body_format: json
         body: {adminPermissionsEnabled: true}
@@ -82,11 +81,11 @@
       when: not (realm_before.json.adminPermissionsEnabled | default(false))
     - ansible.builtin.uri:
         url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}'
-        headers: '{{ setup_headers }}'
+        headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
       register: realm_after
     - ansible.builtin.uri:
         url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients?clientId=admin-permissions&max=2'
-        headers: '{{ setup_headers }}'
+        headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
       register: permissions_client
     - ansible.builtin.assert:
         that:
@@ -100,7 +99,7 @@
     - ansible.builtin.include_tasks: save-kc-receipt.yaml
     - ansible.builtin.uri:
         url: '{{ authz_base }}/{{ item.path }}?name={{ item.name }}'
-        headers: '{{ setup_headers }}'
+        headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
         status_code: [200,204]
       loop:
       - {path: policy/search, name: '{{ policy_name }}', owned_id: '{{ setup_receipt.policy_id }}'}

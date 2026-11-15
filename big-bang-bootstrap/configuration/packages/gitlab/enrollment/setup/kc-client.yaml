@@ -2,7 +2,7 @@
 - name: Create only a disabled service client, never retrieve its generated secret here
   ansible.builtin.uri:
     url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients'
-    headers: '{{ setup_headers }}'
+    headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
     method: POST
     body_format: json
     body:
@@ -30,7 +30,7 @@
   - ansible.builtin.include_tasks: save-kc-receipt.yaml
 - ansible.builtin.uri:
     url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients/{{ setup_receipt.reader_client_id }}'
-    headers: '{{ setup_headers }}'
+    headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
   register: reader_detail
 - ansible.builtin.assert:
     that:
@@ -48,7 +48,7 @@
     - reader_detail.json.attributes['access.token.lifespan'] == '300'
 - ansible.builtin.uri:
     url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients/{{ setup_receipt.reader_client_id }}/service-account-user'
-    headers: '{{ setup_headers }}'
+    headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
   register: service_user
 - ansible.builtin.assert:
     that:
@@ -61,19 +61,19 @@
 - name: Refuse service-account group inheritance before attaching permissions
   ansible.builtin.uri:
     url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/users/{{ setup_receipt.service_account_id }}/groups?first=0&max=1'
-    headers: '{{ setup_headers }}'
+    headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
   register: service_groups
 - ansible.builtin.assert:
     that: service_groups.json | length == 0
 - ansible.builtin.uri:
     url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients?clientId=realm-management&max=2'
-    headers: '{{ setup_headers }}'
+    headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
   register: realm_management
 - ansible.builtin.assert:
     that: realm_management.json | length == 1
 - ansible.builtin.uri:
     url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/users/{{ setup_receipt.service_account_id }}/role-mappings/clients/{{ realm_management.json[0].id }}/composite'
-    headers: '{{ setup_headers }}'
+    headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
   register: management_roles
 - ansible.builtin.assert:
     that: management_roles.json | length == 0

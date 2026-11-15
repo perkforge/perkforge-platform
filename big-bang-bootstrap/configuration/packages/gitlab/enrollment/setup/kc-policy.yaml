@@ -1,7 +1,7 @@
 - ansible.builtin.set_fact: {setup_stage: exact-user-policy}
 - ansible.builtin.uri:
     url: '{{ authz_base }}/policy/user'
-    headers: '{{ setup_headers }}'
+    headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
     method: POST
     body_format: json
     body:
@@ -21,7 +21,7 @@
   - ansible.builtin.include_tasks: save-kc-receipt.yaml
 - ansible.builtin.uri:
     url: '{{ authz_base }}/policy/{{ setup_receipt.policy_id }}'
-    headers: '{{ setup_headers }}'
+    headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
   register: owned_policy
 - ansible.builtin.assert:
     that:
@@ -33,7 +33,7 @@
 - ansible.builtin.set_fact: {setup_stage: exact-group-permission}
 - ansible.builtin.uri:
     url: '{{ authz_base }}/permission/scope'
-    headers: '{{ setup_headers }}'
+    headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
     method: POST
     body_format: json
     body:
@@ -57,7 +57,7 @@
   - ansible.builtin.include_tasks: save-kc-receipt.yaml
 - ansible.builtin.uri:
     url: '{{ authz_base }}/policy/{{ setup_receipt.permission_id }}{{ item }}'
-    headers: '{{ setup_headers }}'
+    headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
   loop: ['', /resources, /scopes, /associatedPolicies]
   register: owned_permission
 - ansible.builtin.assert:
