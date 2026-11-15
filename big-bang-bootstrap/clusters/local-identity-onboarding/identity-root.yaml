@@ -1,0 +1,39 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: identity-portal-foundation-root
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 5m
+  path: ./generated/identity-foundation/portal
+  sourceRef: {kind: GitRepository, name: tenant-enrollments}
+  serviceAccountName: platform-reconciler
+  prune: false
+  force: false
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: identity-portal
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 6m
+  path: ./clusters/local-identity-portal
+  sourceRef: {kind: GitRepository, name: tenant-enrollments}
+  serviceAccountName: identity-declaration-reconciler
+  prune: false
+  force: false
+  wait: false
+  healthChecks:
+  - {apiVersion: kustomize.toolkit.fluxcd.io/v1, kind: Kustomization, name: identity-portal-foundation, namespace: flux-system}
+  - {apiVersion: kustomize.toolkit.fluxcd.io/v1, kind: Kustomization, name: identity-portal-attest, namespace: flux-system}
+  - {apiVersion: kustomize.toolkit.fluxcd.io/v1, kind: Kustomization, name: identity-portal-memberships, namespace: flux-system}
+  dependsOn:
+  - name: identity-portal-foundation-controls
+    readyExpr: >-
+      dep.spec.commonMetadata.annotations['platform.perkforge.io/foundation-sha256'] == '574badef224b80e42cc686dab37de7dbf448974c33f853f7f7d56fedf9f4afdb'
+      && dep.metadata.generation == dep.status.observedGeneration
+      && dep.status.conditions.exists(e, e.type == 'Ready' && e.status == 'True')
