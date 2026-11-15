@@ -41,3 +41,14 @@ children held on the corrected source. Only then select A at this path to resume
 foundation/attest with memberships held. H remains pinned independently at B.
 The new Job suffix is 54819c8b56bfc3e8; the actual prior foundation is bound at retry generation one, while the
 explicit attestation predecessor remains empty because no issuer receipt existed.
+
+## Current readiness follow-up
+
+The current B path now pins enrollment `8095e0e0aa7f2df6d57caa5e51bc6be25c13e987`
+with foundation digest `e6898a166b8152c85003b63672a2ed739e4c476a403889b63a32476035da3397`.
+This source-only sequencing correction requires an unsuspended predecessor and
+a Ready condition observed at its current generation. Historical H/A/B commits
+above remain preserved; no new attempt chain, Job name, input, artifact, or
+permission is introduced. Completed Jobs are retained and are not replayed.
+Preserve the exact enrollment commit through a normal merge commit. Updating
+this pointer is not evidence that a live reconciliation or new phase succeeded.
