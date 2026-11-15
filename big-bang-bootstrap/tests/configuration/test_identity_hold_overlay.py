@@ -1,7 +1,7 @@
 import copy,pathlib,subprocess,unittest,yaml
 ROOT=pathlib.Path(__file__).resolve().parents[2]
-A='da172740021a61752901828e29a9b35e53fddddc'
-HASH='340c989400984b5587c19363e3d64e3adfdc0b0b155112c380183e5c749a70c3'
+A='0732cff9aff9815d1bedec4b94ff2883ce75b577'
+HASH='17f937b0fb0882681b2feb209063f40bacfe76d406d13e45a232a4db06215475'
 def render(path):
  return {(o['apiVersion'],o['kind'],o['metadata'].get('namespace'),o['metadata']['name']):o for o in yaml.safe_load_all(subprocess.check_output(['kubectl','kustomize',str(ROOT/'clusters'/path)],text=True)) if o}
 class Hold(unittest.TestCase):
@@ -30,12 +30,12 @@ class Hold(unittest.TestCase):
   hold=trees['local-identity-hold'][root];active=copy.deepcopy(trees['local-identity-onboarding'][root])
   self.assertIs(hold['spec']['suspend'],True);self.assertIs(active['spec']['suspend'],False)
   pin=trees['local-identity-onboarding'][source]['spec']['ref']['commit']
-  self.assertIn(pin,(A,'9c619d834a849842ce20171988304db3bf04afb5'))
+  self.assertIn(pin,(A,'a1812ec14b8955e760e26166e33c99f38c4be66e'))
   if pin!=A:
    self.assertEqual(active['spec']['healthChecks'].pop()['name'],'identity-portal-memberships')
    expr=active['spec']['dependsOn'][0]['readyExpr']
-   self.assertIn('85cf7ecff82a67d9c8ac09b4a9b602c7f6df154871bae57116e71af3414559ca',expr)
-   active['spec']['dependsOn'][0]['readyExpr']=expr.replace('85cf7ecff82a67d9c8ac09b4a9b602c7f6df154871bae57116e71af3414559ca',HASH)
+   self.assertIn('3d98014d1ea4cc7c426a9758596d9be11c004e417211ad98a61ee49e613ac73e',expr)
+   active['spec']['dependsOn'][0]['readyExpr']=expr.replace('3d98014d1ea4cc7c426a9758596d9be11c004e417211ad98a61ee49e613ac73e',HASH)
   active['spec']['suspend']=True
   self.assertEqual(active,hold)
 if __name__=='__main__':unittest.main()
