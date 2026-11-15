@@ -21,7 +21,6 @@
       changed_when: false
     - ansible.builtin.set_fact:
         owned: '{{ lookup("file",kc_setup_receipt_file) | from_json }}'
-        operator_headers: {Authorization: 'Bearer {{ lookup("file",kc_setup_token_file) | trim }}'}
         custody_headers: {X-Vault-Token: '{{ lookup("file",custody_token_file) | trim }}'}
         activation_attempted: false
         disable_result: not-attempted
@@ -29,14 +28,14 @@
         activation_stage: foreign-probe-preflight
     - ansible.builtin.uri:
         url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/groups/{{ foreign_group_id }}'
-        headers: '{{ operator_headers }}'
+        headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
       register: foreign_group
     - ansible.builtin.assert:
         that: foreign_group.json.id == foreign_group_id
     - ansible.builtin.set_fact: {activation_stage: secret-custody}
     - ansible.builtin.uri:
         url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients/{{ owned.reader_client_id }}/client-secret'
-        headers: '{{ operator_headers }}'
+        headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
       register: client_secret
     - ansible.builtin.assert:
         that:
@@ -72,7 +71,7 @@
     - ansible.builtin.set_fact: {activation_stage: enable-owned-client, activation_attempted: true}
     - ansible.builtin.uri:
         url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients/{{ owned.reader_client_id }}'
-        headers: '{{ operator_headers }}'
+        headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
         method: PUT
         body_format: json
         body: {enabled: true}
@@ -129,14 +128,14 @@
       block:
       - ansible.builtin.uri:
           url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients/{{ owned.reader_client_id }}'
-          headers: '{{ operator_headers }}'
+          headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
           method: PUT
           body_format: json
           body: {enabled: false}
           status_code: 204
       - ansible.builtin.uri:
           url: '{{ kc_reader_origin }}/admin/realms/{{ kc_reader_realm }}/clients/{{ owned.reader_client_id }}'
-          headers: '{{ operator_headers }}'
+          headers: {Authorization: 'Bearer {{ lookup("kc_operator_bearer",kc_setup_token_file) }}'}
         register: disabled
       - ansible.builtin.assert:
           that:

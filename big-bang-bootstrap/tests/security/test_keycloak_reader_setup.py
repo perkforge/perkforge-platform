@@ -9,7 +9,7 @@ class ReaderSetup(unittest.TestCase):
   with tempfile.TemporaryDirectory(prefix='kc-reader-setup-') as directory:
    root=Path(directory);subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN=localhost','-addext','subjectAltName=DNS:localhost','-keyout',str(root/'key'),'-out',str(root/'ca')],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);(root/'ca').chmod(0o644)
    ids={k:f'00000000-0000-4000-8000-{i:012d}' for i,k in enumerate(['permissions','reader','service','management','policy','permission'],10)};roles={'tenant-admin':'admins','tenant-developer':'developers','tenant-viewer':'viewers'};groups={r:f'11111111-1111-4111-8111-{i:012d}' for i,r in enumerate(roles,1)}
-   state={'custody_mode':False,'record':None,'fail_mode':'','reader_ttl':300,'calls':0,'writes':[],'enabled':False,'client':None,'policy':None,'permission':None,'bad_group':False,'bad_role':False,'bad_resource':False,'uncertain':False,'uncertain_enable':False,'uncertain_policy':False,'secret_reads':0,'token_requests':0};origin='';foreign='99999999-9999-4999-8999-999999999999'
+   state={'permissions_rep':None,'custody_mode':False,'record':None,'fail_mode':'','reader_ttl':300,'calls':0,'writes':[],'enabled':False,'client':None,'policy':None,'permission':None,'bad_group':False,'bad_role':False,'bad_resource':False,'uncertain':False,'uncertain_enable':False,'uncertain_policy':False,'secret_reads':0,'token_requests':0};origin='';foreign='99999999-9999-4999-8999-999999999999'
    class H(BaseHTTPRequestHandler):
     def log_message(self,*a):pass
     def reply(self,code,value=None,location=None):
@@ -37,7 +37,7 @@ class ReaderSetup(unittest.TestCase):
      if 'client-secret' in p:state['secret_reads']+=1;return self.reply(200,{'type':'secret','value':'OFFLINE-CLIENT-SECRET'}) if state['custody_mode'] else self.reply(403,{})
      base='/auth/admin/realms/perkforge'
      if p=='/auth/admin/serverinfo':return self.reply(200,{'systemInfo':{'version':'26.8.1'}})
-     if p==base:return self.reply(200,{'realm':'perkforge','adminPermissionsEnabled':state['enabled'],'adminPermissionsClient':ids['permissions'] if state['enabled'] else None})
+     if p==base:return self.reply(200,{'realm':'perkforge','adminPermissionsEnabled':state['enabled'],'adminPermissionsClient':(state['permissions_rep'] if state['permissions_rep'] is not None else {'id':ids['permissions'],'clientId':'admin-permissions'}) if state['enabled'] else None})
      if p==base+'/groups/'+foreign:return self.reply(200,{'id':foreign})
      if p.startswith(base+'/groups/'):
       role=next(r for r,g in groups.items() if p.endswith('/'+g));return self.reply(200,{'id':groups[role],'path':'/tenants/'+('foreign' if state['bad_group'] else 'portal')+'/'+roles[role],'subGroupCount':0})
@@ -47,7 +47,7 @@ class ReaderSetup(unittest.TestCase):
       if name=='realm-management':return self.reply(200,[{'id':ids['management'],'clientId':name}])
       return self.reply(200,[state['client']] if state['client'] else [])
      if p==base+'/clients/'+ids['reader']:return self.reply(200,state['client'])
-     if p==base+'/clients/'+ids['reader']+'/service-account-user':return self.reply(200,{'id':ids['service'],'serviceAccountClientId':'perkforge-portal-identity-reader'})
+     if p==base+'/clients/'+ids['reader']+'/service-account-user':return self.reply(200,{'id':ids['service'],'username':'service-account-perkforge-portal-identity-reader'})
      if p==base+'/users/'+ids['service']+'/groups':return self.reply(200,[])
      if p==base+'/users/'+ids['service']+'/role-mappings/clients/'+ids['management']+'/composite':return self.reply(200,[{'name':'view-users'}] if state['bad_role'] else [])
      authz=base+'/clients/'+ids['permissions']+'/authz/resource-server'
@@ -100,6 +100,9 @@ class ReaderSetup(unittest.TestCase):
    self.assertEqual(state['calls'],0)
    self.assertNotEqual(run(changes={'kc_reader_allow_enable_permissions':False}).returncode,0);self.assertEqual(state['writes'],[])
    state['bad_group']=True;self.assertNotEqual(run().returncode,0);self.assertEqual(state['writes'],[]);state['bad_group']=False
+   for wrong in ('legacy-string',{'id':ids['reader'],'clientId':'admin-permissions'},{'id':ids['permissions'],'clientId':'foreign'}):
+    state['permissions_rep']=wrong;self.assertNotEqual(run().returncode,0);self.assertEqual(state['writes'],['enable-fgap']);self.assertEqual(json.loads(receipt.read_text())['stage'],'PermissionsEnablePending')
+   state['permissions_rep']=None
    state['bad_role']=True;p=run();self.assertNotEqual(p.returncode,0,p.stdout);self.assertEqual(state['writes'],['enable-fgap','disabled-client']);self.assertEqual(json.loads(receipt.read_text())['stage'],'ClientCreated');state['bad_role']=False
    p=run();self.assertEqual(p.returncode,0,p.stdout+p.stderr);self.assertEqual(json.loads(receipt.read_text())['stage'],'PendingCustody');self.assertFalse(state['client']['enabled']);before=list(state['writes']);p=run();self.assertEqual(p.returncode,0,p.stdout+p.stderr);self.assertEqual(state['writes'],before)
    state['bad_resource']=True;self.assertNotEqual(run().returncode,0);self.assertEqual(state['writes'],before);state['bad_resource']=False
