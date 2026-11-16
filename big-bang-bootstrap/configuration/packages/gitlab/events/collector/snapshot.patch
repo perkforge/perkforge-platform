@@ -1,6 +1,6 @@
 diff --git a/docs/pipeline-snapshot-prototype.md b/docs/pipeline-snapshot-prototype.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..9d2f7ee0d5cc6f2f3bd31a817bf1f5b8e99ecbc8
+index 0000000000000000000000000000000000000000..2958584303ec2792551ee784fb317b508e29a9e7
 --- /dev/null
 +++ b/docs/pipeline-snapshot-prototype.md
 @@ -0,0 +1,80 @@
@@ -34,7 +34,7 @@ index 0000000000000000000000000000000000000000..9d2f7ee0d5cc6f2f3bd31a817bf1f5b8
 +Existing `projects` must exactly match distinct target paths. Explicitly disable
 +jobs, variables, reports, environments, tags, MRs, webhook, pprof, Redis, wildcard
 +and OpenTelemetry export. Legacy pull/garbage-collect schedules are not started in
-+this mode. Only push/branch is supported, at most 16 unique targets, literal
++this mode. Only explicitly selected push or web pipelines on branches are supported, at most 16 unique targets, literal
 +bounded refs, consistent project ID/path mappings. Sum of target deadlines must
 +fit one interval. A sequential cycle waits interval_seconds after its work, so the
 +interval is not a sampling SLA. API credentials remain project-wide read authority,
@@ -226,10 +226,10 @@ index 0000000000000000000000000000000000000000..36838aaa6843a2828c10b6c8595ac5c4
 +}
 diff --git a/pkg/config/snapshot_test.go b/pkg/config/snapshot_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..7a7d971dd36761c0336e95b240710c7fb670bcc1
+index 0000000000000000000000000000000000000000..e94e9659b22142ea50fa8f359da67306b7f99ac7
 --- /dev/null
 +++ b/pkg/config/snapshot_test.go
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,69 @@
 +package config
 +
 +import (
@@ -284,6 +284,10 @@ index 0000000000000000000000000000000000000000..7a7d971dd36761c0336e95b240710c7f
 +		t.Fatal(err)
 +	}
 +	c.PipelineSnapshot.Targets[0].Source = "web"
++	if err = c.ValidateSnapshot(); err != nil {
++		t.Fatal(err)
++	}
++	c.PipelineSnapshot.Targets[0].Source = "schedule"
 +	if c.ValidateSnapshot() == nil {
 +		t.Fatal("bad parsed config")
 +	}
@@ -369,7 +373,7 @@ index 031672f5ac6c8a9079e88a6bb8664ccd922687d0..d062fd0fc64c4b72c8c9c40112b29c3f
  
 diff --git a/pkg/snapshot/snapshot.go b/pkg/snapshot/snapshot.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..90e98a79a032c0251a79ba1fd4d81f6a591001d8
+index 0000000000000000000000000000000000000000..d47aa3dac9cd91add554c28ad7fd66950bfad260
 --- /dev/null
 +++ b/pkg/snapshot/snapshot.go
 @@ -0,0 +1,279 @@
@@ -423,7 +427,7 @@ index 0000000000000000000000000000000000000000..90e98a79a032c0251a79ba1fd4d81f6a
 +	paths := map[string]int64{}
 +	for _, t := range c.Targets {
 +		key := fmt.Sprintf("%d/%s/%s", t.ProjectID, t.Ref, t.Source)
-+		if t.ProjectID <= 0 || len(t.Project) > 200 || !pathRE.MatchString(t.Project) || !refRE.MatchString(t.Ref) || strings.Contains(t.Ref, "..") || strings.Contains(t.Ref, "//") || strings.HasSuffix(t.Ref, "/") || strings.HasSuffix(t.Ref, ".lock") || t.Source != "push" || seen[key] {
++		if t.ProjectID <= 0 || len(t.Project) > 200 || !pathRE.MatchString(t.Project) || !refRE.MatchString(t.Ref) || strings.Contains(t.Ref, "..") || strings.Contains(t.Ref, "//") || strings.HasSuffix(t.Ref, "/") || strings.HasSuffix(t.Ref, ".lock") || (t.Source != "push" && t.Source != "web") || seen[key] {
 +			return errors.New("snapshot target invalid")
 +		}
 +		if p, ok := ids[t.ProjectID]; ok && p != t.Project {
@@ -654,10 +658,10 @@ index 0000000000000000000000000000000000000000..90e98a79a032c0251a79ba1fd4d81f6a
 +}
 diff --git a/pkg/snapshot/snapshot_test.go b/pkg/snapshot/snapshot_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..1c7bd74b8bc5b01971e3f02898a603d50070c805
+index 0000000000000000000000000000000000000000..5b166b5a215bcdac728eeafe9ce3bbb287799170
 --- /dev/null
 +++ b/pkg/snapshot/snapshot_test.go
-@@ -0,0 +1,361 @@
+@@ -0,0 +1,399 @@
 +package snapshot
 +
 +import (
@@ -681,6 +685,7 @@ index 0000000000000000000000000000000000000000..1c7bd74b8bc5b01971e3f02898a603d5
 +type fake struct {
 +	mu                           sync.Mutex
 +	status, fail, body, redirect string
++	source                       string
 +	empty                        bool
 +	entered, release             chan struct{}
 +	calls                        atomic.Int32
@@ -694,7 +699,11 @@ index 0000000000000000000000000000000000000000..1c7bd74b8bc5b01971e3f02898a603d5
 +	}
 +	f.mu.Lock()
 +	status, fail, body, redirect, empty, entered, release := f.status, f.fail, f.body, f.redirect, f.empty, f.entered, f.release
++	source := f.source
 +	f.mu.Unlock()
++	if source == "" {
++		source = "push"
++	}
 +	if strings.HasSuffix(r.URL.Path, "/pipelines/11") && entered != nil {
 +		select {
 +		case entered <- struct{}{}:
@@ -724,17 +733,17 @@ index 0000000000000000000000000000000000000000..1c7bd74b8bc5b01971e3f02898a603d5
 +	case "/api/v4/projects/7/repository/branches/main":
 +		fmt.Fprint(w, `{"name":"main"}`)
 +	case "/api/v4/projects/7/pipelines":
-+		if r.URL.Query().Get("ref") != "main" || r.URL.Query().Get("source") != "push" || r.URL.Query().Get("per_page") != "1" || r.URL.Query().Get("scope") != "branches" {
++		if r.URL.Query().Get("ref") != "main" || r.URL.Query().Get("source") != source || r.URL.Query().Get("per_page") != "1" || r.URL.Query().Get("scope") != "branches" {
 +			http.Error(w, "query", 400)
 +			return
 +		}
 +		if empty {
 +			fmt.Fprint(w, `[]`)
 +		} else {
-+			fmt.Fprint(w, `[{"id":11,"project_id":7,"ref":"main","source":"push"}]`)
++			fmt.Fprintf(w, `[{"id":11,"project_id":7,"ref":"main","source":%q}]`, source)
 +		}
 +	case "/api/v4/projects/7/pipelines/11":
-+		fmt.Fprintf(w, `{"id":11,"project_id":7,"ref":"main","source":"push","status":%q}`, status)
++		fmt.Fprintf(w, `{"id":11,"project_id":7,"ref":"main","source":%q,"status":%q}`, source, status)
 +	default:
 +		http.Error(w, "unexpected", 404)
 +	}
@@ -927,7 +936,7 @@ index 0000000000000000000000000000000000000000..1c7bd74b8bc5b01971e3f02898a603d5
 +	}
 +}
 +func TestBounds(t *testing.T) {
-+	for _, mut := range []func(*Config){func(c *Config) { c.Targets = append(c.Targets, c.Targets[0]) }, func(c *Config) { c.Targets[0].Source = "web" }, func(c *Config) { c.Targets[0].Ref = "../foreign" }, func(c *Config) { c.IntervalSeconds = 1 }, func(c *Config) { c.Targets = make([]Target, 17) }} {
++	for _, mut := range []func(*Config){func(c *Config) { c.Targets = append(c.Targets, c.Targets[0]) }, func(c *Config) { c.Targets[0].Source = "schedule" }, func(c *Config) { c.Targets[0].Ref = "../foreign" }, func(c *Config) { c.IntervalSeconds = 1 }, func(c *Config) { c.Targets = make([]Target, 17) }} {
 +		c := settings()
 +		mut(&c)
 +		if c.Validate() == nil {
@@ -1017,6 +1026,39 @@ index 0000000000000000000000000000000000000000..1c7bd74b8bc5b01971e3f02898a603d5
 +	}
 +	if f.calls.Load() != 1 || values(t, c)["gcpe_pipeline_snapshot_valid"] != 0 {
 +		t.Fatal("unexpected rate result")
++	}
++}
++
++func TestWebSourceExactBinding(t *testing.T) {
++	for _, endpoint := range []string{"", "/pipelines", "/pipelines/11"} {
++		t.Run("foreign"+endpoint, func(t *testing.T) {
++			f := &fake{source: "web", status: "success"}
++			srv := httptest.NewTLSServer(http.HandlerFunc(f.handler))
++			defer srv.Close()
++			cfg := settings()
++			cfg.Targets[0].Source = "web"
++			c, err := New(cfg, srv.URL, "OFFLINE.fake", srv.Client().Transport.(*http.Transport), 10, 10)
++			if err != nil {
++				t.Fatal(err)
++			}
++			c.Poll(context.Background(), 0)
++			if values(t, c)["gcpe_pipeline_snapshot_valid"] != 1 || values(t, c)["gcpe_pipeline_snapshot_status/success"] != 1 {
++				t.Fatal("web success not observed")
++			}
++			if endpoint != "" {
++				f.mu.Lock()
++				f.fail = endpoint
++				f.body = `{"id":11,"project_id":7,"ref":"main","source":"push","status":"success"}`
++				if endpoint == "/pipelines" {
++					f.body = "[" + f.body + "]"
++				}
++				f.mu.Unlock()
++				c.Poll(context.Background(), 0)
++				if values(t, c)["gcpe_pipeline_snapshot_valid"] != 0 {
++					t.Fatal("foreign source accepted")
++				}
++			}
++		})
 +	}
 +}
 diff --git a/pkg/snapshot/yaml.go b/pkg/snapshot/yaml.go
