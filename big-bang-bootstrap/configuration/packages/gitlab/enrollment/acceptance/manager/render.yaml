@@ -1,0 +1,24 @@
+# Render only. Never kubectl/Helm/API apply; no existing root inclusion.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    manager_render: false
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'INERT by default; emitted release remains suspended and network denied.'
+  - when: manager_render | bool and not ansible_check_mode
+    block:
+    - ansible.builtin.assert:
+        that:
+        - context is match('^[a-z][a-z0-9-]{0,30}$')
+        - gitlab_origin is match('^https://[a-z0-9.-]+(:[0-9]+)?$')
+    - ansible.builtin.set_fact:
+        manager_namespace: 'gitlab-tenant-{{ context }}-runner'
+        job_namespace: 'gitlab-tenant-{{ context }}-ci'
+    - ansible.builtin.template:
+        src: '{{ item }}.j2'
+        dest: '{{ output_directory }}/{{ item }}'
+        mode: '0600'
+        force: false
+      loop: [foundation.yaml, release.yaml]
