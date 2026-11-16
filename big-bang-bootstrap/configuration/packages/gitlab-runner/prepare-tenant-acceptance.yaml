@@ -132,7 +132,7 @@
         - gitlab_runner_baseline.results[2].json.path_with_namespace == gitlab_runner_project_path
         - gitlab_runner_baseline.results[2].json.visibility == 'private'
         - gitlab_runner_baseline.results[2].json.default_branch == gitlab_runner_branch
-        - gitlab_runner_baseline.results[1].json.is_admin == false
+        - "('is_admin' not in gitlab_runner_baseline.results[1].json) or (gitlab_runner_baseline.results[1].json.is_admin is sameas false)"
         - gitlab_runner_baseline.results[2].json.namespace.id == acceptance_group.group_id
         - gitlab_runner_baseline.results[2].json.namespace.full_path == 'tenants/' + gitlab_acceptance_context
         - not gitlab_runner_baseline.results[2].json.shared_runners_enabled

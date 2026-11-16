@@ -1,4 +1,7 @@
 # Included only inside guarded live block; no grants or credential changes.
+# Pinned GET /user selects UserWithAdmin only for current_user.admin?.
+# Nonadmin UserPublic omits is_admin. This inference is endpoint/version-specific,
+# never a generic missing-field default; explicit values must be literal false.
 - ansible.builtin.uri:
     url: '{{ gitlab_acceptance_origin }}/api/v4/{{ item }}'
     headers: {PRIVATE-TOKEN: '{{ lookup("file",gitlab_acceptance_token) | trim }}'}
@@ -13,7 +16,7 @@
     - acceptance_authority.results[0].json.id == gitlab_acceptance_actor_id
     - acceptance_authority.results[0].json.state == 'active'
     - acceptance_authority.results[0].json.bot is sameas true
-    - acceptance_authority.results[0].json.is_admin is sameas false
+    - "('is_admin' not in acceptance_authority.results[0].json) or (acceptance_authority.results[0].json.is_admin is sameas false)"
     - acceptance_authority.results[1].json.id | type_debug == 'int'
     - acceptance_authority.results[1].json.id > 0
     - acceptance_authority.results[1].json.user_id == gitlab_acceptance_actor_id

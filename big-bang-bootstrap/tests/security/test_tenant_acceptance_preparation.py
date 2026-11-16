@@ -18,7 +18,7 @@ class Preparation(unittest.TestCase):
     def do_GET(self):
      if self.headers.get('PRIVATE-TOKEN')!='SYNTHETIC-ONLY':return self.response(403,{})
      path=unquote(urlsplit(self.path).path)
-     if path=='/api/v4/user':return self.response(200,{'id':8,'is_admin':False,'state':'active','bot':True})
+     if path=='/api/v4/user':return self.response(200,{'id':8,'state':'active','bot':True})
      authority={'id':12,'user_id':8,'access_level':50,'active':True,'revoked':False,'scopes':['api'],'expires_at':'2000-01-01' if state['expired'] else '2099-01-01'}
      if path=='/api/v4/personal_access_tokens/self':return self.response(200,authority)
      if path=='/api/v4/groups/7/members/8':return self.response(200,{'id':8,'access_level':30 if state['foreign_authority'] else 50})
