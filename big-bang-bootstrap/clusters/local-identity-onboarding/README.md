@@ -52,3 +52,14 @@ above remain preserved; no new attempt chain, Job name, input, artifact, or
 permission is introduced. Completed Jobs are retained and are not replayed.
 Preserve the exact enrollment commit through a normal merge commit. Updating
 this pointer is not evidence that a live reconciliation or new phase succeeded.
+
+## Original receipt extraction checkpoint
+
+The selected enrollment enables only the reviewed operator-bound temporary receipt
+reader admission alternative. It does not create the helper through Flux. Phase
+declaration, invocation, executable bundle, Jobs and inputs remain unchanged;
+completed provider work is not replayed. Bootstrap guards and grants are unchanged.
+The operator must verify original PVC/PV bindings and quiescence, read only the
+two original receipt files, verify byte hashes and helper UID, then delete the
+helper with a UID precondition. No credentials, API access or phase egress are
+provided. Remove the opt-in through reviewed source after extraction/cleanup.
