@@ -79,3 +79,13 @@ foundation readiness digest is selected with it. Permissions, completed Jobs,
 receipt guards, mounts, and resource budgets are unchanged. This source update
 neither creates a helper nor proves the retained volume is readable. Any bounded
 live attempt still requires fresh safety gates and applicable authorization.
+
+## Bounded directory metadata diagnostic
+
+The current selection pins enrollment `5f60130630011b018996bfb5f5d6ca9b108f1075`
+with foundation digest `81700abf5a2a25fa5cc8efc741c558cc5396ef035d5dd45e7343b0a87af0538b`.
+Only after the original directory-open EACCES, the reader reports bounded numeric
+directory/identity metadata or an unavailable code, then preserves failure. No
+permissions, receipt guards, mounts, Jobs or bootstrap grants change. Metadata is
+a separate observation, not proof of the denial cause. No helper is created by
+this selection. A new live attempt requires fresh gates and scoped authorization.

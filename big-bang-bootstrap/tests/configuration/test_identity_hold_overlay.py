@@ -30,9 +30,9 @@ class Hold(unittest.TestCase):
   hold=trees['local-identity-hold'][root];active=copy.deepcopy(trees['local-identity-onboarding'][root])
   self.assertIs(hold['spec']['suspend'],True);self.assertIs(active['spec']['suspend'],False)
   pin=trees['local-identity-onboarding'][source]['spec']['ref']['commit']
-  hashes={'ccfb231c3ad0e70af8682d535d320ca0449d2897':'402b9fe44daf08eb2a4d83eacffc474d559f5e0e079fbffb1b66289bb3b11d8f','c1405c16ca0f7a6ddbec230acab6fbf606ec1b50':'d851061e36e710a807648aadfb80339ea3a53c2c23c0fcbad72e53e4362820d1'}
+  hashes={'ccfb231c3ad0e70af8682d535d320ca0449d2897':'402b9fe44daf08eb2a4d83eacffc474d559f5e0e079fbffb1b66289bb3b11d8f','5f60130630011b018996bfb5f5d6ca9b108f1075':'81700abf5a2a25fa5cc8efc741c558cc5396ef035d5dd45e7343b0a87af0538b'}
   self.assertIn(pin,hashes)
-  if pin=='c1405c16ca0f7a6ddbec230acab6fbf606ec1b50':
+  if pin=='5f60130630011b018996bfb5f5d6ca9b108f1075':
    self.assertEqual(active['spec']['healthChecks'].pop()['name'],'identity-portal-memberships')
   expr=active['spec']['dependsOn'][0]['readyExpr'];self.assertIn(hashes[pin],expr)
   active['spec']['dependsOn'][0]['readyExpr']=expr.replace(hashes[pin],HASH)
