@@ -36,3 +36,13 @@ freshness/restart and notification acceptance. No artifact has been installed/pu
 
 Default upstream behavior is unchanged without the explicit snapshot config flag.
 See patched docs/pipeline-snapshot-prototype.md for metric/config ABI and limitations.
+
+## Local reproducibility checkpoint
+
+Two local builds of collector `51b74af0cff98191b61d073baa051f9d8b8d78f5`
+with the pinned Go1.26.8 recipe produced byte-identical static Linux/amd64
+binaries: SHA256 `c56aaaa66c596269dd20694756ce1d5142c184603f0a8e701694de440d6ef5f3`.
+The second source tree was reconstructed from the exact upstream commit plus the
+packaged patch; module verification and the full race suite passed. This is
+same-host, distinct-source-tree evidence, not independent-environment, container,
+vulnerability, native API or deployment acceptance. No image was published.
