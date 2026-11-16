@@ -33,16 +33,14 @@ Phase A exact additional custody objects:
 - ONE GitLab successor token, same bot/scopes; old token is revoked by rotation.
   NO replacement broad instance reader. No manager or runner permissions here.
 
-No restricted issuer presently exists. Fresh explicit approval must name the
-issuer: OpenBao root used solely to verify health/cluster and existing auth state,
-create this one exact ACL if absent (or require byte-identical existing owned ACL),
-mint the single child token, and revoke/verify that exact child accessor afterward.
-It must never write/read KV values or enter GitLab/workloads. The previous
-five-policy/two-token issuer and CAS0 bootstrap MUST NOT be rerun. ACL create lacks
-CAS, so require an exclusive administrative window. The one-purpose issuer
-procedure still needs independent review/execution wiring; this coordinator does
-not mint its own authority. An unknown child-token response leaves at most its
-one-hour lifetime, not permission to remint. Retain ACL/receipts; no silent deletion.
+The bounded [one-policy issuer](writer-issuer.md) supplies executable source for
+this stage. Fresh explicit root-use approval remains required: exact public
+health/cluster check, root identity check, one byte-exact ACL if absent and one
+nonrenewable service child, followed by owned-accessor cleanup/readback. It never
+reads/writes KV or enters GitLab/workloads. The previous five-policy/two-token
+issuer and CAS0 bootstrap MUST NOT be rerun. ACL creation lacks CAS, so require an
+exclusive administrative window. Unknown mint or undurable accessor evidence
+requires manual recovery/expiry, never automatic remint. Retain ACL/receipts.
 
 The provided child goes to `rotate-writer.py validate|apply TOKEN RECEIPT INPUTS`.
 No command/default authenticates without explicit apply. JSON is literal/exact,
@@ -101,9 +99,13 @@ No root/default/inherited policy or namespace selector.
 Per new reader or runner delivery: ONE read ACL + ONE exact kubernetes-eso role +
 ONE ESO SA + ONE SecretStore + ONE ExternalSecret + ONE generated Secret. Each
 new record additionally needs a separately approved exact-record short-lived
-write operator, not the Phase A writer-rotation child. Final reader runtime
-namespace/Secret/SA is still coordinator-owned ABI; do not create guessed objects.
-Thus no combined “all runtime ready” count is claimed before that binding exists.
+write operator, not the Phase A writer-rotation child. Proposed reader delivery
+ABI is context-derived namespace
+`gitlab-tenant-<context>-events`, Secret `gitlab-pipeline-reader` key `token`,
+ESO SA/role `eso-<context>-acceptance-reader`. Its separate runtime SA is
+`gitlab-pipeline-observer`, with no API automount. Namespace/runtime-SA/deployment,
+NetworkPolicy and scrape object counts still await reviewed manifests and consent;
+these proposed names grant no Phase A authority.
 
 Runner manager candidate separately adds TWO namespaces, THREE application
 SAs (manager/job/installer), TWO Roles and TWO RoleBindings, ONE quota, THREE
