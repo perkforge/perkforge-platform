@@ -66,14 +66,14 @@ spec:
         secret: gitlab-runner-auth
         config: "[[runners]]\n  environment = [\"HOME=/tmp\"]\n  request_concurrency =\
           \ 1\n  [runners.kubernetes]\n    namespace = \"{{ job_namespace }}\"\n    image\
-          \ = \"registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8\"\n    helper_image = \"\
+          \ = \"registry1.dso.mil/ironbank/opensource/ansible/ansible@sha256:3308322cc09f20a813c00e9087c166a3d97dbb7789c059f1020f3c0b092fdf02\"\n    helper_image = \"\
           registry1.dso.mil/gitlab/gitlab-org/gitlab-runner/gitlab-runner-helper:ubi-fips-x86_64-v19.2.2\"\
           \n    image_pull_secrets = [\"private-registry\"]\n    privileged = false\n\
           \    allow_privilege_escalation = false\n    automount_service_account_token\
           \ = false\n    service_account = \"gitlab-ci-job\"\n    service_account_overwrite_allowed\
           \ = \"\"\n    namespace_overwrite_allowed = \"\"\n    bearer_token_overwrite_allowed\
           \ = false\n    pod_annotations_overwrite_allowed = \"\"\n    pod_labels_overwrite_allowed\
-          \ = \"\"\n    allowed_images = [\"registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8\"\
+          \ = \"\"\n    allowed_images = [\"registry1.dso.mil/ironbank/opensource/ansible/ansible@sha256:3308322cc09f20a813c00e9087c166a3d97dbb7789c059f1020f3c0b092fdf02\"\
           ]\n    allowed_services = [\"INVALID-NO-SERVICES\"]\n    cpu_request = \"500m\"\
           \n    cpu_limit = \"1\"\n    memory_request = \"512Mi\"\n    memory_limit =\
           \ \"1Gi\"\n    helper_cpu_request = \"100m\"\n    helper_cpu_limit = \"500m\"\

@@ -26,6 +26,9 @@ Authority to review before activation:
 - Native chart/image pull, scheduling/I/O, rendered RBAC, secret names and bounded
   egress must pass before the separately approved root change/resume/CI enable.
 
+The tenant job image is the previously locally verified maintained Ansible14.6
+digest3308322cc09f20a813c00e9087c166a3d97dbb7789c059f1020f3c0b092fdf02,
+matching the fixed seed Python smoke ABI; old platform UBI configuration is untouched.
 The fixed job image/helper allowlist and no SA/namespace/bearer/label overwrite
 preserve the existing confinement model. Tenant runner tag/binding is established
 by the separate paused native preparation receipt, not manager registration.
