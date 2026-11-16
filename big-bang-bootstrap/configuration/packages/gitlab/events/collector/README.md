@@ -25,7 +25,7 @@ operator actions, never triggered by a selected root, workflow or import:
    official module proxy/checksum database. Tests include fake TLS only; no real API.
    The command produces a static Linux/amd64 binary, license, source receipt and hashes.
 4. Independently repeat in a second fresh build environment and compare binary hashes.
-   This recipe is reproducibility-oriented; two-build equality is NOT yet established.
+   This recipe is reproducibility-oriented; independent-environment equality is NOT yet established (see the local checkpoint below).
 
 No container base is silently chosen. Before any image publication, review a pinned
 approved runtime base, CA mounting, nonroot user, SBOM/license/vulnerability evidence,
