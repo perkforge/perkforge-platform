@@ -46,7 +46,7 @@ class Issuer(unittest.TestCase):
       return self.reply(200,{'auth':{'client_token':token,'accessor':'ROOT-ACCESSOR' if state['mode']=='root-accessor' else accessor,'policies':[POLICY]+(['default'] if state['mode']=='extra' else []),'identity_policies':[],'renewable':False,'lease_duration':3600,'token_type':'service'}})
      if p=='/v1/auth/token/lookup-accessor':
       assert body['accessor']!='ROOT-ACCESSOR';v=state['tokens'].get(body['accessor'])
-      return self.reply(200,{'data':v}) if v else self.reply(400,{'errors':['bad request' if state['mode']=='bad400' else 'invalid accessor']})
+      return self.reply(200,{'data':v}) if v else self.reply(400,{'errors':[('1 error occurred:\n\t* invalid accessor\n\nextra' if state['mode']=='bad400' else ('invalid accessor' if state['mode']=='bare400' else '1 error occurred:\n\t* invalid accessor\n\n'))]})
      if p=='/v1/auth/token/revoke-accessor':
       assert body['accessor']=='CHILD-ACCESSOR';state['tokens'].pop(body['accessor'],None);state['writes'].append('revoke');return self.reply(204)
      raise AssertionError('unexpected POST '+p)
@@ -73,6 +73,7 @@ class Issuer(unittest.TestCase):
    # A foreign artifact is never unlinked, even after the exact owned child is revoked.
    output.write_text('FOREIGN-TOKEN');self.assertNotEqual(run('--cleanup').returncode,0);self.assertTrue(output.exists());self.assertFalse(state['tokens']);output.write_text('FAKE.CHILD-TOKEN')
    state['mode']='bad400';self.assertNotEqual(run('--cleanup').returncode,0);self.assertTrue(output.exists());state['mode']='';p=run('--cleanup');self.assertEqual(p.returncode,0,p.stdout+p.stderr);self.assertFalse(output.exists());self.assertIsNotNone(state['policy']);self.assertEqual(json.loads(receipt.read_text())['stage'],'Cleaned')
+   state['mode']='bare400';p=run('--cleanup');self.assertEqual(p.returncode,0,p.stdout+p.stderr);self.assertFalse(output.exists())
    for mode in ('extra','lowttl','lost','root-accessor','foreign-child'):
     reset(mode,(S/'writer-rotation-policy.hcl').read_text());p=run('--apply');self.assertNotEqual(p.returncode,0,mode);self.assertFalse(output.exists());self.assertEqual(json.loads(receipt.read_text())['stage'],'ManualRecovery');self.assertEqual(state['mint'],1)
     self.assertEqual(len(state['tokens']),0 if mode in ('extra','lowttl') else 1)

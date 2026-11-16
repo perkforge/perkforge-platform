@@ -48,7 +48,7 @@
 - when: owned_identity.status == 400
   ansible.builtin.assert:
     that:
-    - owned_identity.json.errors == ['invalid accessor']
+    - owned_identity.json.errors in [['invalid accessor'], ["1 error occurred:\n\t* invalid accessor\n\n"]]
 - ansible.builtin.uri:
     url: '{{ bao_origin }}/v1/auth/token/lookup-accessor'
     headers: '{{ issuer_headers }}'
@@ -60,7 +60,7 @@
   register: after_revoke
 - ansible.builtin.assert:
     that:
-    - after_revoke.json.errors == ['invalid accessor']
+    - after_revoke.json.errors in [['invalid accessor'], ["1 error occurred:\n\t* invalid accessor\n\n"]]
 - ansible.builtin.command:
     argv:
     - python3

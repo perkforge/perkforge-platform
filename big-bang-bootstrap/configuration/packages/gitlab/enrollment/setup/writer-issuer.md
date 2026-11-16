@@ -48,10 +48,12 @@ under separately approved recovery; do not rerun issuance.
 Cleanup reauthenticates the selected root only after health, uses only the exact
 durable owned accessor, excludes root, and verifies the child's policy/display,
 creation time/TTL/type/nonorphan before revoking. Already expired/revoked requires
-exact native400 `errors:["invalid accessor"]`, not any400. A second readback must
-confirm the same denial. That exact error-body compatibility is synthetic-tested,
-not yet corroborated against pinned native2.7.2; a different body must report
-cleanup unverified, never silently relax the guard. Only then is the matching private token artifact removed;
+HTTP400 with exactly one of two complete error arrays: `["invalid accessor"]`
+or `["1 error occurred:\n\t* invalid accessor\n\n"]`. The wrapped form was
+observed in the approved native2.7.2 cleanup; the earlier bare form remains
+synthetic-compatible. Both reads require exact equality, never substring/any400.
+A second readback must confirm one exact allowed denial. Any other error body
+reports cleanup unverified; it does not authorize local artifact deletion. Only then is the matching private token artifact removed;
 foreign bytes are retained and reported, never repaired. The ACL, receipt and root
 input remain. Cleanup failure is not reported as verified revocation. A separate
 explicit cleanup invocation never mints or rotates anything.
