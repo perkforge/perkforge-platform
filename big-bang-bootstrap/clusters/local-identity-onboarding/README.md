@@ -70,3 +70,12 @@ exception text. The previous helper was removed after failure; its live cause
 remains unknown. A new approved attempt must use a fresh private directory,
 retain bounded failed status/logs before UID cleanup, and pass fresh safety gates.
 Synthetic writer/CLI compatibility is not proof of the retained live volume state.
+
+## Syscall-stage receipt diagnostics
+
+The selected immutable enrollment commit `c1405c16ca0f7a6ddbec230acab6fbf606ec1b50`
+adds fixed operation-stage labels to bounded receipt-reader errors. The matching
+foundation readiness digest is selected with it. Permissions, completed Jobs,
+receipt guards, mounts, and resource budgets are unchanged. This source update
+neither creates a helper nor proves the retained volume is readable. Any bounded
+live attempt still requires fresh safety gates and applicable authorization.
