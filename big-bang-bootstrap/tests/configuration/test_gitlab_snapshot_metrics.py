@@ -105,13 +105,13 @@ class SnapshotMetrics(unittest.TestCase):
             ('stale',1,1,91,100,'success',None), ('cold',0,0,-1,0,'other',None),
             ('boundary',1,1,90,100,'failed',1), ('negative-age',1,1,-1,100,'success',None)]:
             values={'valid':valid,'present':present,'observation_age_seconds':age,'last_success_timestamp_seconds':stamp}
-            series=[{'series':'gcpe_pipeline_snapshot_'+k+'{'+labels+'}','values':str(v)} for k,v in values.items()]
-            series += [{'series':'gcpe_pipeline_snapshot_status{'+labels+',status="'+s+'"}','values':str(int(s==status))} for s in ('failed','success','other')]
+            series=[{'series':'gcpe_pipeline_snapshot_'+k+'{'+labels+'}','values':'_ '+str(v)} for k,v in values.items()]
+            series += [{'series':'gcpe_pipeline_snapshot_status{'+labels+',status="'+s+'"}','values':'_ '+str(int(s==status))} for s in ('failed','success','other')]
             ok=valid==1 and 0<=age<=90 and stamp>0
-            tests.append({'name':name,'input_series':series,'promql_expr_test':[
-                {'expr':incident,'eval_time':'0s','exp_samples':[] if expected is None else [{'labels':'{}','value':expected}]},
-                {'expr':health,'eval_time':'0s','exp_samples':[{'labels':'{}','value':0 if ok else 1}]}]})
-        tests.append({'name':'missing-exporter','promql_expr_test':[{'expr':incident,'eval_time':'0s','exp_samples':[]},{'expr':health,'eval_time':'0s','exp_samples':[{'labels':'{}','value':1}]}]})
+            tests.append({'name':name,'interval':'100s','input_series':series,'promql_expr_test':[
+                {'expr':incident,'eval_time':'100s','exp_samples':[] if expected is None else [{'labels':'{}','value':expected}]},
+                {'expr':health,'eval_time':'100s','exp_samples':[{'labels':'{}','value':0 if ok else 1}]}]})
+        tests.append({'name':'missing-exporter','promql_expr_test':[{'expr':incident,'eval_time':'100s','exp_samples':[]},{'expr':health,'eval_time':'100s','exp_samples':[{'labels':'{}','value':1}]}]})
         # Missing age must not allow historical success to resolve an incident.
         missing=copy.deepcopy(tests[1]);missing['name']='missing-age';missing['input_series']=[s for s in missing['input_series'] if '_observation_age_seconds{' not in s['series']]
         missing['promql_expr_test'][0]['exp_samples']=[];missing['promql_expr_test'][1]['exp_samples']=[{'labels':'{}','value':1}];tests.append(missing)
@@ -124,8 +124,33 @@ class SnapshotMetrics(unittest.TestCase):
         missing_status=copy.deepcopy(tests[1]);missing_status['name']='missing-status'
         missing_status['input_series']=[s for s in missing_status['input_series'] if 'status="failed"' not in s['series']]
         missing_status['promql_expr_test'][0]['exp_samples']=[];missing_status['promql_expr_test'][1]['exp_samples']=[{'labels':'{}','value':1}];tests.append(missing_status)
+        # Prometheus retains an old sample for its lookback window: bound actual scrape age too.
+        for base in (0,1):
+            for elapsed, healthy in [(85,True),(86,False),(120,False)]:
+                t=copy.deepcopy(tests[base]);t['name']='stopped-scrape-'+str(base)+'-'+str(elapsed)
+                for q in t['promql_expr_test']:q['eval_time']=str(100+elapsed)+'s'
+                if not healthy:
+                    t['promql_expr_test'][0]['exp_samples']=[]
+                    t['promql_expr_test'][1]['exp_samples']=[{'labels':'{}','value':1}]
+                tests.append(t)
+        for name,metric,value in [('old-observation-plus-scrape','observation_age_seconds','80'),
+                                  ('future-completion','last_success_timestamp_seconds','201'),
+                                  ('fractional-presence','present','0.5'),
+                                  ('incoherent-scrape','present',None),
+                                  ('contradictory-status','status',None)]:
+            t=copy.deepcopy(tests[1]);t['name']=name
+            for item in t['input_series']:
+                if ('snapshot_'+metric+'{') in item['series']:
+                    if name=='incoherent-scrape':item['values']='1 _'
+                    elif name=='contradictory-status':
+                        if 'status="other"' in item['series']:item['values']='_ 1'
+                    else:item['values']='_ '+value
+            if name=='old-observation-plus-scrape':
+                for q in t['promql_expr_test']:q['eval_time']='120s'
+            t['promql_expr_test'][0]['exp_samples']=[]
+            t['promql_expr_test'][1]['exp_samples']=[{'labels':'{}','value':1}];tests.append(t)
         with tempfile.TemporaryDirectory() as tmp:
-            p=Path(tmp)/'tests.yaml';p.write_text(yaml.safe_dump({'rule_files':[],'evaluation_interval':'1m','tests':tests}))
+            p=Path(tmp)/'tests.yaml';p.write_text(yaml.safe_dump({'rule_files':[],'evaluation_interval':'1s','tests':tests}))
             result=subprocess.run([promtool,'test','rules',str(p)],capture_output=True,text=True,timeout=30)
             self.assertEqual(result.returncode,0,result.stdout+result.stderr)
 

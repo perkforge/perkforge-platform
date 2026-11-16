@@ -27,7 +27,12 @@ collector/scrape required; HA is unsupported).
 
 The incident returns **1 only for failed**, **0 only for success**, and only while
 valid=1, present=1, completion timestamp>0 and observation age is nonnegative and
-within the selected freshness bound. Running/canceled/unknown/empty/error/stale
+within the selected freshness bound. Effective age includes elapsed Prometheus
+scrape age: recorded observation age + time() - timestamp(age sample). Required
+gauges and all three status samples must have equal scrape timestamps, with one
+sample each, binary presence/status and exactly one status set. Future completion
+or scrape timestamps fail closed. Thus the normal Prometheus lookback window
+cannot keep old success authoritative after scraping stops. Running/canceled/unknown/empty/error/stale
 states yield no data. Grafana `KeepLast` on no-data/error must preserve an existing
 incident, not announce recovery. This does not prove Grafana state persistence or
 notification lifecycle. The separate operator-health rule detects missing,
@@ -59,9 +64,12 @@ approved rollout. BODA means the same reviewed collector artifact with selected
 target configuration; no environment-specific rebuild or private-only config.
 
 Native parser checkpoint: the synthetic enabled YAML passed collector
-`ParseFile` → `ValidateSnapshot` at prototype `11083877a2a7545e9da6db9605af7c8de0acc1d6`
+`ParseFile` → `ValidateSnapshot` at prototype `d33f14128c25a099ef38222030bfdf6691a86a57`
 (enabled=true, one target). This caught and corrected the collector's previously
 missing custom hydration field; the earlier parser result was not accepted.
-Collector final independent review/provenance is still required. Legacy GitLab
-rate-limiter settings in the config are not proof of throttling by the isolated
-snapshot client; its actual request pacing must be verified separately.
+Collector final independent review/provenance is still required. This candidate
+honors the existing GitLab rate/burst settings within the bounded poll timeout;
+this is synthetic/native-source evidence, not a production throughput claim.
+Native expression regression includes stopped-scrape cached failure/success at the
+exact freshness boundary and beyond, observation age80 plus scrape age20, mixed
+scrape timestamps, future completion and malformed status/presence.

@@ -10,9 +10,23 @@
 * (count(gcpe_pipeline_snapshot_present{ {{ selector(t) }} }) == bool 1)
 * (min(gcpe_pipeline_snapshot_present{ {{ selector(t) }} }) >= bool 0)
 * (max(gcpe_pipeline_snapshot_present{ {{ selector(t) }} }) <= bool 1)
+* (((max(gcpe_pipeline_snapshot_present{ {{ selector(t) }} }) == bool 0) + (max(gcpe_pipeline_snapshot_present{ {{ selector(t) }} }) == bool 1)) == bool 1)
 * (count(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="failed" }) == bool 1)
 * (count(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="success" }) == bool 1)
 * (count(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="other" }) == bool 1)
+* (max(gcpe_pipeline_snapshot_last_success_timestamp_seconds{ {{ selector(t) }} }) <= bool time())
+* (time() - max(timestamp(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} })) >= bool 0)
+* (max(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} }) + time() - max(timestamp(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} })) <= bool {{ freshness_seconds }})
+* (max(timestamp(gcpe_pipeline_snapshot_valid{ {{ selector(t) }} })) == bool max(timestamp(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} })))
+* (max(timestamp(gcpe_pipeline_snapshot_present{ {{ selector(t) }} })) == bool max(timestamp(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} })))
+* (max(timestamp(gcpe_pipeline_snapshot_last_success_timestamp_seconds{ {{ selector(t) }} })) == bool max(timestamp(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} })))
+* (max(timestamp(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="failed" })) == bool max(timestamp(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} })))
+* (((max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="failed" }) == bool 0) + (max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="failed" }) == bool 1)) == bool 1)
+* (max(timestamp(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="success" })) == bool max(timestamp(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} })))
+* (((max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="success" }) == bool 0) + (max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="success" }) == bool 1)) == bool 1)
+* (max(timestamp(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="other" })) == bool max(timestamp(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} })))
+* (((max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="other" }) == bool 0) + (max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="other" }) == bool 1)) == bool 1)
+* ((max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="failed" }) + max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="success" }) + max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="other" })) == bool 1)
 {%- endmacro %}
 apiVersion: 1
 groups:
