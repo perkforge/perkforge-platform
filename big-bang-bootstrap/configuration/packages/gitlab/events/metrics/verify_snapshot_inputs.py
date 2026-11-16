@@ -33,7 +33,7 @@ def verify(v):
         need(type(t['project_id']) is int and 0 < t['project_id'] < 2**63)
         need(match(t['project'], r'[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)+') and len(t['project']) <= 200 and all(x not in ('.', '..') for x in t['project'].split('/')))
         need(match(t['ref'], r'[A-Za-z0-9_-][A-Za-z0-9_./-]{0,127}') and '..' not in t['ref'] and '//' not in t['ref'] and not t['ref'].endswith(('/', '.lock')))
-        need(t['source'] == 'push')
+        need(isinstance(t['source'], str) and t['source'] in ('push', 'web'))
         need(ids.get(t['project_id'], t['project']) == t['project'] and paths.get(t['project'], t['project_id']) == t['project_id'])
         key = (t['project_id'], t['ref'], t['source'])
         need(key not in tuples)

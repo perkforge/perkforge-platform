@@ -17,12 +17,12 @@ spec = importlib.util.spec_from_file_location('snapshot_inputs', BASE / 'verify_
 guard = importlib.util.module_from_spec(spec); spec.loader.exec_module(guard)
 
 
-def fixture():
+def fixture(source='push'):
     return dict(snapshot_enabled=False, context_id='synthetic', grafana_org_id=1,
                 prometheus_uid='synthetic-prom', gitlab_url='https://gitlab.example.test',
                 interval_seconds=30, timeout_seconds=10, freshness_seconds=90,
                 snapshot_targets=[dict(uid='synthetic-main', project_id=7,
-                                       project='tenants/example/proof', ref='main', source='push')])
+                                       project='tenants/example/proof', ref='main', source=source)])
 
 
 def render(name, v):
@@ -66,6 +66,20 @@ class SnapshotMetrics(unittest.TestCase):
         self.assertEqual(len(c['projects']), 1)
         self.assertEqual(c['projects'][0]['pull']['refs']['branches']['regexp'], r'^(release/v1\.2|main)$')
 
+    def test_explicit_source_identity(self):
+        v=fixture('web')
+        config=render('snapshot-exporter.yaml.j2',v)
+        self.assertEqual(config['pipeline_snapshot']['targets'][0]['source'],'web')
+        rules=render('snapshot-rules.yaml.j2',v)['groups'][0]['rules']
+        self.assertTrue(all('source="web"' in r['data'][0]['model']['expr'] for r in rules))
+        self.assertTrue(all('source="push"' not in r['data'][0]['model']['expr'] for r in rules))
+        v['snapshot_targets'].append(dict(v['snapshot_targets'][0],uid='push-scope',source='push'))
+        guard.verify(v)
+        self.assertEqual(len(render('snapshot-rules.yaml.j2',v)['groups'][0]['rules']),4)
+        for source in ['schedule','api','trigger','parent_pipeline','pipeline','merge_request_event','*',[],True]:
+            bad=fixture();bad['snapshot_targets'][0]['source']=source
+            with self.assertRaises(ValueError):guard.verify(bad)
+
     def test_strict_inputs(self):
         mutations = [lambda v: v.update(token='not-allowed'), lambda v: v.update(snapshot_enabled=1),
                      lambda v: v.update(gitlab_url='https://user:pass@example.test'),
@@ -90,12 +104,18 @@ class SnapshotMetrics(unittest.TestCase):
         v['snapshot_targets'].append(dict(v['snapshot_targets'][0],uid='excess',ref='excess'))
         with self.assertRaises(ValueError):guard.verify(v)
 
-    def test_native_promql_semantics(self):
+    def test_native_promql_push(self):
+        self._native_promql('push')
+
+    def test_native_promql_web(self):
+        self._native_promql('web')
+
+    def _native_promql(self, source):
         promtool=os.environ.get('PROMTOOL') or shutil.which('promtool')
         if not promtool:self.skipTest('Installed promtool not selected; offline checks only')
-        rules=render('snapshot-rules.yaml.j2',fixture())['groups'][0]['rules']
+        rules=render('snapshot-rules.yaml.j2',fixture(source))['groups'][0]['rules']
         incident,health=[r['data'][0]['model']['expr'] for r in rules]
-        labels='project_id="7",project="tenants/example/proof",ref="main",source="push"'
+        labels='project_id="7",project="tenants/example/proof",ref="main",source="'+source+'"'
         tests=[]
         # Each vector is the collector's atomically published snapshot, not an event ledger.
         for name,valid,present,age,stamp,status,expected in [
@@ -149,6 +169,10 @@ class SnapshotMetrics(unittest.TestCase):
                 for q in t['promql_expr_test']:q['eval_time']='120s'
             t['promql_expr_test'][0]['exp_samples']=[]
             t['promql_expr_test'][1]['exp_samples']=[{'labels':'{}','value':1}];tests.append(t)
+        foreign_source=copy.deepcopy(tests[0]);foreign_source['name']='foreign-source-success-cannot-resolve'
+        other='web' if source=='push' else 'push'
+        foreign_source['input_series'] += [dict(s,series=s['series'].replace('source="'+source+'"','source="'+other+'"')) for s in tests[1]['input_series']]
+        tests.append(foreign_source)
         with tempfile.TemporaryDirectory() as tmp:
             p=Path(tmp)/'tests.yaml';p.write_text(yaml.safe_dump({'rule_files':[],'evaluation_interval':'1s','tests':tests}))
             result=subprocess.run([promtool,'test','rules',str(p)],capture_output=True,text=True,timeout=30)

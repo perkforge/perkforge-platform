@@ -54,5 +54,5 @@ pipeline_snapshot:
     - project_id: {{ t.project_id }}
       project: {{ t.project | to_json }}
       ref: {{ t.ref | to_json }}
-      source: push
+      source: {{ t.source | to_json }}
 {% endfor %}

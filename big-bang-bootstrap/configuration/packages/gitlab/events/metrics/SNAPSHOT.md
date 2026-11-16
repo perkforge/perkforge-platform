@@ -8,7 +8,8 @@ paused regardless of that flag. No selected GitOps root imports these templates.
 
 Validate literal inputs with `verify_snapshot_inputs.verify` before Ansible/Jinja
 rendering, and again at any future setup boundary. Unknown fields, per-target
-URLs/tokens, non-push sources, wildcard refs, conflicting ID/path mappings and
+URLs/tokens, sources other than literal `push` or `web`, wildcard refs, conflicting
+ID/path mappings and
 more than 16 targets fail closed. Each exact branch is anchored/escaped in the
 upstream project's scope. Jobs, child pipelines, variables, reports, environments,
 tags, merge requests, wildcard discovery, Redis, pprof, webhooks, OpenTelemetry
@@ -73,3 +74,13 @@ this is synthetic/native-source evidence, not a production throughput claim.
 Native expression regression includes stopped-scrape cached failure/success at the
 exact freshness boundary and beyond, observation age80 plus scrape age20, mixed
 scrape timestamps, future completion and malformed status/presence.
+
+## Explicit manual pipeline source
+
+Each target binds one literal source, `push` or `web`; no wildcard or merged-source
+query is supported. Existing push selections retain their meaning. The synthetic
+example now selects `web` to match a manually started protected-main acceptance
+pipeline, not automatic push CI. This configuration neither triggers a pipeline
+nor authorizes a project or CI mutation. The same project/ref may have separate
+uniquely named push and web targets; their metric selectors and incident identities
+remain distinct. Schedule/API/trigger/parent/MR sources are rejected.

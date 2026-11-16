@@ -12,4 +12,4 @@ snapshot_targets:
     project_id: 7
     project: tenants/example/proof
     ref: main
-    source: push
+    source: web  # Manual acceptance selection; does not trigger a pipeline.

@@ -1,4 +1,4 @@
-{%- macro selector(t) -%}project_id={{ t.project_id | string | to_json }},project={{ t.project | to_json }},ref={{ t.ref | to_json }},source="push"{%- endmacro -%}
+{%- macro selector(t) -%}project_id={{ t.project_id | string | to_json }},project={{ t.project | to_json }},ref={{ t.ref | to_json }},source={{ t.source | to_json }}{%- endmacro -%}
 {%- macro healthy(t) -%}
 (min(gcpe_pipeline_snapshot_valid{ {{ selector(t) }} }) == bool 1)
 * (count(gcpe_pipeline_snapshot_valid{ {{ selector(t) }} }) == bool 1)
