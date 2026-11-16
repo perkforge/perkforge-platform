@@ -6,6 +6,7 @@ from urllib.parse import urlsplit,unquote
 ROOT=Path(__file__).resolve().parents[2]
 D=ROOT/'configuration/packages/gitlab/enrollment/acceptance'
 class Preparation(unittest.TestCase):
+ observed=False
  def test_native_project_and_paused_runner_guards(self):
   with tempfile.TemporaryDirectory(prefix='acceptance-fixture-') as tmp:
    p=Path(tmp);p.chmod(0o700);rd=p/'runner';rd.mkdir(mode=0o700)
@@ -49,6 +50,10 @@ class Preparation(unittest.TestCase):
     f=p/name;f.write_text(data if isinstance(data,str) else json.dumps(data));f.chmod(0o600);return str(f)
    token=save('token','SYNTHETIC-ONLY');group=save('group.json',{'stage':'group-ready','context':'portal','origin':origin,'group_id':9,'parent_id':7})
    v={'gitlab_acceptance_run':True,'gitlab_acceptance_scope':'tenant-acceptance-project-v1','gitlab_acceptance_context':'portal','gitlab_acceptance_origin':origin,'gitlab_acceptance_ca':str(p/'ca'),'gitlab_acceptance_source_revision':'a'*40,'gitlab_acceptance_group_receipt':group,'gitlab_acceptance_actor_id':8}
+   if self.observed:
+    v.pop('gitlab_acceptance_group_receipt')
+    v['gitlab_acceptance_group_expectation']=group
+    save('group.json',{'stage':'native-group-expectation-v1','context':'portal','origin':origin,'source_revision':'a'*40,'group_id':9,'parent_id':7})
    receipt=str(p/'project.json')
    def run(mode='--project',changes=None):
     f=save('inputs.json',{**v,**(changes or {})});out=subprocess.run(['bash',str(D/'run.sh'),mode,token,receipt if mode!='--runner' else str(p/'transaction.json'),f],capture_output=True,text=True,env={**os.environ,'ANSIBLE_LOCAL_TEMP':str(p/'local'),'ANSIBLE_REMOTE_TEMP':str(p/'remote')},timeout=90)
@@ -61,7 +66,14 @@ class Preparation(unittest.TestCase):
    state['wrong_parent']=True;self.assertNotEqual(run().returncode,0);self.assertEqual(state['writes'],[]);state['wrong_parent']=False
    for flag in ['expired','foreign_authority']:
     state[flag]=True;self.assertNotEqual(run().returncode,0);self.assertEqual(state['writes'],[]);state[flag]=False
+   if self.observed:
+    self.assertNotEqual(run(changes={'gitlab_acceptance_group_receipt':group}).returncode,0)
+    self.assertNotEqual(run(changes={'gitlab_acceptance_source_revision':'b'*40}).returncode,0)
+    self.assertEqual(state['writes'],[])
    ok();self.assertEqual(len(state['writes']),1);ok();self.assertEqual(len(state['writes']),1)
+   observed=json.loads(Path(receipt).read_text())['group_evidence']
+   self.assertRegex(observed.pop('observed_at'),r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$')
+   self.assertEqual(observed,{'kind':'fresh-native-group-observation-v1','group_id':9,'parent_id':7,'group_path':'tenants/portal','parent_path':'tenants','actor_id':8,'token_id':12,'gitlab_version':'19.4.2-ee'})
    rv={'gitlab_acceptance_scope':'tenant-acceptance-runner-v1','gitlab_acceptance_project_receipt':receipt,'gitlab_acceptance_runner_directory':str(rd)}
    self.assertNotEqual(run('--runner',rv).returncode,0);self.assertEqual(len(state['writes']),1)
    # Separate reviewed seed/protection is not performed by this adapter.
@@ -89,5 +101,8 @@ class Preparation(unittest.TestCase):
    self.assertNotEqual(run().returncode,0);n=len(state['writes'])
    self.assertEqual(json.loads(Path(receipt).read_text())['stage'],'creation-pending')
    self.assertNotEqual(run().returncode,0);self.assertEqual(len(state['writes']),n)
+
+class NativeObservation(Preparation):
+ observed=True
 
 if __name__=='__main__':unittest.main()

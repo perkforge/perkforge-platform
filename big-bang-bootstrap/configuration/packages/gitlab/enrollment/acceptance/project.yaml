@@ -25,7 +25,7 @@
     - ansible.builtin.assert:
         that: gitlab_acceptance_scope == 'tenant-acceptance-project-v1'
     - ansible.builtin.set_fact:
-        ag: '{{ lookup("file",gitlab_acceptance_group_receipt) | from_json }}'
+        ag: '{{ lookup("file",gitlab_acceptance_group_receipt | default(gitlab_acceptance_group_expectation)) | from_json }}'
         ah: {PRIVATE-TOKEN: '{{ lookup("file",gitlab_acceptance_token) | trim }}'}
         apath: '{{ "tenants/" + gitlab_acceptance_context + "/platform-acceptance" }}'
         acontract:
@@ -50,6 +50,13 @@
         - native.results[2].json.id == ag.group_id and native.results[2].json.parent_id == ag.parent_id
         - native.results[2].json.full_path == 'tenants/' + gitlab_acceptance_context
         - native.results[2].json.visibility == 'private'
+    - ansible.builtin.command:
+        argv: [date, -u, '+%Y-%m-%dT%H:%M:%SZ']
+      register: acceptance_observed_at
+      changed_when: false
+    - name: Record fresh native observation, never reconstruct an old foundation receipt
+      ansible.builtin.set_fact:
+        acontract: '{{ acontract | combine({"group_evidence": {"kind": "fresh-native-group-observation-v1", "observed_at": acceptance_observed_at.stdout, "group_id": native.results[2].json.id, "parent_id": native.results[1].json.id, "group_path": native.results[2].json.full_path, "parent_path": native.results[1].json.full_path, "actor_id": native.results[0].json.id, "token_id": acceptance_authority.results[1].json.id, "gitlab_version": acceptance_authority.results[2].json.version}}) }}'
     - ansible.builtin.stat:
         path: '{{ gitlab_acceptance_receipt }}'
         follow: false
