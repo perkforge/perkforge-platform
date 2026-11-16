@@ -57,3 +57,11 @@ rendered config with that exact collector, independently review consumer rules,
 then test real scoped API permission and lifecycle/delivery in an explicitly
 approved rollout. BODA means the same reviewed collector artifact with selected
 target configuration; no environment-specific rebuild or private-only config.
+
+Native parser checkpoint: the synthetic enabled YAML passed collector
+`ParseFile` → `ValidateSnapshot` at prototype `11083877a2a7545e9da6db9605af7c8de0acc1d6`
+(enabled=true, one target). This caught and corrected the collector's previously
+missing custom hydration field; the earlier parser result was not accepted.
+Collector final independent review/provenance is still required. Legacy GitLab
+rate-limiter settings in the config are not proof of throttling by the isolated
+snapshot client; its actual request pacing must be verified separately.
