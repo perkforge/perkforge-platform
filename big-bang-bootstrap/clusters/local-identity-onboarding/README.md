@@ -63,3 +63,10 @@ The operator must verify original PVC/PV bindings and quiescence, read only the
 two original receipt files, verify byte hashes and helper UID, then delete the
 helper with a UID precondition. No credentials, API access or phase egress are
 provided. Remove the opt-in through reviewed source after extraction/cleanup.
+
+The diagnostic selection preserves all extraction guards and provider resources.
+It adds fixed bounded refusal codes only, without receipt contents, paths or
+exception text. The previous helper was removed after failure; its live cause
+remains unknown. A new approved attempt must use a fresh private directory,
+retain bounded failed status/logs before UID cleanup, and pass fresh safety gates.
+Synthetic writer/CLI compatibility is not proof of the retained live volume state.
