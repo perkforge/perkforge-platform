@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "upstream_repository": "https://github.com/mvisonneau/gitlab-ci-pipelines-exporter.git",
+  "upstream_commit": "c50ef849a541cd2a826167b9494fa7d0d7d134b4",
+  "prototype_commit": "d33f14128c25a099ef38222030bfdf6691a86a57",
+  "patched_tree": "4aaf7e72ae15b942be731cfe7aaf16d0c8623bd1",
+  "patch_sha256": "5c9475c54aa512ed2448fe1831ee1b104f2850c2e4f0e27b1782ff206cf36601",
+  "license_sha256": "940a4a6e862a1ecc1078ec1955c13b050d9785fa5909a3ed2d101a5011d7ef6f",
+  "go_version": "go1.26.8",
+  "module_files_unchanged": true,
+  "runtime_config_embedded": false,
+  "image_published": false
+}
