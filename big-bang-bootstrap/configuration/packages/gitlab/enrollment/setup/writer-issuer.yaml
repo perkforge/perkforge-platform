@@ -1,0 +1,234 @@
+- name: Issue only the exact one-record writer rotation child
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    run: false
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      timeout: 10
+  tasks:
+  - when: run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - issuer_mode in ['apply','cleanup']
+    - when: issuer_mode == 'apply'
+      block:
+      - ansible.builtin.command:
+          argv:
+          - python3
+          - '{{ playbook_dir }}/writer-issuer-state.py'
+          - start
+          - '{{ issuer_root_file }}'
+          - '{{ issuer_receipt_file }}'
+          - '{{ issuer_inputs_file }}'
+        changed_when: true
+      - ansible.builtin.set_fact:
+          issuer_started: true
+      - &id001
+        ansible.builtin.uri:
+          url: '{{ bao_origin }}/v1/sys/health'
+        register: health
+      - &id002
+        ansible.builtin.assert:
+          that:
+          - health.json.cluster_id == cluster_id
+          - health.json.initialized is sameas true
+          - health.json.sealed is sameas false
+          - health.json.version == '2.7.2'
+      - &id003
+        ansible.builtin.command:
+          argv:
+          - python3
+          - '{{ playbook_dir }}/writer-issuer-state.py'
+          - root
+          - '{{ issuer_root_file }}'
+          - '{{ issuer_receipt_file }}'
+          - '{{ issuer_inputs_file }}'
+        changed_when: false
+        register: root_bytes
+      - &id004
+        ansible.builtin.set_fact:
+          issuer_headers:
+            X-Vault-Token: '{{ root_bytes.stdout }}'
+      - &id005
+        ansible.builtin.uri:
+          url: '{{ bao_origin }}/v1/auth/token/lookup-self'
+          headers: '{{ issuer_headers }}'
+        register: root_identity
+      - &id006
+        ansible.builtin.assert:
+          that:
+          - root_identity.json.data.policies == ['root']
+          - root_identity.json.data.identity_policies | default([]) == []
+          - root_identity.json.data.accessor is match('^[A-Za-z0-9_-]{8,256}$')
+      - &id007
+        ansible.builtin.set_fact:
+          root_verified: true
+      - ansible.builtin.set_fact:
+          issuer_policy: '{{ lookup("file",playbook_dir + "/writer-rotation-policy.hcl",rstrip=false) }}'
+      - ansible.builtin.uri:
+          url: '{{ bao_origin }}/v1/sys/policies/acl/tenant-identity-writer-rotation-v1'
+          headers: '{{ issuer_headers }}'
+          status_code:
+          - 200
+          - 404
+        register: policy_before
+      - ansible.builtin.assert:
+          that:
+          - policy_before.status == 404 or policy_before.json.data.policy == issuer_policy
+      - when: policy_before.status == 404
+        block:
+        - ansible.builtin.command:
+            argv:
+            - python3
+            - '{{ playbook_dir }}/writer-issuer-state.py'
+            - record
+            - '{{ issuer_root_file }}'
+            - '{{ issuer_receipt_file }}'
+            - '{{ issuer_inputs_file }}'
+            stdin: '{"stage": "PolicyRequested"}'
+          changed_when: true
+        - ansible.builtin.uri:
+            url: '{{ bao_origin }}/v1/sys/policies/acl/tenant-identity-writer-rotation-v1'
+            headers: '{{ issuer_headers }}'
+            method: PUT
+            body_format: json
+            body:
+              policy: '{{ issuer_policy }}'
+            status_code: 204
+          register: policy_write
+      - ansible.builtin.uri:
+          url: '{{ bao_origin }}/v1/sys/policies/acl/tenant-identity-writer-rotation-v1'
+          headers: '{{ issuer_headers }}'
+        register: policy_after
+      - ansible.builtin.assert:
+          that:
+          - policy_after.json.data.policy == issuer_policy
+      - ansible.builtin.command:
+          argv:
+          - python3
+          - '{{ playbook_dir }}/writer-issuer-state.py'
+          - record
+          - '{{ issuer_root_file }}'
+          - '{{ issuer_receipt_file }}'
+          - '{{ issuer_inputs_file }}'
+          stdin: '{"stage": "Requesting"}'
+        changed_when: true
+      - ansible.builtin.uri:
+          url: '{{ bao_origin }}/v1/auth/token/create'
+          headers: '{{ issuer_headers }}'
+          method: POST
+          body_format: json
+          body:
+            policies:
+            - tenant-identity-writer-rotation-v1
+            no_default_policy: true
+            display_name: identity-writer-rotation-{{ setup_id }}
+            ttl: 3600
+            explicit_max_ttl: 3600
+            renewable: false
+            type: service
+        register: issued_token
+      - ansible.builtin.command:
+          argv:
+          - python3
+          - '{{ playbook_dir }}/writer-issuer-state.py'
+          - received
+          - '{{ issuer_root_file }}'
+          - '{{ issuer_receipt_file }}'
+          - '{{ issuer_inputs_file }}'
+          stdin: '{{ {"auth":issued_token.json.auth,"root_accessor":root_identity.json.data.accessor} | to_json }}'
+        changed_when: true
+      - ansible.builtin.assert:
+          that:
+          - issued_token.json.auth.client_token != root_bytes.stdout
+          - issued_token.json.auth.accessor != root_identity.json.data.accessor
+          - issued_token.json.auth.token_type == 'service'
+      - ansible.builtin.uri:
+          url: '{{ bao_origin }}/v1/auth/token/lookup-self'
+          headers:
+            X-Vault-Token: '{{ issued_token.json.auth.client_token }}'
+        register: child_identity
+      - ansible.builtin.assert:
+          that:
+          - child_identity.json.data.ttl >= 900
+          - child_identity.json.data.type == 'service'
+          - child_identity.json.data.orphan is sameas false
+      - ansible.builtin.command:
+          argv:
+          - python3
+          - '{{ playbook_dir }}/writer-issuer-state.py'
+          - store
+          - '{{ issuer_root_file }}'
+          - '{{ issuer_receipt_file }}'
+          - '{{ issuer_inputs_file }}'
+          stdin: '{{ {"auth":issued_token.json.auth,"identity":child_identity.json.data,"root_token":root_bytes.stdout} | to_json }}'
+        changed_when: true
+      - ansible.builtin.command:
+          argv:
+          - python3
+          - '{{ playbook_dir }}/writer-issuer-state.py'
+          - record
+          - '{{ issuer_root_file }}'
+          - '{{ issuer_receipt_file }}'
+          - '{{ issuer_inputs_file }}'
+          stdin: '{"stage": "Issued"}'
+        changed_when: true
+      rescue:
+      - when: issuer_started | default(false) and root_verified | default(false)
+        block:
+        - ansible.builtin.include_tasks: writer-issuer-cleanup.yaml
+        rescue:
+        - ansible.builtin.debug:
+            msg: Exact owned child cleanup unverified; retain private effects for manual recovery.
+      - ansible.builtin.command:
+          argv:
+          - python3
+          - '{{ playbook_dir }}/writer-issuer-state.py'
+          - record
+          - '{{ issuer_root_file }}'
+          - '{{ issuer_receipt_file }}'
+          - '{{ issuer_inputs_file }}'
+          stdin: '{"stage": "ManualRecovery"}'
+        changed_when: true
+        when: issuer_started | default(false)
+        failed_when: false
+      - ansible.builtin.fail:
+          msg: Issuance incomplete; no automatic remint, policy deletion or credential fallback.
+    - when: issuer_mode == 'cleanup'
+      block:
+      - ansible.builtin.command:
+          argv:
+          - python3
+          - '{{ playbook_dir }}/writer-issuer-state.py'
+          - cleanup-contract
+          - '{{ issuer_root_file }}'
+          - '{{ issuer_receipt_file }}'
+          - '{{ issuer_inputs_file }}'
+        changed_when: false
+      - *id001
+      - *id002
+      - *id003
+      - *id004
+      - *id005
+      - *id006
+      - *id007
+      - ansible.builtin.include_tasks: writer-issuer-cleanup.yaml
+      - ansible.builtin.command:
+          argv:
+          - python3
+          - '{{ playbook_dir }}/writer-issuer-state.py'
+          - record
+          - '{{ issuer_root_file }}'
+          - '{{ issuer_receipt_file }}'
+          - '{{ issuer_inputs_file }}'
+          stdin: '{"stage": "Cleaned"}'
+        changed_when: true

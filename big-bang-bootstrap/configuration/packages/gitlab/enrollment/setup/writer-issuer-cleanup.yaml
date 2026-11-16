@@ -1,0 +1,72 @@
+- ansible.builtin.command:
+    argv:
+    - python3
+    - '{{ playbook_dir }}/writer-issuer-state.py'
+    - cleanup-contract
+    - '{{ issuer_root_file }}'
+    - '{{ issuer_receipt_file }}'
+    - '{{ issuer_inputs_file }}'
+  changed_when: false
+  register: owned
+- ansible.builtin.set_fact:
+    owned_token: '{{ owned.stdout | from_json }}'
+- ansible.builtin.assert:
+    that:
+    - owned_token.accessor != root_identity.json.data.accessor
+- ansible.builtin.uri:
+    url: '{{ bao_origin }}/v1/auth/token/lookup-accessor'
+    headers: '{{ issuer_headers }}'
+    method: POST
+    body_format: json
+    body:
+      accessor: '{{ owned_token.accessor }}'
+    status_code:
+    - 200
+    - 400
+  register: owned_identity
+- when: owned_identity.status == 200
+  block:
+  - ansible.builtin.command:
+      argv:
+      - python3
+      - '{{ playbook_dir }}/writer-issuer-state.py'
+      - verify-cleanup
+      - '{{ issuer_root_file }}'
+      - '{{ issuer_receipt_file }}'
+      - '{{ issuer_inputs_file }}'
+      stdin: '{{ owned_identity.json.data | to_json }}'
+    changed_when: false
+  - ansible.builtin.uri:
+      url: '{{ bao_origin }}/v1/auth/token/revoke-accessor'
+      headers: '{{ issuer_headers }}'
+      method: POST
+      body_format: json
+      body:
+        accessor: '{{ owned_token.accessor }}'
+      status_code: 204
+    register: revocation
+- when: owned_identity.status == 400
+  ansible.builtin.assert:
+    that:
+    - owned_identity.json.errors in [['invalid accessor'], ["1 error occurred:\n\t* invalid accessor\n\n"]]
+- ansible.builtin.uri:
+    url: '{{ bao_origin }}/v1/auth/token/lookup-accessor'
+    headers: '{{ issuer_headers }}'
+    method: POST
+    body_format: json
+    body:
+      accessor: '{{ owned_token.accessor }}'
+    status_code: 400
+  register: after_revoke
+- ansible.builtin.assert:
+    that:
+    - after_revoke.json.errors in [['invalid accessor'], ["1 error occurred:\n\t* invalid accessor\n\n"]]
+- ansible.builtin.command:
+    argv:
+    - python3
+    - '{{ playbook_dir }}/writer-issuer-state.py'
+    - remove
+    - '{{ issuer_root_file }}'
+    - '{{ issuer_receipt_file }}'
+    - '{{ issuer_inputs_file }}'
+  changed_when: true
