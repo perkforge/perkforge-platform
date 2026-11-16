@@ -1,0 +1,48 @@
+- ansible.builtin.uri:
+    url: '{{ gitlab_acceptance_origin }}/api/v4/projects/{{ ap.project_id }}/repository/branches/main'
+    headers: '{{ ah }}'
+  register: branch
+- ansible.builtin.assert:
+    that: branch.json.name == 'main' and branch.json.commit.id == seed_receipt.commit_id
+- ansible.builtin.uri:
+    url: '{{ gitlab_acceptance_origin }}/api/v4/projects/{{ ap.project_id }}/repository/tree?ref={{ seed_receipt.commit_id }}&per_page=100&recursive=true'
+    headers: '{{ ah }}'
+  register: tree
+- ansible.builtin.assert:
+    that:
+    - tree.x_next_page | default('') == ''
+    - tree.json | map(attribute='path') | sort == seed_files.keys() | list | sort
+    - tree.json | map(attribute='type') | unique | list == ['blob']
+    - tree.json | map(attribute='mode') | unique | list == ['100644']
+- ansible.builtin.uri:
+    url: '{{ gitlab_acceptance_origin }}/api/v4/projects/{{ ap.project_id }}/repository/files/{{ item | urlencode }}?ref={{ seed_receipt.commit_id }}'
+    headers: '{{ ah }}'
+  loop: '{{ seed_files.keys() | list }}'
+  register: files
+- ansible.builtin.assert:
+    that:
+    - item.json.file_path == item.item and item.json.encoding == 'base64'
+    - item.json.commit_id == seed_receipt.commit_id
+    - item.json.content | b64decode == seed_files[item.item]
+  loop: '{{ files.results }}'
+- ansible.builtin.uri:
+    url: '{{ gitlab_acceptance_origin }}/api/v4/projects/{{ ap.project_id }}'
+    headers: '{{ ah }}'
+  register: final_project
+- ansible.builtin.assert:
+    that:
+    - final_project.json.id == ap.project_id and final_project.json.default_branch == 'main'
+    - final_project.json.builds_access_level == 'disabled' and not final_project.json.auto_devops_enabled
+    - not final_project.json.shared_runners_enabled and not final_project.json.group_runners_enabled
+    - final_project.json.visibility == 'private' and not final_project.json.archived
+    - final_project.json.namespace.id == ag.group_id
+    - final_project.json.path_with_namespace == 'tenants/' + gitlab_acceptance_context + '/platform-acceptance'
+    - final_project.json.namespace.full_path == 'tenants/' + gitlab_acceptance_context
+- ansible.builtin.uri:
+    url: '{{ gitlab_acceptance_origin }}/api/v4/projects/{{ ap.project_id }}/repository/branches?per_page=100'
+    headers: '{{ ah }}'
+  register: final_branches
+- ansible.builtin.assert:
+    that:
+    - final_branches.x_next_page | default('') == ''
+    - final_branches.json | map(attribute='name') | list == ['main']
