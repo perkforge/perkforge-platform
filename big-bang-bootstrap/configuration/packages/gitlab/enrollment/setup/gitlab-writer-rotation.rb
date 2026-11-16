@@ -57,7 +57,7 @@ module PerkforgeIdentityWriterRotation
     raise 'rotation result' unless result.success?
     successor = result.payload.fetch(:personal_access_token)
     stage = 'SuccessorReadback'
-    raise 'successor ownership' unless successor.id != 2 && owned?(successor, input, bot) && successor.previous_personal_access_token_id == 2 && successor.expires_at == expiry && old.reload.revoked? && !successor.revoked?
+    raise 'successor ownership' unless successor.id.is_a?(Integer) && successor.id > 0 && successor.id != 2 && owned?(successor, input, bot) && successor.previous_personal_access_token_id == 2 && successor.expires_at == expiry && old.reload.revoked? && !successor.revoked?
     verified_successor = true
     raise 'token' unless successor.token.is_a?(String) && successor.token.match?(/\A[A-Za-z0-9_.-]{8,4096}\z/)
     binding.merge('stage' => 'Rotated', 'successor_id' => successor.id, 'successor_token' => successor.token)
