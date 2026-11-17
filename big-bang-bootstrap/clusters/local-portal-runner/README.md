@@ -1,3 +1,12 @@
+# Superseded: do not select this root
+
+Fresh suspended children have no Ready conditions, so placing them in the
+existing wait-all cluster root stalls its health check. Keep
+local-identity-onboarding selected. Use the separate reviewed staging root in
+configuration/tenant-runner/setup/staging-root.yaml instead; its exact inventory
+is only two suspended declarations and wait=false intentionally does not claim
+workload health. Existing cluster-root wait=true remains unchanged.
+
 # Portal acceptance runner staged selection
 
 Additive overlay inherits local-identity-onboarding unchanged. Both new
