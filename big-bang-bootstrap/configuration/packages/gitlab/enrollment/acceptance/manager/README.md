@@ -33,3 +33,27 @@ The fixed job image/helper allowlist and no SA/namespace/bearer/label overwrite
 preserve the existing confinement model. Tenant runner tag/binding is established
 by the separate paused native preparation receipt, not manager registration.
 No auto-register, unregister, source migration, runtime token value or event send.
+
+## Optional runtime proposal (render only)
+
+Add a `runtime` object with exactly `bao_server` (HTTPS), `route_hosts` (1–8
+unique single-host /32 or /128 CIDRs), `api_host` (single-host CIDR), `api_port`
+and `traefik_port` (integer ports). It emits additional `runtime.yaml` and
+`runner-policy.hcl`; nothing selects or applies them. Default-deny remains.
+
+The proposed Bao role `tenant-<context>-acceptance-runner` must separately bind
+ONLY `eso-tenant-runner` in the manager namespace, audience `openbao-eso`, to the
+one-record read policy. No role or secret value is created by this renderer.
+Precreate the target without Git-owned data, preserving ESO SSA ownership;
+Merge/Retain populates both required chart keys. Auth never enters the job
+namespace. The shared ESO controller is still a trust boundary, not a dedicated
+controller isolation guarantee.
+
+Public Bao CA ConfigMap, GitLab CA Secret, registry pulls in both namespaces and
+approved custody import remain separate prerequisites. Do not reuse the platform
+runner delivery helper unchanged. Endpoint rules describe both pre/post-DNAT
+paths; validate the selected CNI and Traefik route before activation. An ingress
+IP permits its other virtual hosts too: this is network endpoint confinement,
+not hostname filtering. API access is manager-only. Image pulls are node-runtime
+traffic, not a reason to open job internet egress. Job control-plane exclusion
+and all existing security/resource constraints remain unchanged.

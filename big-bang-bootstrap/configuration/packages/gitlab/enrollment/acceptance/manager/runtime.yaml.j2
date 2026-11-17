@@ -1,0 +1,109 @@
+# Unselected proposal only. Requires reviewed public CA and scoped Bao role.
+apiVersion: v1
+kind: Secret
+metadata: {name: gitlab-runner-auth, namespace: {{ manager_namespace }}}
+type: Opaque
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: eso-tenant-runner, namespace: {{ manager_namespace }}}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: eso-tenant-runner, namespace: {{ manager_namespace }}}
+rules:
+- apiGroups: ['']
+  resources: [secrets]
+  resourceNames: [gitlab-runner-auth]
+  verbs: [get, update, patch]
+- apiGroups: ['']
+  resources: [serviceaccounts/token]
+  resourceNames: [eso-tenant-runner]
+  verbs: [create]
+- apiGroups: ['']
+  resources: [configmaps]
+  resourceNames: [tenant-runner-openbao-ca]
+  verbs: [get]
+- apiGroups: [external-secrets.io]
+  resources: [externalsecrets]
+  resourceNames: [tenant-runner]
+  verbs: [patch]
+- apiGroups: [external-secrets.io]
+  resources: [externalsecrets/status, secretstores/status]
+  resourceNames: [tenant-runner]
+  verbs: [update, patch]
+- apiGroups: ['']
+  resources: [events]
+  verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: eso-tenant-runner, namespace: {{ manager_namespace }}}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: eso-tenant-runner}
+subjects:
+- {kind: ServiceAccount, name: external-secrets, namespace: external-secrets}
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata: {name: tenant-runner, namespace: {{ manager_namespace }}}
+spec:
+  controller: perkforge
+  provider:
+    vault:
+      server: {{ runtime.bao_server | to_json }}
+      path: platform
+      version: v2
+      caProvider: {type: ConfigMap, name: tenant-runner-openbao-ca, key: ca.crt}
+      auth:
+        kubernetes:
+          mountPath: kubernetes-eso
+          role: tenant-{{ context }}-acceptance-runner
+          serviceAccountRef: {name: eso-tenant-runner, audiences: [openbao-eso]}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: {name: tenant-runner, namespace: {{ manager_namespace }}}
+spec:
+  refreshInterval: 1h
+  secretStoreRef: {kind: SecretStore, name: tenant-runner}
+  target:
+    name: gitlab-runner-auth
+    creationPolicy: Merge
+    deletionPolicy: Retain
+    template:
+      engineVersion: v2
+      type: Opaque
+      data:
+        runner-registration-token: ''
+        runner-token: '{{ '{{ .runnerToken }}' }}'
+  data:
+  - secretKey: runnerToken
+    remoteRef: {key: 'gitlab/tenant-{{ context }}/acceptance-runner-v1', property: runner-token, conversionStrategy: Default, decodingStrategy: None}
+{% for ns in [manager_namespace,job_namespace] %}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: tenant-runner-reviewed-egress, namespace: {{ ns }}}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+  - to:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+      podSelector: {matchLabels: {k8s-app: kube-dns}}
+    ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+  - to:
+{% for host in runtime.route_hosts %}
+    - ipBlock: {cidr: {{ host | to_json }}}
+{% endfor %}
+    ports: [{protocol: TCP, port: 443}]
+  - to:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+      podSelector: {matchLabels: {app.kubernetes.io/name: rke2-traefik}}
+    ports: [{protocol: TCP, port: {{ runtime.traefik_port }}}]
+{% if ns == manager_namespace %}
+  - to: [{ipBlock: {cidr: {{ runtime.api_host | to_json }}}}]
+    ports: [{protocol: TCP, port: {{ runtime.api_port }}}]
+{% endif %}
+{% endfor %}

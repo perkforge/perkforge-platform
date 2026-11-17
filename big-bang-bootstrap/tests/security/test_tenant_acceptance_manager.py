@@ -15,7 +15,7 @@ class Manager(unittest.TestCase):
     ns={x['metadata']['name'] for x in foundation if x['kind']=='Namespace'};self.assertEqual(ns,{'gitlab-tenant-'+context+'-runner','gitlab-tenant-'+context+'-ci'})
     self.assertFalse(any(x['kind'] in ('ClusterRole','ClusterRoleBinding','Secret') for x in foundation))
     self.assertTrue(all(x['metadata'].get('namespace') in ns for x in foundation if x['kind']!='Namespace'))
-    self.assertTrue(release[1]['spec']['suspend']);u=release[1]['spec']['values']['upstream'];self.assertFalse(u['rbac']['create']);self.assertFalse(u['rbac']['clusterWideAccess']);self.assertFalse(u['unregisterRunners']);self.assertEqual(u['concurrent'],1)
+    self.assertTrue(release[1]['spec']['suspend']);u=release[1]['spec']['values']['upstream'];self.assertFalse(u['rbac']['create']);self.assertFalse(u['rbac']['clusterWideAccess']);self.assertEqual(u['podSecurityContext']['seccompProfile'],{'type':'RuntimeDefault'});self.assertFalse(u['unregisterRunners']);self.assertEqual(u['concurrent'],1)
     c=u['runners']['config'];self.assertIn('namespace = "gitlab-tenant-'+context+'-ci"',c);self.assertIn('automount_service_account_token = false',c);self.assertIn('privileged = false',c)
     self.assertIn('ansible@sha256:3308322cc09f20a813c00e9087c166a3d97dbb7789c059f1020f3c0b092fdf02',c);self.assertNotIn('ubi9:9.8',c)
     self.assertNotIn('gitlab-ci-platform',c);self.assertFalse(release[1]['spec']['values']['autoRegister']['enabled'])
