@@ -1,0 +1,136 @@
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: tenant-runner
+  namespace: gitlab-tenant-portal-runner
+spec:
+  controller: perkforge
+  provider:
+    vault:
+      server: https://openbao.perkforge.home.arpa
+      path: platform
+      version: v2
+      caProvider:
+        type: ConfigMap
+        name: tenant-runner-openbao-ca
+        key: ca.crt
+      auth:
+        kubernetes:
+          mountPath: kubernetes-eso
+          role: tenant-portal-acceptance-runner
+          serviceAccountRef:
+            name: eso-tenant-runner
+            audiences:
+            - openbao-eso
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: tenant-runner
+  namespace: gitlab-tenant-portal-runner
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: SecretStore
+    name: tenant-runner
+  target:
+    name: gitlab-runner-auth
+    creationPolicy: Merge
+    deletionPolicy: Retain
+    template:
+      engineVersion: v2
+      type: Opaque
+      data:
+        runner-registration-token: ''
+        runner-token: '{{ .runnerToken }}'
+  data:
+  - secretKey: runnerToken
+    remoteRef:
+      key: gitlab/tenant-portal/acceptance-runner-v1
+      property: runner-token
+      conversionStrategy: Default
+      decodingStrategy: None
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-runner-reviewed-egress
+  namespace: gitlab-tenant-portal-runner
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  - to:
+    - ipBlock:
+        cidr: ${RUNNER_ROUTE_HOST_CIDR}
+    ports:
+    - protocol: TCP
+      port: 443
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: rke2-traefik
+    ports:
+    - protocol: TCP
+      port: 8443
+  - to:
+    - ipBlock:
+        cidr: ${RUNNER_API_HOST_CIDR}
+    ports:
+    - protocol: TCP
+      port: 6443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-runner-reviewed-egress
+  namespace: gitlab-tenant-portal-ci
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  - to:
+    - ipBlock:
+        cidr: ${RUNNER_ROUTE_HOST_CIDR}
+    ports:
+    - protocol: TCP
+      port: 443
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: rke2-traefik
+    ports:
+    - protocol: TCP
+      port: 8443
