@@ -22,3 +22,11 @@
         mode: '0600'
         force: false
       loop: [foundation.yaml, release.yaml]
+
+    - when: runtime is defined
+      ansible.builtin.template:
+        src: '{{ item }}.j2'
+        dest: '{{ output_directory }}/{{ item }}'
+        mode: '0600'
+        force: false
+      loop: [runtime.yaml, runner-policy.hcl]
