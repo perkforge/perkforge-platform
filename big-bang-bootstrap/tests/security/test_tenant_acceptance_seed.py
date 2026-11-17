@@ -10,9 +10,9 @@ class Seed(unittest.TestCase):
   with tempfile.TemporaryDirectory(prefix='acceptance-seed-') as tmp:
    p=Path(tmp);p.chmod(0o700)
    subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN=localhost','-addext','subjectAltName=DNS:localhost','-keyout',str(p/'key'),'-out',str(p/'ca')],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);(p/'ca').chmod(0o644)
-   state={'files':{},'sha':None,'protection':None,'writes':[],'loss':None,'foreign':False,'unsafe':False,'auto':False,'ci':False,'renamed':False}
+   state={'files':{},'sha':None,'protection':None,'writes':[],'loss':None,'foreign':False,'unsafe':False,'auto':False,'ci':False,'renamed':False,'empty_default':'main' if self.observed else None}
    def protection():return {'id':55,'name':'main','allow_force_push':False,'push_access_levels':[{'access_level':40}],'merge_access_levels':[{'access_level':40}]}
-   def project():return {'id':31,'path_with_namespace':'foreign/path' if state['renamed'] else 'tenants/portal/platform-acceptance','namespace':{'id':9,'full_path':'tenants/portal'},'visibility':'private','archived':False,'builds_access_level':'enabled' if state['ci'] else 'disabled','shared_runners_enabled':False,'group_runners_enabled':False,'auto_devops_enabled':False,'empty_repo':state['sha'] is None,'default_branch':'main' if state['sha'] else None}
+   def project():return {'id':31,'path_with_namespace':'foreign/path' if state['renamed'] else 'tenants/portal/platform-acceptance','namespace':{'id':9,'full_path':'tenants/portal'},'visibility':'private','archived':False,'builds_access_level':'enabled' if state['ci'] else 'disabled','shared_runners_enabled':False,'group_runners_enabled':False,'auto_devops_enabled':False,'empty_repo':state['sha'] is None,'default_branch':'main' if state['sha'] else state['empty_default']}
    class H(BaseHTTPRequestHandler):
     def log_message(self,*a):pass
     def reply(self,c,v):self.send_response(c);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(json.dumps(v).encode())
@@ -65,6 +65,8 @@ class Seed(unittest.TestCase):
     r=run();self.assertEqual(r.returncode,0,r.stdout+r.stderr)
    self.assertEqual(run('--validate').returncode,0);self.assertEqual(state['writes'],[])
    state['foreign']=True;self.assertNotEqual(run().returncode,0);self.assertEqual(state['writes'],[]);state['foreign']=False
+   default=state['empty_default'];state['empty_default']='foreign'
+   self.assertNotEqual(run().returncode,0);self.assertEqual(state['writes'],[]);state['empty_default']=default
    state['ci']=True;self.assertNotEqual(run().returncode,0);self.assertEqual(state['writes'],[]);state['ci']=False
    ok();self.assertEqual(len(state['writes']),2);self.assertEqual(json.loads(Path(receipt).read_text())['stage'],'SeedReady');ok();self.assertEqual(len(state['writes']),2)
    state['renamed']=True;self.assertNotEqual(run().returncode,0);state['renamed']=False
