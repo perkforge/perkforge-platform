@@ -222,3 +222,33 @@ rendering cannot expose the upgrade-only lookup.
 See [monitoring recovery and retained state](recovery.md) for the pinned webhook
 trust lifecycle, guarded public-CA recovery, registry override retirement review
 and active pilot-path boundaries. This adds no automatic repair or cleanup.
+
+## Limited-profile node-exporter CPU sizing (#442)
+
+The limited metrics/logging profile overrides only the node-exporter CPU request
+from the pinned chart’s 200m to 50m per node. Other profiles keep upstream defaults.
+The DaemonSet, memory request/limits, CPU limit, security, placement and collectors
+are unchanged; adopters can supply their own resource values.
+
+Read-only review on 2026-11-17 queried a three-day Prometheus window. Each current
+exporter had over 16,400 samples in an individual cAdvisor series and zero observed
+restarts. Maximum one-minute CPU rates were below 3m on each node. Label changes
+and mixed scrape intervals mean these counts are not proof of uninterrupted
+three-day coverage. They do not capture sub-minute/startup peaks or establish
+future load safety. 50m retains over 16 times the observed one-minute peak and
+leaves the CPU limit unchanged so bursts remain possible.
+
+On the observed three-node layout this releases 450m of reservations in total,
+150m on each worker. Worker headroom would rise from 65m/110m to 215m/260m, assuming
+no other workload changes. That is insufficient for a 600m runner job; this does
+not complete the platform-wide sizing review or justify a replica reduction.
+
+After separate promotion approval, verify the immutable source selection and
+monitor the existing DaemonSet rolling strategy (maxSurge 0, maxUnavailable 1).
+One exporter is replaced at a time, causing a brief scrape gap on that node.
+Check desired/current/ready counts return to the eligible-node count, all scrape
+targets recover, requests actually become 50m, and no new restarts, OOMs, sustained
+CPU pressure or unacceptable collection latency appear. Recheck per-node scheduling
+headroom before admitting work. Roll back the source override to 200m and promote
+the reviewed rollback if collection regresses. No live rollout is authorized by
+this source change, and no exporter replicas should be removed.
