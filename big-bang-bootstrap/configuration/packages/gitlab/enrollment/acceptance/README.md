@@ -130,3 +130,24 @@ Pinned native source: [current-user route](https://gitlab.com/gitlab-org/gitlab/
 Synthetic TLS uses the native absent-field representation; focused actual-Ansible
 assertions cover explicit false and malformed/privileged values. No native setup
 or new authority is implied by this compatibility correction.
+
+## Fresh native group observation alternative
+
+When the original foundation receipt is unavailable, select exactly one alternative
+input: `gitlab_acceptance_group_expectation` instead of
+`gitlab_acceptance_group_receipt`. This is a protected 0600 JSON **expectation**, not
+proof of foundation execution: exact keys `stage` (`native-group-expectation-v1`),
+`context`, `origin`, `source_revision`, positive integer `group_id` and `parent_id`.
+The source revision must match the reviewed acceptance input. Review the expected
+IDs independently; never infer them from a foreign project or adopt by name.
+
+Every operation still performs its existing authenticated native identity, token,
+parent ownership, private path and ID checks before mutation. Project receipts
+now explicitly include `group_evidence.kind=fresh-native-group-observation-v1`
+and the observed IDs/paths, UTC observation time, actor/token IDs and pinned GitLab version. This evidence
+is generated from the current authenticated responses in that operation, not from
+the expectation file, and is not the historical `group-ready` receipt. No token
+value is recorded. The existing source revision binds the observation to the run.
+The original Longhorn volume and unreadable receipts remain untouched; their
+permission defect is separate from project acceptance. No additional native
+permissions, retries, adoption, CI activation or runner activation are introduced.

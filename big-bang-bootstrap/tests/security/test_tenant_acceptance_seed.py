@@ -5,6 +5,7 @@ from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from urllib.parse import urlsplit,unquote
 ROOT=Path(__file__).resolve().parents[2];D=ROOT/'configuration/packages/gitlab/enrollment/acceptance'
 class Seed(unittest.TestCase):
+ observed=False
  def test_native_seed_protect_repeat_and_uncertainty(self):
   with tempfile.TemporaryDirectory(prefix='acceptance-seed-') as tmp:
    p=Path(tmp);p.chmod(0o700)
@@ -53,6 +54,10 @@ class Seed(unittest.TestCase):
    origin='https://localhost:'+str(server.server_port);token=save('token','SYNTHETIC-ONLY');group=save('group.json',{'stage':'group-ready','context':'portal','origin':origin,'group_id':9,'parent_id':7})
    pr=save('project.json',{'stage':'project-ready','context':'portal','origin':origin,'group_id':9,'project_id':31,'source_revision':'a'*40})
    v={'gitlab_acceptance_run':True,'gitlab_acceptance_scope':'tenant-acceptance-seed-v1','gitlab_acceptance_context':'portal','gitlab_acceptance_origin':origin,'gitlab_acceptance_ca':str(p/'ca'),'gitlab_acceptance_source_revision':'a'*40,'gitlab_acceptance_group_receipt':group,'gitlab_acceptance_project_receipt':pr,'gitlab_acceptance_actor_id':8}
+   if self.observed:
+    v.pop('gitlab_acceptance_group_receipt')
+    v['gitlab_acceptance_group_expectation']=group
+    save('group.json',{'stage':'native-group-expectation-v1','context':'portal','origin':origin,'source_revision':'a'*40,'group_id':9,'parent_id':7})
    receipt=str(p/'seed.json');vf=save('inputs.json',v)
    def run(mode='--seed'):
     r=subprocess.run(['bash',str(D/'run.sh'),mode,token,receipt,vf],capture_output=True,text=True,timeout=90,env={**os.environ,'ANSIBLE_LOCAL_TEMP':str(p/'local'),'ANSIBLE_REMOTE_TEMP':str(p/'remote')});self.assertNotIn('SYNTHETIC-ONLY',r.stdout+r.stderr);return r
@@ -94,4 +99,7 @@ class Seed(unittest.TestCase):
      with patch.dict(os.environ,{'ACCEPTANCE_OUTCOME':'success'}),patch.object(m.os,'geteuid',return_value=1001),patch.object(m.Path,'read_text',return_value='CapEff:\t'+caps+'\n'),patch.object(m.Path,'exists',return_value=token):
       with self.assertRaises(SystemExit):m.main()
    finally:os.chdir(old)
+class ObservedSeed(Seed):
+ observed=True
+
 if __name__=='__main__':unittest.main()

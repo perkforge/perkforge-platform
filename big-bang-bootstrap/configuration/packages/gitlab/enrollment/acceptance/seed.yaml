@@ -25,7 +25,7 @@
     - ansible.builtin.assert:
         that: gitlab_acceptance_scope == 'tenant-acceptance-seed-v1'
     - ansible.builtin.set_fact:
-        ag: '{{ lookup("file",gitlab_acceptance_group_receipt) | from_json }}'
+        ag: '{{ lookup("file",gitlab_acceptance_group_receipt | default(gitlab_acceptance_group_expectation)) | from_json }}'
         ap: '{{ lookup("file",gitlab_acceptance_project_receipt) | from_json }}'
         ah: {PRIVATE-TOKEN: '{{ lookup("file",gitlab_acceptance_token) | trim }}'}
         seed_files:

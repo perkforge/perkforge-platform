@@ -35,7 +35,7 @@
         argv: [python3, '{{ playbook_dir }}/../gitlab/enrollment/acceptance/validate.py', locked, '{{ gitlab_acceptance_token }}', '{{ gitlab_acceptance_receipt }}', '{{ gitlab_acceptance_inputs }}']
       changed_when: false
     - ansible.builtin.set_fact:
-        acceptance_group: '{{ lookup("file", gitlab_acceptance_group_receipt) | from_json }}'
+        acceptance_group: '{{ lookup("file", gitlab_acceptance_group_receipt | default(gitlab_acceptance_group_expectation)) | from_json }}'
         acceptance_project: '{{ lookup("file", gitlab_acceptance_project_receipt) | from_json }}'
     - ansible.builtin.include_tasks: '{{ playbook_dir }}/../gitlab/enrollment/acceptance/authority.yaml'
       vars:
