@@ -43,7 +43,8 @@
     - ansible.builtin.assert:
         that:
         - native.results[0].json.id == gitlab_acceptance_actor_id
-        - native.results[0].json.state == 'active' and not native.results[0].json.is_admin
+        - native.results[0].json.state == 'active'
+        - "('is_admin' not in native.results[0].json) or (native.results[0].json.is_admin is sameas false)"
         - native.results[1].json.id == ag.parent_id
         - native.results[1].json.full_path == 'tenants' and native.results[1].json.visibility == 'private'
         - native.results[2].json.id == ag.group_id and native.results[2].json.parent_id == ag.parent_id

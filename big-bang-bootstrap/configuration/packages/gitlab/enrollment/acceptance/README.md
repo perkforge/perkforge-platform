@@ -112,3 +112,21 @@ https://gitlab.com/gitlab-org/gitlab/-/tree/v19.4.2-ee.
 Synthetic test: `PYTHONPATH=big-bang-bootstrap/tests python3 -m unittest security.test_tenant_acceptance_seed -v`.
 It proves API/guard behavior against a local HTTPS fixture, not native GitLab,
 runner, CI, delivery or recipient access acceptance.
+
+## Pinned current-user representation
+
+For authenticated unfiltered `GET /api/v4/user` only, GitLab19.4.2 selects
+`UserWithAdmin` when `current_user.admin?` is true and `UserPublic` otherwise.
+The former exposes `is_admin` unconditionally; the latter omits it. Therefore
+this exact endpoint on the already checked version accepts absence or literal
+`false`, and rejects true/null/string/numeric values. This is not permission to
+treat omitted admin fields on `/users/:id`, lists, another version or another
+provider as nonadmin. Active bot/native ID, token-self/api/expiry, and exact parent
+Owner/token ownership checks remain required before any write.
+
+Pinned native source: [current-user route](https://gitlab.com/gitlab-org/gitlab/-/blob/v19.4.2-ee/lib/api/users.rb),
+[admin entity](https://gitlab.com/gitlab-org/gitlab/-/blob/v19.4.2-ee/lib/api/entities/user_with_admin.rb),
+[public entity](https://gitlab.com/gitlab-org/gitlab/-/blob/v19.4.2-ee/lib/api/entities/user_public.rb).
+Synthetic TLS uses the native absent-field representation; focused actual-Ansible
+assertions cover explicit false and malformed/privileged values. No native setup
+or new authority is implied by this compatibility correction.

@@ -19,7 +19,7 @@ class Seed(unittest.TestCase):
      if self.headers.get('PRIVATE-TOKEN')!='SYNTHETIC-ONLY':return self.reply(403,{})
      path=unquote(urlsplit(self.path).path)
      token={'id':12,'user_id':8,'active':True,'revoked':False,'scopes':['api'],'expires_at':'2099-01-01','access_level':50}
-     if path=='/api/v4/user':return self.reply(200,{'id':8,'bot':True,'is_admin':False,'state':'active'})
+     if path=='/api/v4/user':return self.reply(200,{'id':8,'bot':True,'state':'active'})
      if path=='/api/v4/personal_access_tokens/self':return self.reply(200,token)
      if path=='/api/v4/version':return self.reply(200,{'version':'19.4.2-ee'})
      if path=='/api/v4/groups/7/members/8':return self.reply(200,{'id':8,'access_level':50})
