@@ -67,3 +67,48 @@ Run: `PYTHONPATH=big-bang-bootstrap/tests python3 -m unittest security.test_tena
 Source contract references: pinned `lib/api/user_runners.rb`, `lib/api/api_guard.rb`
 and `lib/api/api.rb` at GitLab19.4.2; existing platform membership writer checks
 provide the parent-bot provenance pattern. No new actor creation is in this adapter.
+
+## Bounded seed and main protection (inactive)
+
+`run.sh --seed TOKEN SEED_RECEIPT INPUTS.json` uses the same literal/private input
+and native lock checks, with scope `tenant-acceptance-seed-v1` and required
+`gitlab_acceptance_project_receipt`. All other common inputs retain their meaning.
+The existing project receipt is read-only; use a separate private seed receipt.
+Only source-owned `.gitlab-ci.yml`, `README.md` and `smoke.py` are created in one
+native commits API call. Source revision and exact rendered content hashes bind
+the seed receipt. There is no caller content, author-identity override, repo import,
+file update/delete or force push. A preexisting branch/protection without this
+helper's final receipt is refused, including a project seeded by another actor.
+
+The project must remain private, empty initially, with CI/shared/group runners and
+AutoDevOps disabled. The seed commit also uses `[skip ci]`; the fixed workflow
+permits only a later manual web pipeline on protected main. Its single smoke
+outcome is `success` or `failure`, never a shell argument. The pinned approved
+image runs only the fixed smoke script: nonroot, zero effective capabilities,
+no Kubernetes token at the standard mount, one exclusive tiny fixed artifact.
+These are smoke checks, not proof arbitrary credentials are absent or the runner
+is isolated. No image is pulled or pipeline executed by this setup helper.
+
+After exact native commit/tree/file/default-branch readback, main is protected
+with push/merge access level40 (Maintainers, including inherited Owners) and force
+push disabled. An automatically created default-main rule is accepted only after
+this helper's own verified seed and only when it exactly matches the requested
+non-inherited role-only policy. Foreign, wildcard, user/group/deploy-key access
+is not repaired. If no rule exists, one POST creates it; no PATCH/delete is used.
+Fresh commit and CI-disabled readbacks precede `SeedReady`. Repeating a final owned
+receipt performs only reads and requires identical commit/content/protection ID.
+
+Intent precedes either native POST. Lost response, incomplete verification or
+protection failure leaves pending evidence and requires manual recovery, never
+blind retry/adoption or credential remint. Local Ansible atomic writes are not a
+power-loss-durable transaction; native concurrent writers cannot be locked by the
+local receipt lock. Native permission checks and final readbacks narrow effects,
+not a claim of cross-service atomicity. Activate only under an exact approved
+project/source/protection batch; runner preparation/activation and CI runs remain
+separate. API compatibility must be verified against the installed19.4.2 service.
+Pinned source: `lib/api/commits.rb` and `lib/api/protected_branches.rb` at
+https://gitlab.com/gitlab-org/gitlab/-/tree/v19.4.2-ee.
+
+Synthetic test: `PYTHONPATH=big-bang-bootstrap/tests python3 -m unittest security.test_tenant_acceptance_seed -v`.
+It proves API/guard behavior against a local HTTPS fixture, not native GitLab,
+runner, CI, delivery or recipient access acceptance.

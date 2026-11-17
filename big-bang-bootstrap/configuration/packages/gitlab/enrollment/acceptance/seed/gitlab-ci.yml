@@ -1,0 +1,21 @@
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "main" && $CI_COMMIT_REF_PROTECTED == "true"'
+    - when: never
+variables:
+  ACCEPTANCE_OUTCOME:
+    value: success
+    options: [success, failure]
+    description: Bounded platform smoke result; no deployment.
+stages: [acceptance]
+platform-smoke:
+  stage: acceptance
+  image: registry1.dso.mil/ironbank/opensource/ansible/ansible@sha256:3308322cc09f20a813c00e9087c166a3d97dbb7789c059f1020f3c0b092fdf02
+  tags: ['perkforge-{{ gitlab_acceptance_context }}-acceptance']
+  timeout: 2m
+  script:
+    - /home/python/python-env/bin/python3 smoke.py
+  artifacts:
+    when: always
+    paths: [acceptance.txt]
+    expire_in: 1 day

@@ -28,7 +28,7 @@ def check(token,receipt,inputs,mode):
  required={'gitlab_acceptance_run','gitlab_acceptance_scope','gitlab_acceptance_context','gitlab_acceptance_origin','gitlab_acceptance_ca','gitlab_acceptance_source_revision','gitlab_acceptance_group_receipt','gitlab_acceptance_actor_id'}
  optional={'gitlab_acceptance_project_receipt','gitlab_acceptance_runner_directory'}
  if not isinstance(v,dict) or not required<=v.keys() or not v.keys()<=required|optional:raise ValueError()
- if v['gitlab_acceptance_run'] is not True or v['gitlab_acceptance_scope'] not in ('tenant-acceptance-project-v1','tenant-acceptance-runner-v1'):raise ValueError()
+ if v['gitlab_acceptance_run'] is not True or v['gitlab_acceptance_scope'] not in ('tenant-acceptance-project-v1','tenant-acceptance-runner-v1','tenant-acceptance-seed-v1'):raise ValueError()
  if type(v['gitlab_acceptance_actor_id']) is not int or not 0<v['gitlab_acceptance_actor_id']<2**63:raise ValueError()
  patterns={'gitlab_acceptance_context':r'[a-z][a-z0-9-]{0,30}','gitlab_acceptance_origin':r'https://[A-Za-z0-9.-]+(?::[0-9]+)?','gitlab_acceptance_source_revision':r'[a-f0-9]{40}'}
  for k in required|optional:
@@ -41,10 +41,12 @@ def check(token,receipt,inputs,mode):
  if not isinstance(g,dict) or g.get('stage')!='group-ready' or g.get('context')!=v['gitlab_acceptance_context'] or g.get('origin')!=v['gitlab_acceptance_origin']:raise ValueError()
  for k in ('group_id','parent_id'):
   if type(g.get(k)) is not int or g[k]<=0:raise ValueError()
- if v['gitlab_acceptance_scope']=='tenant-acceptance-runner-v1':
-  if not optional<=v.keys():raise ValueError()
+ if v['gitlab_acceptance_scope'] in ('tenant-acceptance-runner-v1','tenant-acceptance-seed-v1'):
+  if 'gitlab_acceptance_project_receipt' not in v:raise ValueError()
   p=read(v['gitlab_acceptance_project_receipt'])
   if not isinstance(p,dict) or p.get('stage')!='project-ready' or p.get('context')!=g['context'] or p.get('group_id')!=g['group_id'] or p.get('origin')!=g['origin'] or p.get('source_revision')!=v['gitlab_acceptance_source_revision'] or type(p.get('project_id')) is not int or p['project_id']<=0:raise ValueError()
+ if v['gitlab_acceptance_scope']=='tenant-acceptance-runner-v1':
+  if not optional<=v.keys():raise ValueError()
   # Dedicated native runner custody dir. validate canonical ancestry via prospective leaf.
   safe(v['gitlab_acceptance_runner_directory']+'/runner-token',optional=True,limit=4096)
   rp=v['gitlab_acceptance_runner_directory']+'/runner-receipt.json'

@@ -1,0 +1,174 @@
+- name: Seed and protect only the owned empty acceptance project
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    gitlab_acceptance_run: false
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ gitlab_acceptance_ca }}'
+      follow_redirects: none
+      unredirected_headers: [PRIVATE-TOKEN]
+      use_proxy: false
+      use_netrc: false
+      timeout: 20
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'INERT unless explicitly selected. No CI enablement, pipeline, runner or event.'
+  - when: gitlab_acceptance_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/validate.py', locked, '{{ gitlab_acceptance_token }}', '{{ gitlab_acceptance_receipt }}', '{{ gitlab_acceptance_inputs }}']
+      changed_when: false
+    - ansible.builtin.assert:
+        that: gitlab_acceptance_scope == 'tenant-acceptance-seed-v1'
+    - ansible.builtin.set_fact:
+        ag: '{{ lookup("file",gitlab_acceptance_group_receipt) | from_json }}'
+        ap: '{{ lookup("file",gitlab_acceptance_project_receipt) | from_json }}'
+        ah: {PRIVATE-TOKEN: '{{ lookup("file",gitlab_acceptance_token) | trim }}'}
+        seed_files:
+          .gitlab-ci.yml: '{{ lookup("template", "seed/gitlab-ci.yml", rstrip=false) }}'
+          README.md: '{{ lookup("file", "seed/README.md", rstrip=false) }}'
+          smoke.py: '{{ lookup("file", "seed/smoke.py", rstrip=false) }}'
+    - ansible.builtin.include_tasks: authority.yaml
+      vars:
+        acceptance_parent_id: '{{ ag.parent_id }}'
+    - ansible.builtin.set_fact:
+        seed_contract:
+          schema: 1
+          context: '{{ gitlab_acceptance_context }}'
+          origin: '{{ gitlab_acceptance_origin }}'
+          source_revision: '{{ gitlab_acceptance_source_revision }}'
+          group_id: '{{ ag.group_id }}'
+          project_id: '{{ ap.project_id }}'
+          branch: main
+          files:
+            .gitlab-ci.yml: '{{ seed_files[".gitlab-ci.yml"] | hash("sha256") }}'
+            README.md: '{{ seed_files["README.md"] | hash("sha256") }}'
+            smoke.py: '{{ seed_files["smoke.py"] | hash("sha256") }}'
+    - ansible.builtin.uri:
+        url: '{{ gitlab_acceptance_origin }}/api/v4/{{ item }}'
+        headers: '{{ ah }}'
+      loop: ['groups/{{ ag.parent_id }}','groups/{{ ag.group_id }}','projects/{{ ap.project_id }}']
+      register: native
+    - ansible.builtin.assert:
+        that:
+        - native.results[0].json.id == ag.parent_id and native.results[0].json.full_path == 'tenants'
+        - native.results[0].json.visibility == 'private'
+        - native.results[1].json.id == ag.group_id and native.results[1].json.parent_id == ag.parent_id
+        - native.results[1].json.full_path == 'tenants/' + gitlab_acceptance_context and native.results[1].json.visibility == 'private'
+        - native.results[2].json.id == ap.project_id
+        - native.results[2].json.path_with_namespace == 'tenants/' + gitlab_acceptance_context + '/platform-acceptance'
+        - native.results[2].json.namespace.id == ag.group_id and native.results[2].json.namespace.full_path == 'tenants/' + gitlab_acceptance_context
+        - native.results[2].json.visibility == 'private' and not native.results[2].json.archived
+        - native.results[2].json.builds_access_level == 'disabled'
+        - not native.results[2].json.shared_runners_enabled and not native.results[2].json.group_runners_enabled
+        - not native.results[2].json.auto_devops_enabled
+    - ansible.builtin.stat:
+        path: '{{ gitlab_acceptance_receipt }}'
+        follow: false
+      register: saved
+    - when: saved.stat.exists
+      block:
+      - ansible.builtin.set_fact:
+          seed_receipt: '{{ lookup("file",gitlab_acceptance_receipt) | from_json }}'
+      - ansible.builtin.assert:
+          that:
+          - seed_receipt.keys() | list | sort == ['commit_id','contract','protection_id','stage']
+          - seed_receipt.stage == 'SeedReady' and seed_receipt.contract == seed_contract
+          - seed_receipt.commit_id is match('^[a-f0-9]{40}$')
+          - seed_receipt.protection_id | type_debug == 'int' and seed_receipt.protection_id > 0
+          fail_msg: 'Partial or foreign seed receipt requires manual recovery; never repeat writes.'
+    - ansible.builtin.uri:
+        url: '{{ gitlab_acceptance_origin }}/api/v4/projects/{{ ap.project_id }}/{{ item }}?per_page=100'
+        headers: '{{ ah }}'
+      loop: [repository/branches, protected_branches]
+      register: lists
+    - ansible.builtin.assert:
+        that:
+        - lists.results[0].x_next_page | default('') == '' and lists.results[1].x_next_page | default('') == ''
+        - (not saved.stat.exists and lists.results[0].json | length == 0 and lists.results[1].json | length == 0 and native.results[2].json.empty_repo is sameas true and native.results[2].json.default_branch is none) or (saved.stat.exists and lists.results[0].json | map(attribute='name') | list == ['main'] and lists.results[1].json | map(attribute='name') | list == ['main'])
+    - when: not saved.stat.exists
+      block:
+      - ansible.builtin.copy:
+          dest: '{{ gitlab_acceptance_receipt }}'
+          mode: '0600'
+          force: false
+          content: '{{ {"stage":"seed-pending","contract":seed_contract} | to_nice_json }}'
+      - ansible.builtin.uri:
+          url: '{{ gitlab_acceptance_origin }}/api/v4/projects/{{ ap.project_id }}/repository/commits'
+          method: POST
+          headers: '{{ ah }}'
+          body_format: json
+          body:
+            branch: main
+            commit_message: 'Seed reviewed platform acceptance [skip ci]'
+            force: false
+            actions:
+            - {action: create, file_path: .gitlab-ci.yml, content: '{{ seed_files[".gitlab-ci.yml"] }}'}
+            - {action: create, file_path: README.md, content: '{{ seed_files["README.md"] }}'}
+            - {action: create, file_path: smoke.py, content: '{{ seed_files["smoke.py"] }}'}
+          status_code: 201
+        register: created
+      - ansible.builtin.assert:
+          that: created.json.id is match('^[a-f0-9]{40}$')
+      - ansible.builtin.set_fact:
+          seed_receipt: '{{ {"stage":"verification-pending","contract":seed_contract,"commit_id":created.json.id} }}'
+      - ansible.builtin.copy:
+          dest: '{{ gitlab_acceptance_receipt }}'
+          mode: '0600'
+          content: '{{ seed_receipt | to_nice_json }}'
+    - ansible.builtin.include_tasks: seed-readback.yaml
+    - ansible.builtin.uri:
+        url: '{{ gitlab_acceptance_origin }}/api/v4/projects/{{ ap.project_id }}/protected_branches/main'
+        headers: '{{ ah }}'
+        status_code: [200,404]
+      register: protection
+    - when: protection.status == 404
+      block:
+      - ansible.builtin.assert:
+          that: not saved.stat.exists
+      - ansible.builtin.copy:
+          dest: '{{ gitlab_acceptance_receipt }}'
+          mode: '0600'
+          content: '{{ seed_receipt | combine({"stage":"protection-pending"}) | to_nice_json }}'
+      - ansible.builtin.uri:
+          url: '{{ gitlab_acceptance_origin }}/api/v4/projects/{{ ap.project_id }}/protected_branches'
+          headers: '{{ ah }}'
+          method: POST
+          body_format: json
+          body: {name: main, push_access_level: 40, merge_access_level: 40, allow_force_push: false}
+          status_code: 201
+    - ansible.builtin.uri:
+        url: '{{ gitlab_acceptance_origin }}/api/v4/projects/{{ ap.project_id }}/protected_branches/main'
+        headers: '{{ ah }}'
+      register: protected
+    - ansible.builtin.assert:
+        that:
+        - protected.json.id | type_debug == 'int' and protected.json.id > 0
+        - protected.json.name == 'main' and protected.json.allow_force_push is sameas false
+        - not (protected.json.inherited | default(false))
+        - protected.json.push_access_levels | length == 1 and protected.json.merge_access_levels | length == 1
+        - protected.json.push_access_levels[0].access_level == 40 and protected.json.merge_access_levels[0].access_level == 40
+        - not (protected.json.push_access_levels[0].user_id | default(none)) and not (protected.json.push_access_levels[0].group_id | default(none)) and not (protected.json.push_access_levels[0].deploy_key_id | default(none))
+        - not (protected.json.merge_access_levels[0].user_id | default(none)) and not (protected.json.merge_access_levels[0].group_id | default(none))
+        - not saved.stat.exists or protected.json.id == seed_receipt.protection_id
+    - ansible.builtin.include_tasks: seed-readback.yaml
+    - ansible.builtin.uri:
+        url: '{{ gitlab_acceptance_origin }}/api/v4/projects/{{ ap.project_id }}/protected_branches?per_page=100'
+        headers: '{{ ah }}'
+      register: final_protections
+    - ansible.builtin.assert:
+        that:
+        - final_protections.x_next_page | default('') == ''
+        - final_protections.json | map(attribute='name') | list == ['main']
+        - final_protections.json[0].id == protected.json.id
+    - ansible.builtin.copy:
+        dest: '{{ gitlab_acceptance_receipt }}'
+        mode: '0600'
+        content: '{{ {"stage":"SeedReady","contract":seed_contract,"commit_id":seed_receipt.commit_id,"protection_id":protected.json.id} | to_nice_json }}'
+    always:
+    - ansible.builtin.set_fact:
+        ah: {}
