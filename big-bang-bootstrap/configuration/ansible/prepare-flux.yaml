@@ -21,3 +21,29 @@
       mode: '0600'
   - ansible.builtin.set_fact:
       flux_manifest_path: '{{ flux_checkout }}/base/perkforge-flux-placement'
+
+# Default-off sizing/placement for the bootstrap-owned Helm controller.
+- name: Prepare explicitly selected Helm controller capacity overlay
+  when: flux_helm_capacity_overlay | default(false) | bool
+  block:
+  - ansible.builtin.assert:
+      that:
+      - flux_helm_cpu_request_millicores is defined
+      - flux_helm_cpu_request_millicores | string is match('^[0-9]+$')
+      - flux_helm_cpu_request_millicores | int >= 250
+      - flux_helm_cpu_request_millicores | int <= 900
+      - flux_helm_node_selector is defined
+      - flux_helm_node_selector is mapping
+      - flux_helm_node_selector | length > 0
+      - flux_helm_node_selector | length <= 4
+      - flux_helm_node_selector.get('kubernetes.io/os', 'linux') == 'linux'
+  - ansible.builtin.file:
+      path: '{{ flux_checkout }}/base/perkforge-flux-capacity'
+      state: directory
+      mode: '0700'
+  - ansible.builtin.template:
+      src: flux-capacity.yaml.j2
+      dest: '{{ flux_checkout }}/base/perkforge-flux-capacity/kustomization.yaml'
+      mode: '0600'
+  - ansible.builtin.set_fact:
+      flux_manifest_path: '{{ flux_checkout }}/base/perkforge-flux-capacity'
