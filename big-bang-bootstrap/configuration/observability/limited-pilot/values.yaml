@@ -8,6 +8,11 @@ monitoring:
         enabled: false
         targets: []
     upstream:
+      # Measured small-cluster profile; keep one exporter on every eligible node.
+      prometheus-node-exporter:
+        resources:
+          requests:
+            cpu: 50m
       kubeControllerManager:
         serviceMonitor: {enabled: false}
       kubeScheduler:
