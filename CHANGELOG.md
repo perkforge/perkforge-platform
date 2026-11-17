@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.49.0](https://github.com/perkforge/perkforge-platform/compare/v0.48.0...v0.49.0) (2026-11-17)
+
+
+### Features
+
+* **gitlab:** accept reviewed native group observation evidence ([46e2c51](https://github.com/perkforge/perkforge-platform/commit/46e2c51401ffbc62c4cf0afd9e455becd46e75a6))
+* **gitlab:** add guarded acceptance seed and main protection ([24c2662](https://github.com/perkforge/perkforge-platform/commit/24c26623c734a64f7f38ed4930701da04daac100))
+* **gitlab:** isolated tenant acceptance preparation ([4e368ed](https://github.com/perkforge/perkforge-platform/commit/4e368ed12521761a47b33eeb1a014f5afcf07dcb))
+* **gitlab:** prepare isolated tenant acceptance project and paused runner ([cfd81fc](https://github.com/perkforge/perkforge-platform/commit/cfd81fcf2d8160fe475e432c685bb5da23cc70cf))
+* **gitlab:** prepare scoped tenant runner runtime manifests ([fc04ba4](https://github.com/perkforge/perkforge-platform/commit/fc04ba4b9b51623bf066e3a52d3d0f5398424180))
+* **gitlab:** prepare scoped tenant runner runtime manifests ([8ceab87](https://github.com/perkforge/perkforge-platform/commit/8ceab877f51b919c08a07d60259f8bc7a431bc7d))
+* **gitlab:** render inactive isolated tenant runner candidate ([8c485be](https://github.com/perkforge/perkforge-platform/commit/8c485bea9c153672489ca29b6582fa593c95f455))
+* **gitlab:** seed acceptance source and isolate tenant runner candidate ([5416ea3](https://github.com/perkforge/perkforge-platform/commit/5416ea32c9af14fab4e8a890fba877729bab58ce))
+
+
+### Bug Fixes
+
+* **gitlab:** accept native empty project main default ([63b723b](https://github.com/perkforge/perkforge-platform/commit/63b723b84f5a5aa4eb4fd5e0d9fff89ed50dfac3))
+* **gitlab:** align tenant smoke image and runner allowlist ([200e919](https://github.com/perkforge/perkforge-platform/commit/200e91984b2236878a2ca59f4f8725bb12105688))
+* **gitlab:** honor pinned current-user nonadmin representation ([94d624e](https://github.com/perkforge/perkforge-platform/commit/94d624e6190956257354b1fb671287147b372f08))
+* **gitlab:** verify acceptance writer authority and uncertain custody ([5c6badd](https://github.com/perkforge/perkforge-platform/commit/5c6badd72f33c35d1c1b549c8e886210637e2760))
+* **identity:** gate partial retry membership release ([717b7a4](https://github.com/perkforge/perkforge-platform/commit/717b7a4f17d439b6d612d894108e80749dabd6b9))
+* **identity:** hold partial-success retry on new released artifacts ([00f6d3b](https://github.com/perkforge/perkforge-platform/commit/00f6d3b629d410467504be93807e70936fae37e1))
+* **identity:** pin bounded directory metadata diagnostic ([a5dfd44](https://github.com/perkforge/perkforge-platform/commit/a5dfd4454f5da3af563f95bc77b58e834b53cc69))
+* **identity:** pin bounded original receipt export admission ([7e0199e](https://github.com/perkforge/perkforge-platform/commit/7e0199e3ad74aded0ec52dc6b0406aefcf087b27))
+* **identity:** pin bounded receipt diagnostic selection ([3fdb6d0](https://github.com/perkforge/perkforge-platform/commit/3fdb6d01ad556c191ea013759059352c1ea61c63))
+* **identity:** pin bounded receipt directory metadata ([e615be2](https://github.com/perkforge/perkforge-platform/commit/e615be26c5bd3f4784838ab3ab167d533a4fad91))
+* **identity:** pin current-generation phase readiness correction ([#509](https://github.com/perkforge/perkforge-platform/issues/509)) ([3f7fd90](https://github.com/perkforge/perkforge-platform/commit/3f7fd9000ef36a39b8b8b40bbd89749bc3f3adb9))
+* **identity:** pin exact receipt syscall-stage diagnostics ([7fd6e02](https://github.com/perkforge/perkforge-platform/commit/7fd6e0218b6642c5b7ece31e920ade2b978c1fa1))
+* **identity:** pin receipt syscall-stage diagnostics ([361a154](https://github.com/perkforge/perkforge-platform/commit/361a1546917fa9b791f7209e52e95e50646b7942))
+* **identity:** select bounded original receipt export admission ([6481b0d](https://github.com/perkforge/perkforge-platform/commit/6481b0d9c8d6fa44bf6be95eab371404bf07852e))
+* **identity:** select bounded receipt diagnostics ([df219ff](https://github.com/perkforge/perkforge-platform/commit/df219ff017783677efea05be30edbe723339382b))
+* **identity:** stage partial retry foundation and attestation ([862bee0](https://github.com/perkforge/perkforge-platform/commit/862bee0988ed6b893029ce2174a6196b2cc542dc))
+* **identity:** stage retained-receipt partial-success retry ([ee63cfe](https://github.com/perkforge/perkforge-platform/commit/ee63cfe9b451a80c1eb3373e14b659ac7f4f9548))
+* **observability:** reduce limited-profile node-exporter CPU reservation ([4c8402a](https://github.com/perkforge/perkforge-platform/commit/4c8402a3892dea208b0526be49e34d1ed4e6c6e6))
+* **observability:** right-size limited-profile node exporter CPU request ([e880ff7](https://github.com/perkforge/perkforge-platform/commit/e880ff7aec01c8378449f5f468c1c20ec94147ba))
+
 ## [0.48.0](https://github.com/perkforge/perkforge-platform/compare/v0.47.0...v0.48.0) (2026-11-15)
 
 
