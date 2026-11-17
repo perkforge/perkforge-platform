@@ -1,0 +1,17 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: portal-runner-staging
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 2m
+  path: ./big-bang-bootstrap/configuration/tenant-runner/staging
+  sourceRef:
+    kind: GitRepository
+    name: cluster-config
+  serviceAccountName: platform-reconciler
+  prune: false
+  force: false
+  wait: false
+  suspend: false

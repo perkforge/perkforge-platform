@@ -1,0 +1,42 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: portal-runner-runtime
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 5m
+  path: ./big-bang-bootstrap/configuration/tenant-runner/portal/runtime
+  sourceRef:
+    kind: GitRepository
+    name: cluster-config
+  serviceAccountName: platform-reconciler
+  prune: false
+  force: false
+  wait: false
+  suspend: true
+  postBuild:
+    substituteFrom:
+    - kind: ConfigMap
+      name: portal-runner-endpoints
+      optional: false
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: portal-runner-manager
+  namespace: flux-system
+spec:
+  interval: 5m
+  timeout: 5m
+  path: ./big-bang-bootstrap/configuration/tenant-runner/portal/manager
+  sourceRef:
+    kind: GitRepository
+    name: cluster-config
+  serviceAccountName: platform-reconciler
+  prune: false
+  force: false
+  wait: false
+  suspend: true
+  dependsOn:
+  - name: portal-runner-runtime
