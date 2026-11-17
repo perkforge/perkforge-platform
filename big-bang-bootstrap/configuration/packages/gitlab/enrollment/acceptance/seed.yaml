@@ -89,7 +89,7 @@
     - ansible.builtin.assert:
         that:
         - lists.results[0].x_next_page | default('') == '' and lists.results[1].x_next_page | default('') == ''
-        - (not saved.stat.exists and lists.results[0].json | length == 0 and lists.results[1].json | length == 0 and native.results[2].json.empty_repo is sameas true and native.results[2].json.default_branch is none) or (saved.stat.exists and lists.results[0].json | map(attribute='name') | list == ['main'] and lists.results[1].json | map(attribute='name') | list == ['main'])
+        - (not saved.stat.exists and lists.results[0].json | length == 0 and lists.results[1].json | length == 0 and native.results[2].json.empty_repo is sameas true and (native.results[2].json.default_branch is none or native.results[2].json.default_branch == 'main')) or (saved.stat.exists and lists.results[0].json | map(attribute='name') | list == ['main'] and lists.results[1].json | map(attribute='name') | list == ['main'])
     - when: not saved.stat.exists
       block:
       - ansible.builtin.copy:

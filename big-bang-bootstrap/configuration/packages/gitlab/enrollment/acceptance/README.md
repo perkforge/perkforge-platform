@@ -36,8 +36,8 @@ CI/shared/group runners/AutoDevOps remain disabled. An uncertain POST or incompl
 verification is MANUAL RECOVERY, not a blind repeat/adoption/delete. `project-ready`
 means only project preparation, not source seed, branch, runner or CI readiness.
 The source requires native version19.4.2 (or19.4.2-ee). Actual field/permission
-compatibility remains a live gate; synthetic TLS is not proof. Initial project
-default_branch is null; seeding/protection is a separate reviewed operation.
+compatibility remains a live gate; synthetic TLS is not proof. An empty project's default_branch may be null or the pinned native default `main`;
+empty_repo=true and empty branch/protection lists are still required; seeding/protection is a separate reviewed operation.
 Receipts use native Ansible atomic replacement, not a proven power-loss-durable
 transaction; preserve uncertain effects for manual recovery.
 
