@@ -3,7 +3,8 @@
 This optional source selection inherits the complete local application baseline.
 It changes only the enrollment repository immutable ref and adds two native Flux
 Kustomizations. Existing Nextcloud/Portal consumer paths, Grafana, logging, sharing
-policy, alerts and workload values remain unchanged. No credential material or
+policy and alerts remain unchanged. The explicit runner capacity hold below changes
+only the original GitLab runner manager replica count. No credential material or
 bootstrap security grant is included here.
 
 Prepublish/review the paired enrollment and platform stages before live work.
@@ -89,3 +90,22 @@ directory/identity metadata or an unavailable code, then preserves failure. No
 permissions, receipt guards, mounts, Jobs or bootstrap grants change. Metadata is
 a separate observation, not proof of the denial cause. No helper is created by
 this selection. A new live attempt requires fresh gates and scoped authorization.
+
+## Runner capacity hold
+
+Corey has deferred GitLab development/CI migration until hardware expansion;
+GitHub remains the source location. This composition sets the original runner
+manager to zero replicas, freeing its 100m CPU and 128Mi memory reservation.
+The Helm release, registration, credentials, configuration, namespaces and data
+remain intact. This does not disable GitLab itself or change existing memberships.
+The separate Portal runner remains suspended; no CI jobs are authorized.
+
+Before selecting this source, pause the original native runner using its reviewed
+maintenance procedure and verify no running jobs or job Pods. Do not interrupt an
+active job. After reconciliation verify zero manager/job Pods and zero requested
+CPU/memory in both runner paths, with existing applications healthy. Source
+publication alone does not establish the live hold.
+
+Resumption requires separate approval: remove this capacity override through
+reviewed GitOps, verify a Ready manager and adequate job capacity, then explicitly
+activate the intended native runner. Do not delete/recreate registration or tokens.
