@@ -1,0 +1,128 @@
+- name: Prepare only the owned private tenant acceptance project
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    gitlab_acceptance_run: false
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ gitlab_acceptance_ca }}'
+      follow_redirects: none
+      unredirected_headers: [PRIVATE-TOKEN]
+      use_proxy: false
+      use_netrc: false
+      timeout: 20
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'INERT unless explicitly selected; no seed, CI run, user grant or existing runner assignment.'
+  - when: gitlab_acceptance_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/validate.py', locked, '{{ gitlab_acceptance_token }}', '{{ gitlab_acceptance_receipt }}', '{{ gitlab_acceptance_inputs }}']
+      changed_when: false
+    - ansible.builtin.assert:
+        that: gitlab_acceptance_scope == 'tenant-acceptance-project-v1'
+    - ansible.builtin.set_fact:
+        ag: '{{ lookup("file",gitlab_acceptance_group_receipt) | from_json }}'
+        ah: {PRIVATE-TOKEN: '{{ lookup("file",gitlab_acceptance_token) | trim }}'}
+        apath: '{{ "tenants/" + gitlab_acceptance_context + "/platform-acceptance" }}'
+        acontract:
+          context: '{{ gitlab_acceptance_context }}'
+          origin: '{{ gitlab_acceptance_origin }}'
+          source_revision: '{{ gitlab_acceptance_source_revision }}'
+    - ansible.builtin.include_tasks: authority.yaml
+      vars:
+        acceptance_parent_id: '{{ ag.parent_id }}'
+    - ansible.builtin.uri:
+        url: '{{ gitlab_acceptance_origin }}/api/v4/{{ item }}'
+        headers: '{{ ah }}'
+      loop: ['user', 'groups/{{ ag.parent_id }}', 'groups/{{ ag.group_id }}']
+      register: native
+    - ansible.builtin.assert:
+        that:
+        - native.results[0].json.id == gitlab_acceptance_actor_id
+        - native.results[0].json.state == 'active' and not native.results[0].json.is_admin
+        - native.results[1].json.id == ag.parent_id
+        - native.results[1].json.full_path == 'tenants' and native.results[1].json.visibility == 'private'
+        - native.results[2].json.id == ag.group_id and native.results[2].json.parent_id == ag.parent_id
+        - native.results[2].json.full_path == 'tenants/' + gitlab_acceptance_context
+        - native.results[2].json.visibility == 'private'
+    - ansible.builtin.stat:
+        path: '{{ gitlab_acceptance_receipt }}'
+        follow: false
+      register: saved
+    - when: saved.stat.exists
+      block:
+      - ansible.builtin.set_fact:
+          receipt: '{{ lookup("file",gitlab_acceptance_receipt) | from_json }}'
+      - ansible.builtin.assert:
+          that:
+          - receipt.stage == 'project-ready'
+          - receipt.context == acontract.context and receipt.origin == acontract.origin
+          - receipt.source_revision == acontract.source_revision
+          - receipt.group_id == ag.group_id
+          - receipt.project_id | type_debug == 'int' and receipt.project_id > 0
+    - ansible.builtin.uri:
+        url: '{{ gitlab_acceptance_origin }}/api/v4/projects/{{ apath | replace("/","%2F") }}'
+        headers: '{{ ah }}'
+        status_code: [200,404]
+      register: existing
+    - ansible.builtin.assert:
+        that:
+        - (saved.stat.exists and existing.status == 200 and existing.json.id == receipt.project_id) or (not saved.stat.exists and existing.status == 404)
+        fail_msg: 'Foreign or uncertain project: no adoption or repeat creation.'
+    - when: not saved.stat.exists
+      block:
+      - ansible.builtin.copy:
+          dest: '{{ gitlab_acceptance_receipt }}'
+          mode: '0600'
+          force: false
+          content: '{{ acontract | combine({"stage":"creation-pending","group_id":ag.group_id}) | to_nice_json }}'
+      - ansible.builtin.uri:
+          url: '{{ gitlab_acceptance_origin }}/api/v4/projects'
+          headers: '{{ ah }}'
+          method: POST
+          body_format: json
+          body:
+            name: platform-acceptance
+            path: platform-acceptance
+            namespace_id: '{{ ag.group_id }}'
+            visibility: private
+            initialize_with_readme: false
+            shared_runners_enabled: false
+            group_runners_enabled: false
+            builds_access_level: disabled
+            auto_devops_enabled: false
+          status_code: 201
+        register: created
+      - ansible.builtin.assert:
+          that: created.json.id | type_debug == 'int' and created.json.id > 0
+      - ansible.builtin.copy:
+          dest: '{{ gitlab_acceptance_receipt }}'
+          mode: '0600'
+          content: '{{ acontract | combine({"stage":"verification-pending","group_id":ag.group_id,"project_id":created.json.id}) | to_nice_json }}'
+      - ansible.builtin.set_fact:
+          receipt: '{{ acontract | combine({"group_id":ag.group_id,"project_id":created.json.id}) }}'
+    - ansible.builtin.uri:
+        url: '{{ gitlab_acceptance_origin }}/api/v4/projects/{{ receipt.project_id }}'
+        headers: '{{ ah }}'
+      register: checked
+    - ansible.builtin.assert:
+        that:
+        - checked.json.id == receipt.project_id
+        - checked.json.path_with_namespace == apath and checked.json.visibility == 'private'
+        - checked.json.namespace.id == ag.group_id and checked.json.namespace.full_path == 'tenants/' + gitlab_acceptance_context
+        - not checked.json.archived
+        - not checked.json.shared_runners_enabled and not checked.json.group_runners_enabled
+        - checked.json.builds_access_level == 'disabled'
+        - not checked.json.auto_devops_enabled
+    - ansible.builtin.copy:
+        dest: '{{ gitlab_acceptance_receipt }}'
+        mode: '0600'
+        content: '{{ acontract | combine({"stage":"project-ready","group_id":ag.group_id,"project_id":receipt.project_id}) | to_nice_json }}'
+    always:
+    - ansible.builtin.set_fact:
+        ah: {}
+      no_log: true
