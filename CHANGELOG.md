@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.50.0](https://github.com/perkforge/perkforge-platform/compare/v0.49.0...v0.50.0) (2026-11-17)
+
+
+### Features
+
+* **flux:** add opt-in Helm controller capacity overlay ([#530](https://github.com/perkforge/perkforge-platform/issues/530)) ([24e91c9](https://github.com/perkforge/perkforge-platform/commit/24e91c91315d721f3b34b424b6141baf9c5dec26))
+* **gitlab:** stage Portal runner GitOps ownership ([e64c75e](https://github.com/perkforge/perkforge-platform/commit/e64c75e7d0e1843a0cd367d18d1278cf1c604338))
+* **gitlab:** stage Portal runner GitOps ownership ([202f6aa](https://github.com/perkforge/perkforge-platform/commit/202f6aa6edfb83ae58dbfc3f138a115bb61f3ef3))
+
+
+### Bug Fixes
+
+* **gitlab:** isolate inactive runner declaration staging ([aaf3c2d](https://github.com/perkforge/perkforge-platform/commit/aaf3c2d53953c32b626a71dcf05ba627bcf5291b))
+* **gitlab:** isolate inactive runner declaration staging ([52bc22f](https://github.com/perkforge/perkforge-platform/commit/52bc22f49571ad9f947dbc5706f60837a7bc1f11))
+* **runner:** preserve configuration with zero-capacity hold ([#531](https://github.com/perkforge/perkforge-platform/issues/531)) ([7163056](https://github.com/perkforge/perkforge-platform/commit/71630560399cc69e834188ae6426f01c30b3b41f))
+
 ## [0.49.0](https://github.com/perkforge/perkforge-platform/compare/v0.48.0...v0.49.0) (2026-11-17)
 
 
