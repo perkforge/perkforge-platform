@@ -1,0 +1,118 @@
+# Exact Portal delivery only; no runner authentication or workload creation.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    delivery_run: false
+    delivery_write: false
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'INERT unless explicitly selected; create-only public CA/pull delivery.'
+  - when: delivery_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - delivery_scope == 'portal-runner-ca-pull-v1'
+        - delivery_write | type_debug == 'bool'
+        - cluster_uid is match('^[a-f0-9-]{36}$')
+        - source_registry_uid is match('^[a-f0-9-]{36}$')
+        - source_ca_uid is match('^[a-f0-9-]{36}$')
+        - manager_uid is match('^[a-f0-9-]{36}$')
+        - job_uid is match('^[a-f0-9-]{36}$')
+    - ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, get, namespace, kube-system, -o, 'jsonpath={.metadata.uid}']
+      register: cluster
+      changed_when: false
+    - ansible.builtin.assert:
+        that: cluster.stdout == cluster_uid
+    - ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, get, namespace, '{{ item }}', -o, json]
+      loop: [gitlab-tenant-portal-runner, gitlab-tenant-portal-ci]
+      register: namespaces
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (namespaces.results[0].stdout | from_json).metadata.uid == manager_uid
+        - (namespaces.results[1].stdout | from_json).metadata.uid == job_uid
+        - (item.stdout | from_json).metadata.labels['perkforge.io/owner'] == 'tenant-acceptance-manager-v1'
+        - (item.stdout | from_json).metadata.labels['pod-security.kubernetes.io/enforce'] == 'restricted'
+      loop: '{{ namespaces.results }}'
+    - ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, -n, gitlab-runner, get, secret, '{{ item }}', -o, json]
+      loop: [private-registry, gitlab-runner-public-ca]
+      register: sources
+      changed_when: false
+    - ansible.builtin.set_fact:
+        registry: '{{ sources.results[0].stdout | from_json }}'
+        ca: '{{ sources.results[1].stdout | from_json }}'
+        cacheable: false
+    - ansible.builtin.assert:
+        that:
+        - registry.metadata.uid == source_registry_uid and registry.type == 'kubernetes.io/dockerconfigjson'
+        - registry.metadata.labels['perkforge.io/owner'] == 'gitlab-registry-v1'
+        - registry.data.keys() | list == ['.dockerconfigjson']
+        - ca.metadata.uid == source_ca_uid and ca.type == 'Opaque'
+        - ca.metadata.labels['perkforge.io/owner'] == 'gitlab-trust-v1'
+        - ca.data.keys() | list == ['gitlab.perkforge.home.arpa.crt']
+    - ansible.builtin.set_fact:
+        desired:
+        - apiVersion: v1
+          kind: Secret
+          metadata: {name: private-registry, namespace: gitlab-tenant-portal-runner, labels: {perkforge.io/owner: tenant-acceptance-delivery-v1}}
+          type: kubernetes.io/dockerconfigjson
+          data: '{{ registry.data }}'
+        - apiVersion: v1
+          kind: Secret
+          metadata: {name: private-registry, namespace: gitlab-tenant-portal-ci, labels: {perkforge.io/owner: tenant-acceptance-delivery-v1}}
+          type: kubernetes.io/dockerconfigjson
+          data: '{{ registry.data }}'
+        - apiVersion: v1
+          kind: Secret
+          metadata: {name: gitlab-runner-public-ca, namespace: gitlab-tenant-portal-runner, labels: {perkforge.io/owner: tenant-acceptance-delivery-v1}}
+          type: Opaque
+          data: '{{ ca.data }}'
+        cacheable: false
+    - ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, -n, '{{ item.metadata.namespace }}', get, secret, '{{ item.metadata.name }}', --ignore-not-found, -o, json]
+      loop: '{{ desired }}'
+      register: before
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - item.stdout == '' or ((item.stdout | from_json).type == item.item.type and (item.stdout | from_json).data == item.item.data and (item.stdout | from_json).metadata.labels['perkforge.io/owner'] == 'tenant-acceptance-delivery-v1')
+      loop: '{{ before.results }}'
+    - ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, create, --dry-run=server, -f, '-']
+        stdin: '{{ item.item | to_json }}'
+      when: item.stdout == ''
+      loop: '{{ before.results }}'
+      changed_when: false
+    - ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, create, -f, '-']
+        stdin: '{{ item.item | to_json }}'
+      when: delivery_write and item.stdout == ''
+      loop: '{{ before.results }}'
+    - ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, -n, '{{ item.metadata.namespace }}', get, secret, '{{ item.metadata.name }}', -o, json]
+      when: delivery_write
+      loop: '{{ desired }}'
+      register: after
+      changed_when: false
+    - ansible.builtin.assert:
+        that:
+        - (item.stdout | from_json).type == item.item.type
+        - (item.stdout | from_json).data == item.item.data
+        - (item.stdout | from_json).metadata.labels['perkforge.io/owner'] == 'tenant-acceptance-delivery-v1'
+      when: delivery_write
+      loop: '{{ after.results }}'
+    always:
+    - ansible.builtin.set_fact:
+        sources: {}
+        registry: {}
+        ca: {}
+        desired: []
+        before: {}
+        after: {}
+        cacheable: false
+      no_log: true

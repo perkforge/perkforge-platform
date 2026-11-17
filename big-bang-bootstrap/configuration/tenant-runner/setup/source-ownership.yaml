@@ -1,0 +1,121 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: portal-runner-source-owner
+  namespace: gitlab-tenant-portal-runner
+rules:
+- apiGroups:
+  - external-secrets.io
+  resources:
+  - secretstores
+  - externalsecrets
+  resourceNames:
+  - tenant-runner
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  resourceNames:
+  - tenant-runner-reviewed-egress
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - source.toolkit.fluxcd.io
+  resources:
+  - gitrepositories
+  resourceNames:
+  - tenant-runner-chart
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - helm.toolkit.fluxcd.io
+  resources:
+  - helmreleases
+  resourceNames:
+  - tenant-acceptance-runner
+  verbs:
+  - get
+  - update
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: portal-runner-source-owner
+  namespace: gitlab-tenant-portal-runner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: portal-runner-source-owner
+subjects:
+- kind: ServiceAccount
+  name: platform-reconciler
+  namespace: flux-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: portal-runner-source-owner
+  namespace: gitlab-tenant-portal-ci
+rules:
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  resourceNames:
+  - tenant-runner-reviewed-egress
+  verbs:
+  - get
+  - update
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: portal-runner-source-owner
+  namespace: gitlab-tenant-portal-ci
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: portal-runner-source-owner
+subjects:
+- kind: ServiceAccount
+  name: platform-reconciler
+  namespace: flux-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: portal-runner-source-owner
+  namespace: flux-system
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  resourceNames:
+  - portal-runner-endpoints
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: portal-runner-source-owner
+  namespace: flux-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: portal-runner-source-owner
+subjects:
+- kind: ServiceAccount
+  name: platform-reconciler
+  namespace: flux-system

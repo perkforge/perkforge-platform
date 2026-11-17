@@ -1,0 +1,199 @@
+# Fixed approved Portal runner2 custody; no mint, rotation or activation.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars: {setup_run: false, setup_write: false}
+  module_defaults:
+    ansible.builtin.uri:
+      validate_certs: true
+      ca_path: '{{ ca_file }}'
+      use_proxy: false
+      use_netrc: false
+      follow_redirects: none
+      timeout: 20
+  tasks:
+  - ansible.builtin.debug:
+      msg: 'INERT. Exact existing paused runner custody and one-record ESO role only.'
+  - when: setup_run | bool and not ansible_check_mode
+    no_log: true
+    block:
+    - ansible.builtin.assert:
+        that:
+        - setup_scope == 'portal-runner2-custody-v1'
+        - setup_write | type_debug == 'bool'
+        - bao_origin == 'https://openbao.perkforge.home.arpa'
+        - gitlab_origin == 'https://gitlab.perkforge.home.arpa'
+        - bao_cluster_id == '4e26c503-a27f-75b7-3da2-1949cd1de6fa'
+    - ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/check-custody-files.py', '{{ root_file }}', '{{ runner_receipt }}', '{{ writer_file }}']
+      changed_when: false
+    - ansible.builtin.stat:
+        path: '{{ item }}'
+        follow: false
+      loop: ['{{ root_file }}','{{ runner_receipt }}','{{ writer_file }}']
+      register: files
+    - ansible.builtin.assert:
+        that:
+        - item.stat.isreg and not item.stat.islnk
+        - item.stat.mode == '0600' and item.stat.pw_name == lookup('env','USER')
+        - item.item is match('^/') and item.item | realpath == item.item
+        - item.stat.size > 0 and item.stat.size < 65536
+      loop: '{{ files.results }}'
+    - ansible.builtin.set_fact:
+        receipt: '{{ lookup("file",runner_receipt) | from_json }}'
+        native_headers: {PRIVATE-TOKEN: '{{ lookup("file",writer_file) | trim }}'}
+        cacheable: false
+    - ansible.builtin.assert:
+        that:
+        - receipt.keys() | sort == ['contract','id','phase','token']
+        - receipt.phase == 'created' and receipt.id == 2
+        - receipt.contract == {'owner':'perkforge-tenant-acceptance-runner-v1','context':'portal','group_id':9,'origin':gitlab_origin,'project_id':2,'project_path':'tenants/portal/platform-acceptance'}
+        - receipt.token is match('^glrt-[A-Za-z0-9_-]+(?:[.]01[.][0-9a-z]{9})?\Z')
+    - ansible.builtin.uri:
+        url: '{{ gitlab_origin }}/api/v4/{{ item }}'
+        headers: '{{ native_headers }}'
+      loop: [user, personal_access_tokens/self, projects/2, runners/2, version]
+      register: native
+    - ansible.builtin.assert:
+        that:
+        - native.results[4].json.version in ['19.4.2','19.4.2-ee']
+        - native.results[0].json.id == 5 and native.results[0].json.bot and native.results[0].json.state == 'active'
+        - native.results[0].json.is_admin | default(false) is sameas false
+        - native.results[1].json.id == 5 and native.results[1].json.user_id == 5
+        - native.results[1].json.active and not native.results[1].json.revoked
+        - native.results[1].json.scopes == ['api']
+        - native.results[1].json.expires_at > now(utc=true,fmt='%Y-%m-%d')
+        - native.results[2].json.id == 2 and native.results[2].json.path_with_namespace == 'tenants/portal/platform-acceptance'
+        - native.results[2].json.visibility == 'private' and native.results[2].json.builds_access_level == 'disabled'
+        - native.results[2].json.namespace.id == 9 and native.results[2].json.namespace.full_path == 'tenants/portal'
+        - not native.results[2].json.shared_runners_enabled and not native.results[2].json.group_runners_enabled and not native.results[2].json.auto_devops_enabled
+        - native.results[3].json.runner_type == 'project_type'
+        - native.results[3].json.description == 'PerkForge tenant portal acceptance'
+        - native.results[3].json.maintenance_note == 'perkforge-tenant-acceptance-runner-v1'
+        - native.results[3].json.maximum_timeout == 600
+        - native.results[3].json.id == 2 and native.results[3].json.paused and native.results[3].json.locked
+        - native.results[3].json.projects | map(attribute='id') | list == [2]
+        - native.results[3].json.access_level == 'ref_protected' and not native.results[3].json.run_untagged
+        - native.results[3].json.tag_list == ['perkforge-portal-acceptance']
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/sys/health'
+      register: health
+    - ansible.builtin.assert:
+        that:
+        - health.json.cluster_id == bao_cluster_id
+        - health.json.initialized and not health.json.sealed
+        - health.json.version == '2.7.2'
+    - ansible.builtin.set_fact:
+        headers: {X-Vault-Token: '{{ lookup("file",root_file) | trim }}'}
+        policy: 'path "platform/data/gitlab/tenant-portal/acceptance-runner-v1" { capabilities = ["read"] } path "auth/token/lookup-self" { capabilities = ["read"] }'
+        role:
+          bound_service_account_names: [eso-tenant-runner]
+          bound_service_account_namespaces: [gitlab-tenant-portal-runner]
+          audience: openbao-eso
+          token_policies: [tenant-portal-acceptance-runner]
+          token_no_default_policy: true
+          token_ttl: 300
+          token_max_ttl: 900
+          token_explicit_max_ttl: 900
+        cacheable: false
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/{{ item }}'
+        headers: '{{ headers }}'
+        status_code: [200,404]
+      loop: [auth/token/lookup-self, auth/kubernetes-eso/config, sys/policies/acl/tenant-portal-acceptance-runner, auth/kubernetes-eso/role/tenant-portal-acceptance-runner, platform/data/gitlab/tenant-portal/acceptance-runner-v1]
+      register: before
+    - ansible.builtin.assert:
+        that:
+        - before.results[0].status == 200 and before.results[0].json.data.policies == ['root']
+        - before.results[0].json.data.identity_policies | default([]) == []
+        - before.results[1].status == 200 and before.results[1].json.data.kubernetes_host == 'https://kubernetes.default.svc:443'
+        - before.results[1].json.data.disable_local_ca_jwt is sameas false
+        - not before.results[1].json.data.token_reviewer_jwt_set
+        - before.results[1].json.data.kubernetes_ca_cert | default('') == ''
+        - before.results[1].json.data.pem_keys | default([]) == []
+        - before.results[1].json.data.issuer | default('') == ''
+        - before.results[2].status == 404 or before.results[2].json.data.policy == policy
+        - before.results[4].status == 404 or (before.results[4].json.data.data == {'runner-token':receipt.token} and before.results[4].json.data.metadata.version | int > 0 and not before.results[4].json.data.metadata.destroyed and before.results[4].json.data.metadata.deletion_time == '')
+    - ansible.builtin.assert:
+        that:
+        - before.results[3].json.data[item.key] == item.value
+      when: before.results[3].status == 200
+      loop: '{{ role | dict2items }}'
+    - ansible.builtin.assert:
+        that:
+        - before.results[3].json.data.bound_service_account_namespace_selector | default('') == ''
+        - before.results[3].json.data.token_bound_cidrs | default([]) == []
+        - before.results[3].json.data.token_period | default(0) == 0
+        - before.results[3].json.data.token_num_uses | default(0) == 0
+        - before.results[3].json.data.token_type | default('default') == 'default'
+      when: before.results[3].status == 200
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/sys/policies/acl/tenant-portal-acceptance-runner'
+        headers: '{{ headers }}'
+        method: PUT
+        body_format: json
+        body: {policy: '{{ policy }}'}
+        status_code: 204
+      when: setup_write and before.results[2].status == 404
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/auth/kubernetes-eso/role/tenant-portal-acceptance-runner'
+        headers: '{{ headers }}'
+        method: POST
+        body_format: json
+        body: '{{ role }}'
+        status_code: 204
+      when: setup_write and before.results[3].status == 404
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/{{ item }}'
+        headers: '{{ headers }}'
+      when: setup_write
+      loop: [sys/policies/acl/tenant-portal-acceptance-runner, auth/kubernetes-eso/role/tenant-portal-acceptance-runner]
+      register: authority_after
+    - ansible.builtin.assert:
+        that: authority_after.results[0].json.data.policy == policy
+      when: setup_write
+    - ansible.builtin.assert:
+        that: authority_after.results[1].json.data[item.key] == item.value
+      when: setup_write
+      loop: '{{ role | dict2items }}'
+    - ansible.builtin.assert:
+        that:
+        - authority_after.results[1].json.data.bound_service_account_namespace_selector | default('') == ''
+        - authority_after.results[1].json.data.token_period | default(0) == 0
+        - authority_after.results[1].json.data.token_bound_cidrs | default([]) == []
+        - authority_after.results[1].json.data.token_num_uses | default(0) == 0
+        - authority_after.results[1].json.data.token_type | default('default') == 'default'
+      when: setup_write
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/platform/data/gitlab/tenant-portal/acceptance-runner-v1'
+        headers: '{{ headers }}'
+        method: POST
+        body_format: json
+        body: {options: {cas: 0}, data: {runner-token: '{{ receipt.token }}'}}
+        status_code: 200
+      when: setup_write and before.results[4].status == 404
+      register: created
+    - ansible.builtin.assert:
+        that: created.json.data.version == 1
+      when: setup_write and before.results[4].status == 404
+    - ansible.builtin.uri:
+        url: '{{ bao_origin }}/v1/platform/data/gitlab/tenant-portal/acceptance-runner-v1'
+        headers: '{{ headers }}'
+      when: setup_write
+      register: after
+    - ansible.builtin.assert:
+        that:
+        - after.json.data.data == {'runner-token':receipt.token}
+        - after.json.data.metadata.version | int > 0 and not after.json.data.metadata.destroyed and after.json.data.metadata.deletion_time == ''
+      when: setup_write
+    always:
+    - ansible.builtin.set_fact:
+        receipt: {}
+        native_headers: {}
+        headers: {}
+        before: {}
+        after: {}
+        native: {}
+        authority_after: {}
+        cacheable: false
+      no_log: true
