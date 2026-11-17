@@ -1,0 +1,6 @@
+# Keep the installed release and credentials; stop its manager from reserving CPU/RAM.
+addons:
+  gitlabRunner:
+    values:
+      upstream:
+        replicas: 0

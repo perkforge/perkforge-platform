@@ -4,7 +4,19 @@ kind: Kustomization
 resources:
 - ../local-app-resource-dashboards
 - identity-root.yaml
+configMapGenerator:
+- name: values-runner-capacity-hold
+  namespace: bigbang
+  files:
+  - values.yaml=runner-capacity-hold.yaml
+generatorOptions:
+  disableNameSuffixHash: true
 patches:
+- target: {group: helm.toolkit.fluxcd.io, kind: HelmRelease, name: bigbang, namespace: bigbang}
+  patch: |-
+    - op: add
+      path: /spec/valuesFrom/-
+      value: {kind: ConfigMap, name: values-runner-capacity-hold, valuesKey: values.yaml}
 - target: {group: source.toolkit.fluxcd.io, kind: GitRepository, name: tenant-enrollments, namespace: flux-system}
   patch: |-
     - op: replace
