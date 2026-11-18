@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.50.1](https://github.com/perkforge/perkforge-platform/compare/v0.50.0...v0.50.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* **logging:** cover explicit structured credential formats ([#533](https://github.com/perkforge/perkforge-platform/issues/533)) ([5852361](https://github.com/perkforge/perkforge-platform/commit/585236156effda5ce6c1dae20ea13bb3d6ede38d))
+
 ## [0.50.0](https://github.com/perkforge/perkforge-platform/compare/v0.49.0...v0.50.0) (2026-11-17)
 
 
