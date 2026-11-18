@@ -93,8 +93,10 @@ a global disk bound. Required capacity follow-up: measure representative busy an
 quiet periods, stream cardinality, daily net growth and compaction/snapshot peaks;
 include shared services and household headroom before approving expansion/resize.
 No new cap or shorter retention is silently chosen in this documentation.
-Actual72h deletion proof remains scheduled separately; backend restart persistence
-and cursor migration do not prove retention pruning or disaster recovery.
+The [November 18 read-only retention check](integrated-logging/README.md#scheduled-natural-retention-verification)
+now corroborates natural pruning of the positively baselined control. It does not
+identify its exact physical chunk deletion. Backend restart persistence and cursor
+migration do not prove disaster recovery.
 Security/audit evidence is governed separately by #22 and must not inherit short
 operational retention by accident.
 

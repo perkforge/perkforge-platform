@@ -1,5 +1,16 @@
 # Current operator handoff
 
+## Logging retention checkpoint (2026-11-18)
+
+The scheduled read-only #38 retention check now has corroborating healthy-query,
+active-policy and compactor/sweeper evidence for natural pruning of the positively
+baselined control. It is not exact physical-chunk or full-recovery proof. See the
+[acceptance disposition](big-bang-bootstrap/configuration/observability/integrated-logging/README.md#current-evidence-reconciliation-2026-11-18)
+for evidence, the cumulative failure-counter caveat and owner-directed Planning
+follow-ups #466/#475/#478. The old opt-in/manual-custody/retention-wait statements
+below are historical. Comprehensive redaction review remains unresolved in #38;
+no issue closure, new policy or production change is implied.
+
 ## Current scoped-observability checkpoint (2026-11-14)
 
 This bounded checkpoint supersedes the earlier integrated-pilot/manual-custody
