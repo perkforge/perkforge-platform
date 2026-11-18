@@ -1,5 +1,123 @@
 # Integrated logging: deployed platform pilot
 
+## Current evidence reconciliation (2026-11-18)
+
+This checkpoint supersedes the collection-scope, manual-custody and retention-wait
+statements in the dated initial pilot below; it does not authorize a rollout or
+claim that every original #38 acceptance item is complete. Later deployed evidence
+includes cluster-wide API discovery, separate writer/readers with exact-record
+OpenBao/ESO custody, guarded Portal ownership epochs and native org-Viewer
+own/foreign-query and revoked-token checks. See the [current handoff](../../../../HANDOFF.md#current-scoped-observability-checkpoint-2026-11-14)
+and [architecture evidence](../architecture-current.md).
+
+### Scheduled natural retention verification
+
+The read-only check on November 18 at 15:39–15:44 UTC used the saved fresh
+control's exact original historical range, not a sliding last-hour query. Its
+November 14 06:51:37 UTC timestamp had a positive query baseline after the prior
+controlled backend restart. The selector returned HTTP 200/success with zero
+entries after 72 hours plus the asynchronous deletion delay. The aged control
+never had a positive baseline and is not deletion evidence.
+
+Corroboration, rather than absence alone:
+- The ordinary platform-scoped query returned five current entries; Loki readiness
+  returned 200/ready and Loki/gateway/Alloy Pods were Ready. The old canary-only
+  reader has no ordinary application streams; its empty result is not an outage.
+- Active runtime configuration retained enabled 3-day retention, 2-hour deletion
+  delay, 10-minute compaction and `max_query_lookback: 0s` (no lookback cutoff).
+- The running compactor reported 388 successful retention operations, latest at
+  15:30:58 UTC, and a deleted-table counter for the canary tenant/day. The sweeper
+  reported 397 marker files deleted and zero currently pending/processing files.
+- One cumulative retention-operation failure remains in the counters. Subsequent
+  successes continue; available logs did not establish a current matching failure.
+
+Together these support natural pruning of the positively baselined control. They
+are not forensic proof identifying its exact physical chunk deletion, nor proof
+of lossless ingestion or disaster recovery. No log was manually created/deleted,
+and no retention policy, workload or credentials were changed for this check.
+
+### Acceptance disposition, not scope expansion
+
+| Item | Evidence / remaining owner |
+|---|---|
+| Native ingestion, TLS/auth query, narrow synthetic redaction and backend restart persistence | Dated pilot below; retain its explicit proof limits |
+| Scoped custody, real collection and native tenant-machine denials | Current handoff; [boundary stages](../log-boundary/phase-a/README.md), [Portal query acceptance](../log-boundary/phase-b/README.md) and closed design [#218](https://github.com/perkforge/perkforge-platform/issues/218) |
+| Cursor migration and fresh delivery | [Retained cursor evidence](../alloy-cursors/README.md); not a delivery WAL or full restore |
+| Natural retention pruning | November 18 corroborated check above; scheduled waiting gate satisfied |
+| Representative growth, aggregate capacity and noisy-source decisions | Owner-directed Planning [#466](https://github.com/perkforge/perkforge-platform/issues/466); existing short observations are not representative daily sizing or an enforced aggregate cap |
+| Tenant-human and session/offboarding matrix | Owner-directed Planning [#475](https://github.com/perkforge/perkforge-platform/issues/475), following accepted pilot scope of #43; do not repeat proved machine tests as missing |
+| Full restore/load/rollback and integrated evidence consolidation | Owner-directed Planning [#478](https://github.com/perkforge/perkforge-platform/issues/478), following accepted baseline of #40 |
+| Ordered identity/collection/query C4 | [Architecture flows](../architecture-current.md#six-dashboard-plan-and-ordered-flows) and [final Portal rollout evidence](../../../clusters/local-portal-pilot/README.md#verified-final-current-state-rollout-2026-11-14); broader consolidation remains #478 |
+| Comprehensive redaction review | Still unresolved in #38: no explicit transfer or completed comprehensive review found |
+
+The current processing pattern targets `password`, `token` and `secret` key/value
+shapes; its synthetic pass does not detect arbitrary credentials, structured
+variants or all sensitive data. Do not silently mark comprehensive redaction
+complete or invent a policy to discard security/debug records. Resolve that exact
+requirement's disposition before closing #38. This documentation does not close
+#38, reopen accepted #36/#40/#43 scope or start any Planning follow-up.
+
+### Offline native redaction matrix (2026-11-18)
+
+Alloy v1.18.0, revision `a435563`, ran a bounded local fixture at 17:36 UTC:
+synthetic file source → the existing `stage.replace` expression → `loki.echo`.
+Configuration validation passed, all ten input lines appeared in native output,
+and the fixture exited cleanly. It used temporary local state, an empty Kubernetes
+configuration and loopback-only HTTP, disabled usage reporting, and no Loki write
+endpoint or real credentials. Temporary state was removed after the process exited.
+This is a native processing-stage test, not a new live Kubernetes pipeline test.
+
+| Synthetic input shape | Native result |
+|---|---|
+| `password=synthetic-one` | `password=REDACTED` |
+| `TOKEN: synthetic-two` | `TOKEN: REDACTED` |
+| `secret = synthetic-three` | `secret = REDACTED` |
+| `password=first,token=second;secret=third` | All three values replaced |
+| `benign_message=hello` | Preserved unchanged |
+| `{"password":"synthetic-four"}` | Unchanged: quoted JSON key not covered |
+| `Authorization: Bearer synthetic-five` | Unchanged: bearer header not covered |
+| `api_key=synthetic-six` | Unchanged: different key not covered |
+| `password=two words` | `password=REDACTED words`: whitespace suffix remains |
+| `password="two words"` | `password=REDACTED words"`: quoted whitespace suffix remains |
+
+The fixture confirms the narrow behavior and concrete gaps, not that real secrets
+were observed in stored logs. No processing rule was changed. A decision remains:
+accept this documented bounded policy for the current baseline with an explicit
+broader-coverage follow-up, or require selected common formats to be addressed and
+tested before #38 closure. Earlier practical-redaction intent is not silently
+substituted for the later comprehensive-review criterion.
+
+### Proposed bounded redaction extension (not deployed)
+
+The local source candidate extends the existing explicit-key policy to quoted
+JSON/text values (including escaped quotes and spaces), `api_key`/`api-key`, and
+Authorization Bearer/Basic credentials. Separate quoted stages precede unquoted
+values; explicit key boundaries avoid matching `token_count`, `secretary` or
+`some_api_key`. Valid JSON string values keep their surrounding quotes. No chart
+secret-discovery feature, collector access, tenant scope, retention or runtime
+resource setting is changed. The November 18 baseline matrix above describes the
+old running rule, not this unadopted candidate.
+
+`tests/integration/test_logging_redaction_native.py` loads the source-owned stages,
+checks both generated boundary profiles preserve them, and runs 24 exact synthetic
+input/output cases using pinned Alloy v1.18.0/a435563. Set `ALLOY_VALIDATE_BIN` to
+the verified binary; the native test explicitly skips without it. The two tests
+passed locally, including JSON validity checks. This is not full CI, pinned
+umbrella rendering or production-pipeline acceptance.
+
+URL/query and bracket-delimited sensitive keys retain the prior broad value-tail
+redaction; this can remove trailing nonsensitive query fields or a closing bracket.
+Unquoted multiword values remain ambiguous, unterminated quoted values are not
+covered, and arbitrary unknown keys/formats are not detected. Sensitive-key
+nonstring JSON values are left unchanged. A benign field deliberately named
+`token` is still redacted: key semantics, not entropy, determine coverage. New
+coverage requires review; no retrospective stored-log cleanup is proposed.
+Publication, live GitOps adoption and any synthetic end-to-end verification remain
+separate actions. No closure or comprehensive secret-detection claim follows from
+these offline cases.
+
+## Initial integrated pilot (historical)
+
 The optional `local-integrated-logging` root extends `local-mattermost-pilot`,
 retaining Portal, Nextcloud, query authentication and both notification mounts.
 It enables the existing Big Bang 3.35.1 native Loki/Alloy pinned candidate without

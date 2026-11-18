@@ -242,8 +242,24 @@ alloy:
           observability.perkforge.io/logs: 'true'
         secretFilter:
           enabled: false
-        extraLogProcessingStages: "stage.replace {\n  expression = \"(?i)(?:password|token|secret)\\\
-          \\s*[:=]\\\\s*(?P<sensitive>[^\\\\s,;]+)\"\n  replace = \"REDACTED\"\n}\n"
+        extraLogProcessingStages: |
+          // Bounded explicit-key redaction; not arbitrary secret detection.
+          stage.replace {
+            expression = "(?i)(?:^|[^A-Za-z0-9_-])[\"\\x27]?(?:password|token|secret|api[_-]key)[\"\\x27]?\\s*[:=]\\s*\"(?P<sensitive>(?:\\\\.|[^\"\\\\])*)\""
+            replace = "REDACTED"
+          }
+          stage.replace {
+            expression = "(?i)(?:^|[^A-Za-z0-9_-])[\"\\x27]?(?:password|token|secret|api[_-]key)[\"\\x27]?\\s*[:=]\\s*\\x27(?P<sensitive>(?:\\\\.|[^\\x27\\\\])*)\\x27"
+            replace = "REDACTED"
+          }
+          stage.replace {
+            expression = "(?i)(?:^|[\\s,{;?&\\[])(?:password|token|secret|api[_-]key)\\s*[:=]\\s*(?P<sensitive>[^\\s,;\"\\x27]+)"
+            replace = "REDACTED"
+          }
+          stage.replace {
+            expression = "(?i)(?:^|[^A-Za-z0-9_-])[\"\\x27]?authorization[\"\\x27]?\\s*[:=]\\s*[\"\\x27]?(?:bearer|basic)\\s+(?P<sensitive>[A-Za-z0-9._~+/-]+=*)"
+            replace = "REDACTED"
+          }
       collectors:
         alloy-logs:
           enabled: true
