@@ -1,0 +1,15 @@
+# Synthetic, inactive input only. Not a deployed Portal selection.
+snapshot_enabled: false
+context_id: synthetic
+grafana_org_id: 1
+prometheus_uid: synthetic-prom
+gitlab_url: https://gitlab.example.test
+interval_seconds: 30
+timeout_seconds: 10
+freshness_seconds: 90
+snapshot_targets:
+  - uid: synthetic-main
+    project_id: 7
+    project: tenants/example/proof
+    ref: main
+    source: web  # Manual acceptance selection; does not trigger a pipeline.

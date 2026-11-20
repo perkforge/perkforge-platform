@@ -1,0 +1,88 @@
+{%- macro selector(t) -%}project_id={{ t.project_id | string | to_json }},project={{ t.project | to_json }},ref={{ t.ref | to_json }},source={{ t.source | to_json }}{%- endmacro -%}
+{%- macro healthy(t) -%}
+(min(gcpe_pipeline_snapshot_valid{ {{ selector(t) }} }) == bool 1)
+* (count(gcpe_pipeline_snapshot_valid{ {{ selector(t) }} }) == bool 1)
+* (min(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} }) >= bool 0)
+* (max(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} }) <= bool {{ freshness_seconds }})
+* (count(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} }) == bool 1)
+* (min(gcpe_pipeline_snapshot_last_success_timestamp_seconds{ {{ selector(t) }} }) > bool 0)
+* (count(gcpe_pipeline_snapshot_last_success_timestamp_seconds{ {{ selector(t) }} }) == bool 1)
+* (count(gcpe_pipeline_snapshot_present{ {{ selector(t) }} }) == bool 1)
+* (min(gcpe_pipeline_snapshot_present{ {{ selector(t) }} }) >= bool 0)
+* (max(gcpe_pipeline_snapshot_present{ {{ selector(t) }} }) <= bool 1)
+* (((max(gcpe_pipeline_snapshot_present{ {{ selector(t) }} }) == bool 0) + (max(gcpe_pipeline_snapshot_present{ {{ selector(t) }} }) == bool 1)) == bool 1)
+* (count(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="failed" }) == bool 1)
+* (count(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="success" }) == bool 1)
+* (count(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="other" }) == bool 1)
+* (max(gcpe_pipeline_snapshot_last_success_timestamp_seconds{ {{ selector(t) }} }) <= bool time())
+* (time() - max(timestamp(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} })) >= bool 0)
+* (max(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} }) + time() - max(timestamp(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} })) <= bool {{ freshness_seconds }})
+* (max(timestamp(gcpe_pipeline_snapshot_valid{ {{ selector(t) }} })) == bool max(timestamp(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} })))
+* (max(timestamp(gcpe_pipeline_snapshot_present{ {{ selector(t) }} })) == bool max(timestamp(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} })))
+* (max(timestamp(gcpe_pipeline_snapshot_last_success_timestamp_seconds{ {{ selector(t) }} })) == bool max(timestamp(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} })))
+* (max(timestamp(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="failed" })) == bool max(timestamp(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} })))
+* (((max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="failed" }) == bool 0) + (max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="failed" }) == bool 1)) == bool 1)
+* (max(timestamp(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="success" })) == bool max(timestamp(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} })))
+* (((max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="success" }) == bool 0) + (max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="success" }) == bool 1)) == bool 1)
+* (max(timestamp(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="other" })) == bool max(timestamp(gcpe_pipeline_snapshot_observation_age_seconds{ {{ selector(t) }} })))
+* (((max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="other" }) == bool 0) + (max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="other" }) == bool 1)) == bool 1)
+* ((max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="failed" }) + max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="success" }) + max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="other" })) == bool 1)
+{%- endmacro %}
+apiVersion: 1
+groups:
+  - orgId: {{ grafana_org_id }}
+    name: gitlab-pipeline-snapshot
+    folder: Platform-owned GitLab incidents
+    interval: 30s
+    rules:
+{% for t in snapshot_targets %}
+{% for kind in ['incident', 'health'] %}
+      - uid: {{ (t.uid + '-' + kind) | to_json }}
+        title: {{ ('GitLab snapshot ' + kind + ' ' + t.uid) | to_json }}
+        condition: C
+        for: {{ '0s' if kind == 'incident' else '1m' }}
+        noDataState: {{ 'KeepLast' if kind == 'incident' else 'Alerting' }}
+        execErrState: {{ 'KeepLast' if kind == 'incident' else 'Alerting' }}
+        isPaused: true
+        labels:
+          context: {{ context_id | to_json }}
+          project_id: {{ t.project_id | string | to_json }}
+          event_class: {{ ('pipeline' if kind == 'incident' else 'pipeline_observation_health') | to_json }}
+          incident_key: {{ (t.uid + '-' + kind) | to_json }}
+        annotations:
+          summary: {{ ('GitLab pipeline execution failed' if kind == 'incident' else 'GitLab pipeline observation unavailable or stale') | to_json }}
+        data:
+          - refId: A
+            datasourceUid: {{ prometheus_uid | to_json }}
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              datasource: {type: prometheus, uid: {{ prometheus_uid | to_json }}}
+              refId: A
+              instant: true
+              range: false
+              expr: >-
+{% if kind == 'incident' %}
+                (max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="failed" } == 1)
+                or (0 * max(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="success" } == 1)))
+                and (({{ healthy(t) | indent(16) }}) == 1)
+                and (min(gcpe_pipeline_snapshot_present{ {{ selector(t) }} }) == 1)
+                and (count(gcpe_pipeline_snapshot_present{ {{ selector(t) }} }) == 1)
+                and (count(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="failed" }) == 1)
+                and (count(gcpe_pipeline_snapshot_status{ {{ selector(t) }},status="success" }) == 1)
+{% else %}
+                (1 - ({{ healthy(t) | indent(16) }})) or vector(1)
+{% endif %}
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange: {from: 0, to: 0}
+            model:
+              type: threshold
+              refId: C
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  reducer: {type: last, params: []}
+                  type: query
+{% endfor %}
+{% endfor %}

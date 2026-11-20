@@ -1,0 +1,1113 @@
+diff --git a/docs/pipeline-snapshot-prototype.md b/docs/pipeline-snapshot-prototype.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..2958584303ec2792551ee784fb317b508e29a9e7
+--- /dev/null
++++ b/docs/pipeline-snapshot-prototype.md
+@@ -0,0 +1,80 @@
++# Opt-in pipeline snapshot prototype (not deployed)
++
++Based on official c50ef849a541cd2a826167b9494fa7d0d7d134b4 (v0.6.0).
++Absent/disabled `pipeline_snapshot` preserves upstream scheduling, metrics and RPC.
++Enabled mode bypasses that scheduler, Redis and metric store entirely. No durable
++receipt/store migration is involved. It uses the pinned upstream client-go API
++client, with verified TLS, no environment proxy, no redirects, same-origin GET
++boundary, 1 MiB response bound, no HTTP retries and a whole-poll deadline.
++The existing gitlab.maximum_requests_per_second and burstable_requests_per_second
++settings are honored (each 1..10), shared across all snapshot requests. Rate waiting
++counts against the whole-poll deadline. Unknown snapshot/target YAML keys fail.
++No new API scopes or real credentials are created by this prototype.
++
++Example addition (synthetic IDs, not a deployable Portal selection):
++
++```yaml
++pipeline_snapshot:
++  enabled: true
++  interval_seconds: 30
++  timeout_seconds: 10
++  targets:
++    - project_id: 7
++      project: tenants/portal/proof
++      ref: main
++      source: push
++```
++
++Existing `projects` must exactly match distinct target paths. Explicitly disable
++jobs, variables, reports, environments, tags, MRs, webhook, pprof, Redis, wildcard
++and OpenTelemetry export. Legacy pull/garbage-collect schedules are not started in
++this mode. Only explicitly selected push or web pipelines on branches are supported, at most 16 unique targets, literal
++bounded refs, consistent project ID/path mappings. Sum of target deadlines must
++fit one interval. A sequential cycle waits interval_seconds after its work, so the
++interval is not a sampling SLA. API credentials remain project-wide read authority,
++not ref-level authority. Only configured labels are emitted.
++
++Every observation reads project ID/path, exact branch existence, latest branch-scoped pipeline
++list ordered by ID descending for exact ref/source (per_page=1), and selected
++pipeline detail. Detail tag=true is rejected even for a same-name branch/tag. All identity fields are rechecked; no next-page traversal is
++needed for this latest-only query. The GitLab list/detail sequence is not a native
++transaction: a pipeline can change or a newer one appear during the observation.
++An empty list is an observed absence, never a synthetic pipeline success. Foreign
++IDs/refs/sources, absent fields, auth/HTTP/TLS/timeout/parse errors fail closed.
++
++Metrics prefix `gcpe_pipeline_snapshot_`:
++- `valid`: 0 at cold start, refresh start and failure; 1 only after complete success;
++  also becomes 0 at scrape if age exceeds 3 intervals or wall age is negative/over that ceiling.
++- `last_success_timestamp_seconds`: local completion time, 0 before first success.
++- `observation_age_seconds`: monotonic elapsed time when available, -1 initially.
++- `present`: whether the last complete result contained a pipeline.
++- `generation`: per-target poll generation, reset on restart.
++- `status{status="failed|success|other"}`: historical status, three fixed series.
++
++All metrics share static project_id/project/ref/source labels. Consumers MUST gate
++status on valid, present and bounded age. A failed observation retains historical
++status but cannot authorize recovery. Fresh running/canceled/unknown and absence
++must produce NoData/KeepLast for the incident, not a zero interpreted as recovery.
++Use a separate freshness/invalid-observation alert. Server /health endpoints in
++this mode are process health ONLY, not evidence of successful API polling.
++
++Per-target mutex serializes polls; one short collector mutex copies/publishes
++complete observations without blocking across network calls. No partial metric
++writes exist: local candidate becomes visible only through one in-memory assignment.
++There is therefore no persistence-success metric or store-error swallowing path.
++Configured state is immutable; restart/reconfiguration requires fresh observations,
++with no persisted freshness. Multiple processes/Redis/HA are unsupported.
++
++Clock bounds: Go monotonic ages protect existing process observations against wall
++clock jumps; the independent wall-age bound rejects suspend-aged or backwards/future stamps. Both elapsed clocks also bound poll completion. A
++clock jump does not prove source freshness. Incident rules should prefer monotonic
++observation_age_seconds, not merely time()-last_success_timestamp_seconds.
++
++Tests use fake TLS servers and fake credentials only: lifecycle, concurrent scrapes,
++serialized polls, timeouts/cancellation, TLS/redirect refusal, mismatched identities,
++malformed/oversize responses, clock rollback/staleness, restart and unsupported
++modes. No test establishes native GitLab19.4.2 permissions or real delivery.
++
++This opt-in fork requires independently reviewed source, reproducible build,
++immutable artifact/image provenance and upgrade regression maintenance. No image
++has been built/published, and no service, token, project or notification deployed.
+diff --git a/internal/cmd/run.go b/internal/cmd/run.go
+index eeeec0d3c6451b9aedca1d832782780c7c79cd9b..921ae7e708041f48a4845e647a959418c204e568 100644
+--- a/internal/cmd/run.go
++++ b/internal/cmd/run.go
+@@ -31,16 +31,18 @@ func Run(ctx context.Context, cliCmd *cli.Command) (int, error) {
+ 		return 1, err
+ 	}
+ 
+-	// Start the monitoring RPC server
+-	go func(c *controller.Controller) {
+-		s := monitoringServer.NewServer(
+-			c.Gitlab,
+-			c.Config,
+-			c.Store,
+-			c.TaskController.TaskSchedulingMonitoring,
+-		)
+-		s.Serve()
+-	}(&c)
++	// Legacy monitoring RPC expects the legacy store. Snapshot mode has neither.
++	if c.Snapshot == nil {
++		go func(c *controller.Controller) {
++			s := monitoringServer.NewServer(
++				c.Gitlab,
++				c.Config,
++				c.Store,
++				c.TaskController.TaskSchedulingMonitoring,
++			)
++			s.Serve()
++		}(&c)
++	}
+ 
+ 	// Graceful shutdowns
+ 	onShutdown := make(chan os.Signal, 1)
+diff --git a/pkg/config/config.go b/pkg/config/config.go
+index e2585bf0e2f8ce6e7fdfa9165dd3c7db452a22d1..215a243ee8a649525dc761153b0968a32f567ee7 100644
+--- a/pkg/config/config.go
++++ b/pkg/config/config.go
+@@ -2,6 +2,7 @@ package config
+ 
+ import (
+ 	"fmt"
++	"github.com/mvisonneau/gitlab-ci-pipelines-exporter/pkg/snapshot"
+ 	"time"
+ 
+ 	"github.com/creasty/defaults"
+@@ -14,6 +15,7 @@ var validate *validator.Validate
+ 
+ // Config represents all the parameters required for the app to be configured properly.
+ type Config struct {
++	PipelineSnapshot snapshot.Config `yaml:"pipeline_snapshot"`
+ 	// Global ..
+ 	Global Global `yaml:",omitempty"`
+ 
+@@ -203,14 +205,15 @@ type GarbageCollect struct {
+ // UnmarshalYAML allows us to correctly hydrate our configuration using some custom logic.
+ func (c *Config) UnmarshalYAML(v *yaml.Node) (err error) {
+ 	type localConfig struct {
+-		Log             Log               `yaml:"log"`
+-		OpenTelemetry   OpenTelemetry     `yaml:"opentelemetry"`
+-		Server          Server            `yaml:"server"`
+-		Gitlab          Gitlab            `yaml:"gitlab"`
+-		Redis           Redis             `yaml:"redis"`
+-		Pull            Pull              `yaml:"pull"`
+-		GarbageCollect  GarbageCollect    `yaml:"garbage_collect"`
+-		ProjectDefaults ProjectParameters `yaml:"project_defaults"`
++		PipelineSnapshot snapshot.Config   `yaml:"pipeline_snapshot"`
++		Log              Log               `yaml:"log"`
++		OpenTelemetry    OpenTelemetry     `yaml:"opentelemetry"`
++		Server           Server            `yaml:"server"`
++		Gitlab           Gitlab            `yaml:"gitlab"`
++		Redis            Redis             `yaml:"redis"`
++		Pull             Pull              `yaml:"pull"`
++		GarbageCollect   GarbageCollect    `yaml:"garbage_collect"`
++		ProjectDefaults  ProjectParameters `yaml:"project_defaults"`
+ 
+ 		Projects  []yaml.Node `yaml:"projects"`
+ 		Wildcards []yaml.Node `yaml:"wildcards"`
+@@ -223,6 +226,7 @@ func (c *Config) UnmarshalYAML(v *yaml.Node) (err error) {
+ 		return
+ 	}
+ 
++	c.PipelineSnapshot = _cfg.PipelineSnapshot
+ 	c.Log = _cfg.Log
+ 	c.OpenTelemetry = _cfg.OpenTelemetry
+ 	c.Server = _cfg.Server
+@@ -269,6 +273,9 @@ func (c Config) ToYAML() string {
+ 
+ // Validate will throw an error if the Config parameters are whether incomplete or incorrects.
+ func (c Config) Validate() error {
++	if err := c.ValidateSnapshot(); err != nil {
++		return err
++	}
+ 	if validate == nil {
+ 		validate = validator.New()
+ 		_ = validate.RegisterValidation("at-least-1-project-or-wildcard", ValidateAtLeastOneProjectOrWildcard)
+diff --git a/pkg/config/snapshot.go b/pkg/config/snapshot.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..36838aaa6843a2828c10b6c8595ac5c414b5042f
+--- /dev/null
++++ b/pkg/config/snapshot.go
+@@ -0,0 +1,39 @@
++package config
++
++import "errors"
++
++// ValidateSnapshot leaves legacy behavior untouched unless explicitly enabled.
++func (c Config) ValidateSnapshot() error {
++	if !c.PipelineSnapshot.Enabled {
++		return nil
++	}
++	if err := c.PipelineSnapshot.Validate(); err != nil {
++		return err
++	}
++	if c.Gitlab.MaximumRequestsPerSecond < 1 || c.Gitlab.MaximumRequestsPerSecond > 10 || c.Gitlab.BurstableRequestsPerSecond < 1 || c.Gitlab.BurstableRequestsPerSecond > 10 {
++		return errors.New("snapshot rate bounds invalid")
++	}
++	if c.Redis.URL != "" || len(c.Wildcards) > 0 || c.Server.Webhook.Enabled || c.Server.EnablePprof || !c.Server.Metrics.Enabled || !c.Gitlab.EnableTLSVerify || c.OpenTelemetry.GRPCEndpoint != "" {
++		return errors.New("snapshot unsupported runtime option")
++	}
++	expected := map[string]bool{}
++	for _, t := range c.PipelineSnapshot.Targets {
++		expected[t.Project] = true
++	}
++	if len(c.Projects) != len(expected) {
++		return errors.New("snapshot projects must match targets")
++	}
++	check := func(p ProjectParameters) bool {
++		return p.Pull.Environments.Enabled || p.Pull.Refs.Tags.Enabled || p.Pull.Refs.MergeRequests.Enabled || p.Pull.Pipeline.Jobs.Enabled || p.Pull.Pipeline.Variables.Enabled || p.Pull.Pipeline.TestReports.Enabled
++	}
++	if check(c.ProjectDefaults) {
++		return errors.New("snapshot optional collection unsupported")
++	}
++	for _, p := range c.Projects {
++		if !expected[p.Name] || check(p.ProjectParameters) {
++			return errors.New("snapshot project options unsupported")
++		}
++		delete(expected, p.Name)
++	}
++	return nil
++}
+diff --git a/pkg/config/snapshot_test.go b/pkg/config/snapshot_test.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..e94e9659b22142ea50fa8f359da67306b7f99ac7
+--- /dev/null
++++ b/pkg/config/snapshot_test.go
+@@ -0,0 +1,69 @@
++package config
++
++import (
++	"github.com/mvisonneau/gitlab-ci-pipelines-exporter/pkg/snapshot"
++	"testing"
++)
++
++func snapshotConfig() Config {
++	return Config{Gitlab: Gitlab{EnableTLSVerify: true, MaximumRequestsPerSecond: 1, BurstableRequestsPerSecond: 2}, Server: Server{Metrics: ServerMetrics{Enabled: true}}, Projects: []Project{{Name: "tenants/portal/proof"}}, PipelineSnapshot: snapshot.Config{Enabled: true, IntervalSeconds: 30, TimeoutSeconds: 10, Targets: []snapshot.Target{{ProjectID: 7, Project: "tenants/portal/proof", Ref: "main", Source: "push"}}}}
++}
++func TestSnapshotUnsupportedModes(t *testing.T) {
++	for _, mut := range []func(*Config){
++		func(c *Config) { c.Redis.URL = "redis://invalid" }, func(c *Config) { c.Server.Webhook.Enabled = true }, func(c *Config) { c.Server.EnablePprof = true }, func(c *Config) { c.Gitlab.EnableTLSVerify = false }, func(c *Config) { c.OpenTelemetry.GRPCEndpoint = "invalid" }, func(c *Config) { c.Wildcards = []Wildcard{{}} }, func(c *Config) { c.ProjectDefaults.Pull.Pipeline.Jobs.Enabled = true }, func(c *Config) { c.Projects[0].Pull.Pipeline.Variables.Enabled = true }, func(c *Config) { c.Projects[0].Pull.Refs.Tags.Enabled = true }, func(c *Config) { c.Projects[0].Pull.Environments.Enabled = true }, func(c *Config) { c.Projects[0].Name = "foreign" },
++	} {
++		c := snapshotConfig()
++		if c.ValidateSnapshot() != nil {
++			t.Fatal("good rejected")
++		}
++		mut(&c)
++		if c.ValidateSnapshot() == nil {
++			t.Fatal("unsupported accepted")
++		}
++		c.PipelineSnapshot.Enabled = false
++		if c.ValidateSnapshot() != nil {
++			t.Fatal("legacy changed")
++		}
++	}
++}
++
++func TestSnapshotYAMLHydration(t *testing.T) {
++	raw := []byte(`pipeline_snapshot:
++  enabled: true
++  interval_seconds: 30
++  timeout_seconds: 10
++  targets:
++    - project_id: 7
++      project: tenants/portal/proof
++      ref: main
++      source: push
++project_defaults:
++  pull:
++    refs:
++      tags: {enabled: false}
++projects:
++  - name: tenants/portal/proof
++`)
++	c, err := Parse(FormatYAML, raw)
++	if err != nil || !c.PipelineSnapshot.Enabled || len(c.PipelineSnapshot.Targets) != 1 {
++		t.Fatalf("snapshot dropped: %v", err)
++	}
++	if err = c.ValidateSnapshot(); err != nil {
++		t.Fatal(err)
++	}
++	c.PipelineSnapshot.Targets[0].Source = "web"
++	if err = c.ValidateSnapshot(); err != nil {
++		t.Fatal(err)
++	}
++	c.PipelineSnapshot.Targets[0].Source = "schedule"
++	if c.ValidateSnapshot() == nil {
++		t.Fatal("bad parsed config")
++	}
++}
++func TestSnapshotUnknownYAMLFieldDenied(t *testing.T) {
++	for _, s := range []string{"pipeline_snapshot: {enabld: true}", "pipeline_snapshot: {targets: [{project: a/b, sourc: push}]}"} {
++		if _, e := Parse(FormatYAML, []byte(s)); e == nil {
++			t.Fatal("unknown field accepted")
++		}
++	}
++}
+diff --git a/pkg/controller/controller.go b/pkg/controller/controller.go
+index c846510c39657b1fd98b1768a01266810038e479..f98143518c703b725da920d12366a2fc1aff4f8e 100644
+--- a/pkg/controller/controller.go
++++ b/pkg/controller/controller.go
+@@ -2,6 +2,7 @@ package controller
+ 
+ import (
+ 	"context"
++	"github.com/mvisonneau/gitlab-ci-pipelines-exporter/pkg/snapshot"
+ 
+ 	"github.com/google/uuid"
+ 	"github.com/pkg/errors"
+@@ -27,6 +28,7 @@ const tracerName = "gitlab-ci-pipelines-exporter"
+ 
+ // Controller holds the necessary clients to run the app and handle requests.
+ type Controller struct {
++	Snapshot       *snapshot.Collector
+ 	Config         config.Config
+ 	Redis          *redis.Client
+ 	Gitlab         *gitlab.Client
+@@ -42,6 +44,16 @@ type Controller struct {
+ func New(ctx context.Context, cfg config.Config, version string) (c Controller, err error) {
+ 	c.Config = cfg
+ 	c.UUID = uuid.New()
++	if cfg.PipelineSnapshot.Enabled {
++		if err = cfg.ValidateSnapshot(); err != nil {
++			return
++		}
++		c.Snapshot, err = snapshot.New(cfg.PipelineSnapshot, cfg.Gitlab.URL, cfg.Gitlab.Token, nil, cfg.Gitlab.MaximumRequestsPerSecond, cfg.Gitlab.BurstableRequestsPerSecond)
++		if err == nil {
++			go c.Snapshot.Run(ctx)
++		}
++		return
++	}
+ 
+ 	if err = configureTracing(ctx, cfg.OpenTelemetry.GRPCEndpoint); err != nil {
+ 		return
+diff --git a/pkg/controller/handlers.go b/pkg/controller/handlers.go
+index 031672f5ac6c8a9079e88a6bb8664ccd922687d0..d062fd0fc64c4b72c8c9c40112b29c3f375fd050 100644
+--- a/pkg/controller/handlers.go
++++ b/pkg/controller/handlers.go
+@@ -8,6 +8,7 @@ import (
+ 	"reflect"
+ 
+ 	"github.com/heptiolabs/healthcheck"
++	"github.com/prometheus/client_golang/prometheus"
+ 	"github.com/prometheus/client_golang/prometheus/promhttp"
+ 	log "github.com/sirupsen/logrus"
+ 	gitlab "gitlab.com/gitlab-org/api/client-go"
+@@ -18,6 +19,9 @@ import (
+ // HealthCheckHandler ..
+ func (c *Controller) HealthCheckHandler(ctx context.Context) (h healthcheck.Handler) {
+ 	h = healthcheck.NewHandler()
++	if c.Snapshot != nil {
++		return
++	}
+ 	if c.Config.Gitlab.EnableHealthCheck {
+ 		h.AddReadinessCheck("gitlab-reachable", c.Gitlab.ReadinessCheck(ctx))
+ 	} else {
+@@ -30,6 +34,12 @@ func (c *Controller) HealthCheckHandler(ctx context.Context) (h healthcheck.Hand
+ 
+ // MetricsHandler ..
+ func (c *Controller) MetricsHandler(w http.ResponseWriter, r *http.Request) {
++	if c.Snapshot != nil {
++		registry := prometheus.NewRegistry()
++		registry.MustRegister(c.Snapshot)
++		promhttp.HandlerFor(registry, promhttp.HandlerOpts{}).ServeHTTP(w, r)
++		return
++	}
+ 	ctx := r.Context()
+ 	span := trace.SpanFromContext(ctx)
+ 
+diff --git a/pkg/snapshot/snapshot.go b/pkg/snapshot/snapshot.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..d47aa3dac9cd91add554c28ad7fd66950bfad260
+--- /dev/null
++++ b/pkg/snapshot/snapshot.go
+@@ -0,0 +1,279 @@
++// Package snapshot is an opt-in, bounded, in-memory pipeline observation prototype.
++// It deliberately does not read or write the legacy metric store.
++package snapshot
++
++import (
++	"context"
++	"crypto/tls"
++	"errors"
++	"fmt"
++	"golang.org/x/time/rate"
++	"net/http"
++	"net/url"
++	"regexp"
++	"strconv"
++	"strings"
++	"sync"
++	"time"
++
++	"github.com/prometheus/client_golang/prometheus"
++	gl "gitlab.com/gitlab-org/api/client-go"
++)
++
++type Target struct {
++	ProjectID int64  `yaml:"project_id"`
++	Project   string `yaml:"project"`
++	Ref       string `yaml:"ref"`
++	Source    string `yaml:"source"`
++}
++type Config struct {
++	Enabled         bool     `yaml:"enabled"`
++	IntervalSeconds int      `yaml:"interval_seconds"`
++	TimeoutSeconds  int      `yaml:"timeout_seconds"`
++	Targets         []Target `yaml:"targets"`
++}
++
++var pathRE = regexp.MustCompile(`^[a-zA-Z0-9_-]+(/[a-zA-Z0-9_.-]+)+$`)
++var refRE = regexp.MustCompile(`^[a-zA-Z0-9_-][a-zA-Z0-9_./-]{0,127}$`)
++
++func (c Config) Validate() error {
++	if !c.Enabled {
++		return nil
++	}
++	if c.IntervalSeconds < 15 || c.IntervalSeconds > 300 || c.TimeoutSeconds < 1 || c.TimeoutSeconds > 30 || c.TimeoutSeconds >= c.IntervalSeconds || len(c.Targets) < 1 || len(c.Targets) > 16 || len(c.Targets)*c.TimeoutSeconds > c.IntervalSeconds {
++		return errors.New("snapshot bounds invalid")
++	}
++	seen := map[string]bool{}
++	ids := map[int64]string{}
++	paths := map[string]int64{}
++	for _, t := range c.Targets {
++		key := fmt.Sprintf("%d/%s/%s", t.ProjectID, t.Ref, t.Source)
++		if t.ProjectID <= 0 || len(t.Project) > 200 || !pathRE.MatchString(t.Project) || !refRE.MatchString(t.Ref) || strings.Contains(t.Ref, "..") || strings.Contains(t.Ref, "//") || strings.HasSuffix(t.Ref, "/") || strings.HasSuffix(t.Ref, ".lock") || (t.Source != "push" && t.Source != "web") || seen[key] {
++			return errors.New("snapshot target invalid")
++		}
++		if p, ok := ids[t.ProjectID]; ok && p != t.Project {
++			return errors.New("snapshot project collision")
++		}
++		if id, ok := paths[t.Project]; ok && id != t.ProjectID {
++			return errors.New("snapshot path collision")
++		}
++		seen[key] = true
++		ids[t.ProjectID] = t.Project
++		paths[t.Project] = t.ProjectID
++	}
++	return nil
++}
++
++type observation struct {
++	valid, present bool
++	status         string
++	generation     uint64
++	success        time.Time
++}
++type slot struct {
++	poll  sync.Mutex
++	value observation
++}
++type Collector struct {
++	cfg    Config
++	client *gl.Client
++	mu     sync.RWMutex
++	slots  []*slot
++	now    func() time.Time
++	desc   map[string]*prometheus.Desc
++}
++
++// New accepts a CA-rooted transport for tests/private PKI, never an insecure TLS transport.
++func New(c Config, origin, token string, transport *http.Transport, requestsPerSecond, burst int) (*Collector, error) {
++	if err := c.Validate(); err != nil {
++		return nil, err
++	}
++	if requestsPerSecond < 1 || requestsPerSecond > 10 || burst < 1 || burst > 10 {
++		return nil, errors.New("snapshot rate bounds invalid")
++	}
++	if !c.Enabled {
++		return nil, errors.New("snapshot disabled")
++	}
++	u, err := url.Parse(origin)
++	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") || strings.TrimSpace(token) == "" || strings.ContainsAny(token, "\r\n") {
++		return nil, errors.New("snapshot origin or credential invalid")
++	}
++	if transport == nil {
++		transport = http.DefaultTransport.(*http.Transport).Clone()
++	} else {
++		transport = transport.Clone()
++	}
++	if transport.TLSClientConfig != nil && transport.TLSClientConfig.InsecureSkipVerify {
++		return nil, errors.New("snapshot TLS verification required")
++	}
++	if transport.TLSClientConfig == nil {
++		transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
++	} else {
++		transport.TLSClientConfig = transport.TLSClientConfig.Clone()
++		transport.TLSClientConfig.MinVersion = tls.VersionTLS12
++	}
++	transport.Proxy = nil // Do not forward credentials through environment-selected proxies.
++	hc := &http.Client{Transport: &originTransport{base: transport, origin: u.Host, limiter: rate.NewLimiter(rate.Limit(requestsPerSecond), burst)}, Timeout: time.Duration(c.TimeoutSeconds) * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("snapshot redirects denied") }}
++	client, err := gl.NewClient(token, gl.WithHTTPClient(hc), gl.WithBaseURL(strings.TrimSuffix(origin, "/")+"/api/v4"), gl.WithoutRetries())
++	if err != nil {
++		return nil, errors.New("snapshot client invalid")
++	}
++	c.Targets = append([]Target(nil), c.Targets...) // Caller cannot mutate the allowlist after validation.
++	x := &Collector{cfg: c, client: client, now: time.Now, desc: map[string]*prometheus.Desc{}}
++	for range c.Targets {
++		x.slots = append(x.slots, &slot{})
++	}
++	for _, n := range []string{"valid", "present", "last_success_timestamp_seconds", "observation_age_seconds", "generation"} {
++		x.desc[n] = prometheus.NewDesc("gcpe_pipeline_snapshot_"+n, "Bounded pipeline observation "+n, []string{"project_id", "project", "ref", "source"}, nil)
++	}
++	x.desc["status"] = prometheus.NewDesc("gcpe_pipeline_snapshot_status", "Historical status; authoritative only when valid and fresh", []string{"project_id", "project", "ref", "source", "status"}, nil)
++	return x, nil
++}
++func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
++	for _, d := range c.desc {
++		ch <- d
++	}
++}
++func bit(b bool) float64 {
++	if b {
++		return 1
++	}
++	return 0
++}
++func (c *Collector) Collect(ch chan<- prometheus.Metric) {
++	c.mu.RLock()
++	values := make([]observation, len(c.slots))
++	for i, s := range c.slots {
++		values[i] = s.value
++	}
++	now := c.now()
++	c.mu.RUnlock()
++	for i, v := range values {
++		t := c.cfg.Targets[i]
++		labels := []string{strconv.FormatInt(t.ProjectID, 10), t.Project, t.Ref, t.Source}
++		age := -1.0
++		stamp := 0.0
++		if !v.success.IsZero() {
++			age = now.Sub(v.success).Seconds()
++			stamp = float64(v.success.Unix())
++		}
++		// Monotonic age and wall-clock ordering must both be plausible. Never trust a future timestamp.
++		wallAge := now.Round(0).Sub(v.success.Round(0)).Seconds()
++		valid := v.valid && freshAges(age, wallAge, float64(c.cfg.IntervalSeconds*3))
++		for n, val := range map[string]float64{"valid": bit(valid), "present": bit(v.present), "last_success_timestamp_seconds": stamp, "observation_age_seconds": age, "generation": float64(v.generation)} {
++			ch <- prometheus.MustNewConstMetric(c.desc[n], prometheus.GaugeValue, val, labels...)
++		}
++		for _, s := range []string{"failed", "success", "other"} {
++			ch <- prometheus.MustNewConstMetric(c.desc["status"], prometheus.GaugeValue, bit(v.status == s), append(labels, s)...)
++		}
++	}
++}
++
++// Poll serializes a ref's complete observation; rejected/canceled work cannot publish valid data.
++func (c *Collector) Poll(ctx context.Context, i int) error {
++	if i < 0 || i >= len(c.slots) {
++		return errors.New("snapshot target out of bounds")
++	}
++	s := c.slots[i]
++	s.poll.Lock()
++	defer s.poll.Unlock()
++	c.mu.Lock()
++	s.value.valid = false
++	s.value.generation++
++	gen := s.value.generation
++	start := c.now()
++	c.mu.Unlock()
++	ctx, cancel := context.WithTimeout(ctx, time.Duration(c.cfg.TimeoutSeconds)*time.Second)
++	defer cancel()
++	present, status, err := c.fetch(ctx, c.cfg.Targets[i])
++	if err != nil {
++		return errors.New("snapshot observation failed")
++	}
++	c.mu.Lock()
++	defer c.mu.Unlock()
++	now := c.now()
++	if ctx.Err() != nil || !freshAges(now.Sub(start).Seconds(), now.Round(0).Sub(start.Round(0)).Seconds(), float64(c.cfg.TimeoutSeconds)) || (!s.value.success.IsZero() && now.Unix() < s.value.success.Unix()) || s.value.generation != gen {
++		return errors.New("snapshot observation invalidated")
++	}
++	s.value = observation{valid: true, present: present, status: status, generation: gen, success: now}
++	return nil
++}
++func (c *Collector) fetch(ctx context.Context, t Target) (bool, string, error) {
++	opts := gl.WithContext(ctx)
++	p, _, err := c.client.Projects.GetProject(t.ProjectID, nil, opts)
++	if err != nil || p == nil || p.ID != t.ProjectID || p.PathWithNamespace != t.Project {
++		return false, "", errors.New("project mismatch")
++	}
++	b, _, err := c.client.Branches.GetBranch(t.ProjectID, t.Ref, opts)
++	if err != nil || b == nil || b.Name != t.Ref {
++		return false, "", errors.New("branch mismatch")
++	}
++	// Exactly latest pipeline for the selected branch/source. No next-page traversal or discovery.
++	ref, source, order, sort, scope := t.Ref, t.Source, "id", "desc", "branches"
++	ps, _, err := c.client.Pipelines.ListProjectPipelines(t.ProjectID, &gl.ListProjectPipelinesOptions{ListOptions: gl.ListOptions{Page: 1, PerPage: 1}, Ref: &ref, Source: &source, Scope: &scope, OrderBy: &order, Sort: &sort}, opts)
++	if err != nil || len(ps) > 1 {
++		return false, "", errors.New("pipeline list invalid")
++	}
++	if len(ps) == 0 {
++		return false, "other", nil
++	}
++	q := ps[0]
++	if q == nil || q.ID <= 0 || q.ProjectID != t.ProjectID || q.Ref != t.Ref || q.Source != t.Source {
++		return false, "", errors.New("pipeline list mismatch")
++	}
++	d, _, err := c.client.Pipelines.GetPipeline(t.ProjectID, q.ID, opts)
++	if err != nil || d == nil || d.ID != q.ID || d.ProjectID != t.ProjectID || d.Ref != t.Ref || string(d.Source) != t.Source || d.Status == "" || d.Tag {
++		return false, "", errors.New("pipeline detail mismatch")
++	}
++	status := "other"
++	if d.Status == "failed" || d.Status == "success" {
++		status = d.Status
++	}
++	return true, status, nil
++}
++
++// Run has one bounded sequential polling loop, no persistent state or overlapping scheduled cycles.
++func (c *Collector) Run(ctx context.Context) {
++	for {
++		for i := range c.slots {
++			if ctx.Err() != nil {
++				return
++			}
++			_ = c.Poll(ctx, i)
++		}
++		timer := time.NewTimer(time.Duration(c.cfg.IntervalSeconds) * time.Second)
++		select {
++		case <-ctx.Done():
++			timer.Stop()
++			return
++		case <-timer.C:
++		}
++	}
++}
++
++// Enforce origin and response bounds below the upstream API client, including Link URLs.
++type originTransport struct {
++	base    http.RoundTripper
++	origin  string
++	limiter *rate.Limiter
++}
++
++func (t *originTransport) RoundTrip(r *http.Request) (*http.Response, error) {
++	if r.Method != http.MethodGet || r.URL.Scheme != "https" || r.URL.Host != t.origin || r.URL.User != nil || !strings.HasPrefix(r.URL.Path, "/api/v4/") {
++		return nil, errors.New("snapshot request boundary")
++	}
++	if err := t.limiter.Wait(r.Context()); err != nil {
++		return nil, errors.New("snapshot rate deadline")
++	}
++	resp, err := t.base.RoundTrip(r)
++	if err != nil {
++		return nil, err
++	}
++	resp.Body = http.MaxBytesReader(nil, resp.Body, 1<<20)
++	return resp, nil
++}
++
++// Separate inputs intentionally model suspend/NTP where monotonic and wall clocks diverge.
++func freshAges(monotonic, wall, ceiling float64) bool {
++	return monotonic >= 0 && monotonic <= ceiling && wall >= 0 && wall <= ceiling
++}
+diff --git a/pkg/snapshot/snapshot_test.go b/pkg/snapshot/snapshot_test.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..5b166b5a215bcdac728eeafe9ce3bbb287799170
+--- /dev/null
++++ b/pkg/snapshot/snapshot_test.go
+@@ -0,0 +1,399 @@
++package snapshot
++
++import (
++	"context"
++	"fmt"
++	"net/http"
++	"net/http/httptest"
++	"strings"
++	"sync"
++	"sync/atomic"
++	"testing"
++	"time"
++
++	"github.com/prometheus/client_golang/prometheus"
++)
++
++func settings() Config {
++	return Config{Enabled: true, IntervalSeconds: 15, TimeoutSeconds: 1, Targets: []Target{{ProjectID: 7, Project: "tenants/portal/proof", Ref: "main", Source: "push"}}}
++}
++
++type fake struct {
++	mu                           sync.Mutex
++	status, fail, body, redirect string
++	source                       string
++	empty                        bool
++	entered, release             chan struct{}
++	calls                        atomic.Int32
++}
++
++func (f *fake) handler(w http.ResponseWriter, r *http.Request) {
++	f.calls.Add(1)
++	if r.Header.Get("PRIVATE-TOKEN") != "OFFLINE.fake" {
++		http.Error(w, "auth", 401)
++		return
++	}
++	f.mu.Lock()
++	status, fail, body, redirect, empty, entered, release := f.status, f.fail, f.body, f.redirect, f.empty, f.entered, f.release
++	source := f.source
++	f.mu.Unlock()
++	if source == "" {
++		source = "push"
++	}
++	if strings.HasSuffix(r.URL.Path, "/pipelines/11") && entered != nil {
++		select {
++		case entered <- struct{}{}:
++		default:
++		}
++		select {
++		case <-release:
++		case <-r.Context().Done():
++			return
++		}
++	}
++	if strings.Contains(r.URL.Path, fail) && fail != "" {
++		if redirect != "" {
++			http.Redirect(w, r, redirect, 302)
++			return
++		}
++		if body != "" {
++			fmt.Fprint(w, body)
++			return
++		}
++		http.Error(w, "fake failure", 403)
++		return
++	}
++	switch r.URL.Path {
++	case "/api/v4/projects/7":
++		fmt.Fprint(w, `{"id":7,"path_with_namespace":"tenants/portal/proof"}`)
++	case "/api/v4/projects/7/repository/branches/main":
++		fmt.Fprint(w, `{"name":"main"}`)
++	case "/api/v4/projects/7/pipelines":
++		if r.URL.Query().Get("ref") != "main" || r.URL.Query().Get("source") != source || r.URL.Query().Get("per_page") != "1" || r.URL.Query().Get("scope") != "branches" {
++			http.Error(w, "query", 400)
++			return
++		}
++		if empty {
++			fmt.Fprint(w, `[]`)
++		} else {
++			fmt.Fprintf(w, `[{"id":11,"project_id":7,"ref":"main","source":%q}]`, source)
++		}
++	case "/api/v4/projects/7/pipelines/11":
++		fmt.Fprintf(w, `{"id":11,"project_id":7,"ref":"main","source":%q,"status":%q}`, source, status)
++	default:
++		http.Error(w, "unexpected", 404)
++	}
++}
++func setup(t *testing.T) (*Collector, *fake) {
++	t.Helper()
++	f := &fake{status: "failed"}
++	srv := httptest.NewTLSServer(http.HandlerFunc(f.handler))
++	t.Cleanup(srv.Close)
++	c, err := New(settings(), srv.URL, "OFFLINE.fake", srv.Client().Transport.(*http.Transport), 10, 10)
++	if err != nil {
++		t.Fatal(err)
++	}
++	return c, f
++}
++func values(t *testing.T, c *Collector) map[string]float64 {
++	t.Helper()
++	r := prometheus.NewRegistry()
++	r.MustRegister(c)
++	ms, err := r.Gather()
++	if err != nil {
++		t.Fatal(err)
++	}
++	out := map[string]float64{}
++	for _, m := range ms {
++		for _, v := range m.Metric {
++			k := m.GetName()
++			for _, l := range v.Label {
++				if l.GetName() == "status" {
++					k += "/" + l.GetValue()
++				}
++			}
++			out[k] = v.GetGauge().GetValue()
++		}
++	}
++	return out
++}
++func TestLifecycle(t *testing.T) {
++	c, f := setup(t)
++	ctx := context.Background()
++	if values(t, c)["gcpe_pipeline_snapshot_valid"] != 0 {
++		t.Fatal("cold fresh")
++	}
++	for _, status := range []string{"failed", "running", "canceled", "success"} {
++		f.mu.Lock()
++		f.status = status
++		f.mu.Unlock()
++		if err := c.Poll(ctx, 0); err != nil {
++			t.Fatal(err)
++		}
++		v := values(t, c)
++		key := status
++		if status != "failed" && status != "success" {
++			key = "other"
++		}
++		if v["gcpe_pipeline_snapshot_valid"] != 1 || v["gcpe_pipeline_snapshot_status/"+key] != 1 {
++			t.Fatal(v)
++		}
++	}
++	f.mu.Lock()
++	f.empty = true
++	f.mu.Unlock()
++	if err := c.Poll(ctx, 0); err != nil {
++		t.Fatal(err)
++	}
++	v := values(t, c)
++	if v["gcpe_pipeline_snapshot_present"] != 0 || v["gcpe_pipeline_snapshot_status/success"] != 0 {
++		t.Fatal("empty recovery", v)
++	}
++	restarted, _ := setup(t)
++	if values(t, restarted)["gcpe_pipeline_snapshot_valid"] != 0 {
++		t.Fatal("restart fresh")
++	}
++}
++func TestFaultsRetainOnlyHistoricalState(t *testing.T) {
++	for _, tc := range []struct{ name, path, body string }{
++		{"list403", "/pipelines", ""}, {"detail403", "/pipelines/11", ""}, {"malformed", "/pipelines/11", "{"}, {"wrongproject", "/projects/7", `{"id":8,"path_with_namespace":"tenants/portal/proof"}`}, {"wrongref", "/pipelines/11", `{"id":11,"project_id":7,"ref":"other","source":"push","status":"success"}`}, {"samename-tag", "/pipelines/11", `{"id":11,"project_id":7,"ref":"main","source":"push","status":"success","tag":true}`},
++		{"wrongsource", "/pipelines/11", `{"id":11,"project_id":7,"ref":"main","source":"web","status":"success"}`}, {"missingstatus", "/pipelines/11", `{"id":11,"project_id":7,"ref":"main","source":"push"}`}, {"oversize", "/pipelines/11", strings.Repeat(" ", 1<<20) + `{}`}, {"duplicate", "/pipelines", `[{"id":11},{"id":11}]`},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			c, f := setup(t)
++			if err := c.Poll(context.Background(), 0); err != nil {
++				t.Fatal(err)
++			}
++			before := values(t, c)
++			f.mu.Lock()
++			f.fail = tc.path
++			f.body = tc.body
++			f.mu.Unlock()
++			if err := c.Poll(context.Background(), 0); err == nil {
++				t.Fatal("accepted")
++			}
++			after := values(t, c)
++			if after["gcpe_pipeline_snapshot_valid"] != 0 || after["gcpe_pipeline_snapshot_last_success_timestamp_seconds"] != before["gcpe_pipeline_snapshot_last_success_timestamp_seconds"] || after["gcpe_pipeline_snapshot_status/failed"] != 1 {
++				t.Fatal(after)
++			}
++		})
++	}
++}
++func TestConcurrentScrapeAndTimeout(t *testing.T) {
++	c, f := setup(t)
++	if err := c.Poll(context.Background(), 0); err != nil {
++		t.Fatal(err)
++	}
++	f.mu.Lock()
++	f.status = "success"
++	f.entered = make(chan struct{}, 1)
++	f.release = make(chan struct{})
++	entered, release := f.entered, f.release
++	f.mu.Unlock()
++	done := make(chan error, 1)
++	go func() { done <- c.Poll(context.Background(), 0) }()
++	<-entered
++	for i := 0; i < 50; i++ {
++		v := values(t, c)
++		if v["gcpe_pipeline_snapshot_valid"] != 0 || v["gcpe_pipeline_snapshot_status/success"] != 0 {
++			t.Fatal(v)
++		}
++	}
++	if err := <-done; err == nil {
++		t.Fatal("timeout accepted")
++	}
++	close(release)
++	if values(t, c)["gcpe_pipeline_snapshot_valid"] != 0 {
++		t.Fatal("timeout fresh")
++	}
++}
++func TestSerializedPolls(t *testing.T) {
++	c, f := setup(t)
++	f.entered = make(chan struct{}, 2)
++	f.release = make(chan struct{})
++	done := make(chan error, 2)
++	go func() { done <- c.Poll(context.Background(), 0) }()
++	<-f.entered
++	go func() { done <- c.Poll(context.Background(), 0) }()
++	time.Sleep(20 * time.Millisecond)
++	if f.calls.Load() != 4 {
++		t.Fatal("overlap", f.calls.Load())
++	}
++	close(f.release)
++	for i := 0; i < 2; i++ {
++		if err := <-done; err != nil {
++			t.Fatal(err)
++		}
++	}
++	if values(t, c)["gcpe_pipeline_snapshot_generation"] != 2 {
++		t.Fatal("generation")
++	}
++}
++func TestRedirectTLSAndCancellation(t *testing.T) {
++	c, f := setup(t)
++	var hits atomic.Int32
++	other := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hits.Add(1) }))
++	defer other.Close()
++	f.fail = "/projects/7"
++	f.redirect = other.URL
++	if c.Poll(context.Background(), 0) == nil || hits.Load() != 0 {
++		t.Fatal("redirect followed")
++	}
++	ctx, cancel := context.WithCancel(context.Background())
++	cancel()
++	if c.Poll(ctx, 0) == nil {
++		t.Fatal("cancel")
++	}
++	_, err := New(settings(), other.URL, "OFFLINE.fake", nil, 10, 10)
++	if err != nil {
++		t.Fatal(err)
++	}
++	untrusted, _ := New(settings(), other.URL, "OFFLINE.fake", nil, 10, 10)
++	if untrusted.Poll(context.Background(), 0) == nil {
++		t.Fatal("untrusted TLS")
++	}
++	if _, err := New(settings(), "http://example.test", "fake", nil, 10, 10); err == nil {
++		t.Fatal("http")
++	}
++}
++func TestClockAndStaleness(t *testing.T) {
++	c, _ := setup(t)
++	now := time.Now()
++	c.now = func() time.Time { return now }
++	if err := c.Poll(context.Background(), 0); err != nil {
++		t.Fatal(err)
++	}
++	for _, delta := range []time.Duration{-time.Second, 46 * time.Second} {
++		now = now.Add(delta)
++		if values(t, c)["gcpe_pipeline_snapshot_valid"] != 0 {
++			t.Fatal("clock fresh")
++		}
++		now = now.Add(-delta)
++	}
++}
++func TestBounds(t *testing.T) {
++	for _, mut := range []func(*Config){func(c *Config) { c.Targets = append(c.Targets, c.Targets[0]) }, func(c *Config) { c.Targets[0].Source = "schedule" }, func(c *Config) { c.Targets[0].Ref = "../foreign" }, func(c *Config) { c.IntervalSeconds = 1 }, func(c *Config) { c.Targets = make([]Target, 17) }} {
++		c := settings()
++		mut(&c)
++		if c.Validate() == nil {
++			t.Fatal("bad config")
++		}
++	}
++}
++
++func TestCancellationDuringDetail(t *testing.T) {
++	c, f := setup(t)
++	f.entered = make(chan struct{}, 1)
++	f.release = make(chan struct{})
++	ctx, cancel := context.WithCancel(context.Background())
++	done := make(chan error, 1)
++	go func() { done <- c.Poll(ctx, 0) }()
++	<-f.entered
++	cancel()
++	if <-done == nil {
++		t.Fatal("cancel accepted")
++	}
++	if values(t, c)["gcpe_pipeline_snapshot_last_success_timestamp_seconds"] != 0 {
++		t.Fatal("partial stamp")
++	}
++}
++func TestClockRollbackDuringObservation(t *testing.T) {
++	c, f := setup(t)
++	var clockMu sync.Mutex
++	now := time.Now()
++	c.now = func() time.Time { clockMu.Lock(); defer clockMu.Unlock(); return now }
++	f.entered = make(chan struct{}, 1)
++	f.release = make(chan struct{})
++	done := make(chan error, 1)
++	go func() { done <- c.Poll(context.Background(), 0) }()
++	<-f.entered
++	clockMu.Lock()
++	now = now.Add(-time.Minute)
++	clockMu.Unlock()
++	close(f.release)
++	if <-done == nil {
++		t.Fatal("rollback accepted")
++	}
++}
++func TestEndpointErrorsAndForeignLabels(t *testing.T) {
++	for _, code := range []int{401, 404, 429, 500} {
++		t.Run(fmt.Sprint(code), func(t *testing.T) {
++			srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, "untrusted token=not-a-real-secret", code) }))
++			defer srv.Close()
++			c, err := New(settings(), srv.URL, "OFFLINE.fake", srv.Client().Transport.(*http.Transport), 10, 10)
++			if err != nil {
++				t.Fatal(err)
++			}
++			err = c.Poll(context.Background(), 0)
++			if err == nil || strings.Contains(err.Error(), "untrusted") {
++				t.Fatal("error leak")
++			}
++			v := values(t, c)
++			if len(v) != 8 || v["gcpe_pipeline_snapshot_valid"] != 0 {
++				t.Fatal(v)
++			}
++		})
++	}
++}
++
++func TestIndependentClockAges(t *testing.T) {
++	for _, tc := range []struct {
++		mono, wall float64
++		want       bool
++	}{
++		{1, 1, true}, {1, 46, false}, {46, 1, false}, {1, -1, false}, {-1, 1, false}, {45, 45, true},
++	} {
++		if freshAges(tc.mono, tc.wall, 45) != tc.want {
++			t.Fatalf("mono=%v wall=%v", tc.mono, tc.wall)
++		}
++	}
++}
++
++func TestRateLimitHonorsWholePollDeadline(t *testing.T) {
++	f := &fake{status: "success"}
++	srv := httptest.NewTLSServer(http.HandlerFunc(f.handler))
++	defer srv.Close()
++	c, err := New(settings(), srv.URL, "OFFLINE.fake", srv.Client().Transport.(*http.Transport), 1, 1)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err = c.Poll(context.Background(), 0); err == nil {
++		t.Fatal("rate budget bypassed")
++	}
++	if f.calls.Load() != 1 || values(t, c)["gcpe_pipeline_snapshot_valid"] != 0 {
++		t.Fatal("unexpected rate result")
++	}
++}
++
++func TestWebSourceExactBinding(t *testing.T) {
++	for _, endpoint := range []string{"", "/pipelines", "/pipelines/11"} {
++		t.Run("foreign"+endpoint, func(t *testing.T) {
++			f := &fake{source: "web", status: "success"}
++			srv := httptest.NewTLSServer(http.HandlerFunc(f.handler))
++			defer srv.Close()
++			cfg := settings()
++			cfg.Targets[0].Source = "web"
++			c, err := New(cfg, srv.URL, "OFFLINE.fake", srv.Client().Transport.(*http.Transport), 10, 10)
++			if err != nil {
++				t.Fatal(err)
++			}
++			c.Poll(context.Background(), 0)
++			if values(t, c)["gcpe_pipeline_snapshot_valid"] != 1 || values(t, c)["gcpe_pipeline_snapshot_status/success"] != 1 {
++				t.Fatal("web success not observed")
++			}
++			if endpoint != "" {
++				f.mu.Lock()
++				f.fail = endpoint
++				f.body = `{"id":11,"project_id":7,"ref":"main","source":"push","status":"success"}`
++				if endpoint == "/pipelines" {
++					f.body = "[" + f.body + "]"
++				}
++				f.mu.Unlock()
++				c.Poll(context.Background(), 0)
++				if values(t, c)["gcpe_pipeline_snapshot_valid"] != 0 {
++					t.Fatal("foreign source accepted")
++				}
++			}
++		})
++	}
++}
+diff --git a/pkg/snapshot/yaml.go b/pkg/snapshot/yaml.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..3254e1bcc7e246944a1efb83b4c0c6b7334b200c
+--- /dev/null
++++ b/pkg/snapshot/yaml.go
+@@ -0,0 +1,44 @@
++package snapshot
++
++import (
++	"errors"
++	"gopkg.in/yaml.v3"
++)
++
++// Unknown opt-in fields are rejected instead of silently enabling the legacy path.
++func (c *Config) UnmarshalYAML(n *yaml.Node) error {
++	if n.Kind != yaml.MappingNode {
++		return errors.New("snapshot config must be mapping")
++	}
++	keys := map[string]bool{"enabled": true, "interval_seconds": true, "timeout_seconds": true, "targets": true}
++	for i := 0; i < len(n.Content); i += 2 {
++		if !keys[n.Content[i].Value] {
++			return errors.New("unknown snapshot field")
++		}
++	}
++	type plain Config
++	var p plain
++	if err := n.Decode(&p); err != nil {
++		return err
++	}
++	*c = Config(p)
++	return nil
++}
++func (t *Target) UnmarshalYAML(n *yaml.Node) error {
++	if n.Kind != yaml.MappingNode {
++		return errors.New("snapshot target must be mapping")
++	}
++	keys := map[string]bool{"project_id": true, "project": true, "ref": true, "source": true}
++	for i := 0; i < len(n.Content); i += 2 {
++		if !keys[n.Content[i].Value] {
++			return errors.New("unknown snapshot target field")
++		}
++	}
++	type plain Target
++	var p plain
++	if err := n.Decode(&p); err != nil {
++		return err
++	}
++	*t = Target(p)
++	return nil
++}
