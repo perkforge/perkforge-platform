@@ -141,6 +141,45 @@ model and status/metadata contract. They must not import the security/operator
 model into tenant bundles or treat client-side workspace visibility as authorization.
 No portal files or access policies change here.
 
+### Proposed daily Portal architecture refresh
+
+Design for review only. No new collection access, running schedule, release, or
+Portal change is authorized by this proposal. Coordinate with the
+[architecture disclosure review #81](https://github.com/perkforge/perkforge-platform/issues/81),
+[Portal Explorer #10](https://github.com/perkforge/perkforge-portal/issues/10), and
+[January architecture presentation #535](https://github.com/perkforge/perkforge-platform/issues/535).
+
+- **Reviewed architecture:** The platform repository owns the LikeC4 models and
+  audience rules. Portal owns presentation and server-side authorization. Serve
+  only the audience-approved build pinned to an exact reviewed Git commit; show
+  its revision and review date. This is the intended architecture, not live state.
+- **Observed inventory:** A separate read-only job would normalize allowlisted
+  kinds, logical component IDs and coarse state from approved sources. The
+  observation must identify the approved target by a safe alias, source revision,
+  schema version, observation time (UTC), and coverage. Show a distinct
+  last-success timestamp in the Portal. Do not query secrets or export raw objects,
+  logs, physical addresses, private names, tenant identities or credentials.
+  Validate the exact exposed payload and enforce the existing audience boundary
+  before any bytes are served. Tenant views may include only data authorized for
+  that tenant; omit the live overlay entirely until safe filtering is verified.
+- **Scheduling and failure:** A future daily Hermes schedule should run one pinned,
+  deterministic, no-model/no-agent command under separately reviewed read-only
+  access. Enforce a single active run and a deadline; validate and write an
+  observation atomically only on full success. On partial, denied, invalid or stale
+  collection, keep the last good snapshot and clearly show it as stale; with no
+  prior success, show unavailable. Keep raw diagnostics out of audience assets.
+- **Drift:** Report sanitized diffs against the pinned architecture separately
+  from health and freshness. Drift can produce a review candidate only. A maintainer
+  may turn it into a draft PR; the job cannot publish, modify Git or change the
+  cluster. Never present an omitted or denied resource as deleted.
+
+Accept this design when offline tests show unchanged inputs produce the same
+normalized inventory and no duplicate drift candidate; missing permissions, partial
+coverage and invalid/redaction failures preserve the last good result; older or
+missing data is labeled correctly; each audience build passes disclosure and
+cross-tenant denial checks; and the exact reviewed Git revision remains visibly
+distinct from the observation. Any live activation is a separate approval.
+
 ### Documentation inventory and ownership
 
 | Source | Audience / authoritative scope | Review result and next owner action |
