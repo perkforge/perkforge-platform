@@ -26,6 +26,9 @@ Harbor image retention and independent application backups. A worker outage leav
 one surviving copy until the second worker returns/rebuilds. The control plane is
 still single-server. Add dedicated worker SSDs as actual growth requires.
 
+Use [backup stage diagnostics](../../../../docs/platform/longhorn-backup-diagnostics.md)
+to investigate a missed capture without changing the running workload.
+
 ## Before later activation
 
 1. Run a read-only RHEL/Longhorn preflight: pinned RKE2/Longhorn compatibility,

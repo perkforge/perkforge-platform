@@ -3,6 +3,7 @@
 Run commands from the repository root. Work on a feature branch; review and release before a separately approved activation.
 
 - [Add or configure a Big Bang application](applications.md): package selection, values, prerequisites and validation.
+- [Diagnose a Longhorn backup by stage](longhorn-backup-diagnostics.md): read-only capture, upload and recovery evidence.
 - [Native ESO and scoped stores](../../big-bang-bootstrap/configuration/external-secrets/README.md): inactive baseline, explicit cluster-wide Secret-read trust, and tighter isolation option.
 - [Add a cluster or environment](targets.md): physical inputs, optional tenant enrollment and bootstrap boundaries.
 - [Add an impact-level profile](profiles.md): reuse, precedence and security validation.
