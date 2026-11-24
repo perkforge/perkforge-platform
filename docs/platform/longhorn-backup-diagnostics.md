@@ -40,6 +40,21 @@ Longhorn Backup, correlate the matching Backup record and completed target
 result; if the orchestrator exports instead, check that system's destination
 receipt, not an unrelated Longhorn Backup object.
 
+If native Snapshot `status.error` identifies the snapshot-count limit, compare
+the exact source Volume's `spec.snapshotMaxCount` with the running engine's
+effective limit and snapshot inventory. A list of Snapshot objects can include
+failed requests that never occupied an engine slot. A count-limit refusal before
+Backup creation concerns the source volume; it does not test NFS or other
+destinations.
+Review the chain and known-good copies before any capacity or retention change.
+
+Longhorn backup inventory refreshes asynchronously. Read `BackupTarget`
+`status.available` and `status.lastSyncedAt` as reachability and freshness clues.
+In [v1.13.0](https://github.com/longhorn/longhorn/blob/v1.13.0/chart/templates/crds.yaml#L831-L842),
+the `LastBackupAt` printer column displays `spec.pollInterval`, not a backup time.
+Stale inventory does not prove upload failure, and a fresh sync does not prove
+this run completed. Require its matching destination receipt.
+
 ## Preserve evidence before changing anything
 
 - Keep the **first failed stage and fixed reason code** even if subsequent
@@ -61,6 +76,8 @@ receipt, not an unrelated Longhorn Backup object.
   Verify recoverability separately using a disposable restore target, sample
   integrity checks and an application read (including matching database/files
   when required). No successful restore is implied by routine backup status.
+  See [Restore and validate in isolation](https://github.com/perkforge/perkforge-portal/blob/main/docs/backup-restore.md#restore-and-validate-in-isolation)
+  for the application-level checklist.
 
 References: [Longhorn snapshots](https://longhorn.io/docs/1.13.0/snapshots-and-backups/setup-a-snapshot/),
 [Longhorn backups](https://longhorn.io/docs/1.13.0/snapshots-and-backups/backup-and-restore/create-a-backup/),
