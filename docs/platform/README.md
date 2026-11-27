@@ -6,6 +6,7 @@ Run commands from the repository root. Work on a feature branch; review and rele
 - [Native ESO and scoped stores](../../big-bang-bootstrap/configuration/external-secrets/README.md): inactive baseline, explicit cluster-wide Secret-read trust, and tighter isolation option.
 - [Add a cluster or environment](targets.md): physical inputs, optional tenant enrollment and bootstrap boundaries.
 - [Add an impact-level profile](profiles.md): reuse, precedence and security validation.
+- [Demonstrate an upgrade](upgrade-demonstration.md): the repeatable upgrade chain, delivery gates and evidence for the January adoption demo.
 - [Bootstrap operation order](../../big-bang-bootstrap/configuration/ansible/README.md) and [test commands](../../big-bang-bootstrap/tests/README.md).
 
 Infrastructure Ansible owns hosts/RKE2; platform Ansible seeds/configures Big Bang/Flux and gated Rancher OIDC; enrollment Git owns tenant foundations and registration; application Git owns tenant deployments. Rancher manages clusters, Flux manages application reconciliation. These guides describe current code, including its gaps, not physical readiness or IL authorization.
