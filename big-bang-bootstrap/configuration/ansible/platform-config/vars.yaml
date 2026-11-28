@@ -1,13 +1,15 @@
 platform_api_apply: false
 # API configuration only. Big Bang/Flux owns deployment; no users/memberships are managed.
 platform_checkout: /UNCONFIGURED/platform-checkout
+# Durable working store for operator secrets (does NOT live under .secrets).
+recovery_workdir: /home/corey/.config/perkforge-recovery
 keycloak_url: https://keycloak.perkforge.home.arpa/auth
 keycloak_realm: perkforge
 keycloak_admin_username: admin
-keycloak_admin_password_file: "{{ platform_checkout }}/.secrets/keycloak-admin-password"
-# Use the approved loopback-only port-forward for bootstrap.
-openbao_url: https://localhost:8200
-openbao_operator_token_file: "{{ platform_checkout }}/.secrets/openbao/recovery/bootstrap-token"
-public_ca_file: "{{ platform_checkout }}/.secrets/openbao/public/lab-ca.pem"
+keycloak_admin_password_file: "{{ recovery_workdir }}/keycloak-admin-password"
+# OpenBao API via the ingress (TLS cert hostname matches).
+openbao_url: https://openbao.perkforge.home.arpa
+openbao_operator_token_file: "{{ recovery_workdir }}/openbao-root-token"
+public_ca_file: "{{ recovery_workdir }}/lab-ca.pem"
 openbao_refresh_oidc_secret: false
 openbao_discovery_url: https://keycloak.perkforge.home.arpa/auth/realms/perkforge

@@ -6,8 +6,8 @@
   vars:
     legacy_test_enrollment_apply: false
     enrollment_username: platform-admin-test-user
-    enrollment_password_file: "{{ platform_checkout }}/.secrets/platform-admin-test-user-password"
-    enrollment_record_file: "{{ platform_checkout }}/.secrets/openbao/recovery/platform-admin-test-user.record.json"
+    enrollment_password_file: "{{ recovery_workdir }}/platform-admin-test-user-password"
+    enrollment_record_file: "{{ recovery_workdir }}/platform-admin-test-user.record.json"
   module_defaults:
     ansible.builtin.uri:
       validate_certs: true
