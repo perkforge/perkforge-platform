@@ -3,6 +3,7 @@
 Run commands from the repository root. Work on a feature branch; review and release before a separately approved activation.
 
 - [Add or configure a Big Bang application](applications.md): package selection, values, prerequisites and validation.
+- [Operate and recover OpenBao](openbao.md): provision from Ansible, unseal/login, backups, and seal-loss recovery.
 - [Native ESO and scoped stores](../../big-bang-bootstrap/configuration/external-secrets/README.md): inactive baseline, explicit cluster-wide Secret-read trust, and tighter isolation option.
 - [Add a cluster or environment](targets.md): physical inputs, optional tenant enrollment and bootstrap boundaries.
 - [Add an impact-level profile](profiles.md): reuse, precedence and security validation.
