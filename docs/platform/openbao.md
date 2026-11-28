@@ -70,9 +70,11 @@ role's bound-claims group and its policy's KV paths scoped to that tenant.
 - **Backup:** the live server runs `storage "pebbledb"` with HA off, so raft-snapshot save is
   not available on the hot path. Back up by taking a **cold, age-encrypted copy of the sealed
   storage volume** (scale the StatefulSet to 0, tar + age-encrypt `/openbao/data/pebbledb`,
-  restart) on a schedule. The storage is encrypted-at-rest, so the archive + the 2-of-3 keys
-  is a complete restorable backup. A reference script runs weekly
-  (`.secrets/openbao/backup/openbao-storage-backup.sh`).
+  restart) on a schedule, then **upload the archive to a durable off-site store and verify by
+  independent round-trip** (upload → download → hash match → receipt). The storage is
+  encrypted-at-rest, so the archive + the 2-of-3 keys is a complete restorable backup. The home
+  lab uploads weekly to a private Proton Drive folder via a systemd timer; the same pattern
+  applies to any off-site target.
 
 ## Recover (sealed / lost keys)
 
