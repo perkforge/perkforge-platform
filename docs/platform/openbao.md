@@ -74,7 +74,9 @@ role's bound-claims group and its policy's KV paths scoped to that tenant.
   independent round-trip** (upload → download → hash match → receipt). The storage is
   encrypted-at-rest, so the archive + the 2-of-3 keys is a complete restorable backup. The home
   lab uploads weekly to a private Proton Drive folder via a systemd timer; the same pattern
-  applies to any off-site target.
+  applies to any off-site target. **Also replicate the control-plane's etcd snapshots off-node**
+  (RKE2 `etcd-snapshot` are node-local by default) — e.g. upload the newest snapshot weekly the
+  same way, so cluster state survives the control node.
 
 ## Recover (sealed / lost keys)
 
