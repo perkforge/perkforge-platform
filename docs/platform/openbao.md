@@ -101,7 +101,9 @@ an isolated `storage "raft"` instance, so it is not the primary recovery route.
 
 ## Security principles
 
-- Unseal keys / root token / TLS CA live in the org secret store (Bitwarden), not a host.
+- Unseal keys / root token / TLS CA / the OpenBao **backup age key** live in the org secret
+  store (Bitwarden), not on a single host; the backup job keeps only a working copy of the
+  public recipient (and age binary) in `~/.config/perkforge-recovery/openbao-backup/`.
 - Never put certs or decrypted material under `/tmp`.
 - Configuration is Ansible-owned and idempotent — an adopter reproduces it from the playbooks,
   not from an existing instance.
