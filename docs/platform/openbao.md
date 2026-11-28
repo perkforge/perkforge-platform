@@ -67,8 +67,12 @@ role's bound-claims group and its policy's KV paths scoped to that tenant.
 - **Unseal:** Shamir, 2-of-N. **Record the unseal shares, root token and TLS CA in the
   organization secret store (Bitwarden) at init/rekey time.** Never leave the only copy on
   a single host.
-- **Backup:** scheduled, encrypted raft snapshots stored durably (see below); keys reside in
-  the org secret store, not only on a host.
+- **Backup:** the live server runs `storage "pebbledb"` with HA off, so raft-snapshot save is
+  not available on the hot path. Back up by taking a **cold, age-encrypted copy of the sealed
+  storage volume** (scale the StatefulSet to 0, tar + age-encrypt `/openbao/data/pebbledb`,
+  restart) on a schedule. The storage is encrypted-at-rest, so the archive + the 2-of-3 keys
+  is a complete restorable backup. A reference script runs weekly
+  (`.secrets/openbao/backup/openbao-storage-backup.sh`).
 
 ## Recover (sealed / lost keys)
 
