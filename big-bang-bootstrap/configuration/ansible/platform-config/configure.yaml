@@ -23,6 +23,13 @@
           - desired_client.clientId == 'openbao'
           - not desired_client.serviceAccountsEnabled
           - not desired_client.fullScopeAllowed
+    - name: Refuse a resurrected .secrets path
+      ansible.builtin.assert:
+        that:
+          - "'.secrets' not in recovery_workdir"
+          - "'.secrets' not in keycloak_admin_password_file"
+          - "'.secrets' not in openbao_operator_token_file"
+          - "'.secrets' not in public_ca_file"
     - name: Explain check mode boundary
       ansible.builtin.debug:
         msg: Check mode validates static inputs only; no authentication or API request runs.
